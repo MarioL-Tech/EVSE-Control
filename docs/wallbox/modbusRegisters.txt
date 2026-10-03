@@ -1,0 +1,146 @@
+docker exec -it deb-mbpoll bash
+ 
+Voltage:
+mbpoll /dev/ttyUSBEVSEcontrol -m rtu -a 9 -c 3 -B -0 -1 -b 57600 -P even -s 1 -r 16406 -t3:int
+Chargelimit modbus read:
+mbpoll /dev/ttyUSBEVSEcontrol -m rtu -a 9 -c 1 -B -0 -1 -b 57600 -P even -s 1 -r 16418 -t3:int
+Chargelimit  read:
+mbpoll /dev/ttyUSBEVSEcontrol -m rtu -a 9 -c 1 -B -0 -1 -b 57600 -P even -s 1 -r 16398 -t3:int
+Chargelimit  write:
+mbpoll /dev/ttyUSBEVSEcontrol -m rtu -a 9 -B -0 -1 -b 57600 -P even -s 1 -r 16640 -t4:int 10000
+
+Unlock Cable (int16):
+size is one byte, therefore write with int16 or t4, that defaults to int16
+mbpoll /dev/ttyUSBEVSEcontrol -m rtu -a 9 -B -0 -b 57600 -P even -s 1 -r 16643 -t4 0
+
+Start/Stop Charging (int16): value 1 -> stop, 0 -> start; (rtfm)
+size is one byte, therefore write with int16 or t4, that defaults to int16
+mbpoll /dev/ttyUSBEVSEcontrol -m rtu -a 9 -B -0 -b 57600 -P even -s 1 -r 16645 -t4 0
+
+ABB_Terra_AC_Charger_ModbusCommunication_v1.11.pdf
+
+Modbus RTU (RS485) configuration
+Address 1 ... 247
+Baud rate 4800, 9600, 19200, 38400, 57600, 115200
+Data bits 8
+Parity None, Odd, Even
+Stop bit 1 or 2
+
+Register Register Type  Name/Purpose  Register Resolu-  Unit  Data type 
+Address  Size  tion 
+word                                                            word                                                            
+Register	Register	Name/Purpose	Register	Resolution	    size res    Unit	type
+    Address					
+4000h 16384 Read Only   Serial Number                            4  -        -       Unsigned 
+4004h 16388 Read Only   Firmware version                         2  -        -       Unsigned 
+4006h 16390 Read Only   User Settable Max Current                2  0.001    A       Unsigned 
+4008h 16392 Read Only   Error Code                               2  -        -       Unsigned 
+400Ah 16394 Read Only   Socket Lock State                        2  -        -       Unsigned 
+400Ch 16396 Read Only   Charging State                           2  -        -       Unsigned 
+400Eh 16398 Read Only   Charging Current Limit                   2  0.001    A       Unsigned 
+4010h 16400 Read Only   Charging Current L1                      2  0.001    A       Unsigned 
+4012h 16402 Read Only   Charging Current L2                      2  0.001    A       Unsigned 
+4014h 16404 Read Only   Charging Current L3                      2  0.001    A       Unsigned 
+4016h 16406 Read Only   Voltage L1                               2  0.1      V       Unsigned 
+4018h 16408 Read Only   Voltage L2                               2  0.1      V       Unsigned 
+401Ah 16410 Read Only   Voltage L3                               2  0.1      V       Unsigned 
+401Ch 16412 Read Only   Active Power                             2  1        W       Unsigned 
+401Eh 16414 Read Only   Energy Delivered                         2  1        Wh      Unsigned 
+4020h 16416 Read Only   Communication timeout                    1  1        second  Unsigned 
+4022h 16418 Read Only   Charging current limit set by Modbus     2  0.001    A       Unsigned 
+4024h 16420 Read Only   Fallback limit                           1  1        A       Unsigned 
+4100h 16640 Write Only  Set Charging Current Limit               2  0.001    A       Unsigned 
+4103h 16643 Write Only  Lock/Unlock Socket Cable                 1  -        -       Unsigned 
+4105h 16645 Write Only  Start/Stop Charging Session              1  -        -       Unsigned 
+4106h 16646 Write Only  Communication timeout                    1  1        second  Unsigned 
+4109h 16649 Write Only  Set fallback limit                       1  1        A       Unsigned 
+
+
+Register 400A Socket Lock State
+
+Value  Description  Socket  Non-socket 
+0x0000  
+No cable is plugged.  
+Socket Applicable  
+Non Socket Not applicable 
+
+0x0001 
+Cable is connected to the charging station unlocked. 
+Socket Applicable 
+Non Socket Applicable 
+
+0x0011 
+Cable is connected to the charging station locked. 
+Socket Applicable 
+Non Socket Not applicable 
+
+0x0101 Cable is connected to the charging station 
+and the electric vehicle, unlocked in charging station. 
+Socket Applicable 
+Non Socket Applicable 
+
+0x0111 Cable is connected to the charging station 
+and the electric vehicle, locked in charging station. 
+Socket Applicable 
+Non Socket Not applicable 
+
+273: cable plugged in both sides, locked both sides
+0x0111 (during charging) 
+
+257: cable plugged in both sides, not started -> not locked at EVSE (charging station)
+0x0101
+
+Register 400Ch Charging State
+Byte 3     2     1                                            0
+     Spare Spare bit  value: description                      Spare
+                 7    0b0: charging at rated current
+                      0b1: current below value from 4100h
+                         State
+                 6-0  0x0: A  - Idle
+                      0x1: B1 - EV Plug in, pending authorization 
+                      0x2: B2 - EV Plug In, EVSE ready for charging
+                      0x3: C1 - EV ready to charge, S2 closed (no PWM)
+                      0x4: C2 - Charging Contact closed, Energy delivering
+                      0x5: Others
+• The ‘State x’ above are represented from IEC 61851-1, however no intention to reflect 
+all state in this register. 
+
+33792: 
+0x8400
+0b10000100 - charging (4?)
+  76543210
+  01234567
+
+33024:
+0x8100
+0b10000001 - waiting (1?)
+  76543210
+  01234567
+
+34048:
+0x8500
+0b10000101 - plugged in both sides, not charging (5?)
+
+0000001100000000
+33280: shortly after starting a charging session
+0x8200
+
+1000001000000000
+76543210
+register (400Eh) returns all limits of charging current
+         (4020h) returns limit of charging current set by Modbus
+
+register (4100h) provides an option to set charging current limit 
+Pause state when the current limit is less than 6A. 
+After that when current limit is set above 6A, then charging session will be resumed. 
+The choice of 6A is derived from IEC 61851-1
+
+register (4103h) Cable connector
+0: Unlock connector, !regardless of charging state (400Ch)!
+1: Lock connector
+
+register (4105h) Start / Stop Charging 
+0: stop charging
+1: start charging
+for pausing see register (4100h) 
+
