@@ -24,6 +24,8 @@ docker compose logs --tail 20 -f wallbox-reader
 Standard: `/dev/ttyUSBEVSEcontrol`, 57600 Baud, 8E1, ID 9.
 Anderer Gerätepfad: vorher `export WALLBOX_DEVICE=/dev/ttyUSB0` setzen.
 `Ctrl+C` beendet nur die Logansicht; `docker compose down` stoppt den Dienst.
+Alle bisherigen Einrichtungsschritte, einschließlich MQTT-Vorbereitung:
+[Installationsguide](../../docs/installation.md).
 
 <details>
 <summary>Konfiguration, Tests und Betriebshinweise</summary>

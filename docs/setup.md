@@ -2,6 +2,10 @@
 
 How to set up the EVSE-Control project from scratch: Raspberry Pi, ESP32, wiring, and the first connection test.
 
+For the repeatable Docker-only project installation and existing MQTT broker
+setup, follow the German [installation guide](installation.md). This file
+provides the hardware/OS reference, not a request to reconfigure a reachable Pi.
+
 **Docker-only rule:** all project services, builds, tests and dependencies on
 the Pi must run inside Docker. Do not install Python packages, libmodbus,
 compilers, mbpoll or Mosquitto on the Pi host. Docker Engine and the Compose
@@ -271,10 +275,14 @@ and the official datasheet `docs/wallbox/ABB_Terra_AC_Charger_ModbusCommunicatio
 
 ## 7. MQTT (next step)
 
-MQTT integration is not implemented yet. The broker and diagnostic MQTT
-clients must run in containers, not be installed on the host. All project
-services will use the same broker; its Compose/network/authentication setup
-will be added in the MQTT development step.
+The existing Mosquitto container is reused. Creating the shared `evse-mqtt`
+network, connecting the broker and checking it with a Docker MQTT client are
+documented in the [installation guide](installation.md). A publish test without
+credentials on `evse/test` was confirmed by Mario; authentication/security still
+need to be reviewed. Do not create a second broker or install clients on the host.
+
+Reader publishing and its shared-network Compose configuration are **not yet
+implemented**. All project services will use the same broker in that next step.
 
 The ESP32 stays connected to the Pi over UART, without direct WiFi/MQTT.
 The planned Pi gateway translates between UART messages and MQTT.

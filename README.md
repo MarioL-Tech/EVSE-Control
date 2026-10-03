@@ -120,6 +120,7 @@ CHANGELOG.md             Änderungsverlauf
 
 ## Dokumentation und nächste Schritte
 
+- [Installation und Wiederinbetriebnahme auf dem Pi](docs/installation.md)
 - [Setup und Hardware](docs/setup.md)
 - [Pinbelegung](docs/pin-connection.md)
 - [ESP32-Pi-UART-Protokoll](docs/uart-protocol.md)
