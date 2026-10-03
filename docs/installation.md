@@ -1,13 +1,25 @@
-# Installation und Wiederinbetriebnahme auf dem Raspberry Pi
+# Installation, Hardware und Wiederinbetriebnahme
 
 Diese Anleitung dokumentiert den **aktuellen, nachvollziehbaren Ablauf** für
 EVSE-Control. Neue Einrichtungsschritte werden hier ergänzt, sobald sie umgesetzt
-werden. Sie setzt einen vorbereiteten Pi voraus; sie ist keine Anleitung zum
-Neuinstallieren des Betriebssystems oder der bestehenden Broker-Infrastruktur.
+werden. Die Betriebsschritte setzen einen vorbereiteten Pi voraus. Hardware-
+und Erstvorbereitungsreferenz stehen in Abschnitt 8; eine vollständige OS-,
+Docker- oder Broker-Neuinstallation ist damit noch nicht beschrieben.
 
 **Stand:** 2026-10-03. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
 zyklischer Betrieb wurden von Mario bestätigt. Der vorhandene MQTT-Broker ist
 erreichbar; **der Reader veröffentlicht noch keine MQTT-Nachrichten**.
+
+## Inhalt
+
+1. [Voraussetzungen und Regeln](#1-voraussetzungen-und-regeln)
+2. [Repository bereitstellen](#2-repository-bereitstellen-und-stand-notieren)
+3. [Wallbox bauen und testen](#3-wallbox-reader-bauen-und-einmal-testen)
+4. [Reader betreiben](#4-reader-starten-beobachten-und-stoppen)
+5. [MQTT-Broker wiederverwenden](#5-vorhandenen-mqtt-broker-wiederverwenden)
+6. [ESP32-UART testen](#6-optionale-esp32-uart-testbrücke)
+7. [Wiederinstallation vorbereiten](#7-was-für-eine-spätere-wiederholung-gesichert-werden-muss)
+8. [Hardware und Erstvorbereitung](#8-hardware-und-erstvorbereitung)
 
 ## 1. Voraussetzungen und Regeln
 
@@ -26,13 +38,14 @@ Dockerfiles installieren Pakete nur innerhalb der Images.
 **Ein Prozess pro Hardwareport:** Reader und mbpoll dürfen nicht gleichzeitig
 Modbus-Anfragen über denselben Adapter senden. UART hat einen eigenen Port.
 Keine Netzspannungsarbeiten, Netzwerk-/WireGuard-Änderungen oder Reboots für
-diese Schritte durchführen. Hardwaredetails: [Setup](setup.md) und
-[Pinbelegung](pin-connection.md).
+diese Betriebsschritte durchführen. Hardwaredetails:
+[Abschnitt 8](#8-hardware-und-erstvorbereitung) und [Pinbelegung](pin-connection.md).
 
 ### Befehle korrekt eingeben
 
-Alle folgenden Befehle laufen **in der SSH-Shell auf dem Pi**, nicht in einem
-Windows-Terminal ohne SSH. Befehle einzeln einfügen; sichtbarer Zeilenumbruch
+Die Betriebsbefehle laufen **in der SSH-Shell auf dem Pi**, nicht in einem
+Windows-Terminal ohne SSH. Abschnitt 8 kennzeichnet separate Schritte auf dem
+Entwicklungsrechner ausdrücklich. Befehle einzeln einfügen; sichtbarer Zeilenumbruch
 im Terminal darf nicht als zusätzliches Enter übernommen werden. Es gab beim
 Test ein von Mario Windows zugeordnetes Aufrufproblem.
 
@@ -253,6 +266,49 @@ Host-Pfad vorab mit `UART_DEVICE` setzen. Firmware, Verdrahtung und UART-
 Hardwarefreigabe müssen vorhanden sein. `on`/`off` ändern nur den ESP32-Spiegel,
 nicht die reale Wallbox. Details: [UART-Protokoll](uart-protocol.md).
 
+### Erwartete Meldungen und Funktionstest
+
+Wenn der ESP32 bootet und die Brücke bereits lauscht:
+
+```text
+EVSE UART bridge: listening on /dev/serial0 @ 115200 baud
+RX <- ESP32: EVSE:STATUS:CHARGING:OFF:SRC:boot
+RX <- ESP32: EVSE:STATUS:ANTITHEFT:INACTIVE:SRC:boot
+```
+
+Ein schon laufender ESP32 sendet beim Start der Pi-Brücke nicht automatisch
+erneut seine Bootmeldungen. Mit `status` beide Zustände abfragen.
+
+Im USB-Serial-Monitor des ESP32 (115200 Baud) erscheinen zusätzlich etwa:
+
+```text
+MFRC522 firmware version: 0x82
+EVSE RFID controller started
+```
+
+`0x91`/`0x92` sind übliche MFRC522-Kennungen; `0x82` wurde an der vorhandenen
+Hardware beobachtet und zeigt SPI-Erreichbarkeit, nicht allein vollständige
+RFID-Funktion. `0x00`/`0xFF` deuten auf Verdrahtungs-/Versorgungsprobleme hin.
+
+Mit einer lesbaren 13,56-MHz-Karte wird zuerst verriegelt, beim nächsten Tap
+entriegelt. Der Servo startet bei 0°, erster Tap bewegt ihn auf 90°:
+
+```text
+RX <- ESP32: EVSE:RFID:CARD:UID:AB:CD:EF:12
+RX <- ESP32: EVSE:STATUS:ANTITHEFT:ACTIVE:SRC:rfid
+RX <- ESP32: EVSE:STATUS:ANTITHEFT:INACTIVE:SRC:rfid
+```
+
+Jeder Tap meldet außerdem seinen UID-Event. Der Servo ist unabhängig vom
+Ladevorgang. Derzeit akzeptiert die Firmware jede lesbare Karte, keine Whitelist.
+
+| Symptom | Prüfen |
+|---|---|
+| `raspberrypi login:`/`Password:` statt Protokoll | Serielle Login-Konsole noch aktiv; Hardwarefreigabe gemäß Abschnitt 8 prüfen |
+| Keine Bootmeldungen | `status` versuchen, TX/RX/Masse, Gerätepfad und Firmware prüfen; USB-Monitor zum Vergleich |
+| SPI-Kennung vorhanden, keine Kartenreaktion | 13,56 MHz statt 125 kHz, Position/Abstand zur Antenne und Reader-Verdrahtung prüfen |
+| Auch USB-Monitor ohne Ausgabe | Monitorbaudrate, ESP32-Versorgung und Flash prüfen |
+
 ## 7. Was für eine spätere Wiederholung gesichert werden muss
 
 - Verwendeter Git-Commit/Branch und Imageversionen bzw. Digests.
@@ -263,8 +319,157 @@ nicht die reale Wallbox. Details: [UART-Protokoll](uart-protocol.md).
 - Secrets separat sichern; keine Passwörter, Schlüssel oder VPN-Konfiguration
   in Git einchecken. Grafana/MariaDB und andere bestehende Dienste nicht ersetzen.
 
-Der vorliegende Guide deckt Projektbetrieb auf dem vorbereiteten Pi und die
-MQTT-Vorbereitung ab. Eine komplette Neuinstallation benötigt zusätzlich die
-bisher nicht dokumentierte Einrichtung von OS, Docker, SSH/WireGuard, Hardware-
-Gerätezuordnung und vorhandenem Broker. Diese Voraussetzungen nicht als erledigt
-behaupten. **Bei jedem neuen Einrichtungsschritt diesen Guide aktualisieren.**
+Der Guide deckt Projektbetrieb, MQTT-Vorbereitung und Hardware-/Setup-Referenz
+ab. Eine komplette Neuinstallation benötigt zusätzlich OS-/Docker-Installation,
+SSH/WireGuard, die konkrete udev-Gerätezuordnung und ursprüngliche Broker-
+Einrichtung. Diese Voraussetzungen nicht als erledigt behaupten.
+**Bei jedem neuen Einrichtungsschritt diesen Guide aktualisieren.**
+
+## 8. Hardware und Erstvorbereitung
+
+Dieser Abschnitt übernimmt die Hardware-/Setup-Inhalte der früheren separaten
+Anleitung. **Referenz für einen neu vorbereiteten Aufbau, nicht ungeprüft auf
+dem funktionierenden Remote-Pi ausführen.** Änderungen an Zugang, UART-Freigabe
+oder Reboots vorher abstimmen; Netzspannungsarbeiten nur durch Fachkräfte.
+
+### Benötigte Hardware
+
+- Raspberry Pi 3/4 mit Raspberry Pi OS (z. B. Bookworm) und microSD.
+- ESP32 DevKit (z. B. WROOM-32), MFRC522 und passende 13,56-MHz-Karten.
+- Modellservo (z. B. SG90), geeignete 5-V-Versorgung und gemeinsame Masse.
+- Drei Leitungen für Pi-ESP32-UART (TX, RX, GND).
+- USB-RS485-Adapter mit RS485-Transceiver und ABB Terra AC.
+
+### Raspberry-Pi-Erstvorbereitung
+
+Docker-only betrifft Projektsoftware. OS-Gerätefreigaben sind davon getrennt.
+WiFi/SSH/WireGuard müssen vorhanden sein; hier keine Projektpakete nachinstallieren.
+Die früher verwendeten WiFi-/SSH-Schritte sind nur Referenz für einen neuen Pi:
+
+```bash
+nmcli device wifi list
+nmcli device wifi connect "SSID" password "PASSWORD"
+sudo systemctl enable --now ssh
+```
+
+`SSID`/`PASSWORD` sind Platzhalter; reale Zugangsdaten nicht in Git oder Chat
+speichern. Aktuelle Remote-Netzwerkverbindung nicht mit diesen Befehlen ersetzen.
+WireGuard-Einrichtung ist noch keine vollständig dokumentierte Neuinstallation.
+
+UART-Freigabe bei einem neuen Aufbau:
+
+```bash
+sudo raspi-config
+```
+
+Unter **Interface Options → Serial Port**:
+
+- Serielle Login-Shell: **No**.
+- UART-Hardware aktivieren: **Yes**.
+
+Falls dafür erforderlich, einen abgestimmten Neustart durchführen. Anschließend:
+
+```bash
+ls -l /dev/serial*
+```
+
+Optionales Tastaturlayout: **Localisation Options → Keyboard → German**.
+Keinen Neustart des Remote-Pi ohne gesicherten Wiederzugriff veranlassen.
+
+### UART-Verdrahtung: Pi und ESP32
+
+Beide Seiten verwenden 3,3-V-Logik. TX/RX kreuzen, gemeinsame Masse verbinden:
+
+| Raspberry Pi | ESP32 | Signal |
+|---|---|---|
+| GPIO14/TXD, Pin 8 | GPIO16/Serial2 RX | Pi → ESP32 |
+| GPIO15/RXD, Pin 10 | GPIO17/Serial2 TX | ESP32 → Pi |
+| GND, Pin 6 | GND | gemeinsame Masse |
+
+**Keine 5 V an ESP32-GPIOs.** Ausführliche [Pinbelegung](pin-connection.md).
+
+### MFRC522 über SPI
+
+| MFRC522 | ESP32 |
+|---|---|
+| SDA/SS | GPIO5 |
+| SCK | GPIO18 |
+| MOSI | GPIO23 |
+| MISO | GPIO19 |
+| RST | GPIO22 |
+| 3.3V | 3.3V |
+| GND | GND |
+
+IRQ bleibt unverbunden; Firmware fragt den Reader zyklisch ab. Mit 3,3 V
+versorgen, nicht 5 V. Karten müssen 13,56 MHz verwenden, keine 125-kHz-Tags.
+
+### Anti-Theft-Servo
+
+| Servo | Verbindung |
+|---|---|
+| Signal | ESP32 GPIO13 |
+| VCC | geeignete 5-V-Versorgung |
+| GND | gemeinsame Masse mit ESP32/Pi |
+
+Nicht aus der ESP32-3,3-V-Schiene versorgen. 0° bedeutet entriegelt/inaktiv,
+90° verriegelt/aktiv; RFID toggelt unabhängig vom Laden. Bootzustand: 0°.
+
+### ESP32 flashen
+
+Auf dem Entwicklungsrechner mit vorhandenem PlatformIO/VS Code das Verzeichnis
+`esp32/` öffnen; Flashen setzt Zugang zum USB-Anschluss des ESP32 voraus:
+
+```bash
+pio run -t upload
+```
+
+Dies ist keine Anleitung zur PlatformIO-Installation auf dem Pi-Host und kein
+bereits eingerichteter Remote-Flashweg. Firmware initialisiert RFID/Servo und
+UART mit 115200 Baud. Funktionstest siehe [Abschnitt 6](#6-optionale-esp32-uart-testbrücke).
+
+### RS485 zur Wallbox
+
+Pi USB → USB-RS485-Adapter → ABB Terra AC. Keine ESP32-GPIOs beteiligt.
+Ein reiner USB-UART-Adapter ohne RS485-Transceiver reicht nicht aus.
+
+| USB-RS485-Adapter | Wallbox |
+|---|---|
+| A/D+ | RS485 A |
+| B/D− | RS485 B |
+| GND | gemäß Hersteller-Vorgaben, sofern entsprechender Anschluss vorhanden |
+
+Klemmen/Verdrahtung mit dem Terra-AC-Installationshandbuch abgleichen. In
+**Terra Config → Communication Settings**: Modbus RTU, Wallbox als Secondary,
+57600 Baud, Even-Parität, 8 Datenbits, 1 Stoppbit, Slave-ID 9.
+
+`/dev/ttyUSBEVSEcontrol` ist der bestehende udev-Symlink; Rohgerät häufig
+`/dev/ttyUSB0`. Konkrete udev-Regel ist noch nicht als Neuinstallation dokumentiert.
+Docker-Test und Betrieb stehen einmalig in [Abschnitt 3](#3-wallbox-reader-bauen-und-einmal-testen).
+
+### Optionale Einzelabfrage mit mbpoll im Diagnosecontainer
+
+Nur wenn der vorhandene `deb-mbpoll`-Container den Adapter durchgereicht bekommt.
+Reader und andere Master zuerst stoppen; vom Repository-Hauptverzeichnis:
+
+```bash
+docker compose -f rasppi/wallbox/compose.yaml stop wallbox-reader
+docker exec -it deb-mbpoll mbpoll /dev/ttyUSBEVSEcontrol -m rtu -a 9 -c 2 -0 -1 -b 57600 -P even -s 1 -r 16396 -t 4
+```
+
+Das liest zwei 16-Bit-Rohregister des Ladezustands per FC03. `-t 3` in älteren
+Beispielen bedeutet FC04; es ist nicht dieselbe Funktion. FC03 wurde an der
+vorhandenen Wallbox für den Reader-Block bestätigt. Kein mbpoll auf dem Host
+installieren, keinen parallelen Read starten. Mehr [Registerreferenzen](wallbox/).
+
+### Wallbox-Grenzen
+
+- Kommunikations-Timeout laut Handbuch standardmäßig 60 s; Reader-Intervall
+  2 s sicher darunter halten. Fehlgeschlagene Reads beweisen keinen Watchdog-Reset.
+- Stromlimits unter 6 A pausieren das Laden; tatsächliches Limit separat
+  auslesen. 6 A Limit bedeutet nicht automatisch tatsächliches Laden.
+- Wallbox-Socket-Lock existiert nur bei passenden Modellen; unabhängig vom
+  ESP32-Modellservo. Entriegelungsbedingungen im Herstellerhandbuch beachten.
+- Start-/Stop-Notizen sind widersprüchlich. Handbuch v1.7 nennt 0=Start, 1=Stop;
+  die Reader-Anwendung sendet **keine Schreibbefehle**. Keine unvalidierten
+  Steuerbefehle ausführen oder diese Fähigkeiten als implementiert darstellen.
+- ABB-Handbuch: [Modbus v1.7](wallbox/ABB_Terra_AC_Charger_ModbusCommunication_v1.7.pdf).

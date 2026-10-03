@@ -56,10 +56,11 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
   mit Python/pyserial ausschließlich im Container, Hardwaregerät durchgereicht.
 - `rasppi/wallbox/`: rein lesender C++17-libmodbus-Dienst, Decoder-/JSON-Tests,
   simulierte RTU-Tests, CMake sowie Dockerfile/Compose und Pi-Startanleitung.
-- `docs/setup.md`, `docs/pin-connection.md`, `docs/uart-protocol.md`:
-  Aufbau, Verdrahtung und vorhandenes UART-Protokoll.
-- `docs/installation.md`: wiederholbarer Docker-only-Ablauf auf dem vorbereiteten
-  Pi inklusive bestehendem Broker, Netzwerk, Tests und bekannten Einrichtungsgrenzen.
+- `docs/pin-connection.md`, `docs/uart-protocol.md`: Pinreferenz und UART-Protokoll.
+- `docs/installation.md`: zentrale Anleitung für Installation, Hardware und
+  Wiederinbetriebnahme; vereint die frühere Setup-Datei mit dem Docker-only-Ablauf
+  inklusive Broker, Netzwerk, Tests und bekannten Einrichtungsgrenzen.
+  Die separate `docs/setup.md` wurde entfernt; keine zweite Anleitung parallel pflegen.
   **Jeden neuen Installations-/Konfigurationsschritt dort ebenfalls dokumentieren**;
   Mario muss die Einrichtung später reproduzieren können.
 - `docs/wallbox/`: ABB-Terra-AC-Modbus-Dokumentation und Befehlsreferenz.

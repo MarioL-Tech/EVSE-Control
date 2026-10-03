@@ -17,7 +17,7 @@ Both sides use **3.3V logic**, so no level shifter is required.
 - **Common ground (GND ↔ GND) is mandatory** — without it the UART signal has no reference and communication fails.
 - **Never connect 5V to the ESP32 GPIOs** — the ESP32 is not 5V tolerant on most GPIOs.
 - Serial2 on the ESP32 runs at 115200 baud (see `esp32/src/main.cpp`).
-- The Raspberry Pi serial port must be enabled first: `sudo raspi-config` → Interface Options → Serial Port (login shell: No, hardware: Yes), then reboot. See `docs/setup.md`.
+- The Raspberry Pi serial port must be enabled first: `sudo raspi-config` → Interface Options → Serial Port (login shell: No, hardware: Yes). Coordinate any required reboot; see the [hardware preparation guide](installation.md#raspberry-pi-erstvorbereitung).
 
 ## MFRC522 RFID reader (manual override)
 
@@ -69,5 +69,5 @@ a USB-RS485 adapter — no GPIO wiring needed:
 Pi USB ──> USB-RS485 adapter ──A/B──> Wallbox RS-485 terminals
 ```
 
-See `docs/setup.md` §6 for Modbus configuration and `docs/wallbox/` for the
-register reference.
+See the [installation guide](installation.md#rs485-zur-wallbox) for Modbus
+configuration and `docs/wallbox/` for the register reference.
