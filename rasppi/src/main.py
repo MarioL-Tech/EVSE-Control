@@ -9,7 +9,8 @@ Commands (type in the terminal):
   status   -> CMD:STATUS
   anything else is passed through as-is.
 
-Requires: sudo apt install python3-serial
+Run in Docker: docker compose -f rasppi/compose.yaml run --rm --build uart-bridge
+Requires pyserial inside the image; do not install it on the Pi host.
 """
 
 import select

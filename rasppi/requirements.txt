@@ -1,5 +1,4 @@
 # Raspberry Pi dependencies
-# Install: sudo apt install python3-serial  (Bookworm blocks bare pip installs)
-# Or in a venv: pip install -r requirements.txt
+# Installed inside Dockerfile.uart only; no Python packages on the Pi host.
 
 pyserial>=3.5

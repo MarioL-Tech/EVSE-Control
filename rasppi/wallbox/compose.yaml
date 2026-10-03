@@ -4,19 +4,13 @@ services:
     restart: unless-stopped
     devices:
       - "${WALLBOX_DEVICE:-/dev/ttyUSBEVSEcontrol}:/dev/ttyWallbox"
-    command:
-      - --device
-      - /dev/ttyWallbox
-      - --baud
-      - "${WALLBOX_BAUD:-57600}"
-      - --parity
-      - "${WALLBOX_PARITY:-E}"
-      - --slave
-      - "${WALLBOX_SLAVE:-9}"
-      - --interval-ms
-      - "${WALLBOX_INTERVAL_MS:-2000}"
-      - --timeout-ms
-      - "${WALLBOX_TIMEOUT_MS:-1000}"
+    environment:
+      WALLBOX_PORT: /dev/ttyWallbox
+      WALLBOX_BAUD: "${WALLBOX_BAUD:-57600}"
+      WALLBOX_PARITY: "${WALLBOX_PARITY:-E}"
+      WALLBOX_SLAVE: "${WALLBOX_SLAVE:-9}"
+      WALLBOX_INTERVAL_MS: "${WALLBOX_INTERVAL_MS:-2000}"
+      WALLBOX_TIMEOUT_MS: "${WALLBOX_TIMEOUT_MS:-1000}"
     logging:
       driver: json-file
       options:

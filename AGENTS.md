@@ -26,6 +26,10 @@ Die konkrete Aufteilung der Dienste und Compose-Dateien ist noch festzulegen.
 - Übergeordnete Softwarekommunikation über MQTT mit **demselben Message Broker**
   für alle beteiligten Dienste; Hardwareanbindungen siehe Architekturabschnitt.
 - Dienste modular mit Docker Compose betreiben.
+- **Strikte Docker-only-Regel auf dem Pi:** Projektsoftware, Build, Tests und
+  Abhängigkeiten ausschließlich in Containern. Keine Host-Installation von
+  Compiler, CMake, Python-/pip-Paketen, libmodbus, mbpoll oder Mosquitto empfehlen
+  oder durchführen. Docker Engine und Compose sind bestehende Voraussetzungen.
 
 Home Assistant und Weboverlay sollen folgende Funktionen anbieten:
 
@@ -48,6 +52,8 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
 - `esp32/platformio.ini`: ESP32 DevKit, MFRC522 und ESP32Servo als Abhängigkeiten.
 - `rasppi/src/main.py`: derzeit interaktive UART-Brücke, kein zentraler Backenddienst.
 - `rasppi/requirements.txt`: derzeit nur `pyserial`.
+- `rasppi/Dockerfile.uart` und `rasppi/compose.yaml`: interaktive UART-Testbrücke
+  mit Python/pyserial ausschließlich im Container, Hardwaregerät durchgereicht.
 - `rasppi/wallbox/`: rein lesender C++17-libmodbus-Dienst, Decoder-/JSON-Tests,
   simulierte RTU-Tests, CMake sowie Dockerfile/Compose und Pi-Startanleitung.
 - `docs/setup.md`, `docs/pin-connection.md`, `docs/uart-protocol.md`:
@@ -96,8 +102,10 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
 - Das Programm soll auf den **Raspberry Pi übertragen und dort ausgeführt**
   werden. Der Pi greift lokal auf USB-RS485/Modbus und ESP32-UART zu; diese
   Hardwareverbindungen werden nicht über WireGuard ersetzt.
-- Entwicklung und hardwareunabhängige Tests können lokal erfolgen. Bauen auf
-  dem Pi bzw. im passenden ARM-Container vermeidet inkompatible Windows-Binaries.
+- Entwicklung kann lokal erfolgen; Build, Tests und Ausführung der Pi-Dienste
+  laufen im Docker-Container. Image-Build auf dem Pi erzeugt passende ARM-Binaries.
+  OS-/Hardwarekonfiguration ist davon getrennt und rechtfertigt keine Installation
+  von Projektpaketen auf dem Host. Keine Docker-/Netzwerkinstallation ohne Auftrag.
 - Verwaltung zunächst über SSH und Logs; später Zugriff auf die auf dem Pi
   bereitgestellte Bedienoberfläche über WireGuard. Der Wallbox-Dienst soll
   unabhängig von einer offenen SSH-Sitzung laufen; Docker Compose bleibt das
@@ -167,8 +175,14 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Teilantwort-Timeout, Shutdown während einer Abfrage und blockierter Ausgabe.
 - Dockerfile und Compose für den Pi sind vorbereitet, aber **noch nicht mit
   Docker gebaut/gestartet**. Kein Deployment oder Test an realem Pi/Wallbox.
+- Docker-only-Anleitungen ersetzen die früheren nativen Host-Build-Schritte.
+  Tests laufen automatisch im Multi-Stage-Image-Build. Ein Entrypoint übernimmt
+  dieselben Compose-Umgebungsparameter für `--once` und Dauerbetrieb; `WALLBOX_DEVICE`
+  ist der Host-Pfad, `/dev/ttyWallbox` der Container-Pfad.
 - Nur ein Prozess darf den RS485-Port verwenden; parallel laufendes `mbpoll`
-  oder andere Master vermeiden. Die Python-UART-Brücke bleibt unverändert.
+  oder andere Master vermeiden. Die Python-UART-Logik bleibt unverändert,
+  ihr unterstützter Startweg ist jetzt `docker compose -f rasppi/compose.yaml
+  run --rm --build uart-bridge` aus dem Repository-Hauptverzeichnis.
 - Noch keine MQTT-Anbindung, Ladefreigabe, Datenbank oder Bedienoberfläche.
 
 ## Geplant / noch nicht implementiert
