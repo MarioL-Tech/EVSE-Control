@@ -156,7 +156,8 @@ Die JSON-Ausgabe muss laufend abgenommen werden. Bei voller stdout-Pipe wartet
 der Dienst unterbrechbar höchstens eine Sekunde und beendet sich dann mit
 Exitcode 2, statt das Polling unbegrenzt anzuhalten. Eine geschlossene Pipe
 wird ebenfalls als Ausgabefehler behandelt. Auch stderr-Diagnosen müssen
-abgenommen werden. Der Dienst verwendet Linux/POSIX-APIs im Container.
+abgenommen werden. Bei aktivem MQTT ist stderr nichtblockierend; bei voller
+Pipe können Diagnosen entfallen. Der Dienst verwendet Linux/POSIX-APIs im Container.
 
 ## Dauerbetrieb mit Docker Compose
 

@@ -64,6 +64,8 @@ voraussetzen: State und Availability sind zwei separate Nachrichten.
 ## Ausfälle und Reconnect
 
 Broker-/DNS-Arbeit läuft im Hintergrund, Modbus und stdout laufen weiter.
+Bei aktivem Publisher ist stderr nichtblockierend: bei voller Docker-Logpipe
+können Diagnosezeilen entfallen, statt den gemeinsamen Sample-Mutex zu blockieren.
 Nur der neueste Snapshot wird gespeichert; maximal eine Zweiergruppe ist
 ausstehend. Bei Ausfall gibt es **keinen historischen Replay-Backlog**. Reconnect
 veröffentlicht den neuesten verfügbaren Snapshot; Zwischenwerte gehen verloren.

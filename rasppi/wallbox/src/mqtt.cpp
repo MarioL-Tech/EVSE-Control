@@ -1,13 +1,14 @@
 #include "mqtt.hpp"
 
 #include <mosquitto.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
-#include <iostream>
 #include <mutex>
 #include <optional>
 #include <set>
@@ -16,6 +17,26 @@
 
 namespace wallbox {
 namespace {
+// Docker supplies stderr as a pipe. Never let a stalled logging sink hold the
+// callback/sample mutex and thereby stall Modbus. Diagnostics are best effort.
+class Diagnostics {
+public:
+    Diagnostics() : flags_(fcntl(STDERR_FILENO, F_GETFL)),
+        writable_(flags_ >= 0 && fcntl(STDERR_FILENO, F_SETFL, flags_ | O_NONBLOCK) == 0) {}
+    ~Diagnostics() {
+        if (writable_) fcntl(STDERR_FILENO, F_SETFL, flags_);
+    }
+    void write(const std::string &message) const {
+        if (writable_) {
+            const auto ignored = ::write(STDERR_FILENO, message.data(), message.size());
+            (void)ignored; // Drop on EAGAIN; no retry/backpressure on diagnostics.
+        }
+    }
+private:
+    int flags_;
+    bool writable_;
+};
+
 std::string environment(const char *name, const std::string &fallback = "") {
     const char *value = std::getenv(name);
     return value && *value ? value : fallback;
@@ -65,6 +86,7 @@ MqttOptions mqtt_options_from_environment() {
 
 struct MqttPublisher::Impl {
     using Clock = std::chrono::steady_clock;
+    Diagnostics diagnostics;
     MqttOptions options;
     std::chrono::milliseconds fresh_for;
     mosquitto *client = nullptr;
@@ -122,8 +144,8 @@ struct MqttPublisher::Impl {
             std::lock_guard<std::mutex> lock(self.mutex);
             self.connected = result == 0;
             self.restart = result != 0;
-            if (result == 0) std::cerr << "MQTT connected\n";
-            else std::cerr << "MQTT connection rejected (code " << result << ")\n";
+            if (result == 0) self.diagnostics.write("MQTT connected\n");
+            else self.diagnostics.write("MQTT connection rejected (code " + std::to_string(result) + ")\n");
             self.wake.notify_all();
         });
         mosquitto_disconnect_callback_set(client, [](mosquitto *, void *user, int) {
@@ -148,7 +170,7 @@ struct MqttPublisher::Impl {
         const int result = mosquitto_publish(client, &mid, topic.c_str(),
                                              static_cast<int>(payload.size()), payload.data(), 1, true);
         if (result != MOSQ_ERR_SUCCESS) {
-            std::cerr << "MQTT publish failed: " << mosquitto_strerror(result) << '\n';
+            diagnostics.write(std::string("MQTT publish failed: ") + mosquitto_strerror(result) + '\n');
             restart = true;
             return false;
         }
@@ -193,7 +215,7 @@ struct MqttPublisher::Impl {
                         running = true;
                         attempt_started = Clock::now();
                     } else {
-                        std::cerr << "MQTT unavailable; retry in " << retry_seconds << " s\n";
+                        diagnostics.write("MQTT unavailable; retry in " + std::to_string(retry_seconds) + " s\n");
                         std::unique_lock<std::mutex> lock(mutex);
                         wake.wait_for(lock, std::chrono::seconds(retry_seconds), [this] { return stopping; });
                         retry_seconds = std::min(30U, retry_seconds * 2);
@@ -219,7 +241,7 @@ struct MqttPublisher::Impl {
                         pending.clear();
                         sent_generation = 0;
                         sent_available.reset();
-                        std::cerr << "MQTT reconnect in " << retry_seconds << " s\n";
+                        diagnostics.write("MQTT reconnect in " + std::to_string(retry_seconds) + " s\n");
                         wake.wait_for(lock, std::chrono::seconds(retry_seconds), [this] { return stopping; });
                         if (stopping) break;
                     }
@@ -240,7 +262,7 @@ struct MqttPublisher::Impl {
                 lock.unlock();
             }
         } catch (const std::exception &error) {
-            std::cerr << "MQTT worker stopped: " << error.what() << '\n';
+            diagnostics.write(std::string("MQTT worker stopped: ") + error.what() + '\n');
         }
         if (client) {
             stop_loop(running);

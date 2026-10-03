@@ -81,7 +81,7 @@ class Broker:
 
 
 class Reader:
-    def __init__(self, binary, port, credentials=None):
+    def __init__(self, binary, port, credentials=None, stderr=None):
         self.master, self.slave = pty.openpty()
         self.done = threading.Event()
         self.respond = threading.Event()
@@ -98,7 +98,7 @@ class Reader:
         self.process = subprocess.Popen(
             [binary, "--device", os.ttyname(self.slave), "--interval-ms", "200",
              "--timeout-ms", "100"], env=env, stdout=subprocess.PIPE,
-            stderr=self.log, text=True)
+            stderr=self.log if stderr is None else stderr, text=True)
         self.responder = threading.Thread(target=self.serve, daemon=True)
         self.output = threading.Thread(target=self.collect, daemon=True)
         self.responder.start()
@@ -324,6 +324,31 @@ def bounded_queue_test(binary):
         broker.close()
 
 
+def blocked_diagnostics_test(binary):
+    broker = NoAckBroker()
+    read_fd, write_fd = os.pipe()
+    reader = None
+    try:
+        os.set_blocking(write_fd, False)
+        try:
+            while True:
+                os.write(write_fd, b"x" * 4096)
+        except BlockingIOError:
+            pass
+        os.set_blocking(write_fd, True)
+        reader = Reader(binary, broker.port, stderr=write_fd)
+        time.sleep(1.5)
+        check(len(reader.samples) >= 4, "Full stderr blocked MQTT/Modbus mutex")
+        reader.stop()
+        reader = None
+    finally:
+        if reader is not None:
+            reader.stop(abrupt=True)
+        os.close(read_fd)
+        os.close(write_fd)
+        broker.close()
+
+
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="evse-mqtt-test-") as directory:
         # Mosquitto drops privileges when started by root inside the build container.
@@ -331,4 +356,5 @@ if __name__ == "__main__":
         test(sys.argv[1], Path(directory))
         authenticated_test(sys.argv[1], Path(directory))
         bounded_queue_test(sys.argv[1])
+        blocked_diagnostics_test(sys.argv[1])
     print("MQTT state, health, reconnect, auth, bounded queue, shutdown and Will tests passed")

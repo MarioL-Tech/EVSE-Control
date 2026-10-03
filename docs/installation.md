@@ -356,7 +356,11 @@ kontaktiert weder eure Wallbox noch den Produktionsbroker. Geprüft werden retai
 State, Readfehler/Availability, Brokerneustart, Polling ohne Broker, Shutdown und Will.
 Zusätzlich Authentifizierung per Datei, abgelehnte Test-Zugangsdaten und die
 begrenzte Warteschlange bei ausbleibenden Publish-ACKs.
+Eine volle stderr-Pipe darf ebenfalls weder Polling noch Shutdown blockieren;
+bei aktivem MQTT sind Diagnosen deshalb best-effort/nichtblockierend.
 Die GitHub-Docker-CI baut ebenfalls ausschließlich in Docker.
+Bestätigter Lauf [37153110560](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37153110560):
+alle drei Tests und Runtime-Smoke-Test erfolgreich; dies ersetzt keinen Pi-Empfangstest.
 
 Der Publish-/Empfangstest der **neuen Reader-Version am Pi** ist noch offen;
 die frühere `evse/test`-Nachricht war nur die Broker-Vorprüfung. Weboverlay,
@@ -430,7 +434,7 @@ Ladevorgang. Derzeit akzeptiert die Firmware jede lesbare Karte, keine Whitelist
 - Secrets separat sichern; keine Passwörter, Schlüssel oder VPN-Konfiguration
   in Git einchecken. Grafana/MariaDB und andere bestehende Dienste nicht ersetzen.
 
-Der Guide deckt Projektbetrieb, MQTT-Vorbereitung und Hardware-/Setup-Referenz
+Der Guide deckt Projektbetrieb, MQTT-Anbindung und Hardware-/Setup-Referenz
 ab. Eine komplette Neuinstallation benötigt zusätzlich OS-/Docker-Installation,
 SSH/WireGuard, die konkrete udev-Gerätezuordnung und ursprüngliche Broker-
 Einrichtung. Diese Voraussetzungen nicht als erledigt behaupten.
