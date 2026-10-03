@@ -2,6 +2,9 @@ services:
   wallbox-reader:
     build: .
     restart: unless-stopped
+    stop_grace_period: 20s
+    networks:
+      - mqtt
     devices:
       - "${WALLBOX_DEVICE:-/dev/ttyUSBEVSEcontrol}:/dev/ttyWallbox"
     environment:
@@ -11,8 +14,20 @@ services:
       WALLBOX_SLAVE: "${WALLBOX_SLAVE:-9}"
       WALLBOX_INTERVAL_MS: "${WALLBOX_INTERVAL_MS:-2000}"
       WALLBOX_TIMEOUT_MS: "${WALLBOX_TIMEOUT_MS:-1000}"
+      MQTT_ENABLED: "${MQTT_ENABLED:-true}"
+      MQTT_HOST: "${MQTT_HOST:-mqtt-broker}"
+      MQTT_PORT: "${MQTT_PORT:-1883}"
+      MQTT_TOPIC_PREFIX: "${MQTT_TOPIC_PREFIX:-evse/wallbox}"
+      MQTT_CLIENT_ID: "${MQTT_CLIENT_ID:-evse-wallbox-reader}"
+      MQTT_USERNAME: "${MQTT_USERNAME:-}"
+      MQTT_PASSWORD: "${MQTT_PASSWORD:-}"
+      MQTT_PASSWORD_FILE: "${MQTT_PASSWORD_FILE:-}"
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
+networks:
+  mqtt:
+    external: true
+    name: evse-mqtt

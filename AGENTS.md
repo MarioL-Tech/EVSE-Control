@@ -85,7 +85,9 @@ halten; laufende Hardwaretests erst nach bestätigten Ergebnissen dokumentieren.
 ```text
 ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
                          |
-                         +-- MQTT <-> Home Assistant / Weboverlay / Dienste (geplant)
+                         +-- Wallbox-MQTT -> vorhandener Broker
+                         |                   -> HA / Weboverlay / Dienste (geplant)
+                         +-- UART-MQTT-Gateway (geplant)
                          +-- DTSU666-Messwerterfassung (geplant)
 ```
 
@@ -210,13 +212,41 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   oder andere Master vermeiden. Die Python-UART-Logik bleibt unverändert,
   ihr unterstützter Startweg ist jetzt `docker compose -f rasppi/compose.yaml
   run --rm --build uart-bridge` aus dem Repository-Hauptverzeichnis.
-- Noch keine MQTT-Anbindung, Ladefreigabe, Datenbank oder Bedienoberfläche.
+- Keine Ladefreigabe, Datenbank oder Bedienoberfläche. Der neue MQTT-Publisher
+  ist implementiert, aber noch nicht als auf dem Pi getestetes Feature bestätigt.
+
+### MQTT-Publisher im Reader
+
+- `src/mqtt.cpp` verwendet libmosquitto; Netzwerk-/Reconnect-Arbeit läuft getrennt
+  von Modbus. Bei Brokerausfall bleiben Reads und JSON-Ausgabe aktiv.
+- Topics standardmäßig `evse/wallbox/state` (identische JSON-Samples) und
+  `evse/wallbox/availability` (`online`/`offline`), beide retained und QoS 1.
+  `online` bedeutet frischer erfolgreicher Read, nicht fehlerfreie Wallbox.
+  Readfehler, veraltete Samples, Shutdown und Last Will melden offline.
+- Es wird nur der letzte Sample vorgehalten; höchstens eine Zweiergruppe von
+  Nachrichten ist ausstehend. Fehlende ACKs führen zum Neuaufbau der Verbindung.
+- Compose aktiviert MQTT und bindet ausschließlich das externe `evse-mqtt`
+  ein, Alias/Host `mqtt-broker`; Netzwerk und vorhandener Broker müssen vorbereitet sein.
+- Konfiguration über `MQTT_ENABLED/HOST/PORT/TOPIC_PREFIX/CLIENT_ID/USERNAME`;
+  Passwort optional über `MQTT_PASSWORD` oder bevorzugt `MQTT_PASSWORD_FILE`
+  mit `compose.auth.yaml`. Keine Secrets committen; `.env` bleibt lokal.
+- Docker-Build enthält isolierte Broker-/PTY-Integrationstests; Tests kontaktieren
+  nie den Produktionsbroker. GitHub-Docker-CI mit allen drei Tests inklusive
+  Datei-Authentifizierung, abgelehnten Credentials, fehlenden PUBACKs und
+  Runtime-Smoke-Test erfolgreich (Run `37153110560`, Commit `1b6f868`).
+- Vertrag: `docs/mqtt-protocol.md`; Installationsguide enthält externes Netzwerk
+  als Startvoraussetzung, Update-/Subscriber-Test und optionale Passwortdatei.
+- Bei aktivem MQTT ist stderr best-effort/nichtblockierend; volle Logpipes
+  dürfen den Callback-/Sample-Mutex und damit Modbus nicht blockieren.
+  DNS kann Shutdown dennoch verzögern; siehe dokumentierte Fristgrenze im Vertrag.
+- UART-MQTT-Bridge, Steuerbefehle und Weboverlay bleiben geplant.
 
 ### Vorhandener MQTT-Broker und bestätigte Vorbereitung
 
 - Auf dem Pi läuft bereits `elastic_lumiere`, Image `eclipse-mosquitto:alpine`,
   Port 1883 an allen Host-Schnittstellen; ursprünglich Netzwerk `bridge`.
-  Reader aktuell in `wallbox_default`. Containername ist deploymentabhängig.
+  Reader war beim bisherigen Pi-Test in `wallbox_default`; die neue Compose-
+  Version nutzt `evse-mqtt`. Containername ist deploymentabhängig.
 - **Diesen Broker wiederverwenden, keinen zweiten starten.** Grafana und MariaDB
   laufen ebenfalls bereits; keine bestehende Infrastruktur ersetzen.
 - Mario hat `evse-mqtt` angelegt und den Broker mit Alias `mqtt-broker` verbunden.
@@ -226,20 +256,21 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - Netzwerkzuordnung übersteht Neustart desselben Containers, nicht automatisch
   dessen Neuerstellung. Ursprüngliche Broker-Compose-/Config-/Volume-Einrichtung
   ist noch nicht bekannt; keine vollständige Broker-Neuinstallation vortäuschen.
-- Reader-Publisher und Compose-Anbindung an das externe Netzwerk sind noch offen.
-  Der erfolgreiche Broker-Test bedeutet nicht, dass schon Wallboxdaten über MQTT laufen.
+- Reader-Publisher und Compose-Anbindung sind jetzt implementiert, Deployment-
+  und Empfangstest am Pi aber noch offen. Der frühere Broker-Test allein
+  bestätigt keine Veröffentlichung von Wallboxdaten durch die neue Version.
 
 ## Geplant / noch nicht implementiert
 
 - Dauerbetriebs-/Fehlerfallprüfung und weitere Hardwarevalidierung der ABB-Abfragen sowie
   anschließende Pi-Modbus-Steuerung der ABB Terra AC.
 - DTSU666-Messwerterfassung und Berechnung verfügbarer Ladeleistung.
-- UART-MQTT-Gateway, verbindliche MQTT-Topics und Payloads.
+- UART-MQTT-Gateway und dessen Topic-/Payload-Vertrag. Wallbox-Telemetrie ist definiert.
 - Home-Assistant-Integration, Weboverlay (inklusive modularer Wallbox-
   Einrichtungsfunktion) und Datenbankmodell zur Zustandsspeicherung.
 - Ladeautomatisierung nach verfügbarer Leistung und Dringlichkeit.
-- Vollständige modulare Dienst-/Containerstruktur und gemeinsamer MQTT-Broker;
-  Compose für den einzelnen Reader ist vorbereitet, Gesamtsystem noch offen.
+- Vollständige modulare Dienst-/Containerstruktur; Reader-Compose nutzt den
+  bereits vorhandenen gemeinsamen MQTT-Broker, Gesamtsystem noch offen.
 - RFID-Berechtigungsliste und weitere Hardware-/Fehlerfalltests.
 - Anforderungen mit dem Lehrer sowie Diplomarbeitsanmeldung abstimmen.
 

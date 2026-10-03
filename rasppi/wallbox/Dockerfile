@@ -1,6 +1,6 @@
 FROM debian:bookworm-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    g++ cmake make pkg-config libmodbus-dev python3 \
+    g++ cmake make pkg-config libmodbus-dev libmosquitto-dev mosquitto mosquitto-clients python3 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY CMakeLists.txt ./
@@ -11,7 +11,7 @@ RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
     && ctest --test-dir build --output-on-failure
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends libmodbus5 \
+RUN apt-get update && apt-get install -y --no-install-recommends libmodbus5 libmosquitto1 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/build/evse-wallbox /usr/local/bin/evse-wallbox
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

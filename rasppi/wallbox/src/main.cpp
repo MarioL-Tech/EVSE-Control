@@ -1,4 +1,5 @@
 #include "telemetry.hpp"
+#include "mqtt.hpp"
 
 #include <modbus.h>
 #include <fcntl.h>
@@ -6,6 +7,8 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <ctime>
@@ -18,8 +21,9 @@
 
 namespace {
 
-volatile std::sig_atomic_t stopped = 0;
-void stop(int) { stopped = 1; }
+static_assert(std::atomic_bool::is_always_lock_free, "Signal flag must be lock-free");
+std::atomic_bool stopped{false};
+void stop(int) { stopped.store(true, std::memory_order_relaxed); }
 
 struct Options {
     std::string device = "/dev/ttyUSBEVSEcontrol";
@@ -41,6 +45,8 @@ void help() {
                  "  --interval-ms N      Poll interval 100..30000 ms (default 2000)\n"
                  "  --timeout-ms N       Full-response timeout 10..10000 ms (default 1000)\n"
                  "  --once               One request; exit 1 on communication failure\n"
+                 "MQTT is optional via MQTT_ENABLED=true and MQTT_HOST/PORT/TOPIC_PREFIX/CLIENT_ID.\n"
+                 "Credentials: MQTT_USERNAME, MQTT_PASSWORD or MQTT_PASSWORD_FILE (never CLI).\n"
                  "  --help               Show this help\n";
 }
 
@@ -88,7 +94,8 @@ Options options(int argc, char **argv) {
 std::string timestamp() {
     const auto now = std::chrono::system_clock::now();
     const auto time = std::chrono::system_clock::to_time_t(now);
-    const auto utc = *std::gmtime(&time); // single-threaded service
+    std::tm utc{};
+    if (!gmtime_r(&time, &utc)) throw std::runtime_error("Cannot format UTC timestamp");
     std::ostringstream out;
     out << std::put_time(&utc, "%Y-%m-%dT%H:%M:%SZ");
     return out.str();
@@ -140,6 +147,9 @@ void wait_until(std::chrono::steady_clock::time_point deadline) {
 
 int run(const Options &o) {
     JsonOutput output;
+    const auto mqtt_config = wallbox::mqtt_options_from_environment();
+    wallbox::MqttPublisher mqtt(mqtt_config,
+        std::chrono::milliseconds(std::max(5000, o.interval_ms * 3 + o.timeout_ms)));
     std::unique_ptr<modbus_t, FreeContext> ctx(
         modbus_new_rtu(o.device.c_str(), o.baud, o.parity, 8, 1));
     if (!ctx) throw std::runtime_error(modbus_strerror(errno));
@@ -179,10 +189,16 @@ int run(const Options &o) {
         if (stopped) break;
         const auto sampled_at = timestamp();
         if (values) last_success = sampled_at;
-        if (!output.write_line(wallbox::sample_json(sampled_at, last_success, values, error)))
+        const auto json = wallbox::sample_json(sampled_at, last_success, values, error);
+        mqtt.update(json, values.has_value());
+        if (!output.write_line(json))
             break;
         result = values ? 0 : 1;
-        if (o.once) break;
+        if (o.once) {
+            if (!mqtt.flush(std::chrono::milliseconds(1500)))
+                std::cerr << "MQTT one-shot not acknowledged; exit code describes Modbus only\n";
+            break;
+        }
         wait_until(cycle + std::chrono::milliseconds(o.interval_ms));
     }
     return o.once ? result : 0;
