@@ -4,6 +4,10 @@ All notable changes to the EVSE-Control project. This file is **actively maintai
 
 Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
+## 2026-10-03
+
+- **16:05** — **Docs: AGENTS.md als gepflegter Projektkontext ergänzt** — Ziele, aktueller Implementierungsstand, Architektur, Hardware-/Modbus-Grenzen, offene Aufgaben und Branch-/PR-Arbeitsweise dokumentiert; regelmäßige Aktualisierung und Abgleich mit Code und Dokumentation vorgeschrieben.
+
 ## 2026-08-07
 
 - **16:30** — **Docs: setup.md + uart-protocol.md brought to current state** — setup.md §3 (RFID = anti-theft toggle, servo independent of charging, boot 0°), §4 (current firmware description instead of old counter sketch), §5 (UART bridge expected output, boot diagnostics incl. `0x82` = PN512, anti-theft toggle test, troubleshooting); uart-protocol.md: version-line meanings extended with `0x82`, wallbox section wording updated.
