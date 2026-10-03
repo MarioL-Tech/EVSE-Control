@@ -104,7 +104,7 @@ docker compose -f rasppi/compose.yaml run --rm --build uart-bridge
 Die interaktive Brücke verwendet `/dev/serial0` und nimmt `status`, `on`, `off`
 oder rohe UART-Nachrichten entgegen. Nur ein Prozess darf den UART-Port verwenden.
 `Ctrl+C` beendet die Brücke. Verdrahtung und erwartete Meldungen stehen im
-[Setup-Guide](docs/setup.md).
+[Installationsguide](docs/installation.md#6-optionale-esp32-uart-testbrücke).
 
 ## Repositorystruktur
 
@@ -120,8 +120,7 @@ CHANGELOG.md             Änderungsverlauf
 
 ## Dokumentation und nächste Schritte
 
-- [Installation und Wiederinbetriebnahme auf dem Pi](docs/installation.md)
-- [Setup und Hardware](docs/setup.md)
+- [Installation, Hardware und Wiederinbetriebnahme](docs/installation.md)
 - [Pinbelegung](docs/pin-connection.md)
 - [ESP32-Pi-UART-Protokoll](docs/uart-protocol.md)
 - [Wallbox-Dienst und Docker-Betrieb](rasppi/wallbox/README.md)
