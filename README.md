@@ -1,45 +1,181 @@
-⚡ SmartCharge: Intelligent EV Management
-SmartCharge is an open-source solution designed to optimize electric vehicle charging. By balancing energy costs, grid load, and user requirements, this project ensures your car is ready when you need it, at the lowest possible cost to both your wallet and the planet.
+# EVSE-Control
 
-✨ Key Features
-📈 Dynamic Pricing Integration: Automatically schedules charging during off-peak hours based on real-time electricity market data.
+Diplomarbeitsprojekt zur **Steuerung und Überwachung einer Elektrofahrzeug-
+Ladestation** mit Raspberry Pi, ESP32 und RFID-basierter Diebstahlsicherung.
 
-☀️ Solar Forecasting: Prioritizes charging when your home solar panels are producing excess energy.
+Der Raspberry Pi liest eine ABB Terra AC über Modbus RTU aus. Der ESP32
+übernimmt RFID und einen separaten Servo als Modell der Diebstahlsicherung.
+Geplant sind Ladeautomatisierung, Zustandsspeicherung und Bedienung über
+Home Assistant sowie ein Weboverlay.
 
-🔋 Battery Health Optimization: Prevents degradation by managing state-of-charge (SoC) limits and charging speeds.
+> **Entwicklungsstand:** Der Wallbox-Dienst ist ausschließlich lesend.
+> MQTT, reale Ladesteuerung, Datenbank und Bedienoberflächen sind noch nicht
+> implementiert. Die Docker-/Hardwarevalidierung ist noch nicht durch bestätigte
+> Testergebnisse dokumentiert.
 
-📱 Remote Monitoring: Track your charging progress and energy savings through a sleek dashboard.
+## Projektziele
 
-🔌 Universal Compatibility: Supports major EVSE (Electric Vehicle Supply Equipment) protocols.
+- Ladezustand durch zyklische Abfragen erkennen („Repeating Request“).
+- Laden starten/stoppen und nach verfügbarem Strom sowie Dringlichkeit regeln.
+- System- und Ladezustände in einer Datenbank speichern.
+- Home-Assistant-Integration und Weboverlay mit AN/AUS, verfügbarem Strom,
+  Ladestrom, Fahrzeuganschluss und tatsächlichem Ladestatus bereitstellen.
+- Weboverlay um eine modulare Einrichtung mit Wallbox-Befehlseingabe erweitern.
+- Übergeordnete Softwarekommunikation über MQTT mit **einem gemeinsamen Broker**.
+- Pi-Dienste modular und ausschließlich über Docker Compose betreiben.
 
----
+## Was bereits implementiert ist
 
-## Architecture
+| Komponente | Aktueller Umfang |
+|---|---|
+| ESP32-Firmware | MFRC522-RFID, Servo, UART-Befehle und Zustandsmeldungen |
+| Diebstahlsicherung | RFID-Tap toggelt 0°/90°, startet entriegelt; unabhängig vom Laden |
+| UART-Testbrücke | Interaktive Python-Brücke im Docker-Container |
+| Wallbox-Reader | C++17/libmodbus, zyklische FC03-Abfragen, dekodierte Messwerte als JSON |
+| Fehlerbehandlung | Timeouts, erneute Verbindung, ungültige Messwerte als `null`, sauberer Shutdown |
+| Softwaretests | Decoder-/JSON-Tests und simulierte RTU-Kommunikation einschließlich Fehlerfällen |
+| Containerbetrieb | Dockerfiles, Compose-Konfigurationen und Startanleitungen vorhanden |
+
+Die Softwaretests bestanden zuvor unter Linux/WSL mit libmodbus 3.1.6 und
+3.1.11. Beim Wallbox-Image-Build werden sie automatisch im Container ausgeführt.
+Das ersetzt keinen Test mit der tatsächlichen Wallbox-Firmware.
+
+**Wichtige Abgrenzungen:**
+
+- `CMD:CHARGE:ON/OFF` an den ESP32 ändert aktuell nur seinen gespiegelten
+  Ladezustand, nicht den realen Ladevorgang.
+- Jede lesbare RFID-Karte kann derzeit den Servo toggeln; eine UID-Whitelist fehlt.
+- Das ausgelesene Wallbox-Stromlimit ist nicht der im Gebäude verfügbare Strom.
+  Die DTSU666-Erfassung und Berechnung sind noch geplant.
+
+## Architektur
 
 ```text
-┌─────────────┐   UART (115200 8N1)   ┌──────────────┐   MQTT (1883)   ┌──────────────────┐
-│    ESP32    │◄────────────────────►│ Raspberry Pi │◄───────────────►│ Home Assistant /  │
-│ RFID (MFRC522) │                    │ Modbus master│                 │ web overlay       │
-│ anti-theft servo │                  └──────┬───────┘                 └──────────────────┘
-└─────────────┘                             │ RS-485 (Modbus RTU, 57600 8E1, ID 9)
-                                     ┌──────▼───────┐
-                                     │ ABB Terra AC │
-                                     │   wallbox    │
-                                     └──────────────┘
+ESP32 (RFID + Servo)
+        |
+        | UART: 115200 Baud, 8N1
+        v
+Raspberry Pi — lokale Hardwareanbindung, Dienste in Docker
+        |
+        +-- USB-RS485 / Modbus RTU --> ABB Terra AC
+        |   57600 Baud, 8E1, Slave-ID 9
+        |
+        +-- DTSU666-Messwerterfassung                    [geplant]
+        |
+        +-- MQTT-Gateway --> gemeinsamer Message Broker [geplant]
+                              |-- Home Assistant
+                              |-- Weboverlay
+                              +-- Datenbankdienst
+
+Remote-Zugriff: Rechner --> WireGuard --> Pi (SSH; später Weboverlay)
 ```
 
-- **ESP32:** RFID manual override (MFRC522), anti-theft servo, UART bridge to the Pi.
-- **Raspberry Pi:** Modbus RTU master to the wallbox (USB-RS485), MQTT broker + bridge, Home Assistant integration, web overlay.
-- Protocol contracts: `docs/uart-protocol.md` (ESP32 ↔ Pi), `docs/wallbox/` (Pi ↔ wallbox Modbus).
+Der Pi ist Modbus-Master; **Adresse 9 gehört zur Wallbox**. UART bleibt die
+direkte ESP32-Pi-Verbindung, ohne WiFi. Der geplante Pi-Gateway-Dienst übersetzt
+UART-/Modbus-Daten auf MQTT; MQTT ersetzt nicht die physischen Hardwareleitungen.
 
-## Current implementation
+## Schnellstart: Wallbox lesen
 
-- ESP32 RFID/servo controller and interactive Python UART bridge.
-- Read-only C++/libmodbus wallbox reader with JSON output, tests and Pi build/
-  Docker Compose instructions: [`rasppi/wallbox/README.md`](rasppi/wallbox/README.md).
-  Real wallbox validation and Pi deployment are still pending.
-- **Docker-only on the Pi:** build, tests and runtime dependencies stay inside
-  containers. Do not install project packages on the host. The interactive UART
-  bridge is available through `rasppi/compose.yaml`; see [`docs/setup.md`](docs/setup.md).
-- MQTT integration, charging control, database, Home Assistant, web overlay
-  and automated scheduling are planned, not implemented yet.
+### Voraussetzungen
+
+- Raspberry Pi mit bereits verfügbarer Docker Engine und Compose-Plugin.
+- Repository auf dem Pi; Remote-Zugriff bei Bedarf über WireGuard und SSH.
+- USB-RS485-Adapter mit verfügbarer Gerätedatei und passend konfigurierter Wallbox.
+- Netzwerkzugriff zum Laden der Images und Pakete **während des Container-Builds**.
+
+**Docker-only:** Build, Tests und Betrieb erfolgen in Containern. Keine Compiler,
+Python-/pip-Pakete, libmodbus, mbpoll oder Mosquitto auf dem Pi-Host installieren.
+Die Paketinstallation im Dockerfile betrifft nur das Image. Docker selbst und
+die vorhandene OS-/Hardwarekonfiguration sind Voraussetzungen.
+
+### Image bauen und einmal lesen
+
+Auf dem Pi, aus dem Repository-Hauptverzeichnis:
+
+```bash
+cd rasppi/wallbox
+
+# Nur falls der Host-Gerätepfad vom Standard abweicht:
+# export WALLBOX_DEVICE=/dev/ttyUSB0
+
+docker compose build
+docker compose stop wallbox-reader
+docker compose run --rm --no-deps wallbox-reader --once
+```
+
+**Vor der Abfrage andere Prozesse/Container am selben RS485-Port stoppen**,
+insbesondere `mbpoll`. Genau ein Prozess darf die Verbindung bedienen.
+
+Standard: Host-Gerät `/dev/ttyUSBEVSEcontrol`, im Container `/dev/ttyWallbox`,
+57600 Baud, Even-Parität, Slave-ID 9. Bei Abweichungen `WALLBOX_BAUD`,
+`WALLBOX_PARITY` und `WALLBOX_SLAVE` vor dem Start exportieren.
+
+Der Reader gibt JSON-Zeilen mit Ladezustand, Stromlimit, Phasenströmen,
+Spannungen, Leistung und Sessionenergie aus. `status: "ok"` bestätigt die
+Kommunikation, nicht die Fehlerfreiheit der Wallbox. Bei Kommunikationsfehlern
+sind `values` auf `null`; unbekannte Ladezustände liefern ebenfalls keine
+falschen Anschluss-/Ladeaussagen.
+
+### Dauerbetrieb
+
+Nach erfolgreichem Einmal-Test, weiterhin in `rasppi/wallbox/`:
+
+```bash
+docker compose up -d
+docker compose logs --tail 20 -f wallbox-reader
+```
+
+`Ctrl+C` beendet hier nur die Logansicht. Zum Stoppen des Dienstes:
+
+```bash
+docker compose down
+```
+
+Standardmäßig liest der Dienst alle zwei Sekunden mit einer Sekunde
+Antworttimeout. Weitere Konfiguration, Tests und Registerinterpretation:
+[Wallbox-Dienst-Anleitung](rasppi/wallbox/README.md).
+
+## ESP32-UART-Verbindung testen
+
+Die geflashte ESP32-Firmware, UART-Verdrahtung und verfügbare Gerätedatei werden
+vorausgesetzt. Aus dem Repository-Hauptverzeichnis auf dem Pi:
+
+```bash
+docker compose -f rasppi/compose.yaml run --rm --build uart-bridge
+```
+
+Die interaktive Brücke verwendet `/dev/serial0` und nimmt `status`, `on`, `off`
+oder rohe UART-Nachrichten entgegen. Nur ein Prozess darf den UART-Port verwenden.
+`Ctrl+C` beendet die Brücke. Verdrahtung und erwartete Meldungen stehen im
+[Setup-Guide](docs/setup.md).
+
+## Repositorystruktur
+
+```text
+esp32/                   PlatformIO-Firmware: RFID, Servo, UART
+rasppi/src/              Interaktive UART-Testbrücke
+rasppi/compose.yaml      Docker-Start der UART-Testbrücke
+rasppi/wallbox/           Lesender libmodbus-Dienst, Tests, Docker Compose
+docs/                    Setup, Pinbelegung, Protokolle und Hardwarehandbücher
+AGENTS.md                Gepflegter Projektkontext und Entwicklungsregeln
+CHANGELOG.md             Änderungsverlauf
+```
+
+## Dokumentation und nächste Schritte
+
+- [Setup und Hardware](docs/setup.md)
+- [Pinbelegung](docs/pin-connection.md)
+- [ESP32-Pi-UART-Protokoll](docs/uart-protocol.md)
+- [Wallbox-Dienst und Docker-Betrieb](rasppi/wallbox/README.md)
+- [Wallbox-Handbücher und Registerreferenzen](docs/wallbox/)
+- [DTSU666-Handbuch](docs/smartmeter/)
+- [Projektkontext für Agents](AGENTS.md) und [Changelog](CHANGELOG.md)
+
+Nächster Meilenstein ist die Bestätigung der Register und Zustände an der
+realen Wallbox. Danach folgen MQTT-Gateway/Broker, abgesicherte Ladesteuerung,
+Energiezähler, Zustandsspeicherung, Bedienoberflächen und Automationen.
+
+**Sicherheit:** Widersprüchliche Register-/Steuernotizen nicht ungeprüft
+übernehmen. Der Reader sendet keine Modbus-Schreibbefehle. Arbeiten an
+Netzspannung und der Zählerinstallation gehören in die Hände qualifizierter
+Fachkräfte; keine SSH-/WireGuard-/Netzwerkänderungen für die Tests erforderlich.

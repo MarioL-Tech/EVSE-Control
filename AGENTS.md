@@ -67,9 +67,11 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
 - `CHANGELOG.md`: Änderungen mit Zeitstempel (Europe/Vienna).
 
 Code beschreibt die aktuelle Implementierung; Hardwarehandbücher beschreiben
-Geräteanforderungen. Widersprüche offen benennen. Die Feature-Liste in
-`README.md` beschreibt teilweise Visionen (z. B. dynamische Preise,
-Solarprognose, Batterieoptimierung, Dashboard), keine fertigen Funktionen.
+Geräteanforderungen. Widersprüche offen benennen. `README.md` ist der deutsche
+Projekteinstieg mit getrennten Zielen/Implementierungsstand, Architektur und
+Docker-only-Schnellstart. Die frühere SmartCharge-Marketingbeschreibung mit
+unbelegten Feature-Versprechen wurde entfernt. README bei Änderungen konsistent
+halten; laufende Hardwaretests erst nach bestätigten Ergebnissen dokumentieren.
 
 ## Festgelegte Architektur
 
