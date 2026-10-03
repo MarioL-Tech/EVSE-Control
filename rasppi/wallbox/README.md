@@ -2,15 +2,18 @@
 
 C++17-Dienst mit libmodbus, der **im Docker-Container auf dem Raspberry Pi** läuft. Er liest
 Holding Registers über Modbus RTU (FC03), dekodiert sie und gibt pro Abfrage
-eine JSON-Zeile auf stdout aus. Diagnosen gehen auf stderr.
+eine JSON-Zeile auf stdout aus. Zusätzlich veröffentlicht libmosquitto denselben
+Snapshot und die Verfügbarkeit auf MQTT. Diagnosen gehen auf stderr.
 
-**Keine Schreibbefehle, keine Ladefreigabe, kein MQTT, keine Datenbank und
+**Keine Schreibbefehle, keine Ladefreigabe, keine Datenbank und
 keine Weboberfläche in diesem Entwicklungsschritt.** Das bestehende
 `rasppi/src/main.py` bleibt die separate ESP32-UART-Brücke.
 
 ## Start auf dem Pi
 
 Docker/Compose, Repository und Wallbox-Verbindung müssen vorhanden sein.
+Netzwerk `evse-mqtt` und vorhandenen Broker-Alias `mqtt-broker` zuerst gemäß
+[Installationsguide](../../docs/installation.md#5-vorhandenen-mqtt-broker-wiederverwenden) vorbereiten.
 **Keine Host-Pakete installieren; andere Prozesse am RS485-Port vorher stoppen.**
 
 ```bash
@@ -24,8 +27,24 @@ docker compose logs --tail 20 -f wallbox-reader
 Standard: `/dev/ttyUSBEVSEcontrol`, 57600 Baud, 8E1, ID 9.
 Anderer Gerätepfad: vorher `export WALLBOX_DEVICE=/dev/ttyUSB0` setzen.
 `Ctrl+C` beendet nur die Logansicht; `docker compose down` stoppt den Dienst.
-Alle bisherigen Einrichtungsschritte, einschließlich MQTT-Vorbereitung:
+Alle Einrichtungsschritte, einschließlich MQTT-Empfangstest:
 [Installationsguide](../../docs/installation.md).
+
+## MQTT
+
+- `evse/wallbox/state`: JSON-Sample.
+- `evse/wallbox/availability`: `online`/`offline` inklusive Last Will.
+- Beide retained, QoS 1; `online` bedeutet einen frischen Read, nicht fehlerfreie Wallbox.
+- Brokerausfälle stoppen keine Modbus-Abfragen; keine unbegrenzte Nachrichtenhistorie.
+- `MQTT_ENABLED=false` deaktiviert den Publisher. Das externe Compose-Netzwerk
+  muss trotzdem existieren. Direkter Programmstart ohne Umgebungsoption aktiviert MQTT nicht.
+
+Konfiguration: `.env.example` nach lokaler `.env` kopieren; `MQTT_HOST`,
+`MQTT_PORT`, `MQTT_TOPIC_PREFIX`, `MQTT_CLIENT_ID`, optional `MQTT_USERNAME`.
+Passwort bevorzugt mit `compose.auth.yaml` aus externer Datei einbinden.
+Kein Passwort committen oder per CLI weitergeben.
+[Vertrag und Frische](../../docs/mqtt-protocol.md),
+[Auth-/Updateanleitung](../../docs/installation.md#mqtt-konfiguration-und-optionale-authentifizierung).
 
 <details>
 <summary>Konfiguration, Tests und Betriebshinweise</summary>
@@ -41,7 +60,7 @@ damit es zur Pi-Architektur passt. Keine SSH-/WireGuard-Konfiguration ändern.
 
 **Build, Tests und Betrieb erfolgen ausschließlich in Docker.** Auf dem Pi
 keine Projektpakete installieren: kein Compiler, CMake, libmodbus, Python,
-pyserial oder mbpoll per Host-`apt`/`pip`. Voraussetzung sind nur eine bestehende
+pyserial oder mbpoll per Host-`apt`/`pip`. Voraussetzung sind eine bestehende
 Docker Engine samt Compose-Plugin, Zugriff darauf und der serielle Gerätepfad.
 Die Installationen im Dockerfile betreffen ausschließlich das Container-Image.
 
@@ -54,7 +73,7 @@ docker compose build
 
 Der Multi-Stage-Build installiert Compiler und Testwerkzeuge nur in der
 Build-Stufe und führt die Tests automatisch aus; Fehler brechen den Image-Build
-ab. Das Laufzeit-Image enthält nur den Reader und libmodbus, keine Buildtools.
+ab. Das Laufzeit-Image enthält Reader, libmodbus und libmosquitto, keine Buildtools.
 Für den Build ist kein serielles Gerät erforderlich.
 
 Die Decoder-/JSON-Tests brauchen keine Hardware. Im Build-Container testet ein
@@ -63,6 +82,12 @@ zusätzlicher Python-Standardbibliothek-Test eine simulierte RTU-Gegenstelle
 Zusätzlich werden unvollständige Antworten, Shutdown während einer laufenden
 Abfrage, volle stdout-Pipes und Wiederherstellung der Port-Einstellungen geprüft.
 Diese Tests ersetzen **keinen Test an der echten Wallbox**.
+Ein weiterer Test startet ausschließlich im Build-Container einen isolierten
+Loopback-Broker und PTY-Reader: retained State, Online/Offline bei Readfehlern,
+Brokerneustart, fortlaufendes Polling ohne Broker, Shutdown und Last Will.
+Zusätzlich Passwortdatei/abgelehnte Test-Zugangsdaten und begrenzte Publish-
+Warteschlange bei fehlenden ACKs.
+Er benutzt keine Produktionsdaten und kontaktiert nicht euren Pi-Broker.
 
 Zum expliziten Wiederholen der Tests kann die Build-Stufe als Test-Image
 gebaut werden (weiterhin ohne Host-Installationen oder Hardware):
@@ -119,7 +144,8 @@ prüfen; keine Pakete nachinstallieren oder Dateirechte pauschal auf `777` setze
 `Ctrl+C`/SIGTERM beenden den Dienst und schließen den Port. `--once` liefert
 Exitcode 0 bei erfolgreichem Lesen, 1 bei Kommunikationsfehler, 2 bei ungültiger
 Konfiguration oder fatalem Laufzeit-/Ausgabefehler. Ein erfolgreicher Read kann trotzdem einen Wallbox-Fehlercode
-oder einen unbekannten Ladezustand enthalten.
+oder einen unbekannten Ladezustand enthalten. MQTT-ACKs werden im Einmalmodus
+kurz abgewartet; der Exitcode bestätigt dennoch nur Modbus, nicht MQTT-Empfang.
 
 Ohne `--once` wird bei Fehlern der Port geschlossen und im nächsten Zyklus
 erneut geöffnet. Die vollständige Antwort hat einen Timeout; keine alten
@@ -195,7 +221,7 @@ der Wallbox. Bei erfolgreichem Read enthält `values` die oben beschriebenen
 Felder, `error` ist `null`, `last_success_at` entspricht dem Messzeitstempel.
 Bei Fehler ist `values=null`; `last_success_at` bleibt auf dem letzten Erfolg
 oder `null`, wenn noch kein erfolgreicher Read stattgefunden hat. Die Ausgabe
-ist eine vorläufige JSON-Schnittstelle, noch kein beschlossener MQTT-Vertrag.
+entspricht dem [MQTT-State-Vertrag](../../docs/mqtt-protocol.md).
 
 ## Vor realer Nutzung verifizieren
 
@@ -217,4 +243,4 @@ ist eine vorläufige JSON-Schnittstelle, noch kein beschlossener MQTT-Vertrag.
   als das Intervall sein. Die bisher dokumentierten bis zu 90 Sekunden passen
   nicht zu einem Standardtimeout von 60 Sekunden.
 - **Keine Schreibbefehle aus den widersprüchlichen Notizen ausprobieren.**
-  Erst danach folgen MQTT, Ladesteuerung und weitere Integrationen.
+  Ladesteuerung und weitere Integrationen folgen separat; MQTT bleibt rein lesende Telemetrie.

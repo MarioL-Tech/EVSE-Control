@@ -8,6 +8,7 @@
 
 #include <cerrno>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <ctime>
@@ -20,8 +21,9 @@
 
 namespace {
 
-volatile std::sig_atomic_t stopped = 0;
-void stop(int) { stopped = 1; }
+static_assert(std::atomic_bool::is_always_lock_free, "Signal flag must be lock-free");
+std::atomic_bool stopped{false};
+void stop(int) { stopped.store(true, std::memory_order_relaxed); }
 
 struct Options {
     std::string device = "/dev/ttyUSBEVSEcontrol";
@@ -92,7 +94,8 @@ Options options(int argc, char **argv) {
 std::string timestamp() {
     const auto now = std::chrono::system_clock::now();
     const auto time = std::chrono::system_clock::to_time_t(now);
-    const auto utc = *std::gmtime(&time); // single-threaded service
+    std::tm utc{};
+    if (!gmtime_r(&time, &utc)) throw std::runtime_error("Cannot format UTC timestamp");
     std::ostringstream out;
     out << std::put_time(&utc, "%Y-%m-%dT%H:%M:%SZ");
     return out.str();

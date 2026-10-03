@@ -229,7 +229,10 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Passwort optional über `MQTT_PASSWORD` oder bevorzugt `MQTT_PASSWORD_FILE`
   mit `compose.auth.yaml`. Keine Secrets committen; `.env` bleibt lokal.
 - Docker-Build enthält isolierte Broker-/PTY-Integrationstests; Tests kontaktieren
-  nie den Produktionsbroker. GitHub-Docker-CI ist ergänzt, Ergebnis noch ausstehend.
+  nie den Produktionsbroker. Erste GitHub-Docker-CI mit allen drei Tests und
+  Runtime-Smoke-Test erfolgreich; erweitertes Auth-/ACK-Limit-Testing folgt im nächsten Lauf.
+- Vertrag: `docs/mqtt-protocol.md`; Installationsguide enthält externes Netzwerk
+  als Startvoraussetzung, Update-/Subscriber-Test und optionale Passwortdatei.
 - UART-MQTT-Bridge, Steuerbefehle und Weboverlay bleiben geplant.
 
 ### Vorhandener MQTT-Broker und bestätigte Vorbereitung

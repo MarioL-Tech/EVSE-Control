@@ -24,11 +24,21 @@ def free_port():
 
 
 class Broker:
-    def __init__(self, directory):
+    def __init__(self, directory, authenticated=False):
         self.port = free_port()
         self.config = directory / "mosquitto.conf"
+        self.credentials = []
+        access = "allow_anonymous true\n"
+        if authenticated:
+            # Public dummy credentials solely for this isolated test broker.
+            password_file = directory / "broker-passwords"
+            subprocess.run(["mosquitto_passwd", "-b", "-c", str(password_file),
+                            "test-reader", "integration-test-only"], check=True)
+            os.chmod(password_file, 0o644)
+            access = f"allow_anonymous false\npassword_file {password_file}\n"
+            self.credentials = ["-u", "test-reader", "-P", "integration-test-only"]
         self.config.write_text(
-            f"listener {self.port} 127.0.0.1\nallow_anonymous true\npersistence false\n")
+            f"listener {self.port} 127.0.0.1\n{access}persistence false\n")
         self.log = (directory / "broker.log").open("w+")
         self.process = None
         self.start()
@@ -56,7 +66,11 @@ class Broker:
         while time.monotonic() < deadline:
             result = subprocess.run(
                 ["mosquitto_sub", "-h", "127.0.0.1", "-p", str(self.port),
-                 "-t", "test/wallbox/" + suffix, "-C", "1", "-W", "1", "-q", "1"],
+                 "-t", "test/wallbox/" + suffix, "-C", "1", "-W", "1", "-q", "1",
+                 *self.credentials],
+                # Actual credentials never enter these tests or production command lines.
+                # Only the publicly known isolated-broker dummy credentials are used.
+                env=os.environ,
                 capture_output=True, text=True, timeout=2)
             if result.returncode == 0:
                 value = result.stdout.strip()
@@ -67,7 +81,7 @@ class Broker:
 
 
 class Reader:
-    def __init__(self, binary, port):
+    def __init__(self, binary, port, credentials=None):
         self.master, self.slave = pty.openpty()
         self.done = threading.Event()
         self.respond = threading.Event()
@@ -78,6 +92,8 @@ class Reader:
                    MQTT_PORT=str(port), MQTT_TOPIC_PREFIX="test/wallbox",
                    MQTT_CLIENT_ID="isolated-reader", MQTT_USERNAME="", MQTT_PASSWORD="",
                    MQTT_PASSWORD_FILE="")
+        if credentials:
+            env.update(credentials)
         self.log = tempfile.TemporaryFile(mode="w+")
         self.process = subprocess.Popen(
             [binary, "--device", os.ttyname(self.slave), "--interval-ms", "200",
@@ -201,9 +217,118 @@ def test(binary, directory):
         broker.log.close()
 
 
+def authenticated_test(binary, directory):
+    broker = Broker(directory, authenticated=True)
+    password = directory / "client-password"
+    password.write_text("integration-test-only\n")
+    reader = None
+    try:
+        reader = Reader(binary, broker.port,
+                        {"MQTT_USERNAME": "test-reader", "MQTT_PASSWORD_FILE": str(password)})
+        broker.receive("state", lambda raw: json.loads(raw)["status"] == "ok")
+        broker.receive("availability", lambda raw: raw == "online")
+        reader.stop()
+        reader = Reader(binary, broker.port,
+                        {"MQTT_USERNAME": "test-reader", "MQTT_PASSWORD": "wrong-test-only"})
+        time.sleep(1)
+        check(len(reader.samples) >= 3, "Rejected MQTT credentials blocked Modbus")
+        broker.receive("availability", lambda raw: raw == "offline")
+        reader.stop()
+        reader = None
+    finally:
+        if reader is not None:
+            reader.stop(abrupt=True)
+        broker.stop()
+        broker.log.close()
+
+
+class NoAckBroker:
+    """Minimal loopback MQTT endpoint that accepts CONNECT but withholds PUBACK."""
+    def __init__(self):
+        self.socket = socket.socket()
+        self.socket.bind(("127.0.0.1", 0))
+        self.port = self.socket.getsockname()[1]
+        self.socket.listen()
+        self.socket.settimeout(0.1)
+        self.done = threading.Event()
+        self.counts = []
+        self.thread = threading.Thread(target=self.serve, daemon=True)
+        self.thread.start()
+
+    @staticmethod
+    def packet(connection):
+        def exact(size):
+            data = b""
+            while len(data) < size:
+                chunk = connection.recv(size - len(data))
+                if not chunk:
+                    raise EOFError
+                data += chunk
+            return data
+        header = exact(1)[0]
+        remaining = 0
+        multiplier = 1
+        for _ in range(4):
+            byte = exact(1)[0]
+            remaining += (byte & 127) * multiplier
+            if byte < 128:
+                break
+            multiplier *= 128
+        exact(remaining)
+        return header >> 4
+
+    def serve(self):
+        while not self.done.is_set():
+            try:
+                connection, _ = self.socket.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                return
+            with connection:
+                connection.settimeout(0.2)
+                try:
+                    if self.packet(connection) != 1:
+                        continue
+                    connection.sendall(b"\x20\x02\x00\x00")
+                    self.counts.append(0)
+                    while not self.done.is_set():
+                        try:
+                            if self.packet(connection) == 3:
+                                self.counts[-1] += 1
+                        except socket.timeout:
+                            continue
+                except (EOFError, OSError):
+                    pass
+
+    def close(self):
+        self.done.set()
+        self.socket.close()
+        self.thread.join(timeout=2)
+
+
+def bounded_queue_test(binary):
+    broker = NoAckBroker()
+    reader = None
+    try:
+        reader = Reader(binary, broker.port)
+        time.sleep(5.5)
+        check(len(reader.samples) >= 15, "Missing ACKs blocked Modbus polling")
+        check(len(broker.counts) >= 2, "Missing ACKs did not trigger reconnect")
+        check(all(count <= 2 for count in broker.counts), "Unbounded publish queue")
+        reader.stop()
+        reader = None
+    finally:
+        if reader is not None:
+            reader.stop(abrupt=True)
+        broker.close()
+
+
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="evse-mqtt-test-") as directory:
         # Mosquitto drops privileges when started by root inside the build container.
         os.chmod(directory, 0o755)
         test(sys.argv[1], Path(directory))
-    print("MQTT retained state, health, reconnect, polling independence, shutdown and Will tests passed")
+        authenticated_test(sys.argv[1], Path(directory))
+        bounded_queue_test(sys.argv[1])
+    print("MQTT state, health, reconnect, auth, bounded queue, shutdown and Will tests passed")

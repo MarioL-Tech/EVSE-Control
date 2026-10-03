@@ -233,9 +233,9 @@ struct MqttPublisher::Impl {
                 std::unique_lock<std::mutex> lock(mutex);
                 if (connected) {
                     // ACK the retained offline marker before suppressing the Will with DISCONNECT.
-                    publish(options.prefix + "/availability", "offline");
+                    const bool offline_sent = publish(options.prefix + "/availability", "offline");
                     wake.wait_for(lock, std::chrono::seconds(1), [this] { return pending.empty() || !connected; });
-                    if (connected && pending.empty()) mosquitto_disconnect(client);
+                    if (offline_sent && connected && pending.empty()) mosquitto_disconnect(client);
                 }
                 lock.unlock();
             }

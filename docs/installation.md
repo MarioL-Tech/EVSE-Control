@@ -8,7 +8,8 @@ Docker- oder Broker-Neuinstallation ist damit noch nicht beschrieben.
 
 **Stand:** 2026-10-03. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
 zyklischer Betrieb wurden von Mario bestätigt. Der vorhandene MQTT-Broker ist
-erreichbar; **der Reader veröffentlicht noch keine MQTT-Nachrichten**.
+erreichbar. MQTT-Veröffentlichung ist jetzt implementiert; der neue Reader muss
+noch auf dem Pi aktualisiert und per Subscriber geprüft werden.
 
 ## Inhalt
 
@@ -30,6 +31,11 @@ erreichbar; **der Reader veröffentlicht noch keine MQTT-Nachrichten**.
 - USB-RS485-Gerät und Wallbox: 57600 Baud, 8E1, Slave-ID 9.
 - Für den Image-Build Netzwerkzugriff auf Image-/Paketquellen.
 - Für Abschnitt 5 ein bereits eingerichteter Mosquitto-Container.
+
+**Vor dem neuen Reader-Start Abschnitt 5 zur Broker-/Netzwerkvorbereitung
+ausführen.** Compose verwendet jetzt das externe Netzwerk `evse-mqtt` und
+erzeugt es nicht selbst. Danach mit Abschnitt 3 fortfahren. Es wird kein zweiter
+Produktionsbroker benötigt.
 
 **Alles an Projektsoftware bleibt in Docker:** keine Compiler, libmodbus,
 Python-/pip-Pakete, mbpoll oder Mosquitto auf dem Pi-Host installieren.
@@ -97,6 +103,17 @@ Defaults: 57600, E, 9, 2000 ms, 1000 ms. Die Einstellungen für spätere Sitzung
 im persönlichen Installationsprotokoll festhalten; ein `export` gilt nur für
 die aktuelle Shell. Nicht standardmäßig eine unbekannte Gerätekonfiguration ändern.
 
+Für dauerhafte lokale Einstellungen kann die Vorlage übernommen werden, ohne
+eine vorhandene Datei zu überschreiben:
+
+```bash
+test -e .env || cp .env.example .env
+```
+
+`.env` wird nicht committed oder in den Docker-Build kopiert. Reader-Konfiguration
+und optionale MQTT-Authentifizierung siehe Abschnitt 5. Defaults: MQTT aktiviert,
+Host `mqtt-broker`, Port 1883, Präfix `evse/wallbox`, Client-ID `evse-wallbox-reader`.
+
 ```bash
 docker compose build
 docker compose stop wallbox-reader
@@ -119,6 +136,8 @@ allein ist kein erfolgreicher Read: Es muss eine JSON-Zeile folgen.
 - `status="error"`, `values=null`: Keine aktuellen Messwerte verfügbar.
 - Exitcode 0: erfolgreicher Read; 1: Kommunikationsfehler; 2: Konfigurations-
   oder fataler Laufzeitfehler. `ok` ist keine Bestätigung der Messwertgenauigkeit.
+- Exitcode 0 bestätigt **nicht MQTT-Empfang**. Einmalmodus wartet kurz auf ACKs;
+  ohne Broker kann Modbus trotzdem erfolgreich sein. Subscriber-Test aus Abschnitt 5 nutzen.
 
 Bei Bedarf den Exitcode **direkt danach** als eigenen Befehl abfragen, ohne
 dazwischen einen anderen Befehl auszuführen:
@@ -243,13 +262,105 @@ Subscriber. Anonymer Zugriff ist keine Sicherheitsempfehlung: Wegen des an alle
 Host-Schnittstellen gebundenen Ports vor produktiver Verwendung Authentifizierung,
 ACLs und erforderliche Erreichbarkeit klären. Keine Zugangsdaten hier posten.
 
-### Aktuelle Grenze
+### Reader auf die MQTT-Version aktualisieren
 
-**Der Wallbox-Reader ist noch nicht an MQTT angebunden.** Seine aktuelle
-Compose-Datei verwendet weiterhin `wallbox_default`, nicht `evse-mqtt`.
-Netzwerkzuordnung, Publisher, Topics und Payload-Vertrag werden im nächsten
-Implementierungsschritt ergänzt. Erst danach erreichen Wallboxdaten den Broker.
-Weboverlay, Home Assistant und Datenbankanbindung sind ebenfalls noch geplant.
+Nach Merge der MQTT-PR auf `main`, oder bewusst auf dem gewünschten Feature-
+Branch, den Stand gemäß Abschnitt 2 aktualisieren. Dann aus `rasppi/wallbox/`:
+
+```bash
+docker compose build
+docker compose stop wallbox-reader
+docker compose run --rm --no-deps -T --interactive=false wallbox-reader --once
+```
+
+Nur nach erfolgreichem Modbus-Test:
+
+```bash
+docker compose up -d --force-recreate
+docker compose logs --tail 20 -f wallbox-reader
+```
+
+Der neue Reader hängt damit dauerhaft am **externen** `evse-mqtt`, auch nach
+Neuerstellung durch Compose. `docker compose down` entfernt dieses gemeinsame
+Netzwerk oder den Broker nicht. Während des Builds kann die alte Reader-Version
+weiterlaufen; zum Einmal-Test muss sie gestoppt sein. Pollingpausen bei aktivem
+Laden vorab koordinieren, da die Wallbox einen Kommunikationstimeout hat.
+
+### Wallboxdaten empfangen
+
+In einer zweiten SSH-Sitzung den folgenden einzelnen Befehl ausführen:
+
+```bash
+docker run --rm --network evse-mqtt eclipse-mosquitto:alpine mosquitto_sub -h mqtt-broker -t 'evse/wallbox/#' -v
+```
+
+Erwartet werden:
+
+```text
+evse/wallbox/state {"schema_version":1,...}
+evse/wallbox/availability online
+```
+
+`...` ist hier nur ein gekürztes JSON-Beispiel. Beide Topics sind retained: ein
+später gestarteter Subscriber erhält den letzten Stand. Er muss trotzdem
+Timestamp und Availability prüfen, nicht alte Daten als frisch behandeln.
+`online` bedeutet erfolgreicher frischer Read, nicht aktives Laden.
+Die vollständige Definition steht im [MQTT-Vertrag](mqtt-protocol.md).
+
+Bei gestopptem Reader wird `offline` erwartet. `Ctrl+C` beendet nur den
+Testsubscriber; der Hintergrund-Reader läuft weiter. Bei abweichendem Präfix
+das Topic entsprechend ändern. Authentifizierte Broker brauchen auch auf der
+Subscriber-Seite gültige Zugangskonfiguration; keine Secrets in Chat/CLI posten.
+
+### MQTT-Konfiguration und optionale Authentifizierung
+
+Lokale `.env` in `rasppi/wallbox/`, keine Geheimnisse in Git:
+
+| Variable | Default / Funktion |
+|---|---|
+| `MQTT_ENABLED` | `true` in Compose; `false` deaktiviert Publishing |
+| `MQTT_HOST`, `MQTT_PORT` | `mqtt-broker`, `1883` |
+| `MQTT_TOPIC_PREFIX` | `evse/wallbox`, keine Wildcards |
+| `MQTT_CLIENT_ID` | `evse-wallbox-reader`, eindeutig pro aktivem Reader |
+| `MQTT_USERNAME` | leer für bisherigen anonymen Test |
+| `MQTT_PASSWORD` | optional; sichtbar in Container-Umgebung, Datei bevorzugen |
+| `MQTT_PASSWORD_FILE` | Containerpfad zu einer read-only gemounteten Datei |
+
+Nur ein Publisher pro Topic-Präfix, sonst überschreiben Reader sich gegenseitig.
+`MQTT_ENABLED=false` benötigt weiterhin das existierende Compose-Netzwerk, aber
+keine erreichbare Broker-Verbindung. Der Reader bleibt unabhängig von Brokerausfällen
+lesend und gibt JSON aus. Beim Reconnect wird nur der neueste Snapshot übertragen,
+kein Verlauf; State-/Availability-Topics sind keine Steuerkanäle.
+
+Wenn der vorhandene Broker Benutzer/Passwort verlangt, vorhandene sichere
+Passwortdatei **außerhalb des Repositorys** verwenden. In lokaler `.env`
+`MQTT_USERNAME` und `MQTT_PASSWORD_HOST_FILE` (absoluter Host-Dateipfad) setzen.
+Datei enthält Passwort in der ersten Zeile. Nicht beide Passwortmethoden kombinieren.
+Start mit der mitgelieferten Override-Datei:
+
+```bash
+docker compose -f compose.yaml -f compose.auth.yaml up -d --build
+```
+
+Sie mountet das Passwort read-only nach `/run/secrets/mqtt-password` und leert
+die Passwort-Umgebung. Bei dieser Betriebsart dieselben `-f`-Optionen für spätere
+Run-/Stop-/Log-Befehle verwenden. Keine Zugangsdaten veröffentlichen oder aus dem
+aktuellen anonymen Test eine produktive Sicherheitseinstellung ableiten.
+TLS ist noch nicht implementiert; MQTT nur im vertrauenswürdigen Docker-Netz nutzen.
+
+### Automatische Tests und aktuelle Grenze
+
+`docker compose build` führt Decoder-/RTU-Tests und isolierte MQTT-Integrationstests
+im Build-Container aus. Der temporäre Testbroker lauscht nur auf Loopback und
+kontaktiert weder eure Wallbox noch den Produktionsbroker. Geprüft werden retained
+State, Readfehler/Availability, Brokerneustart, Polling ohne Broker, Shutdown und Will.
+Zusätzlich Authentifizierung per Datei, abgelehnte Test-Zugangsdaten und die
+begrenzte Warteschlange bei ausbleibenden Publish-ACKs.
+Die GitHub-Docker-CI baut ebenfalls ausschließlich in Docker.
+
+Der Publish-/Empfangstest der **neuen Reader-Version am Pi** ist noch offen;
+die frühere `evse/test`-Nachricht war nur die Broker-Vorprüfung. Weboverlay,
+Home Assistant, Datenbank, UART-MQTT-Bridge und Ladesteuerung sind noch geplant.
 
 ## 6. Optionale ESP32-UART-Testbrücke
 

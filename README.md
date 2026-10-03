@@ -9,8 +9,9 @@ Geplant sind Ladeautomatisierung, Zustandsspeicherung und Bedienung über
 Home Assistant sowie ein Weboverlay.
 
 > **Entwicklungsstand:** Der Wallbox-Dienst ist ausschließlich lesend.
-> MQTT, reale Ladesteuerung, Datenbank und Bedienoberflächen sind noch nicht
-> implementiert. Ein Docker-Einmaltest mit FC03 an der realen Wallbox wurde
+> MQTT-Veröffentlichung ist implementiert, der Empfangstest am Pi noch offen.
+> Reale Ladesteuerung, Datenbank und Bedienoberflächen fehlen noch.
+> Ein Docker-Einmaltest mit FC03 an der realen Wallbox wurde
 > bestätigt; Dauerbetrieb und weitere Hardwarevalidierung stehen noch aus.
 
 ## Projektziele
@@ -32,6 +33,7 @@ Home Assistant sowie ein Weboverlay.
 | Diebstahlsicherung | RFID-Tap toggelt 0°/90°, startet entriegelt; unabhängig vom Laden |
 | UART-Testbrücke | Interaktive Python-Brücke im Docker-Container |
 | Wallbox-Reader | C++17/libmodbus, zyklische FC03-Abfragen, dekodierte Messwerte als JSON |
+| MQTT-Publisher | retained State und Verfügbarkeit mit libmosquitto; vorhandener Broker wird wiederverwendet |
 | Fehlerbehandlung | Timeouts, erneute Verbindung, ungültige Messwerte als `null`, sauberer Shutdown |
 | Softwaretests | Decoder-/JSON-Tests und simulierte RTU-Kommunikation einschließlich Fehlerfällen |
 | Containerbetrieb | Dockerfiles, Compose-Konfigurationen und Startanleitungen vorhanden |
@@ -62,21 +64,23 @@ Raspberry Pi — lokale Hardwareanbindung, Dienste in Docker
         |
         +-- DTSU666-Messwerterfassung                    [geplant]
         |
-        +-- MQTT-Gateway --> gemeinsamer Message Broker [geplant]
-                              |-- Home Assistant
-                              |-- Weboverlay
-                              +-- Datenbankdienst
+        +-- Wallbox-MQTT --> vorhandener gemeinsamer Message Broker
+                              |-- Home Assistant      [geplant]
+                              |-- Weboverlay          [geplant]
+                              +-- Datenbankdienst     [geplant]
+        +-- ESP32-UART-MQTT-Gateway                    [geplant]
 
 Remote-Zugriff: Rechner --> WireGuard --> Pi (SSH; später Weboverlay)
 ```
 
 Der Pi ist Modbus-Master; **Adresse 9 gehört zur Wallbox**. UART bleibt die
-direkte ESP32-Pi-Verbindung, ohne WiFi. Der geplante Pi-Gateway-Dienst übersetzt
-UART-/Modbus-Daten auf MQTT; MQTT ersetzt nicht die physischen Hardwareleitungen.
+direkte ESP32-Pi-Verbindung, ohne WiFi. Der Reader veröffentlicht Modbus-Daten
+auf MQTT, die UART-MQTT-Bridge folgt. MQTT ersetzt keine Hardwareleitungen.
 
 ## Schnellstart: Wallbox lesen
 
-Voraussetzung: Repository, Docker/Compose und angeschlossene Wallbox auf dem Pi.
+Voraussetzung: Repository, Docker/Compose, Wallbox und das vorbereitete
+Netzwerk `evse-mqtt` mit Broker-Alias `mqtt-broker` ([Anleitung](docs/installation.md#5-vorhandenen-mqtt-broker-wiederverwenden)).
 **Nur Docker verwenden; andere Prozesse am RS485-Port vorher stoppen.**
 
 ```bash
@@ -123,13 +127,14 @@ CHANGELOG.md             Änderungsverlauf
 - [Installation, Hardware und Wiederinbetriebnahme](docs/installation.md)
 - [Pinbelegung](docs/pin-connection.md)
 - [ESP32-Pi-UART-Protokoll](docs/uart-protocol.md)
+- [MQTT-Topics, Payloads und Verfügbarkeit](docs/mqtt-protocol.md)
 - [Wallbox-Dienst und Docker-Betrieb](rasppi/wallbox/README.md)
 - [Wallbox-Handbücher und Registerreferenzen](docs/wallbox/)
 - [DTSU666-Handbuch](docs/smartmeter/)
 - [Projektkontext für Agents](AGENTS.md) und [Changelog](CHANGELOG.md)
 
 Nächster Meilenstein ist die Dauerbetriebsprüfung mit weiteren Zustands- und
-Messwertvergleichen an der realen Wallbox. Danach folgen MQTT-Gateway/Broker, abgesicherte Ladesteuerung,
+Messwertvergleichen und MQTT-Empfang am Pi. Danach folgen UART-MQTT-Gateway, abgesicherte Ladesteuerung,
 Energiezähler, Zustandsspeicherung, Bedienoberflächen und Automationen.
 
 **Sicherheit:** Widersprüchliche Register-/Steuernotizen nicht ungeprüft
