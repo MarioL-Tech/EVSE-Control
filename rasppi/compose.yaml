@@ -1,0 +1,10 @@
+services:
+  uart-bridge:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: Dockerfile.uart
+    devices:
+      - "${UART_DEVICE:-/dev/serial0}:/dev/serial0"
+    stdin_open: true
+    tty: true

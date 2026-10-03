@@ -1,6 +1,6 @@
 # Lesender ABB-Terra-AC-Dienst
 
-C++17-Dienst mit libmodbus, der **auf dem Raspberry Pi** läuft. Er liest
+C++17-Dienst mit libmodbus, der **im Docker-Container auf dem Raspberry Pi** läuft. Er liest
 Holding Registers über Modbus RTU (FC03), dekodiert sie und gibt pro Abfrage
 eine JSON-Zeile auf stdout aus. Diagnosen gehen auf stderr.
 
@@ -12,40 +12,47 @@ keine Weboberfläche in diesem Entwicklungsschritt.** Das bestehende
 
 Zugriff erfolgt über die bestehende WireGuard-Verbindung und SSH. Der Pi
 greift selbst lokal auf die Wallbox zu, nicht über WireGuard. Quellcode über
-Git (nach Commit/Push) oder SCP übertragen. Auf dem Pi bauen: Windows-Binaries
-sind nicht auf dem Pi ausführbar. Keine SSH-/WireGuard-Konfiguration ändern.
+Git (nach Commit/Push) oder SCP übertragen. Das Image wird auf dem Pi gebaut,
+damit es zur Pi-Architektur passt. Keine SSH-/WireGuard-Konfiguration ändern.
 
-## Nativ auf dem Pi bauen und prüfen
+## Verbindlich: nur Docker
 
-Für Raspberry Pi OS / Debian:
+**Build, Tests und Betrieb erfolgen ausschließlich in Docker.** Auf dem Pi
+keine Projektpakete installieren: kein Compiler, CMake, libmodbus, Python,
+pyserial oder mbpoll per Host-`apt`/`pip`. Voraussetzung sind nur eine bestehende
+Docker Engine samt Compose-Plugin, Zugriff darauf und der serielle Gerätepfad.
+Die Installationen im Dockerfile betreffen ausschließlich das Container-Image.
+
+## Image bauen und ohne Hardware prüfen
 
 ```bash
-sudo apt update
-sudo apt install g++ cmake make pkg-config libmodbus-dev python3
-
-# Aus dem Repository-Hauptverzeichnis:
-cmake -S rasppi/wallbox -B rasppi/wallbox/build -DCMAKE_BUILD_TYPE=Release
-cmake --build rasppi/wallbox/build --parallel 2
-ctest --test-dir rasppi/wallbox/build --output-on-failure
-rasppi/wallbox/build/evse-wallbox --help
+cd rasppi/wallbox
+docker compose build
 ```
 
-Die Decoder-/JSON-Tests brauchen keine Hardware. Unter Linux testet ein
+Der Multi-Stage-Build installiert Compiler und Testwerkzeuge nur in der
+Build-Stufe und führt die Tests automatisch aus; Fehler brechen den Image-Build
+ab. Das Laufzeit-Image enthält nur den Reader und libmodbus, keine Buildtools.
+Für den Build ist kein serielles Gerät erforderlich.
+
+Die Decoder-/JSON-Tests brauchen keine Hardware. Im Build-Container testet ein
 zusätzlicher Python-Standardbibliothek-Test eine simulierte RTU-Gegenstelle
 über PTY: FC03-Anfrage, Messwerte, Timeout, Wiederanlauf, CLI und SIGTERM.
 Zusätzlich werden unvollständige Antworten, Shutdown während einer laufenden
 Abfrage, volle stdout-Pipes und Wiederherstellung der Port-Einstellungen geprüft.
 Diese Tests ersetzen **keinen Test an der echten Wallbox**.
 
-Nur Decoder-/JSON-Tests bauen, ohne libmodbus:
+Zum expliziten Wiederholen der Tests kann die Build-Stufe als Test-Image
+gebaut werden (weiterhin ohne Host-Installationen oder Hardware):
 
 ```bash
-cmake -S rasppi/wallbox -B rasppi/wallbox/build -DBUILD_WALLBOX_SERVICE=OFF
-cmake --build rasppi/wallbox/build --parallel 2
-ctest --test-dir rasppi/wallbox/build --output-on-failure
+docker build --target build -t evse-wallbox-tests .
+docker run --rm evse-wallbox-tests ctest --test-dir /src/build --output-on-failure
 ```
 
-Zum späteren Dienst-Build dieselbe Option wieder auf `ON` setzen.
+Die CMake-Option `BUILD_WALLBOX_SERVICE=OFF` bleibt für Decoder-only-Builds
+innerhalb einer Build-Umgebung verfügbar; sie ist keine Anleitung für einen
+nativen Host-Build auf dem Pi.
 
 ## Erster Hardwaretest: einmal lesen
 
@@ -54,22 +61,33 @@ insbesondere `mbpoll` und einen eventuell laufenden Reader-Container.
 **Genau ein Dienst besitzt den Port.** Vorhandene Modbus-Master ebenfalls prüfen.
 
 ```bash
-ls -l /dev/ttyUSBEVSEcontrol
-rasppi/wallbox/build/evse-wallbox --once
+# Weiterhin im Verzeichnis rasppi/wallbox:
+# Falls nötig VOR Test und Dauerbetrieb den Host-Gerätepfad setzen:
+# export WALLBOX_DEVICE=/dev/ttyUSB0
+docker compose stop wallbox-reader
+docker compose run --rm --no-deps wallbox-reader --once
 ```
 
-Falls nötig die tatsächlichen Parameter angeben:
+Bei abweichenden Kommunikationsparametern diese vor beiden Starts setzen:
 
 ```bash
-rasppi/wallbox/build/evse-wallbox \
-  --device /dev/ttyUSBEVSEcontrol --baud 57600 --parity E --slave 9 \
-  --interval-ms 2000 --timeout-ms 1000
+export WALLBOX_BAUD=57600
+export WALLBOX_PARITY=E
+export WALLBOX_SLAVE=9
+export WALLBOX_INTERVAL_MS=2000
+export WALLBOX_TIMEOUT_MS=1000
+docker compose run --rm --no-deps wallbox-reader --once
 ```
 
+`WALLBOX_DEVICE` ist der Host-Gerätepfad, innerhalb des Containers heißt er
+immer `/dev/ttyWallbox`. Der Entrypoint verwendet dieselben Einstellungen für
+Einmal-Test und Dauerbetrieb. Zusätzliche CLI-Optionen können sie für einen
+einzelnen Aufruf überschreiben, z. B. `docker compose run --rm --no-deps
+wallbox-reader --slave 9 --once`.
+
 8 Datenbits und 1 Stoppbit sind festgelegt. Parität ist `E`, `O` oder `N`.
-Der Benutzer benötigt Zugriff auf den seriellen Port (auf Raspberry Pi OS
-häufig Gruppe `dialout`; nach Gruppenänderung neu anmelden). Nicht pauschal
-Dateirechte auf `777` setzen. Prüfen, ob der dokumentierte udev-Symlink existiert.
+Bei Geräte-/Berechtigungsfehlern die Gerätezuordnung und Docker-Zugriffsrechte
+prüfen; keine Pakete nachinstallieren oder Dateirechte pauschal auf `777` setzen.
 
 `Ctrl+C`/SIGTERM beenden den Dienst und schließen den Port. `--once` liefert
 Exitcode 0 bei erfolgreichem Lesen, 1 bei Kommunikationsfehler, 2 bei ungültiger
@@ -85,29 +103,18 @@ Die JSON-Ausgabe muss laufend abgenommen werden. Bei voller stdout-Pipe wartet
 der Dienst unterbrechbar höchstens eine Sekunde und beendet sich dann mit
 Exitcode 2, statt das Polling unbegrenzt anzuhalten. Eine geschlossene Pipe
 wird ebenfalls als Ausgabefehler behandelt. Auch stderr-Diagnosen müssen
-abgenommen werden. Die native Dienst-Ausgabe verwendet Linux/POSIX-APIs.
+abgenommen werden. Der Dienst verwendet Linux/POSIX-APIs im Container.
 
 ## Dauerbetrieb mit Docker Compose
 
-Docker Engine und das Compose-Plugin müssen auf dem Pi bereits verfügbar sein.
-Build und Start **auf dem Pi** erzeugen ein zur Pi-Architektur passendes Image.
+Nach erfolgreichem Einmal-Test:
 
 ```bash
-cd rasppi/wallbox
-# Bei abweichendem Host-Gerätepfad VOR Test und Dauerbetrieb setzen:
-# export WALLBOX_DEVICE=/dev/ttyUSB0
-docker compose build
-# Zunächst einmal testen, keine zweite Instanz parallel betreiben:
-docker compose run --rm --no-deps wallbox-reader --device /dev/ttyWallbox --once
-
 docker compose up -d
 docker compose logs --tail 20 -f wallbox-reader
 # Beenden:
 docker compose down
 ```
-
-Der Einmal-Test verwendet die Standard-Baudrate/Parität/ID. Bei abweichender
-Gerätekonfiguration diese Optionen auch im `compose run`-Befehl angeben.
 
 Bei anderem Host-Gerätepfad `WALLBOX_DEVICE` wie oben vor beiden Starts exportieren.
 Weitere Variablen: `WALLBOX_BAUD`, `WALLBOX_PARITY`, `WALLBOX_SLAVE`,
@@ -171,7 +178,8 @@ ist eine vorläufige JSON-Schnittstelle, noch kein beschlossener MQTT-Vertrag.
   nicht stillschweigend auf FC04. Unterstützung an der echten Firmware prüfen.
 - Registerbreiten, Wortreihenfolge, Skalierung und Zustände anhand echter
   Rohwerte bestätigen. Falls der Block abgelehnt wird, mit einzelnen lesenden
-  `mbpoll -t 4`-Abfragen diagnostizieren, nicht parallel zum Dienst.
+  `mbpoll -t 4`-Abfragen in einem vorhandenen Diagnosecontainer diagnostizieren,
+  nicht auf dem Host installieren und nicht parallel zum Dienst ausführen.
 - Zwei Sekunden sind der Ausgangswert; der reale Wallbox-Timeout muss länger
   als das Intervall sein. Die bisher dokumentierten bis zu 90 Sekunden passen
   nicht zu einem Standardtimeout von 60 Sekunden.

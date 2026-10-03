@@ -38,5 +38,8 @@ SmartCharge is an open-source solution designed to optimize electric vehicle cha
 - Read-only C++/libmodbus wallbox reader with JSON output, tests and Pi build/
   Docker Compose instructions: [`rasppi/wallbox/README.md`](rasppi/wallbox/README.md).
   Real wallbox validation and Pi deployment are still pending.
+- **Docker-only on the Pi:** build, tests and runtime dependencies stay inside
+  containers. Do not install project packages on the host. The interactive UART
+  bridge is available through `rasppi/compose.yaml`; see [`docs/setup.md`](docs/setup.md).
 - MQTT integration, charging control, database, Home Assistant, web overlay
   and automated scheduling are planned, not implemented yet.

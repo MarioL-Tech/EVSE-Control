@@ -2,6 +2,12 @@
 
 How to set up the EVSE-Control project from scratch: Raspberry Pi, ESP32, wiring, and the first connection test.
 
+**Docker-only rule:** all project services, builds, tests and dependencies on
+the Pi must run inside Docker. Do not install Python packages, libmodbus,
+compilers, mbpoll or Mosquitto on the Pi host. Docker Engine and the Compose
+plugin are existing prerequisites. OS hardware configuration is separate;
+do not change SSH/WireGuard/network settings on an already reachable remote Pi.
+
 ## 1. Requirements
 
 **Hardware**
@@ -14,8 +20,9 @@ How to set up the EVSE-Control project from scratch: Raspberry Pi, ESP32, wiring
 **Software**
 
 - Raspberry Pi OS with WiFi + SSH enabled
-- Mosquitto (MQTT broker) — needed for the MQTT phase
-- `pyserial` on the Pi (Python serial library)
+- Docker Engine and Compose plugin on the Pi
+- Mosquitto container (MQTT broker) — planned for the MQTT phase
+- `pyserial` inside the UART image (installed automatically during image build)
 - PlatformIO + VS Code for flashing the ESP32
 
 ## 2. Raspberry Pi preparation
@@ -64,13 +71,12 @@ Verify the device exists:
 ls -l /dev/serial*
 ```
 
-### Python dependencies
+### Project dependencies
 
-```bash
-sudo apt install python3-serial
-```
-
-(On Bookworm, bare `pip install` is blocked by PEP 668 — use apt or a venv.)
+Do not install any project packages on the host. The Dockerfiles install all
+dependencies into images. For the existing remote Pi, only check that the
+required serial devices are already available; hardware reconfiguration or
+reboot must be coordinated separately to avoid losing remote access.
 
 ## 3. Wiring (ESP32 <-> Raspberry Pi)
 
@@ -133,14 +139,19 @@ starts the UART link (GPIO 16/17, 115200 baud) and reports its state at boot
 
 ## 5. Run the connection test
 
-On the Pi, from the `rasppi/` directory:
+On the Pi, from the repository root:
 
 ```bash
-python3 src/main.py
+# Stop any other process using /dev/serial0 first.
+# Optional different host port: export UART_DEVICE=/dev/ttyUSB1
+docker compose -f rasppi/compose.yaml run --rm --build uart-bridge
 ```
 
-This starts the UART bridge: it prints everything the ESP32 sends and lets
-you send commands (`on` / `off` / `status` or raw protocol lines).
+This builds the Python/pyserial image and starts the interactive UART bridge
+inside a container. It prints everything the ESP32 sends and lets you send
+commands (`on` / `off` / `status` or raw protocol lines). These commands only
+change the ESP32's mirrored charging state; they do not switch the wallbox.
+`Ctrl+C` stops the bridge. No Python installation on the Pi host is required.
 
 **Expected boot output** (as soon as the ESP32 is powered/reset):
 
@@ -215,20 +226,32 @@ The charging station is controlled by the **Raspberry Pi** over Modbus RTU
 - **Modbus ID:** 9 (unique address, 1–247)
 
 The adapter appears on the Pi as `/dev/ttyUSBEVSEcontrol` (udev symlink; the
-bare device is usually `/dev/ttyUSB0`). Test with `mbpoll`:
+bare device is usually `/dev/ttyUSB0`). Use the Docker-only reader first:
 
 ```bash
-sudo apt install mbpoll   # if not already installed
-
-# Read charging state (register 400Ch)
-mbpoll /dev/ttyUSBEVSEcontrol -m rtu -a 9 -c 2 -B -0 -1 -b 57600 -P even -s 1 -r 16396 -t 3:int
-
-# Start charging session (register 4105h, value 0 = start)
-mbpoll /dev/ttyUSBEVSEcontrol -m rtu -a 9 -B -0 -1 -b 57600 -P even -s 1 -r 16645 -t 3:int 0
-
-# Set current limit to 16 A (register 4100h, value in mA)
-mbpoll /dev/ttyUSBEVSEcontrol -m rtu -a 9 -B -0 -1 -b 57600 -P even -s 1 -r 16640 -t 3:int 16000
+cd rasppi/wallbox
+docker compose build
+docker compose stop wallbox-reader
+docker compose run --rm --no-deps wallbox-reader --once
 ```
+
+Build, automatic hardware-free tests, configuration and continuous operation:
+[wallbox reader guide](../rasppi/wallbox/README.md).
+
+For individual diagnostic reads, `mbpoll` must also run in Docker. If the
+existing `deb-mbpoll` container has the serial device mapped at the documented
+path, first stop the reader and any other master, then run:
+
+```bash
+docker exec -it deb-mbpoll mbpoll /dev/ttyUSBEVSEcontrol \
+  -m rtu -a 9 -c 2 -0 -1 -b 57600 -P even -s 1 -r 16396 -t 4
+```
+
+This uses FC03 and reads two 16-bit raw holding registers. Existing reference
+examples using `-t 3` mean FC04 and require firmware validation. Do not install
+mbpoll on the host if the diagnostic container is unavailable. The reader
+does not issue write commands; contradictory start/stop notes must be resolved
+before implementing charging control.
 
 More registers and commands: `docs/wallbox/ABB_Terra_AC_Modbus_Befehle.md`
 and the official datasheet `docs/wallbox/ABB_Terra_AC_Charger_ModbusCommunication_v1.7.pdf`.
@@ -237,8 +260,9 @@ and the official datasheet `docs/wallbox/ABB_Terra_AC_Charger_ModbusCommunicatio
 
 - **Polling timeout:** the wallbox aborts the charging session if it is not
   polled within its communication timeout (**default 60 s**, register 4106h,
-  settable 10–65535 s). Poll regularly (recommended 30–90 s) or raise the
-  timeout.
+  settable 10–65535 s). The reader polls every 2 s by default; keep the interval
+  safely below the actual timeout. A failed request is not proof the wallbox
+  refreshed its timeout. Do not use 90 s against a 60 s timeout.
 - **Current limit < 6 A** puts the session into **Pause** (IEC 61851-1).
 - Socket lock/unlock (register 4103h) only exists on socket models — the
   connector type is encoded in the serial number (register 4000h, byte 7).
@@ -247,17 +271,10 @@ and the official datasheet `docs/wallbox/ABB_Terra_AC_Charger_ModbusCommunicatio
 
 ## 7. MQTT (next step)
 
-Install the broker on the Pi:
+MQTT integration is not implemented yet. The broker and diagnostic MQTT
+clients must run in containers, not be installed on the host. All project
+services will use the same broker; its Compose/network/authentication setup
+will be added in the MQTT development step.
 
-```bash
-sudo apt install mosquitto mosquitto-clients
-```
-
-Test locally:
-
-```bash
-mosquitto_sub -h localhost -t "evse/test"   # terminal 1
-mosquitto_pub -h localhost -t "evse/test" -m "hello"   # terminal 2
-```
-
-The ESP32 will connect via WiFi to the broker on port 1883 using the Pi's IP (`hostname -I`).
+The ESP32 stays connected to the Pi over UART, without direct WiFi/MQTT.
+The planned Pi gateway translates between UART messages and MQTT.
