@@ -10,8 +10,8 @@ Home Assistant sowie ein Weboverlay.
 
 > **Entwicklungsstand:** Der Wallbox-Dienst ist ausschließlich lesend.
 > MQTT, reale Ladesteuerung, Datenbank und Bedienoberflächen sind noch nicht
-> implementiert. Die Docker-/Hardwarevalidierung ist noch nicht durch bestätigte
-> Testergebnisse dokumentiert.
+> implementiert. Ein Docker-Einmaltest mit FC03 an der realen Wallbox wurde
+> bestätigt; Dauerbetrieb und weitere Hardwarevalidierung stehen noch aus.
 
 ## Projektziele
 
@@ -83,7 +83,7 @@ Voraussetzung: Repository, Docker/Compose und angeschlossene Wallbox auf dem Pi.
 cd rasppi/wallbox
 docker compose build
 docker compose stop wallbox-reader
-docker compose run --rm --no-deps wallbox-reader --once && docker compose up -d
+docker compose run --rm --no-deps -T --interactive=false wallbox-reader --once && docker compose up -d
 docker compose logs --tail 20 -f wallbox-reader
 ```
 
@@ -128,8 +128,8 @@ CHANGELOG.md             Änderungsverlauf
 - [DTSU666-Handbuch](docs/smartmeter/)
 - [Projektkontext für Agents](AGENTS.md) und [Changelog](CHANGELOG.md)
 
-Nächster Meilenstein ist die Bestätigung der Register und Zustände an der
-realen Wallbox. Danach folgen MQTT-Gateway/Broker, abgesicherte Ladesteuerung,
+Nächster Meilenstein ist die Dauerbetriebsprüfung mit weiteren Zustands- und
+Messwertvergleichen an der realen Wallbox. Danach folgen MQTT-Gateway/Broker, abgesicherte Ladesteuerung,
 Energiezähler, Zustandsspeicherung, Bedienoberflächen und Automationen.
 
 **Sicherheit:** Widersprüchliche Register-/Steuernotizen nicht ungeprüft

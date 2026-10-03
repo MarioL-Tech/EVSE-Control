@@ -232,7 +232,7 @@ bare device is usually `/dev/ttyUSB0`). Use the Docker-only reader first:
 cd rasppi/wallbox
 docker compose build
 docker compose stop wallbox-reader
-docker compose run --rm --no-deps wallbox-reader --once
+docker compose run --rm --no-deps -T --interactive=false wallbox-reader --once
 ```
 
 Build, automatic hardware-free tests, configuration and continuous operation:

@@ -177,8 +177,20 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   libmodbus 3.1.6 und 3.1.11): Decoder/JSON sowie simulierte RTU-Kommunikation über PTY.
   Fehlerfall-, CLI- und Shutdown-Prüfungen sind hardwareunabhängig, einschließlich
   Teilantwort-Timeout, Shutdown während einer Abfrage und blockierter Ausgabe.
-- Dockerfile und Compose für den Pi sind vorbereitet, aber **noch nicht mit
-  Docker gebaut/gestartet**. Kein Deployment oder Test an realem Pi/Wallbox.
+- Mario hat am 2026-10-03 einen erfolgreichen Docker-Einmaltest am realen
+  Pi/Wallbox per Screenshot bestätigt: FC03, Slave 9, Block `0x4008..0x401F`,
+  `status=ok`, Fehlercode 0, Zustand 1/B1, angeschlossen, nicht ladend,
+  Stromlimit 16 A; Spannungen 237,6/234,6/237,2 V. Damit ist FC03 für diesen
+  Block an der getesteten Wallbox bestätigt; FC04-Unterstützung anderer Register
+  oder die Korrektheit aller Zustände/Messwerte ist dadurch nicht nachgewiesen.
+  Dauerbetrieb, reale Fehlerfälle und Messwertvergleich bleiben offen.
+- Mario ordnet die anfänglich fehlende Ausgabe/fehlerhafte Exitcode-Abfrage
+  einem Windows-Problem beim Befehlsaufruf zu, nicht der Wallbox-Kommunikation.
+  Die genaue Windows-Ursache wurde hier nicht unabhängig untersucht.
+- Einmaltests mit `docker compose run --rm --no-deps -T --interactive=false
+  wallbox-reader --once` ausführen. So werden keine nachfolgenden eingefügten
+  Shellzeilen als Containereingabe übernommen. Exitcode-Abfrage bei Bedarf auf
+  derselben Shellzeile ausführen; `"$?"` nicht als eigenen Befehl eingeben.
 - Docker-only-Anleitungen ersetzen die früheren nativen Host-Build-Schritte.
   Tests laufen automatisch im Multi-Stage-Image-Build. Ein Entrypoint übernimmt
   dieselben Compose-Umgebungsparameter für `--once` und Dauerbetrieb; `WALLBOX_DEVICE`
@@ -191,7 +203,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 
 ## Geplant / noch nicht implementiert
 
-- Deployment und Hardwarevalidierung der lesenden ABB-Abfragen sowie
+- Dauerbetriebs-/Fehlerfallprüfung und weitere Hardwarevalidierung der ABB-Abfragen sowie
   anschließende Pi-Modbus-Steuerung der ABB Terra AC.
 - DTSU666-Messwerterfassung und Berechnung verfügbarer Ladeleistung.
 - UART-MQTT-Gateway, verbindliche MQTT-Topics und Payloads.

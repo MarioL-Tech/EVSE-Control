@@ -17,7 +17,7 @@ Docker/Compose, Repository und Wallbox-Verbindung müssen vorhanden sein.
 cd rasppi/wallbox
 docker compose build
 docker compose stop wallbox-reader
-docker compose run --rm --no-deps wallbox-reader --once && docker compose up -d
+docker compose run --rm --no-deps -T --interactive=false wallbox-reader --once && docker compose up -d
 docker compose logs --tail 20 -f wallbox-reader
 ```
 
@@ -85,7 +85,7 @@ insbesondere `mbpoll` und einen eventuell laufenden Reader-Container.
 # Falls nötig VOR Test und Dauerbetrieb den Host-Gerätepfad setzen:
 # export WALLBOX_DEVICE=/dev/ttyUSB0
 docker compose stop wallbox-reader
-docker compose run --rm --no-deps wallbox-reader --once
+docker compose run --rm --no-deps -T --interactive=false wallbox-reader --once
 ```
 
 Bei abweichenden Kommunikationsparametern diese vor beiden Starts setzen:
@@ -96,14 +96,19 @@ export WALLBOX_PARITY=E
 export WALLBOX_SLAVE=9
 export WALLBOX_INTERVAL_MS=2000
 export WALLBOX_TIMEOUT_MS=1000
-docker compose run --rm --no-deps wallbox-reader --once
+docker compose run --rm --no-deps -T --interactive=false wallbox-reader --once
 ```
 
 `WALLBOX_DEVICE` ist der Host-Gerätepfad, innerhalb des Containers heißt er
 immer `/dev/ttyWallbox`. Der Entrypoint verwendet dieselben Einstellungen für
 Einmal-Test und Dauerbetrieb. Zusätzliche CLI-Optionen können sie für einen
-einzelnen Aufruf überschreiben, z. B. `docker compose run --rm --no-deps
+einzelnen Aufruf überschreiben, z. B. `docker compose run --rm --no-deps -T --interactive=false
 wallbox-reader --slave 9 --once`.
+
+Einmaltests benötigen keine interaktive Eingabe. `-T --interactive=false`
+verhindert, dass beim Einfügen mehrerer Befehle die Folgezeilen im Container
+landen. Für einen Exitcode den Test und `printf 'Exitcode: %s\n' "$?"` mit
+Semikolon auf **derselben Shellzeile** ausführen.
 
 8 Datenbits und 1 Stoppbit sind festgelegt. Parität ist `E`, `O` oder `N`.
 Bei Geräte-/Berechtigungsfehlern die Gerätezuordnung und Docker-Zugriffsrechte
@@ -192,6 +197,10 @@ ist eine vorläufige JSON-Schnittstelle, noch kein beschlossener MQTT-Vertrag.
 
 ## Vor realer Nutzung verifizieren
 
+- Bestätigter Einmaltest laut Mario (2026-10-03): Docker-Reader liest den
+  gesamten Block per FC03 erfolgreich, `status=ok`, Fehlercode 0. Zustand B1,
+  16-A-Limit und Phasenspannungen wurden ausgegeben. Das ist noch keine
+  Dauerbetriebs-/Fehlerfallprüfung oder unabhängige Messwertvalidierung.
 - Herstellerquelle: `docs/wallbox/ABB_Terra_AC_Charger_ModbusCommunication_v1.7.pdf`.
   Die neue `modbusRegisters.txt` verweist auf v1.11, enthält aber widersprüchliche
   Steuerwerte. Zusätzliche v1.11-Register werden hier noch nicht abgefragt.
