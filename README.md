@@ -76,64 +76,21 @@ UART-/Modbus-Daten auf MQTT; MQTT ersetzt nicht die physischen Hardwareleitungen
 
 ## Schnellstart: Wallbox lesen
 
-### Voraussetzungen
-
-- Raspberry Pi mit bereits verfügbarer Docker Engine und Compose-Plugin.
-- Repository auf dem Pi; Remote-Zugriff bei Bedarf über WireGuard und SSH.
-- USB-RS485-Adapter mit verfügbarer Gerätedatei und passend konfigurierter Wallbox.
-- Netzwerkzugriff zum Laden der Images und Pakete **während des Container-Builds**.
-
-**Docker-only:** Build, Tests und Betrieb erfolgen in Containern. Keine Compiler,
-Python-/pip-Pakete, libmodbus, mbpoll oder Mosquitto auf dem Pi-Host installieren.
-Die Paketinstallation im Dockerfile betrifft nur das Image. Docker selbst und
-die vorhandene OS-/Hardwarekonfiguration sind Voraussetzungen.
-
-### Image bauen und einmal lesen
-
-Auf dem Pi, aus dem Repository-Hauptverzeichnis:
+Voraussetzung: Repository, Docker/Compose und angeschlossene Wallbox auf dem Pi.
+**Nur Docker verwenden; andere Prozesse am RS485-Port vorher stoppen.**
 
 ```bash
 cd rasppi/wallbox
-
-# Nur falls der Host-Gerätepfad vom Standard abweicht:
-# export WALLBOX_DEVICE=/dev/ttyUSB0
-
 docker compose build
 docker compose stop wallbox-reader
-docker compose run --rm --no-deps wallbox-reader --once
-```
-
-**Vor der Abfrage andere Prozesse/Container am selben RS485-Port stoppen**,
-insbesondere `mbpoll`. Genau ein Prozess darf die Verbindung bedienen.
-
-Standard: Host-Gerät `/dev/ttyUSBEVSEcontrol`, im Container `/dev/ttyWallbox`,
-57600 Baud, Even-Parität, Slave-ID 9. Bei Abweichungen `WALLBOX_BAUD`,
-`WALLBOX_PARITY` und `WALLBOX_SLAVE` vor dem Start exportieren.
-
-Der Reader gibt JSON-Zeilen mit Ladezustand, Stromlimit, Phasenströmen,
-Spannungen, Leistung und Sessionenergie aus. `status: "ok"` bestätigt die
-Kommunikation, nicht die Fehlerfreiheit der Wallbox. Bei Kommunikationsfehlern
-sind `values` auf `null`; unbekannte Ladezustände liefern ebenfalls keine
-falschen Anschluss-/Ladeaussagen.
-
-### Dauerbetrieb
-
-Nach erfolgreichem Einmal-Test, weiterhin in `rasppi/wallbox/`:
-
-```bash
-docker compose up -d
+docker compose run --rm --no-deps wallbox-reader --once && docker compose up -d
 docker compose logs --tail 20 -f wallbox-reader
 ```
 
-`Ctrl+C` beendet hier nur die Logansicht. Zum Stoppen des Dienstes:
-
-```bash
-docker compose down
-```
-
-Standardmäßig liest der Dienst alle zwei Sekunden mit einer Sekunde
-Antworttimeout. Weitere Konfiguration, Tests und Registerinterpretation:
-[Wallbox-Dienst-Anleitung](rasppi/wallbox/README.md).
+Standard: `/dev/ttyUSBEVSEcontrol`, 57600 Baud, 8E1, ID 9. Anderer Gerätepfad:
+vorher z. B. `export WALLBOX_DEVICE=/dev/ttyUSB0` setzen.
+`Ctrl+C` beendet nur die Logansicht; `docker compose down` stoppt den Dienst.
+Details: [Wallbox-Anleitung](rasppi/wallbox/README.md).
 
 ## ESP32-UART-Verbindung testen
 

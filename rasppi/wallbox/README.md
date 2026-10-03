@@ -8,6 +8,26 @@ eine JSON-Zeile auf stdout aus. Diagnosen gehen auf stderr.
 keine Weboberfläche in diesem Entwicklungsschritt.** Das bestehende
 `rasppi/src/main.py` bleibt die separate ESP32-UART-Brücke.
 
+## Start auf dem Pi
+
+Docker/Compose, Repository und Wallbox-Verbindung müssen vorhanden sein.
+**Keine Host-Pakete installieren; andere Prozesse am RS485-Port vorher stoppen.**
+
+```bash
+cd rasppi/wallbox
+docker compose build
+docker compose stop wallbox-reader
+docker compose run --rm --no-deps wallbox-reader --once && docker compose up -d
+docker compose logs --tail 20 -f wallbox-reader
+```
+
+Standard: `/dev/ttyUSBEVSEcontrol`, 57600 Baud, 8E1, ID 9.
+Anderer Gerätepfad: vorher `export WALLBOX_DEVICE=/dev/ttyUSB0` setzen.
+`Ctrl+C` beendet nur die Logansicht; `docker compose down` stoppt den Dienst.
+
+<details>
+<summary>Konfiguration, Tests und Betriebshinweise</summary>
+
 ## Auf den Pi übertragen
 
 Zugriff erfolgt über die bestehende WireGuard-Verbindung und SSH. Der Pi
@@ -127,6 +147,8 @@ Lesesperre: die Anwendung ist lesend, das serielle Protokoll muss Anfragen sende
 Bei USB-Abziehen/Neuanschließen kann ein Container-Neustart bzw. Neuerstellen
 nötig werden, damit Docker das Gerät erneut zuordnet. Keine garantierte
 USB-Hotplug-Recovery für die Container-Gerätezuordnung behaupten.
+
+</details>
 
 ## Register und Interpretation
 
