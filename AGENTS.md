@@ -58,6 +58,10 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
   simulierte RTU-Tests, CMake sowie Dockerfile/Compose und Pi-Startanleitung.
 - `docs/setup.md`, `docs/pin-connection.md`, `docs/uart-protocol.md`:
   Aufbau, Verdrahtung und vorhandenes UART-Protokoll.
+- `docs/installation.md`: wiederholbarer Docker-only-Ablauf auf dem vorbereiteten
+  Pi inklusive bestehendem Broker, Netzwerk, Tests und bekannten Einrichtungsgrenzen.
+  **Jeden neuen Installations-/Konfigurationsschritt dort ebenfalls dokumentieren**;
+  Mario muss die Einrichtung später reproduzieren können.
 - `docs/wallbox/`: ABB-Terra-AC-Modbus-Dokumentation und Befehlsreferenz.
 - `docs/wallbox/modbusRegisters.txt`: ergänzte Register-/Testnotizen mit Verweis
   auf Handbuch v1.11; das entsprechende PDF liegt derzeit nicht im Repository.
@@ -183,7 +187,13 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Stromlimit 16 A; Spannungen 237,6/234,6/237,2 V. Damit ist FC03 für diesen
   Block an der getesteten Wallbox bestätigt; FC04-Unterstützung anderer Register
   oder die Korrektheit aller Zustände/Messwerte ist dadurch nicht nachgewiesen.
-  Dauerbetrieb, reale Fehlerfälle und Messwertvergleich bleiben offen.
+  Langzeitbetrieb, gezielte Fehlerfalltests und Messwertvergleich bleiben offen.
+- Mario hat einen kurzen zyklischen Docker-Betrieb protokolliert: 13 Abfragen
+  über etwa 25 s, davon 12 erfolgreich und 1 Timeout; beim folgenden Read
+  Recovery ohne Eingriff. Stromlimit dort 6 A, Messströme/Leistung 0. Der Reader
+  setzt keine Limits; Wechsel von zuvor 16 A wurde nicht vom Reader verursacht,
+  seine Ursache ist ungeklärt (z. B. interne Wallbox-Logik oder andere Steuerung).
+  Diese Beobachtung nicht als Langzeitstabilität oder unabhängige Messvalidierung ausgeben.
 - Mario ordnet die anfänglich fehlende Ausgabe/fehlerhafte Exitcode-Abfrage
   einem Windows-Problem beim Befehlsaufruf zu, nicht der Wallbox-Kommunikation.
   Die genaue Windows-Ursache wurde hier nicht unabhängig untersucht.
@@ -200,6 +210,23 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   ihr unterstützter Startweg ist jetzt `docker compose -f rasppi/compose.yaml
   run --rm --build uart-bridge` aus dem Repository-Hauptverzeichnis.
 - Noch keine MQTT-Anbindung, Ladefreigabe, Datenbank oder Bedienoberfläche.
+
+### Vorhandener MQTT-Broker und bestätigte Vorbereitung
+
+- Auf dem Pi läuft bereits `elastic_lumiere`, Image `eclipse-mosquitto:alpine`,
+  Port 1883 an allen Host-Schnittstellen; ursprünglich Netzwerk `bridge`.
+  Reader aktuell in `wallbox_default`. Containername ist deploymentabhängig.
+- **Diesen Broker wiederverwenden, keinen zweiten starten.** Grafana und MariaDB
+  laufen ebenfalls bereits; keine bestehende Infrastruktur ersetzen.
+- Mario hat `evse-mqtt` angelegt und den Broker mit Alias `mqtt-broker` verbunden.
+  Docker-Testclient über dieses Netzwerk bestätigt `CONNACK (0)` und QoS-1-
+  `PUBACK RC:0` für `evse/test` ohne Zugangsdaten. Das bestätigt weder alle ACLs
+  noch Subscriber-Zustellung; Authentifizierung/Port-Erreichbarkeit prüfen.
+- Netzwerkzuordnung übersteht Neustart desselben Containers, nicht automatisch
+  dessen Neuerstellung. Ursprüngliche Broker-Compose-/Config-/Volume-Einrichtung
+  ist noch nicht bekannt; keine vollständige Broker-Neuinstallation vortäuschen.
+- Reader-Publisher und Compose-Anbindung an das externe Netzwerk sind noch offen.
+  Der erfolgreiche Broker-Test bedeutet nicht, dass schon Wallboxdaten über MQTT laufen.
 
 ## Geplant / noch nicht implementiert
 
@@ -295,6 +322,8 @@ verfügbare Toolchain jeweils prüfen; ohne Buildlauf keinen Build-Erfolg behaup
   den betroffenen Abschnitt aktualisieren.
 - Nach abgeschlossenen Entwicklungsabschnitten und vor einer Übergabe den
   gesamten Kontext mit Code und Dokumentation abgleichen.
+- Alle für Betrieb/Wiederinstallation nötigen Befehle, Voraussetzungen,
+  Netzwerk-/Gerätezuordnungen und Änderungen im Installationsguide pflegen.
 - Neue Funktionen erst nach tatsächlicher Implementierung von „geplant“ nach
   „implementiert“ verschieben. Veraltete Aussagen entfernen oder klar als
   historisch markieren; keine bloßen Absichten als Tatsachen dokumentieren.
