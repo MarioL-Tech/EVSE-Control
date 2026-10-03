@@ -6,11 +6,12 @@ Ladestation** mit Raspberry Pi, ESP32 und RFID-basierter Diebstahlsicherung.
 Der Raspberry Pi liest eine ABB Terra AC über Modbus RTU aus. Der ESP32
 übernimmt RFID und einen separaten Servo als Modell der Diebstahlsicherung.
 Geplant sind Ladeautomatisierung, Zustandsspeicherung und Bedienung über
-Home Assistant sowie ein Weboverlay.
+Home Assistant. Ein erstes rein lesendes Weboverlay ist implementiert.
 
 > **Entwicklungsstand:** Der Wallbox-Dienst ist ausschließlich lesend.
-> MQTT-Veröffentlichung ist implementiert, der Empfangstest am Pi noch offen.
-> Reale Ladesteuerung, Datenbank und Bedienoberflächen fehlen noch.
+> MQTT-Empfang echter Wallboxdaten am Pi ist bestätigt. Das neue lesende
+> Weboverlay ist implementiert; Pi-Browser-/Deploymenttest steht noch aus.
+> Reale Ladesteuerung, Datenbank und bedienende Funktionen fehlen noch.
 > Ein Docker-Einmaltest mit FC03 an der realen Wallbox wurde
 > bestätigt; Dauerbetrieb und weitere Hardwarevalidierung stehen noch aus.
 
@@ -34,6 +35,7 @@ Home Assistant sowie ein Weboverlay.
 | UART-Testbrücke | Interaktive Python-Brücke im Docker-Container |
 | Wallbox-Reader | C++17/libmodbus, zyklische FC03-Abfragen, dekodierte Messwerte als JSON |
 | MQTT-Publisher | retained State und Verfügbarkeit mit libmosquitto; vorhandener Broker wird wiederverwendet |
+| Weboverlay | MQTT-Backend und lesende Browseranzeige, blendet veraltete/offline Daten aus |
 | Fehlerbehandlung | Timeouts, erneute Verbindung, ungültige Messwerte als `null`, sauberer Shutdown |
 | Softwaretests | Decoder-/JSON-Tests und simulierte RTU-Kommunikation einschließlich Fehlerfällen |
 | Containerbetrieb | Dockerfiles, Compose-Konfigurationen und Startanleitungen vorhanden |
@@ -66,11 +68,11 @@ Raspberry Pi — lokale Hardwareanbindung, Dienste in Docker
         |
         +-- Wallbox-MQTT --> vorhandener gemeinsamer Message Broker
                               |-- Home Assistant      [geplant]
-                              |-- Weboverlay          [geplant]
+                              |-- Weboverlay          [lesend]
                               +-- Datenbankdienst     [geplant]
         +-- ESP32-UART-MQTT-Gateway                    [geplant]
 
-Remote-Zugriff: Rechner --> WireGuard --> Pi (SSH; später Weboverlay)
+Remote-Zugriff: Rechner --> WireGuard/SSH-Tunnel --> Pi-Weboverlay
 ```
 
 Der Pi ist Modbus-Master; **Adresse 9 gehört zur Wallbox**. UART bleibt die
@@ -96,6 +98,20 @@ vorher z. B. `export WALLBOX_DEVICE=/dev/ttyUSB0` setzen.
 `Ctrl+C` beendet nur die Logansicht; `docker compose down` stoppt den Dienst.
 Details: [Wallbox-Anleitung](rasppi/wallbox/README.md).
 
+## Schnellstart: Weboverlay
+
+Bei laufendem Reader und vorhandenem Broker, aus dem Repository-Verzeichnis:
+
+```bash
+cd rasppi/weboverlay
+docker compose up -d --build
+```
+
+Auf deinem Rechner: `ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.0.1:8080 ml@elke`
+(dein vorhandenes SSH-Ziel verwenden), dann **http://127.0.0.1:8080** öffnen.
+Pi-Port bleibt nur lokal gebunden. Keine Start-/Stop- oder Limitänderung enthalten.
+[Konfiguration und Diagnose](docs/installation.md#9-lesendes-weboverlay).
+
 ## ESP32-UART-Verbindung testen
 
 Die geflashte ESP32-Firmware, UART-Verdrahtung und verfügbare Gerätedatei werden
@@ -117,6 +133,7 @@ esp32/                   PlatformIO-Firmware: RFID, Servo, UART
 rasppi/src/              Interaktive UART-Testbrücke
 rasppi/compose.yaml      Docker-Start der UART-Testbrücke
 rasppi/wallbox/           Lesender libmodbus-Dienst, Tests, Docker Compose
+rasppi/weboverlay/        Lesendes MQTT-Webdashboard, API, Tests, Docker Compose
 docs/                    Setup, Pinbelegung, Protokolle und Hardwarehandbücher
 AGENTS.md                Gepflegter Projektkontext und Entwicklungsregeln
 CHANGELOG.md             Änderungsverlauf
@@ -129,13 +146,14 @@ CHANGELOG.md             Änderungsverlauf
 - [ESP32-Pi-UART-Protokoll](docs/uart-protocol.md)
 - [MQTT-Topics, Payloads und Verfügbarkeit](docs/mqtt-protocol.md)
 - [Wallbox-Dienst und Docker-Betrieb](rasppi/wallbox/README.md)
+- [Lesendes Weboverlay](rasppi/weboverlay/README.md)
 - [Wallbox-Handbücher und Registerreferenzen](docs/wallbox/)
 - [DTSU666-Handbuch](docs/smartmeter/)
 - [Projektkontext für Agents](AGENTS.md) und [Changelog](CHANGELOG.md)
 
-Nächster Meilenstein ist die Dauerbetriebsprüfung mit weiteren Zustands- und
-Messwertvergleichen und MQTT-Empfang am Pi. Danach folgen UART-MQTT-Gateway, abgesicherte Ladesteuerung,
-Energiezähler, Zustandsspeicherung, Bedienoberflächen und Automationen.
+Nächster Meilenstein ist die Pi-Browserprüfung des Weboverlays sowie weitere
+Dauerbetriebs-/Zustands- und Messwertvergleiche. Danach folgen UART-MQTT-Gateway,
+abgesicherte Ladesteuerung, Energiezähler, Zustandsspeicherung und Automationen.
 
 **Sicherheit:** Widersprüchliche Register-/Steuernotizen nicht ungeprüft
 übernehmen. Der Reader sendet keine Modbus-Schreibbefehle. Arbeiten an

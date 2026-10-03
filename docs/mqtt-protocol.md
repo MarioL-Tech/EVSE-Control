@@ -1,8 +1,9 @@
 # MQTT-Vertrag: Wallbox-Telemetrie
 
 Der Reader veröffentlicht Messwerte über den vorhandenen Broker. Er empfängt
-**keine Steuerbefehle**. ESP32-UART-Gateway, Weboverlay und Home Assistant folgen
-separat. Topic-Präfix standardmäßig `evse/wallbox`, konfigurierbar.
+**keine Steuerbefehle**. Das [lesende Weboverlay](../rasppi/weboverlay/README.md)
+abonniert beide Topics; ESP32-UART-Gateway und Home Assistant folgen separat.
+Topic-Präfix standardmäßig `evse/wallbox`, konfigurierbar.
 
 | Topic | Payload | QoS | Retained |
 |---|---|---|---|

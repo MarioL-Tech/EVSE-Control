@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>EVSE · Ladeübersicht</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header class="masthead">
+      <div><p class="eyebrow">EVSE / MONITOR</p><h1>Ladeübersicht</h1></div>
+      <span class="readonly">Nur lesen</span>
+    </header>
+    <section class="status-panel" aria-label="Datenstatus">
+      <div class="status-line" role="status"><span id="status" class="badge" data-tone="muted">Warten auf Daten</span><span id="reason">Verbindung zur Anzeige wird hergestellt.</span></div>
+      <div class="metadata"><span>Broker: <strong id="broker">Unbekannt</strong></span><span>Telemetrie-Verfügbarkeit: <strong id="availability">Unbekannt</strong></span><span>Frischebudget: <strong id="freshness">—</strong></span></div>
+    </section>
+    <section class="overview" aria-label="Ladezustand">
+      <article class="card power-card"><p class="eyebrow">Aktuelle Wirkleistung</p><p class="hero-value" id="power">—</p><p class="subtle">Gesamtleistung der Wallbox</p></article>
+      <article class="card"><h2>Fahrzeug</h2><dl class="facts"><div><dt>Angesteckt</dt><dd id="plugged">Unbekannt</dd></div><div><dt>Lädt tatsächlich</dt><dd id="charging">Unbekannt</dd></div></dl><p class="subtle">Angesteckt bedeutet nicht automatisch Laden.</p></article>
+      <article class="card"><h2>Ladesitzung</h2><p class="metric" id="energy">—</p><p class="subtle">Energie dieser Sitzung</p></article>
+    </section>
+    <section class="details" aria-label="Messwerte und Diagnose">
+      <article class="card"><h2>Phasenmessung</h2><table><caption>Strom und Spannung je Phase</caption><thead><tr><th scope="col">Phase</th><th scope="col">Strom</th><th scope="col">Spannung</th></tr></thead><tbody><tr><th scope="row">L1</th><td id="current-0">—</td><td id="voltage-0">—</td></tr><tr><th scope="row">L2</th><td id="current-1">—</td><td id="voltage-1">—</td></tr><tr><th scope="row">L3</th><td id="current-2">—</td><td id="voltage-2">—</td></tr></tbody></table></article>
+      <article class="card"><h2>Grenzen &amp; Verbrauch</h2><dl class="facts"><div><dt>Stromlimit der Wallbox</dt><dd id="limit">—</dd></div><div><dt>Unter Sollstrom</dt><dd id="below">Unbekannt</dd></div></dl><p class="notice">Gebäudestrom: Noch nicht erfasst (DTSU666)</p><p class="subtle">Das Wallbox-Limit ist kein Messwert des Gebäudestroms.</p></article>
+      <article class="card"><h2>Wallbox-Diagnose</h2><p id="wallbox-error" class="diagnostic">—</p><dl class="facts"><div><dt>Ladezustand</dt><dd id="charging-state">—</dd></div><div><dt>Ladezustand (Rohwert)</dt><dd id="charging-raw">—</dd></div><div><dt>Buchsenverriegelung (Rohwert)</dt><dd id="lock">—</dd></div></dl><p class="subtle">Verriegelungswert der Wallbox, nicht des ESP32-Servos. Online-Telemetrie bedeutet nicht Fehlerfreiheit.</p></article>
+      <article class="card"><h2>Datenprotokoll</h2><dl class="facts timestamps"><div><dt>Letzte Messung</dt><dd id="timestamp">—</dd></div><div><dt>Letzte erfolgreiche Abfrage</dt><dd id="last-success">—</dd></div><div><dt>Messwertalter</dt><dd id="age">—</dd></div><div><dt>Lesefehler</dt><dd id="read-error">—</dd></div></dl></article>
+    </section>
+    <footer>Nur Anzeige · Keine Steuerung · Automatische Abfrage jede Sekunde<br>Bei fehlenden oder veralteten Daten werden Messwerte ausgeblendet.</footer>
+    <noscript><p class="notice">Für aktuelle Messwerte muss JavaScript aktiviert sein.</p></noscript>
+  </main>
+</body>
+</html>

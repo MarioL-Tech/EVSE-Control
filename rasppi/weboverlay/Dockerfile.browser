@@ -1,0 +1,6 @@
+# Browser tests run only in this disposable test image, never on the Pi host.
+FROM mcr.microsoft.com/playwright:v1.55.0-noble
+WORKDIR /tests
+RUN npm install --no-audit --no-fund --save-exact playwright@1.55.0
+COPY tests/browser.cjs ./
+CMD ["node", "browser.cjs"]

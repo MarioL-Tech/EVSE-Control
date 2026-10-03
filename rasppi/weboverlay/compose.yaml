@@ -1,0 +1,35 @@
+services:
+  weboverlay:
+    build: .
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 10s
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:8080"
+    environment:
+      MQTT_HOST: "${MQTT_HOST:-mqtt-broker}"
+      MQTT_PORT: "${MQTT_PORT:-1883}"
+      MQTT_TOPIC_PREFIX: "${MQTT_TOPIC_PREFIX:-evse/wallbox}"
+      MQTT_CLIENT_ID: "${MQTT_CLIENT_ID:-evse-weboverlay}"
+      MQTT_USERNAME: "${MQTT_USERNAME:-}"
+      MQTT_PASSWORD: "${MQTT_PASSWORD:-}"
+      MQTT_PASSWORD_FILE: "${MQTT_PASSWORD_FILE:-}"
+      WEB_STALE_SECONDS: "${WEB_STALE_SECONDS:-10}"
+    networks:
+      - mqtt
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+networks:
+  mqtt:
+    external: true
+    name: evse-mqtt

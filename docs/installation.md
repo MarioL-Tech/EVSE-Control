@@ -8,8 +8,9 @@ Docker- oder Broker-Neuinstallation ist damit noch nicht beschrieben.
 
 **Stand:** 2026-10-03. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
 zyklischer Betrieb wurden von Mario bestätigt. Der vorhandene MQTT-Broker ist
-erreichbar. MQTT-Veröffentlichung ist jetzt implementiert; der neue Reader muss
-noch auf dem Pi aktualisiert und per Subscriber geprüft werden.
+erreichbar; Mario hat auch den Empfang der echten Reader-Messwerte bestätigt.
+Das neue rein lesende Weboverlay ist implementiert, der Browser-/Deploymenttest
+auf dem Pi steht noch aus (Abschnitt 9).
 
 ## Inhalt
 
@@ -21,6 +22,7 @@ noch auf dem Pi aktualisiert und per Subscriber geprüft werden.
 6. [ESP32-UART testen](#6-optionale-esp32-uart-testbrücke)
 7. [Wiederinstallation vorbereiten](#7-was-für-eine-spätere-wiederholung-gesichert-werden-muss)
 8. [Hardware und Erstvorbereitung](#8-hardware-und-erstvorbereitung)
+9. [Lesendes Weboverlay](#9-lesendes-weboverlay)
 
 ## 1. Voraussetzungen und Regeln
 
@@ -362,9 +364,14 @@ Die GitHub-Docker-CI baut ebenfalls ausschließlich in Docker.
 Bestätigter Lauf [37153110560](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37153110560):
 alle drei Tests und Runtime-Smoke-Test erfolgreich; dies ersetzt keinen Pi-Empfangstest.
 
-Der Publish-/Empfangstest der **neuen Reader-Version am Pi** ist noch offen;
-die frühere `evse/test`-Nachricht war nur die Broker-Vorprüfung. Weboverlay,
-Home Assistant, Datenbank, UART-MQTT-Bridge und Ladesteuerung sind noch geplant.
+**Realer Empfang bestätigt:** Marios Subscriber-Auszug vom 2026-10-03,
+21:03:18–21:03:46 UTC (23:03:18–23:03:46 Europe/Vienna), zeigt 15 erfolgreiche
+Reader-Samples im 2-Sekunden-Takt plus `availability online`. Zustand B1,
+angeschlossen/nicht ladend, Fehlercode 0, Limit 6 A, Ströme/Leistung 0 und
+Spannungen ungefähr 233–236 V. Das bestätigt Wallbox → Reader → vorhandener
+Broker → Subscriber, nicht Langzeitstabilität oder Ausfallverhalten am Pi.
+Weboverlay siehe Abschnitt 9; Home Assistant, Datenbank, UART-MQTT-Bridge und
+Ladesteuerung bleiben geplant.
 
 ## 6. Optionale ESP32-UART-Testbrücke
 
@@ -588,3 +595,156 @@ installieren, keinen parallelen Read starten. Mehr [Registerreferenzen](wallbox/
   die Reader-Anwendung sendet **keine Schreibbefehle**. Keine unvalidierten
   Steuerbefehle ausführen oder diese Fähigkeiten als implementiert darstellen.
 - ABB-Handbuch: [Modbus v1.7](wallbox/ABB_Terra_AC_Charger_ModbusCommunication_v1.7.pdf).
+
+## 9. Lesendes Weboverlay
+
+### Aufbau und Voraussetzungen
+
+`rasppi/weboverlay/` ist ein eigener Docker-Dienst. Sein Python-/Flask-Backend
+abonniert mit Paho die bestehenden MQTT-Topics; Gunicorn liefert API und statische
+Browseroberfläche aus. **Kein zusätzlicher Broker, kein Zugriff auf RS485/UART,
+keine Schreibbefehle.** Der laufende Wallbox-Reader muss nicht gestoppt werden.
+
+Voraussetzungen: Abschnitt 5 eingerichtet (`evse-mqtt`, `mqtt-broker`), laufender
+Reader und aktueller Repository-Stand nach Merge der Weboverlay-PR. Build und
+Tests benötigen keine Wallbox, Tests verwenden nur einen isolierten Loopback-Broker.
+
+### Auf dem Pi starten
+
+Aus dem Repository-Verzeichnis:
+
+```bash
+git switch main
+git pull --ff-only
+cd rasppi/weboverlay
+test -e .env || cp .env.example .env
+docker compose up -d --build
+docker compose logs --tail 30 -f weboverlay
+```
+
+`Ctrl+C` beendet nur die Logansicht. Das Image führt beim Build automatisch
+Python-/HTTP-/MQTT- und JavaScript-Tests aus; ein Testfehler bricht den Build ab.
+Weder Compiler noch Python-/Node-/pip-Pakete auf dem Pi-Host installieren.
+
+Der Dienst bindet den Hostport bewusst **nur an `127.0.0.1:8080`**. Es werden
+keine Firewall-, SSH-, WireGuard- oder Routereinstellungen verändert. Kein
+HTTP-Login und kein TLS in dieser ersten Version: nicht ins Internet freigeben.
+
+### Browserzugriff über vorhandenes SSH/WireGuard
+
+Auf **deinem Rechner**, in einem separaten Terminal, nicht auf dem Pi:
+
+```bash
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.0.1:8080 ml@elke
+```
+
+`ml@elke` nur verwenden, wenn es dein bereits funktionierendes SSH-Ziel ist;
+sonst denselben Benutzer und dieselbe Pi-Adresse wie bei deiner üblichen
+SSH-Verbindung über WireGuard einsetzen. Keine neue öffentliche IP/Freigabe
+einrichten. Terminal offen lassen und im Browser **http://127.0.0.1:8080** öffnen.
+`Ctrl+C` beendet den Tunnel, nicht den Pi-Webdienst oder Reader.
+
+Ist Port 8080 **auf deinem Rechner** belegt, links 8081 wählen:
+
+```bash
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8081:127.0.0.1:8080 ml@elke
+```
+
+Dann http://127.0.0.1:8081 öffnen. Ist Port 8080 hingegen **auf dem Pi** belegt,
+`WEB_PORT=8081` in der lokalen Weboverlay-`.env` setzen, Compose erneut starten
+und auch das rechte Tunnelziel auf `127.0.0.1:8081` ändern. Vorhandene Dienste
+nicht stoppen/ersetzen, um den Port frei zu machen.
+
+### Erwartete Anzeige und Frische
+
+Die Oberfläche zeigt Fahrzeuganschluss und tatsächliches Laden getrennt,
+Phasenströme/-spannungen, Wirkleistung, Sessionenergie, Wallbox-Limit, Fehlercode
+und Messzeit. **Verfügbarer Gebäudestrom ist noch nicht erfasst**; dafür fehlt
+die DTSU666-Anbindung. Die Wallbox-Verriegelung ist nicht der ESP32-Servo.
+Es gibt keine Start-/Stop-, Limit- oder frei eingebbaren Steuerbefehle.
+
+Messwerte erscheinen nur, wenn Brokerverbindung, `availability online`, ein
+gültiges `status=ok`-Sample und dessen Frische zusammenpassen. Default maximal
+10 s Samplealter, mehr als 5 s Zukunftsabweichung wird abgelehnt. Pi-/Reader-Uhr
+müssen stimmen; große Zeitfehler nicht durch eine großzügige Frist kaschieren.
+Readfehler, ungültige Payloads, fehlende Verfügbarkeit, Brokerverlust oder zu alte
+Daten blenden die Messwerte aus. Unbekannte Anschluss-/Ladezustände sind nicht
+`false`, sondern „Unbekannt“. Ein Wallbox-Fehlercode wird separat angezeigt;
+eine funktionierende Datenverbindung bedeutet nicht fehlerfreie Hardware.
+
+Der Browser fragt `/api/state` ungefähr jede Sekunde ab, verwirft Werte auch
+bei API-Ausfall und lässt sie unabhängig von weiteren HTTP-Antworten ablaufen.
+Eine unterbrochene Verbindung wird nicht zwingend sofort erkannt, aber alte
+Messwerte bleiben nicht unbegrenzt als „aktuell“ sichtbar. Retained MQTT-Werte
+werden nach Backend-Reconnect erst mit beiden Topics und gültiger Frische gezeigt.
+
+### Lokale Konfiguration und optionale Zugangsdaten
+
+Eigene `.env` unter `rasppi/weboverlay/`, unabhängig von `rasppi/wallbox/.env`:
+
+| Variable | Default / Bedeutung |
+|---|---|
+| `WEB_PORT` | `8080`, Hostport ausschließlich auf Pi-Localhost |
+| `WEB_STALE_SECONDS` | `10`, zulässig 3–120 s; an Reader-Intervall anpassen |
+| `MQTT_HOST`, `MQTT_PORT` | `mqtt-broker`, `1883` |
+| `MQTT_TOPIC_PREFIX` | `evse/wallbox`, muss zum Reader passen |
+| `MQTT_CLIENT_ID` | `evse-weboverlay`, **nicht** die Reader-Client-ID verwenden |
+| `MQTT_USERNAME`, `MQTT_PASSWORD` | optional, lokal; Passwortdatei bevorzugen |
+| `MQTT_PASSWORD_FILE` | gemounteter Containerpfad, mit Auth-Override gesetzt |
+
+Nur Leserechte auf `<Präfix>/state` und `<Präfix>/availability` sind erforderlich;
+der Dienst veröffentlicht selbst nichts. MQTT-Zugangsdaten bleiben im Backend
+und gelangen nicht zum Browser. Ein Broker ohne diese Abonnementrechte liefert
+keine aktuelle Anzeige. Bei Änderungen `docker compose up -d --force-recreate`.
+
+Wenn euer Broker Authentifizierung benötigt: vorhandene Passwortdatei außerhalb
+des Repositorys mit Passwort in der ersten Zeile verwenden. In der lokalen
+`.env` `MQTT_USERNAME` und `MQTT_PASSWORD_HOST_FILE=/absoluter/host/pfad` setzen.
+Die Datei muss für Container-UID **10001** lesbar sein (z. B. gezielt Eigentümer
+10001 und Modus 0400 für eine eigens dafür angelegte Kopie setzen; nicht die
+Broker-Datei ändern oder pauschal weltlesbar machen). Beispiel für diese Kopie:
+
+```bash
+sudo chown 10001:10001 /absoluter/host/pfad
+sudo chmod 0400 /absoluter/host/pfad
+docker compose -f compose.yaml -f compose.auth.yaml up -d --build
+```
+
+Platzhalter durch den echten Pfad ersetzen. Der Override mountet read-only nach
+`/run/secrets/mqtt-password`; nicht beide Passwortmethoden kombinieren. Bei dieser
+Betriebsart dieselben `-f`-Optionen auch für Updates/Logs/Stop verwenden. Keine
+Secrets committen, in Chat posten oder als CLI-Argumente weitergeben.
+
+### Diagnose, Tests und Update
+
+Im Verzeichnis `rasppi/weboverlay/`:
+
+```bash
+docker compose ps
+docker compose logs --tail 50 weboverlay
+docker compose exec -T weboverlay python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8080/api/state', timeout=3).read().decode())"
+```
+
+`/healthz` prüft nur die Webserver-Erreichbarkeit, nicht MQTT-/Wallbox-Verfügbarkeit.
+Container „healthy“ und Oberfläche „offline“ widersprechen sich deshalb nicht.
+Ein Broker-Ausfall darf den Webserver nicht in eine Neustartschleife treiben.
+Bei „Warte auf Daten“ Präfix, Reader-Publishing, Broker-Abonnementrechte und Uhrzeit
+prüfen. Für MQTT-Diagnose weiterhin den Subscriber aus Abschnitt 5 verwenden.
+
+Tests unabhängig von Hardware wiederholen, vollständig in Docker:
+
+```bash
+docker build --target test -t evse-weboverlay-tests .
+docker run --rm evse-weboverlay-tests python -m unittest discover -s tests -v
+docker run --rm evse-weboverlay-tests node --test tests/frontend.test.cjs
+```
+
+Update nach Git-Aktualisierung: `docker compose up -d --build`.
+Stoppen: `docker compose down`. Das betrifft nur das Weboverlay, nicht Reader
+oder vorhandenen Broker. Der Dienst speichert keinen Verlauf; nach Neustart
+werden neue/retained Nachrichten erneut geprüft. Kein Datenbankdienst enthalten.
+Gunicorn bleibt bei **einem Worker** mit mehreren HTTP-Threads; mehrere Worker
+würden getrennte Snapshots und konkurrierende MQTT-Client-IDs erzeugen.
+
+**Noch zu bestätigen:** tatsächlicher Pi-Start und Browseranzeige über deinen
+Tunnel. Die automatischen Tests ersetzen diese Bedien-/Deploymentprüfung nicht.

@@ -56,6 +56,8 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
   mit Python/pyserial ausschließlich im Container, Hardwaregerät durchgereicht.
 - `rasppi/wallbox/`: rein lesender C++17-libmodbus-Dienst, Decoder-/JSON-Tests,
   simulierte RTU-Tests, CMake sowie Dockerfile/Compose und Pi-Startanleitung.
+- `rasppi/weboverlay/`: lesendes Flask-/Paho-Backend, Browseroberfläche, isolierte
+  MQTT-/HTTP- und Frontendtests, Docker/Compose; kein direkter Hardwarezugriff.
 - `docs/pin-connection.md`, `docs/uart-protocol.md`: Pinreferenz und UART-Protokoll.
 - `docs/installation.md`: zentrale Anleitung für Installation, Hardware und
   Wiederinbetriebnahme; vereint die frühere Setup-Datei mit dem Docker-only-Ablauf
@@ -86,7 +88,8 @@ halten; laufende Hardwaretests erst nach bestätigten Ergebnissen dokumentieren.
 ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
                          |
                          +-- Wallbox-MQTT -> vorhandener Broker
-                         |                   -> HA / Weboverlay / Dienste (geplant)
+                         |                   -> Weboverlay (lesend)
+                         |                   -> HA / weitere Dienste (geplant)
                          +-- UART-MQTT-Gateway (geplant)
                          +-- DTSU666-Messwerterfassung (geplant)
 ```
@@ -212,8 +215,8 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   oder andere Master vermeiden. Die Python-UART-Logik bleibt unverändert,
   ihr unterstützter Startweg ist jetzt `docker compose -f rasppi/compose.yaml
   run --rm --build uart-bridge` aus dem Repository-Hauptverzeichnis.
-- Keine Ladefreigabe, Datenbank oder Bedienoberfläche. Der neue MQTT-Publisher
-  ist implementiert, aber noch nicht als auf dem Pi getestetes Feature bestätigt.
+- Keine Ladefreigabe oder Datenbank. MQTT-Empfang am Pi bestätigt; lesende
+  Browseroberfläche implementiert, deren Pi-Deploymenttest steht noch aus.
 
 ### MQTT-Publisher im Reader
 
@@ -239,7 +242,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - Bei aktivem MQTT ist stderr best-effort/nichtblockierend; volle Logpipes
   dürfen den Callback-/Sample-Mutex und damit Modbus nicht blockieren.
   DNS kann Shutdown dennoch verzögern; siehe dokumentierte Fristgrenze im Vertrag.
-- UART-MQTT-Bridge, Steuerbefehle und Weboverlay bleiben geplant.
+- UART-MQTT-Bridge und Steuerbefehle bleiben geplant; Weboverlay abonniert lesend.
 
 ### Vorhandener MQTT-Broker und bestätigte Vorbereitung
 
@@ -256,9 +259,36 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - Netzwerkzuordnung übersteht Neustart desselben Containers, nicht automatisch
   dessen Neuerstellung. Ursprüngliche Broker-Compose-/Config-/Volume-Einrichtung
   ist noch nicht bekannt; keine vollständige Broker-Neuinstallation vortäuschen.
-- Reader-Publisher und Compose-Anbindung sind jetzt implementiert, Deployment-
-  und Empfangstest am Pi aber noch offen. Der frühere Broker-Test allein
-  bestätigt keine Veröffentlichung von Wallboxdaten durch die neue Version.
+- Mario hat am 2026-10-03 den tatsächlichen Subscriber-Empfang bestätigt:
+  15 erfolgreiche Samples von 21:03:18 bis 21:03:46 UTC (23:03:18–23:03:46 Wien),
+  alle 2 s, jeweils `availability online`. Zustand B1/angeschlossen/nicht ladend,
+  Fehlercode 0, Limit 6 A, Ströme/Leistung 0, Spannungen etwa 233–236 V.
+  Bestätigt Wallbox → Reader → vorhandener Broker → Subscriber, nicht
+  Langzeitstabilität, gezielte Ausfälle oder unabhängige Messwertvalidierung.
+
+### Rein lesendes Weboverlay
+
+- `rasppi/weboverlay/overlay/`: Flask-API mit Paho-Subscribe-only-Client,
+  Gunicorn mit genau einem Worker/vier Threads und mutexgeschütztem Snapshot.
+  Kein MQTT-Publish, keine seriellen Geräte oder Start-/Stop-/Limitbefehle.
+- Deutsche statische Oberfläche, keine CDN-/Browser-MQTT-Abhängigkeiten.
+  Unterscheidet Anschluss, tatsächliches Laden, Wallbox-Limit und noch nicht
+  erfassten Gebäudestrom. Unknown/null bleibt unbekannt, nicht „Nein“.
+- `/api/state` liefert Messwerte nur bei verbundenem Broker, gültigem Sample,
+  `availability online` und Frische (default 10 s). Ungültige/alte/zu weit
+  zukünftige Payloads, Readfehler und Offline blenden Werte aus. Browser lässt
+  Werte auch ohne weitere API-Antworten ablaufen. Kein Verlauf/keine Datenbank.
+- `/healthz` ist HTTP-Liveness, nicht MQTT-Readiness. Brokerausfall startet
+  den Webserver nicht neu. Reconnect verwirft alte Availability/Samples.
+- Compose nutzt bestehenden `evse-mqtt`/`mqtt-broker`, Client-ID `evse-weboverlay`
+  muss sich vom Reader unterscheiden. Container non-root UID 10001, readonly,
+  keine Capabilities. Hostport nur `127.0.0.1:8080`; Zugang via vorhandenem
+  SSH-Tunnel über WireGuard, keine Firewall-/SSH-/Netzwerkänderungen.
+- Kein HTTP-Login/TLS; nicht öffentlich freigeben. MQTT-Credentials nur Backend,
+  optional Passwortdatei mit `compose.auth.yaml`, für UID 10001 lesbar.
+- Build/Tests ausschließlich in Docker. Neuer CI-Workflow, Python-Unit-/MQTT-
+  HTTP-Integration und Frontendtests; Ergebnisse zunächst noch ausstehend.
+  Tatsächlicher Pi-Browser-/Deploymenttest bleibt offen.
 
 ## Geplant / noch nicht implementiert
 
@@ -266,7 +296,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   anschließende Pi-Modbus-Steuerung der ABB Terra AC.
 - DTSU666-Messwerterfassung und Berechnung verfügbarer Ladeleistung.
 - UART-MQTT-Gateway und dessen Topic-/Payload-Vertrag. Wallbox-Telemetrie ist definiert.
-- Home-Assistant-Integration, Weboverlay (inklusive modularer Wallbox-
+- Home-Assistant-Integration, bedienendes Weboverlay (inklusive modularer Wallbox-
   Einrichtungsfunktion) und Datenbankmodell zur Zustandsspeicherung.
 - Ladeautomatisierung nach verfügbarer Leistung und Dringlichkeit.
 - Vollständige modulare Dienst-/Containerstruktur; Reader-Compose nutzt den

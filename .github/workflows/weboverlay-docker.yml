@@ -1,0 +1,41 @@
+name: Weboverlay Docker tests
+on:
+  push:
+    paths:
+      - 'rasppi/weboverlay/**'
+      - '.github/workflows/weboverlay-docker.yml'
+  pull_request:
+    paths:
+      - 'rasppi/weboverlay/**'
+      - '.github/workflows/weboverlay-docker.yml'
+permissions:
+  contents: read
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate Compose
+        run: docker compose -f rasppi/weboverlay/compose.yaml config --quiet
+      - name: Build and test in Docker with isolated broker
+        run: docker build --progress=plain -t evse-weboverlay:test rasppi/weboverlay
+      - name: Build disposable browser test image
+        run: docker build -f rasppi/weboverlay/Dockerfile.browser -t evse-web-browser:test rasppi/weboverlay
+      - name: Hardened runtime smoke test without broker
+        run: |
+          docker run -d --name web-smoke --read-only --tmpfs /tmp:size=16m,mode=1777 --cap-drop ALL --security-opt no-new-privileges --network none evse-weboverlay:test
+          trap 'docker logs web-smoke; docker rm -f web-smoke' EXIT
+          ready=0
+          for attempt in $(seq 1 20); do
+            if docker exec web-smoke python -c "import json, urllib.request; d=json.load(urllib.request.urlopen('http://127.0.0.1:8080/api/state',timeout=2)); assert d['values'] is None and d['status']=='offline'"; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = 1
+          docker run --rm --network container:web-smoke -v "$PWD/artifacts:/artifacts" evse-web-browser:test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weboverlay-browser-screenshots
+          path: artifacts/
+          if-no-files-found: ignore

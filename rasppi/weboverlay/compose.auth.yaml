@@ -1,0 +1,7 @@
+services:
+  weboverlay:
+    environment:
+      MQTT_PASSWORD: ""
+      MQTT_PASSWORD_FILE: /run/secrets/mqtt-password
+    volumes:
+      - "${MQTT_PASSWORD_HOST_FILE:?Set an existing password file readable by container UID 10001}:/run/secrets/mqtt-password:ro"
