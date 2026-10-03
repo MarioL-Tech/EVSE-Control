@@ -1,0 +1,9 @@
+# Optional override; only use when the existing broker requires credentials.
+# Set MQTT_USERNAME and MQTT_PASSWORD_HOST_FILE in the ignored local .env.
+services:
+  wallbox-reader:
+    environment:
+      MQTT_PASSWORD: ""
+      MQTT_PASSWORD_FILE: /run/secrets/mqtt-password
+    volumes:
+      - "${MQTT_PASSWORD_HOST_FILE:?Set an existing password file outside the repository}:/run/secrets/mqtt-password:ro"

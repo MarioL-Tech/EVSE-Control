@@ -210,13 +210,34 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   oder andere Master vermeiden. Die Python-UART-Logik bleibt unverändert,
   ihr unterstützter Startweg ist jetzt `docker compose -f rasppi/compose.yaml
   run --rm --build uart-bridge` aus dem Repository-Hauptverzeichnis.
-- Noch keine MQTT-Anbindung, Ladefreigabe, Datenbank oder Bedienoberfläche.
+- Keine Ladefreigabe, Datenbank oder Bedienoberfläche. Der neue MQTT-Publisher
+  ist implementiert, aber noch nicht als auf dem Pi getestetes Feature bestätigt.
+
+### MQTT-Publisher im Reader
+
+- `src/mqtt.cpp` verwendet libmosquitto; Netzwerk-/Reconnect-Arbeit läuft getrennt
+  von Modbus. Bei Brokerausfall bleiben Reads und JSON-Ausgabe aktiv.
+- Topics standardmäßig `evse/wallbox/state` (identische JSON-Samples) und
+  `evse/wallbox/availability` (`online`/`offline`), beide retained und QoS 1.
+  `online` bedeutet frischer erfolgreicher Read, nicht fehlerfreie Wallbox.
+  Readfehler, veraltete Samples, Shutdown und Last Will melden offline.
+- Es wird nur der letzte Sample vorgehalten; höchstens eine Zweiergruppe von
+  Nachrichten ist ausstehend. Fehlende ACKs führen zum Neuaufbau der Verbindung.
+- Compose aktiviert MQTT und bindet ausschließlich das externe `evse-mqtt`
+  ein, Alias/Host `mqtt-broker`; Netzwerk und vorhandener Broker müssen vorbereitet sein.
+- Konfiguration über `MQTT_ENABLED/HOST/PORT/TOPIC_PREFIX/CLIENT_ID/USERNAME`;
+  Passwort optional über `MQTT_PASSWORD` oder bevorzugt `MQTT_PASSWORD_FILE`
+  mit `compose.auth.yaml`. Keine Secrets committen; `.env` bleibt lokal.
+- Docker-Build enthält isolierte Broker-/PTY-Integrationstests; Tests kontaktieren
+  nie den Produktionsbroker. GitHub-Docker-CI ist ergänzt, Ergebnis noch ausstehend.
+- UART-MQTT-Bridge, Steuerbefehle und Weboverlay bleiben geplant.
 
 ### Vorhandener MQTT-Broker und bestätigte Vorbereitung
 
 - Auf dem Pi läuft bereits `elastic_lumiere`, Image `eclipse-mosquitto:alpine`,
   Port 1883 an allen Host-Schnittstellen; ursprünglich Netzwerk `bridge`.
-  Reader aktuell in `wallbox_default`. Containername ist deploymentabhängig.
+  Reader war beim bisherigen Pi-Test in `wallbox_default`; die neue Compose-
+  Version nutzt `evse-mqtt`. Containername ist deploymentabhängig.
 - **Diesen Broker wiederverwenden, keinen zweiten starten.** Grafana und MariaDB
   laufen ebenfalls bereits; keine bestehende Infrastruktur ersetzen.
 - Mario hat `evse-mqtt` angelegt und den Broker mit Alias `mqtt-broker` verbunden.
@@ -226,8 +247,9 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - Netzwerkzuordnung übersteht Neustart desselben Containers, nicht automatisch
   dessen Neuerstellung. Ursprüngliche Broker-Compose-/Config-/Volume-Einrichtung
   ist noch nicht bekannt; keine vollständige Broker-Neuinstallation vortäuschen.
-- Reader-Publisher und Compose-Anbindung an das externe Netzwerk sind noch offen.
-  Der erfolgreiche Broker-Test bedeutet nicht, dass schon Wallboxdaten über MQTT laufen.
+- Reader-Publisher und Compose-Anbindung sind jetzt implementiert, Deployment-
+  und Empfangstest am Pi aber noch offen. Der frühere Broker-Test allein
+  bestätigt keine Veröffentlichung von Wallboxdaten durch die neue Version.
 
 ## Geplant / noch nicht implementiert
 
