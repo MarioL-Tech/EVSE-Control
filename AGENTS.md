@@ -69,7 +69,9 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
 Code beschreibt die aktuelle Implementierung; Hardwarehandbücher beschreiben
 Geräteanforderungen. Widersprüche offen benennen. `README.md` ist der deutsche
 Projekteinstieg mit getrennten Zielen/Implementierungsstand, Architektur und
-Docker-only-Schnellstart. Die frühere SmartCharge-Marketingbeschreibung mit
+Docker-only-Schnellstart. Startabschnitte kurz halten; ausführliche Wallbox-
+Konfiguration und Betriebshinweise sind in der Dienst-README einklappbar.
+Die frühere SmartCharge-Marketingbeschreibung mit
 unbelegten Feature-Versprechen wurde entfernt. README bei Änderungen konsistent
 halten; laufende Hardwaretests erst nach bestätigten Ergebnissen dokumentieren.
 
