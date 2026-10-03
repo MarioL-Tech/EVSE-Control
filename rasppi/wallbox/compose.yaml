@@ -1,0 +1,24 @@
+services:
+  wallbox-reader:
+    build: .
+    restart: unless-stopped
+    devices:
+      - "${WALLBOX_DEVICE:-/dev/ttyUSBEVSEcontrol}:/dev/ttyWallbox"
+    command:
+      - --device
+      - /dev/ttyWallbox
+      - --baud
+      - "${WALLBOX_BAUD:-57600}"
+      - --parity
+      - "${WALLBOX_PARITY:-E}"
+      - --slave
+      - "${WALLBOX_SLAVE:-9}"
+      - --interval-ms
+      - "${WALLBOX_INTERVAL_MS:-2000}"
+      - --timeout-ms
+      - "${WALLBOX_TIMEOUT_MS:-1000}"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

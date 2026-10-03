@@ -13,8 +13,33 @@ Repository: https://github.com/MarioL-Tech/EVSE-Control
 Geplant sind Ladefreigabe und Ladestatus, Erkennung eines angeschlossenen
 Fahrzeugs, Energie- und Strommesswerte, Regelung nach verfügbarer Leistung und
 Dringlichkeit, Datenbank, Weboverlay sowie eine eigene Home-Assistant-Integration.
-Das System soll modular aufgebaut werden; Docker Compose ist eine Option,
-aber noch keine getroffene Entscheidung.
+Der modulare Aufbau mit Docker-Compose-Komponenten ist ein erklärtes Projektziel.
+Die konkrete Aufteilung der Dienste und Compose-Dateien ist noch festzulegen.
+
+### Konkretisierte Anforderungen (Umsetzungsstand siehe unten)
+
+- Laden identifizieren durch wiederholte Zustandsabfragen („Repeating Request“)
+  und den Ladevorgang steuern. Abfrageintervalle und Fehlerbehandlung sind noch
+  festzulegen; die Modbus-Timeout-Grenzen beachten.
+- System- und Ladezustände in einer Datenbank sichern.
+- Home-Assistant-Integration und Weboverlay zur Bedienung bereitstellen.
+- Übergeordnete Softwarekommunikation über MQTT mit **demselben Message Broker**
+  für alle beteiligten Dienste; Hardwareanbindungen siehe Architekturabschnitt.
+- Dienste modular mit Docker Compose betreiben.
+
+Home Assistant und Weboverlay sollen folgende Funktionen anbieten:
+
+- **Bedienung:** AN-/AUS-Button für die Ladefreigabe.
+- **Anzeigen:** vorhandener/verfügbarer Strom, tatsächlicher Ladestrom,
+  Fahrzeug angeschlossen („Plugged in“), Ladevorgang aktiv („Laden?“).
+  Ladefreigabe und tatsächliches Laden als getrennte Zustände behandeln.
+- **Automationen:** Laden abhängig vom verfügbaren Strom sowie von einer
+  festgelegten Dringlichkeit. Messpunkt/Einheiten des verfügbaren Stroms und
+  Definition der Dringlichkeit sind noch zu präzisieren.
+
+Zusätzlich soll das Weboverlay eine **modulare Einrichtungsfunktion mit
+Befehlseingabe für Wallboxbefehle** anbieten. Befehlsformat, Validierung und
+zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
 
 ## Repository und Quellen
 
@@ -23,9 +48,14 @@ aber noch keine getroffene Entscheidung.
 - `esp32/platformio.ini`: ESP32 DevKit, MFRC522 und ESP32Servo als Abhängigkeiten.
 - `rasppi/src/main.py`: derzeit interaktive UART-Brücke, kein zentraler Backenddienst.
 - `rasppi/requirements.txt`: derzeit nur `pyserial`.
+- `rasppi/wallbox/`: rein lesender C++17-libmodbus-Dienst, Decoder-/JSON-Tests,
+  simulierte RTU-Tests, CMake sowie Dockerfile/Compose und Pi-Startanleitung.
 - `docs/setup.md`, `docs/pin-connection.md`, `docs/uart-protocol.md`:
   Aufbau, Verdrahtung und vorhandenes UART-Protokoll.
 - `docs/wallbox/`: ABB-Terra-AC-Modbus-Dokumentation und Befehlsreferenz.
+- `docs/wallbox/modbusRegisters.txt`: ergänzte Register-/Testnotizen mit Verweis
+  auf Handbuch v1.11; das entsprechende PDF liegt derzeit nicht im Repository.
+  Die Notizen enthalten Widersprüche, siehe unten; nicht ungeprüft übernehmen.
 - `docs/smartmeter/`: DTSU666-Handbuch.
 - `docs/schematic/` und Pinout-Bilder: Hardware-Referenzen.
 - `CHANGELOG.md`: Änderungen mit Zeitstempel (Europe/Vienna).
@@ -52,10 +82,31 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
   **115200 Baud, 8N1**, Pi-Gerät `/dev/serial0`.
 - Für diese direkte Verbindung ist kein WiFi gewünscht; Ethernet-Hardware
   und geeignete zusätzliche Leitungen sind derzeit nicht vorgesehen.
-- MQTT ist für die übergeordnete Softwarekommunikation geplant; der Pi soll
-  als UART-MQTT-Gateway dienen. UART ist kein MQTT-/TCP/IP-Transport ohne
+- MQTT ist für die übergeordnete Softwarekommunikation über einen gemeinsamen
+  Message Broker vorgesehen; der Pi soll als UART-MQTT-Gateway dienen.
+  UART ist kein MQTT-/TCP/IP-Transport ohne
   zusätzliche Protokollschichten. Ob der Lehrer MQTT auch auf der direkten
   Geräteverbindung verlangt, muss noch geklärt werden.
+
+## Betrieb und Remote-Zugriff
+
+- Mario hat keinen direkten physischen Zugang zu Pi oder Wallbox. Zugriff auf
+  den Pi erfolgt über WireGuard; SSH-Zugriff ist laut Mario bereits möglich.
+  Das bedeutet nicht, dass ein Agent automatisch SSH-Zugang hat.
+- Das Programm soll auf den **Raspberry Pi übertragen und dort ausgeführt**
+  werden. Der Pi greift lokal auf USB-RS485/Modbus und ESP32-UART zu; diese
+  Hardwareverbindungen werden nicht über WireGuard ersetzt.
+- Entwicklung und hardwareunabhängige Tests können lokal erfolgen. Bauen auf
+  dem Pi bzw. im passenden ARM-Container vermeidet inkompatible Windows-Binaries.
+- Verwaltung zunächst über SSH und Logs; später Zugriff auf die auf dem Pi
+  bereitgestellte Bedienoberfläche über WireGuard. Der Wallbox-Dienst soll
+  unabhängig von einer offenen SSH-Sitzung laufen; Docker Compose bleibt das
+  Ziel für den modularen Betrieb.
+- Hardwaretests als Remote-Tests planen, zunächst nur lesen. Physische Fehler
+  lassen sich remote nur eingeschränkt prüfen. Keine Änderungen an WireGuard,
+  SSH oder Netzwerkfreigaben ohne ausdrücklichen Auftrag; keine Zugangsdaten
+  im Repository speichern. Hardwarezugriff/Deployment nicht ohne tatsächliche
+  Ausführung als erfolgreich melden.
 
 ## Tatsächlich implementiert
 
@@ -96,28 +147,76 @@ gemeldet. Das Pi-Skript druckt empfangene Zeilen und übersetzt interaktive
 Eingaben `on`, `off`, `status`; andere Eingaben werden unverändert gesendet.
 Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 
+### Lesender Pi-Wallbox-Dienst
+
+- `rasppi/wallbox/` implementiert zyklische FC03-Abfragen des Blocks
+  `0x4008..0x401F` (24 Rohregister), standardmäßig alle 2 Sekunden.
+- Konfigurierbare Geräteadresse, Baudrate, Parität, Slave-ID, Intervall und
+  vollständiger Antworttimeout; `--once` für einen einzelnen Test.
+- 32-Bit-Big-Endian-Dekodierung, Strom-/Spannungsskalierung und getrennte
+  Anschluss-/Ladezustände. Unbekannte Zustände liefern `null` statt „Nein“.
+- JSON-Zeilen mit UTC-Zeitstempel und letztem erfolgreichen Messzeitpunkt.
+  Kommunikationsfehler liefern `values=null`, der Dienst versucht erneut zu
+  verbinden; SIGINT/SIGTERM schließen den Port. Ownership-basierte Freigabe
+  stellt auch bei Ausnahmen Port-Einstellungen wieder her und schließt den Port.
+  JSON-Ausgabe auf stdout ist unterbrechbar und bei vollen Pipes auf 1 s
+  begrenzt; Ausgabefehler beenden den Dienst. Keine Schreibfunktionen.
+- CMake-Build und beide Tests bestanden unter Debian/WSL (GCC 14.2,
+  libmodbus 3.1.6 und 3.1.11): Decoder/JSON sowie simulierte RTU-Kommunikation über PTY.
+  Fehlerfall-, CLI- und Shutdown-Prüfungen sind hardwareunabhängig, einschließlich
+  Teilantwort-Timeout, Shutdown während einer Abfrage und blockierter Ausgabe.
+- Dockerfile und Compose für den Pi sind vorbereitet, aber **noch nicht mit
+  Docker gebaut/gestartet**. Kein Deployment oder Test an realem Pi/Wallbox.
+- Nur ein Prozess darf den RS485-Port verwenden; parallel laufendes `mbpoll`
+  oder andere Master vermeiden. Die Python-UART-Brücke bleibt unverändert.
+- Noch keine MQTT-Anbindung, Ladefreigabe, Datenbank oder Bedienoberfläche.
+
 ## Geplant / noch nicht implementiert
 
-- Pi-Modbus-Steuerung der ABB Terra AC und zuverlässige Statusauswertung.
+- Deployment und Hardwarevalidierung der lesenden ABB-Abfragen sowie
+  anschließende Pi-Modbus-Steuerung der ABB Terra AC.
 - DTSU666-Messwerterfassung und Berechnung verfügbarer Ladeleistung.
 - UART-MQTT-Gateway, verbindliche MQTT-Topics und Payloads.
-- Home-Assistant-Integration, Weboverlay und Datenbankmodell.
+- Home-Assistant-Integration, Weboverlay (inklusive modularer Wallbox-
+  Einrichtungsfunktion) und Datenbankmodell zur Zustandsspeicherung.
 - Ladeautomatisierung nach verfügbarer Leistung und Dringlichkeit.
-- Dienst-/Containerstruktur und Entscheidung zu Docker Compose.
+- Vollständige modulare Dienst-/Containerstruktur und gemeinsamer MQTT-Broker;
+  Compose für den einzelnen Reader ist vorbereitet, Gesamtsystem noch offen.
 - RFID-Berechtigungsliste und weitere Hardware-/Fehlerfalltests.
 - Anforderungen mit dem Lehrer sowie Diplomarbeitsanmeldung abstimmen.
 
-Es gibt derzeit keine implementierten Projekttests; `esp32/test/README` ist
-ein PlatformIO-Platzhalter. Vorhandene Verdrahtung und berichtete frühere Tests
-nicht mit aktuell durchgeführten Hardwaretests gleichsetzen.
+Wallbox-Decoder-/Simulationstests stehen unter `rasppi/wallbox/tests/`;
+`esp32/test/README` bleibt ein PlatformIO-Platzhalter. Vorhandene Verdrahtung und
+berichtete frühere Tests nicht mit aktuell durchgeführten Hardwaretests gleichsetzen.
 
 ## Wichtige Modbus- und Sicherheitsgrenzen
 
+- `mbpoll` bleibt Diagnosewerkzeug. Der neue Reader verwendet die C-Bibliothek
+  libmodbus (https://libmodbus.org/) direkt aus C++; das bestehende
+  Python-UART-Skript wurde nicht ersetzt. Kein Parsen von mbpoll-Textausgaben.
+- Laut ABB-Handbuch v1.7 werden Holding Registers mit Funktionscode 03 gelesen:
+  libmodbus `modbus_read_registers()`, bei `mbpoll` Typ `-t 4`.
+  Vorhandene Beispiele verwenden teilweise `-t 3` (Input Registers/FC04).
+  Tatsächliche Geräte-/Firmwareunterstützung prüfen; Typnummer und Funktionscode
+  nicht gleichsetzen. Zum Prüfen zunächst 16-Bit-Rohregister auslesen.
 - ABB-Registerwerte und Registerbreiten im Handbuch prüfen. Viele Werte
   belegen zwei 16-Bit-Register; Stromlimit `0x4100` ebenfalls.
 - Sessionsteuerung `0x4105`: 0 = Start, 1 = Stop.
   Wallbox-Socket-Lock `0x4103`: 0 = Unlock, 1 = Lock.
   Dieser Wallbox-Lock ist nicht der separate ESP32-Servo.
+- Achtung: `modbusRegisters.txt` bestätigt oben 0=Start/1=Stop, dreht diese
+  Werte unten aber um. Bis zur Klärung am passenden Herstellerhandbuch keine
+  Steuerlogik aus der widersprüchlichen Passage ableiten. Ebenso behauptet die
+  Datei Entriegelung unabhängig vom Ladezustand; Sicherheitsbedingungen des
+  Herstellerhandbuchs weiter beachten.
+- Neue Notizen führen `0x4022` als per Modbus gesetztes Stromlimit auf,
+  `0x4024` als Fallback-Limit und `0x4109` zum Setzen des Fallback-Limits.
+  Unterstützung anhand Firmware/v1.11-Handbuch prüfen. Der spätere Verweis auf
+  `0x4020` als Modbus-Stromlimit widerspricht der Tabelle: `0x4020` ist Timeout.
+- Eine Registergröße von 1 bedeutet ein 16-Bit-Wort, nicht ein Byte.
+  Ladezustand aus Byte 1, Bits 0–6 des 32-Bit-Wertes dekodieren
+  (`(raw >> 8) & 0x7F`); Bit 7 separat behandeln. Zustand 5 („Others“) ist keine
+  verlässliche Aussage „Fahrzeug angeschlossen, lädt nicht“.
 - Wallbox-Polling-Timeout standardmäßig 60 s: sicher darunter pollen oder
   Timeout passend konfigurieren. Die dokumentierte Empfehlung 30–90 s
   widerspricht am oberen Ende diesem Standardwert; nicht ungeprüft übernehmen.

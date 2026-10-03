@@ -31,3 +31,12 @@ SmartCharge is an open-source solution designed to optimize electric vehicle cha
 - **ESP32:** RFID manual override (MFRC522), anti-theft servo, UART bridge to the Pi.
 - **Raspberry Pi:** Modbus RTU master to the wallbox (USB-RS485), MQTT broker + bridge, Home Assistant integration, web overlay.
 - Protocol contracts: `docs/uart-protocol.md` (ESP32 ↔ Pi), `docs/wallbox/` (Pi ↔ wallbox Modbus).
+
+## Current implementation
+
+- ESP32 RFID/servo controller and interactive Python UART bridge.
+- Read-only C++/libmodbus wallbox reader with JSON output, tests and Pi build/
+  Docker Compose instructions: [`rasppi/wallbox/README.md`](rasppi/wallbox/README.md).
+  Real wallbox validation and Pi deployment are still pending.
+- MQTT integration, charging control, database, Home Assistant, web overlay
+  and automated scheduling are planned, not implemented yet.
