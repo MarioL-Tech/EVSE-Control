@@ -14,7 +14,9 @@ Geplant sind Ladefreigabe und Ladestatus, Erkennung eines angeschlossenen
 Fahrzeugs, Energie- und Strommesswerte, Regelung nach verfügbarer Leistung und
 Dringlichkeit, Datenbank, Weboverlay sowie eine eigene Home-Assistant-Integration.
 Der modulare Aufbau mit Docker-Compose-Komponenten ist ein erklärtes Projektziel.
-Die konkrete Aufteilung der Dienste und Compose-Dateien ist noch festzulegen.
+Festgelegt ist ein gemeinsamer Compose-Einstieg für mehrere spezialisierte
+Container. Detailaufteilung und Zusammenführung der heutigen Compose-Dateien
+sind noch umzusetzen; Mario wünscht diese Umstellung ausdrücklich erst später.
 
 ### Konkretisierte Anforderungen (Umsetzungsstand siehe unten)
 
@@ -98,6 +100,15 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
 ```
 
 - Der Pi ist die zentrale Steuerungsplattform und Modbus-Master.
+- Später eine gemeinsame Docker-Compose-Datei für die Pi-Projektdienste:
+  ein Start-/Stop-Befehl für mehrere getrennte Container, kein All-in-one-
+  Container und kein zusätzlicher Container, der andere Container verwaltet.
+  Docker/Compose übernimmt den Containerlebenszyklus; ein geplanter Ladecontroller
+  übernimmt ausschließlich die fachliche Ladeautomatisierung über MQTT.
+- Vorhandener MQTT-Broker und MariaDB werden weiterhin extern wiederverwendet,
+  nicht ersetzt oder beim Stoppen des Projektstacks mit heruntergefahren.
+  Aktuell bleiben die einzelnen Dienst-Compose-Dateien unverändert; keine
+  Zusammenführung oder Laufzeitumstellung ohne späteren ausdrücklichen Auftrag.
 - Die Wallbox-Schnittstelle ist bereits entschieden: ABB Terra AC über
   USB-RS485, `/dev/ttyUSBEVSEcontrol`, **57600 Baud, 8E1, Slave-ID 9**.
   Die ID 9 gehört zur Wallbox, nicht zum Pi als Master.
@@ -277,6 +288,11 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - Deutsche statische Oberfläche, keine CDN-/Browser-MQTT-Abhängigkeiten.
   Unterscheidet Anschluss, tatsächliches Laden, Wallbox-Limit und noch nicht
   erfassten Gebäudestrom. Unknown/null bleibt unbekannt, nicht „Nein“.
+- Dashboard `/` und eigene Diagrammseite `/diagramme` mit gemeinsamer echter
+  Navigation, responsivem Layout und automatischem hell/dunklem Farbschema.
+  Vier kompakte Übersichtskarten, Phasen/Leistungsrahmen, einklappbare Diagnose.
+  Diagramme: vier elektrische Gruppen plus fünf einklappbare Zustands-/Rohwert-
+  Gruppen. Status, Frische, Messzeit und aktive Fehlerwarnung bleiben sichtbar.
 - `/api/state` liefert Messwerte nur bei verbundenem Broker, gültigem Sample,
   `availability online` und Frische (default 10 s). Ungültige/alte/zu weit
   zukünftige Payloads, Readfehler und Offline blenden Werte aus. Browser lässt
@@ -303,9 +319,10 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   ersetzt; zusätzliche Browser-Regressionen für Timeout/Spätantworten, Visibility/
   Pageshow, Request-Parallelität und Live-Region-Mutationen; erweiterte CI erfolgreich.
 - `static/charts.js`: dependency-freie SVG-Zeitverläufe für die 16 Telemetriewerte,
-  gruppiert nach Einheit, Bool-/Codewerte als Stufen. Nur im geöffneten Browser
+  gruppiert nach Einheit, Bool-/Codewerte als Stufen. Nur auf der Diagrammseite
   erfasste Werte im RAM, maximal 15 Minuten/1200 Messzeitpunkte; Zeitfenster 1/5/15
-  Minuten. Kein DB-/MQTT-Verlauf; Neuladen verwirft Daten.
+  Minuten. Kein DB-/MQTT-Verlauf; Neuladen/Seitenwechsel und Wiederherstellung
+  aus dem Browser-Seitencache verwerfen Daten. Übersicht sammelt keinen Verlauf.
 - Wiederholte API-Samples werden nicht mehrfach gezählt. Bei gleicher Sekunden-
   Zeitmarke werden geänderte Werte nur ohne Ausfall durch den letzten Wert ersetzt.
   Offline/Fehler/Unknown erzeugen Lücken, Pausen >10 s werden nicht verbunden;
@@ -315,6 +332,17 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   lokal im Browser (`evse-display-v1`), keine Messwerte/Credentials im localStorage.
   Nicht verfügbarer Speicher fällt auf aktuelle Sitzung zurück. Status, Messzeit
   und aktive Wallbox-Fehlerwarnung bleiben unabhängig von Auswahl sichtbar.
+- Seitenrendering toleriert fehlende seitenspezifische Felder; Auswahl wird
+  auf beiden Seiten unter demselben Schlüssel verwendet. Keine neuen MQTT-
+  Clients, SQL-Abfragen, Hardwarebefehle oder Netzwerk-/Portänderungen.
+- Abschließende Dashboard-CI `37220843434` für `154e7f2` und PR-CI `37221004357`
+  erfolgreich: 21 Python-/MQTT-/HTTP-
+  und 28 JS-Tests plus drei Chromium-Suiten (beide Seiten, Navigation/Fokus,
+  Auswahl/Frische/Warnings, 320/390/768/1440 px, hell/dunkel, blockierter Speicher).
+  Desktop-/Mobilbilder mit simulierten Werten geprüft, keine Pi-Bestätigung.
+  Codeprüfung ergänzt getestetes Präferenz-Neuladen bei Seitencache-Rückkehr;
+  temporäre Auswahl ohne lesbaren Speicher bleibt erhalten. Mario hat PR #33
+  als `863c66c` gemergt; echtes Pi-Deployment/Browserprüfung weiterhin offen.
 - Erste Diagramm-Docker-CI `37203503188` für `4edb64f` erfolgreich. Codeprüfung
   ergänzt pro Kurve konservative Same-Second-Unknown-Unterbrechungen (beide
   Nachbarsegmente); erweiterte CI `37203627509` erfolgreich. Isolierte Samples
@@ -404,8 +432,11 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Einrichtungsfunktion), SQL-Historienabfrage/-Diagrammanbindung und weitere
   Datenmodelle für Ladesessions, UART/RFID und Zählerdaten.
 - Ladeautomatisierung nach verfügbarer Leistung und Dringlichkeit.
-- Vollständige modulare Dienst-/Containerstruktur; Reader-Compose nutzt den
-  bereits vorhandenen gemeinsamen MQTT-Broker, Gesamtsystem noch offen.
+- Gemeinsamer Compose-Einstieg für getrennte modulare Pi-Projektdienste,
+  erst später umzusetzen. Konkrete Dienste/Startabhängigkeiten und kontrollierte
+  Migration der bisherigen Einzel-Stacks noch offen; bestehende Infrastruktur
+  bleibt extern. Kein Container-Orchestrator im Projekt und kein Docker-Socket-
+  Zugriff für den fachlichen Ladecontroller.
 - RFID-Berechtigungsliste und weitere Hardware-/Fehlerfalltests.
 - Anforderungen mit dem Lehrer sowie Diplomarbeitsanmeldung abstimmen.
 

@@ -23,6 +23,7 @@ auf dem Pi steht noch aus (Abschnitt 9).
 7. [Wiederinstallation vorbereiten](#7-was-für-eine-spätere-wiederholung-gesichert-werden-muss)
 8. [Hardware und Erstvorbereitung](#8-hardware-und-erstvorbereitung)
 9. [Lesendes Weboverlay](#9-lesendes-weboverlay)
+10. [MQTT-Zustandsspeicherung](#10-mqtt-zustandsspeicherung-in-der-vorhandenen-mariadb)
 
 ## 1. Voraussetzungen und Regeln
 
@@ -56,6 +57,22 @@ Windows-Terminal ohne SSH. Abschnitt 8 kennzeichnet separate Schritte auf dem
 Entwicklungsrechner ausdrücklich. Befehle einzeln einfügen; sichtbarer Zeilenumbruch
 im Terminal darf nicht als zusätzliches Enter übernommen werden. Es gab beim
 Test ein von Mario Windows zugeordnetes Aufrufproblem.
+
+### Späterer gemeinsamer Compose-Einstieg (noch nicht umgesetzt)
+
+Vereinbart ist eine gemeinsame Compose-Datei für mehrere spezialisierte
+Pi-Projektcontainer. Ziel: gemeinsamer Start mit `docker compose up -d` und
+Stop mit `docker compose down` im später festgelegten Stack-Verzeichnis.
+**Diese Gesamtstart-Anleitung ist noch nicht verfügbar:** derzeit gelten die
+getrennten Befehle der jeweiligen Dienstabschnitte, keine Umstellung jetzt.
+
+Ein fachlicher Ladecontroller wird später per MQTT die Ladeautomatisierung
+übernehmen, nicht andere Container starten/stoppen. Kein zusätzlicher Docker-
+Verwaltungscontainer und kein Docker-Socket-Mount für diese Aufgabe.
+Vorhandener Broker, MariaDB und andere fremde Dienste bleiben außerhalb des
+Projektstacks; gemeinsames Stoppen darf diese Infrastruktur nicht beenden.
+Kontrollierte Übernahme der bisherigen Stacks, Hardwareport-Eigentum, externe
+Netzwerke, Secrets und Startabhängigkeiten werden erst bei Umsetzung dokumentiert.
 
 ## 2. Repository bereitstellen und Stand notieren
 
@@ -657,6 +674,18 @@ nicht stoppen/ersetzen, um den Port frei zu machen.
 
 ### Erwartete Anzeige und Frische
 
+Startseite **Übersicht** (`/`): kompakte Karten für Wirkleistung, Fahrzeug,
+Sessionenergie und Wallbox-Limit, darunter Phasenmessung/Leistungsrahmen.
+Technische Rohwerte und Detailprotokoll sind unter **„Diagnose & Datenqualität“**
+einklappbar. Navigation am Desktop links, auf kleinen Bildschirmen oben;
+helles/dunkles Farbschema folgt dem Browser. Datenstatus, Messzeit, Frische und
+aktive Fehlerwarnungen sind nicht in den einklappbaren Bereichen versteckt.
+
+**Diagramme** über die Navigation oder direkt **http://127.0.0.1:8080/diagramme**
+öffnen (bei abweichendem Tunnelport entsprechend anpassen). Separate Seite,
+gleicher Container/SSH-Tunnel, keine neue Freigabe. Vier elektrische Diagramme;
+weitere Kurven unter **„Zustands- & Diagnoseverläufe“** öffnen.
+
 Die Oberfläche zeigt Fahrzeuganschluss und tatsächliches Laden getrennt,
 Phasenströme/-spannungen, Wirkleistung, Sessionenergie, Wallbox-Limit, Fehlercode
 und Messzeit. **Verfügbarer Gebäudestrom ist noch nicht erfasst**; dafür fehlt
@@ -681,7 +710,7 @@ werden nach Backend-Reconnect erst mit beiden Topics und gültiger Frische gezei
 ### Diagramme und Messwerte auswählen
 
 Unter **„Anzeige auswählen“** jeden der 16 Messwerte einzeln ein-/ausblenden.
-Die Auswahl gilt sowohl für die aktuelle Anzeige als auch für die zugehörige
+Die Auswahl gilt auf **beiden Seiten** für die aktuelle Anzeige und die zugehörige
 Diagrammkurve/Legende. L1/L2/L3 können einzeln gewählt werden; wenn alle Ströme
 oder Spannungen abgewählt sind, verschwindet die entsprechende Tabellenspalte.
 Leere Messwertkarten/Diagramme werden ausgeblendet. Verbindung, Frische, Messzeit
@@ -694,6 +723,8 @@ Blockierter/defekter Browserspeicher darf die Anzeige nicht verhindern; dann
 gelten Defaults beziehungsweise die Auswahl der geöffneten Seite. Zum vollständigen
 Zurücksetzen ggf. nur diesen Eintrag in den Browser-Websitedaten löschen.
 Keine Zugangsdaten oder Messwertverläufe werden im localStorage gespeichert.
+Bei Rückkehr über Browser-Zurück/Vorwärts werden gespeicherte Einstellungen
+erneut gelesen; ohne lesbaren Speicher bleiben temporäre Einstellungen erhalten.
 
 Zeitverläufe nutzen native SVG, keine zusätzlichen Pakete/CDNs. Zeitfenster
 **1, 5 oder 15 Minuten**, Default 5. Leistung kW, Strom A, Spannung V,
@@ -702,9 +733,11 @@ Codes/Rohwerte sind separate Stufendiagramme, keine physikalischen Messgrößen.
 Skalierung erfolgt je Diagramm; Spannungen sind automatisch skaliert, die
 Achsenwerte stehen links. Phasenkurven werden mit Farben und Linienstilen unterschieden.
 
-Der Verlauf beginnt erst mit Öffnen der Seite und liegt ausschließlich im RAM
-des Tabs (maximal 15 Minuten/1200 Zeitpunkte). **Neuladen leert die Daten**, nicht
-die Anzeigeauswahl. Erste Messung: einzelner Punkt; eine Linie entsteht erst
+Der Verlauf beginnt erst mit Öffnen der **Diagrammseite** und liegt ausschließlich
+im RAM des Tabs (maximal 15 Minuten/1200 Zeitpunkte). Die Übersicht sammelt keinen
+Diagrammverlauf. **Neuladen und Seitenwechsel leeren die Daten**, nicht die
+Anzeigeauswahl; auch Rückkehr aus dem Browser-Seitencache startet neu.
+Erste Messung: einzelner Punkt; eine Linie entsteht erst
 mit weiteren verschiedenen Zeitmarken. Doppelte API-Antworten erzeugen keine
 zusätzlichen Punkte; gleiche Sekunden-Zeitmarken behalten den zuletzt beobachteten
 Wert, da Schema 1 keine Subsekunden unterscheidet. Kurze Zwischenwerte/Fehler
@@ -719,7 +752,7 @@ historisch markiert; aktuelle Werte bleiben dann ausgeblendet. Maus über den
 letzten Punkt zeigt dessen Wert/Zeit. Sessionenergie ist je Ladesitzung und
 kann zurückgesetzt werden, nicht der Gesamtverbrauch.
 
-Update der Diagrammversion nach Merge, auf dem Pi:
+Update der Dashboard-/Diagrammversion nach Merge, auf dem Pi:
 
 ```bash
 cd ~/EVSE-Control
@@ -733,11 +766,27 @@ Reader/Broker weiterlaufen lassen. Bestehenden SSH-Tunnel wie oben nutzen und
 die Seite neu laden; bei altem Browsercode notfalls mit Strg+F5 aktualisieren.
 Keine neue Netzwerk-/SSH-Freigabe oder Host-Pakete erforderlich.
 
+Nach dem Update auf `/` aktuelle Werte/Status prüfen, dann über **Diagramme**
+wechseln: `/diagramme`, gleiches Status-/Warnungsband, Verlauf ab Seitenöffnung.
+Die Diagnosekurven aufklappen. Eine Anzeigeoption ändern und zurück zur Übersicht
+wechseln: die Auswahl bleibt, der Diagrammverlauf nicht. Mobilansicht ebenfalls
+prüfen; unbekannte/offline Werte dürfen nicht als Null oder „Nein“ erscheinen.
+Eine echte Pi-/Browserprüfung ist dadurch beschrieben, nicht bereits bestätigt.
+
 Diagramm-CI [37204010318](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37204010318)
 bestätigt 21 Python-/MQTT-/HTTP-Tests, 27 JavaScript-Tests und beide Chromium-
 Browsersuiten (Auswahl, Persistenz, Phasenspalten, mobile SVGs, Ausfalllücken).
 Desktop-/Mobilbilder verwenden simulierte Werte; echten Pi-Empfang/Browserverlauf
 separat prüfen, nicht aus diesen Screenshots ableiten.
+
+Abschließende Dashboard-CI [37220843434](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37220843434)
+bestätigt 21 Python-/MQTT-/HTTP- und 28 JavaScript-Tests plus drei Chromium-Suiten:
+beide Seiten in hell/dunkel bei 320/390/768/1440 px, Navigation/Tastatur, Auswahl,
+geschützte Warnungen/Frische, CSP und blockierter Browserspeicher. Simulierte
+Desktop-/Mobilbilder wurden geprüft; Seitencache-Rückkehr lädt gemeinsame
+Einstellungen neu beziehungsweise bewahrt temporäre Auswahl bei blockiertem
+Speicher. PR-CI `37221004357` ebenfalls erfolgreich. Die echte Pi-Browserprüfung
+bleibt offen. PR #33 wird durch Mario gemergt; danach obige Updatefolge verwenden.
 
 ### Lokale Konfiguration und optionale Zugangsdaten
 
@@ -880,8 +929,11 @@ docker inspect --format '{{json .Mounts}}' maria_uno
 
 Binary-Version ist nicht dieselbe Bestätigung wie `SELECT VERSION()` am laufenden
 Server. Die Mount-Ausgabe liegt nun vor, der sichere Adminzugang weiterhin nicht.
-Ein einzelner weiterer **lesender** Loginversuch ohne explizites Passwort kann
-klären, ob Root per lokalem Unix-Socket authentifiziert ist:
+Früher wurde ein lesender Socket-Login als Diagnose vorgeschlagen; ein Erfolg
+ist nicht bestätigt. **Mario hat keinen autorisierten DB-Adminzugang und hat
+MariaDB nicht eingerichtet: jetzt keine weiteren Loginversuche durchführen.**
+Nur der berechtigte Betreiber kann bei Bedarf und mit gesondertem Auftrag prüfen,
+ob Root per lokalem Unix-Socket authentifiziert ist:
 
 ```bash
 docker exec -it maria_uno mariadb --protocol=socket -u root -e 'SELECT VERSION();'

@@ -103,10 +103,11 @@
     for (const [id, value] of Object.entries(present(view))) {
       const element = document.getElementById(id);
       // Avoid repeating unchanged live-region text on every countdown tick.
-      if (element.textContent !== value) element.textContent = value;
+      if (element && element.textContent !== value) element.textContent = value;
     }
     document.getElementById('status').dataset.tone = view.status === 'live' ? 'good' : view.status === 'waiting' ? 'muted' : 'warning';
-    document.getElementById('wallbox-error').dataset.tone = view.values && view.values.error_code !== 0 ? 'warning' : 'muted';
+    const error = document.getElementById('wallbox-error');
+    if (error) error.dataset.tone = view.values && view.values.error_code !== 0 ? 'warning' : 'muted';
     const warning = document.getElementById('wallbox-warning');
     const message = view.values && view.values.error_code !== 0 ? `Wallbox meldet Fehlercode ${view.values.error_code}.` : '';
     warning.hidden = !message;
@@ -142,7 +143,9 @@
     if (!document.hidden) poll();
   }
   document.addEventListener('visibilitychange', resetView);
-  window.addEventListener('pageshow', event => { if (event.persisted) resetView(); });
+  window.addEventListener('pageshow', event => {
+    if (event.persisted) { charts.restore(); resetView(); }
+  });
   // This clock is independent of HTTP; a hung request cannot preserve live values.
   setInterval(render, 100);
   render(); poll();

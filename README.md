@@ -25,7 +25,8 @@ Weboverlay und MQTT-Wallbox-Zustandsspeicherung für MariaDB sind implementiert.
   Ladestrom, Fahrzeuganschluss und tatsächlichem Ladestatus bereitstellen.
 - Weboverlay um eine modulare Einrichtung mit Wallbox-Befehlseingabe erweitern.
 - Übergeordnete Softwarekommunikation über MQTT mit **einem gemeinsamen Broker**.
-- Pi-Dienste modular und ausschließlich über Docker Compose betreiben.
+- Pi-Dienste modular und ausschließlich über Docker Compose betreiben;
+  später ein gemeinsamer Start-/Stop-Befehl für mehrere spezialisierte Container.
 
 ## Was bereits implementiert ist
 
@@ -81,6 +82,12 @@ Der Pi ist Modbus-Master; **Adresse 9 gehört zur Wallbox**. UART bleibt die
 direkte ESP32-Pi-Verbindung, ohne WiFi. Der Reader veröffentlicht Modbus-Daten
 auf MQTT, die UART-MQTT-Bridge folgt. MQTT ersetzt keine Hardwareleitungen.
 
+**Späteres Betriebsziel, noch nicht umgesetzt:** eine gemeinsame Compose-Datei
+für die getrennten Pi-Projektdienste, kein All-in-one- oder Verwaltungscontainer.
+Docker/Compose startet/stoppt die Container; ein geplanter Ladecontroller regelt
+das Laden über MQTT. Vorhandener Broker und MariaDB bleiben externe Infrastruktur.
+Bis zur späteren Zusammenführung gelten die heutigen dienstweisen Startbefehle.
+
 ## Schnellstart: Wallbox lesen
 
 Voraussetzung: Repository, Docker/Compose, Wallbox und das vorbereitete
@@ -114,9 +121,10 @@ Auf deinem Rechner: `ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.
 Pi-Port bleibt nur lokal gebunden. Keine Start-/Stop- oder Limitänderung enthalten.
 [Konfiguration und Diagnose](docs/installation.md#9-lesendes-weboverlay).
 
-„Anzeige auswählen“ blendet Messwerte und Kurven einzeln ein/aus. Diagramme
-zeigen bis zu 15 Minuten **seit Seitenöffnung**, kein Datenbankarchiv.
-Auswahl bleibt lokal gespeichert; Neuladen leert die Messwerthistorie.
+**Übersicht** zeigt aktuelle Werte; **Diagramme** ist eine eigene Seite
+(`/diagramme`) mit bis zu 15 Minuten **seit Öffnen der Diagrammseite**, kein
+Datenbankarchiv. „Anzeige auswählen“ gilt auf beiden Seiten. Auswahl bleibt
+lokal gespeichert; Neuladen oder Seitenwechsel leert die Messwerthistorie.
 
 ## ESP32-UART-Verbindung testen
 

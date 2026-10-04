@@ -196,7 +196,14 @@ class StateTests(unittest.TestCase):
         self.assertEqual(client.put("/api/state").status_code, 405)
         self.assertEqual(client.get("/api/command").status_code, 404)
         self.assertEqual(client.get("/healthz").status_code, 200)
-        self.assertEqual(client.get("/").status_code, 200)
+        for path, title in [("/", "Übersicht"), ("/diagramme", "Diagramme")]:
+            page = client.get(path)
+            self.assertEqual(page.status_code, 200)
+            self.assertIn(f"<h1>{title}</h1>", page.data.decode("utf-8"))
+            self.assertEqual(page.headers["Cache-Control"], "no-store")
+            self.assertIn("script-src 'self'", page.headers["Content-Security-Policy"])
+            self.assertEqual(client.post(path).status_code, 405)
+            self.assertEqual(client.put(path).status_code, 405)
         self.assertEqual(client.get("/static/../../overlay/mqtt.py").status_code, 404)
 
 
