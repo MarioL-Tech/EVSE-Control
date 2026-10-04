@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="dark light">
   <title>EVSE · Ladeübersicht</title>
   <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/charts.js" defer></script>
   <script src="/static/app.js" defer></script>
 </head>
 <body>
@@ -17,17 +18,35 @@
     <section class="status-panel" aria-label="Datenstatus">
       <div class="status-line" role="status"><span id="status" class="badge" data-tone="muted">Warten auf Daten</span><span id="reason">Verbindung zur Anzeige wird hergestellt.</span></div>
       <div class="metadata"><span>Broker: <strong id="broker">Unbekannt</strong></span><span>Telemetrie-Verfügbarkeit: <strong id="availability">Unbekannt</strong></span><span>Frischebudget: <strong id="freshness">—</strong></span></div>
+      <p id="wallbox-warning" class="diagnostic" data-tone="warning" role="status" hidden></p>
     </section>
+    <details class="display-options">
+      <summary>Anzeige auswählen</summary>
+      <fieldset><legend>Messwerte und zugehörige Diagrammkurven ein-/ausblenden</legend><div id="metric-options" class="metric-options"></div></fieldset>
+      <button id="reset-display" type="button">Alle Messwerte anzeigen</button>
+      <p id="display-storage" class="subtle"></p>
+      <p class="subtle">Diese Auswahl ändert nur die Ansicht, keine Wallbox-Einstellung. Verbindungsstatus und Warnungen bleiben sichtbar.</p>
+    </details>
+    <p id="display-empty" class="notice" hidden>Alle Messwerte sind ausgeblendet. Unter „Anzeige auswählen“ wieder einschalten.</p>
     <section class="overview" aria-label="Ladezustand">
-      <article class="card power-card"><p class="eyebrow">Aktuelle Wirkleistung</p><p class="hero-value" id="power">—</p><p class="subtle">Gesamtleistung der Wallbox</p></article>
-      <article class="card"><h2>Fahrzeug</h2><dl class="facts"><div><dt>Angesteckt</dt><dd id="plugged">Unbekannt</dd></div><div><dt>Lädt tatsächlich</dt><dd id="charging">Unbekannt</dd></div></dl><p class="subtle">Angesteckt bedeutet nicht automatisch Laden.</p></article>
-      <article class="card"><h2>Ladesitzung</h2><p class="metric" id="energy">—</p><p class="subtle">Energie dieser Sitzung</p></article>
+      <article class="card power-card" data-metric="power"><p class="eyebrow">Aktuelle Wirkleistung</p><p class="hero-value" id="power">—</p><p class="subtle">Gesamtleistung der Wallbox</p></article>
+      <article class="card" data-metrics="plugged charging"><h2>Fahrzeug</h2><dl class="facts"><div data-metric="plugged"><dt>Angesteckt</dt><dd id="plugged">Unbekannt</dd></div><div data-metric="charging"><dt>Lädt tatsächlich</dt><dd id="charging">Unbekannt</dd></div></dl><p class="subtle">Angesteckt bedeutet nicht automatisch Laden.</p></article>
+      <article class="card" data-metric="energy"><h2>Ladesitzung</h2><p class="metric" id="energy">—</p><p class="subtle">Energie dieser Sitzung</p></article>
     </section>
     <section class="details" aria-label="Messwerte und Diagnose">
-      <article class="card"><h2>Phasenmessung</h2><table><caption>Strom und Spannung je Phase</caption><thead><tr><th scope="col">Phase</th><th scope="col">Strom</th><th scope="col">Spannung</th></tr></thead><tbody><tr><th scope="row">L1</th><td id="current-0">—</td><td id="voltage-0">—</td></tr><tr><th scope="row">L2</th><td id="current-1">—</td><td id="voltage-1">—</td></tr><tr><th scope="row">L3</th><td id="current-2">—</td><td id="voltage-2">—</td></tr></tbody></table></article>
-      <article class="card"><h2>Grenzen &amp; Verbrauch</h2><dl class="facts"><div><dt>Stromlimit der Wallbox</dt><dd id="limit">—</dd></div><div><dt>Unter Sollstrom</dt><dd id="below">Unbekannt</dd></div></dl><p class="notice">Gebäudestrom: Noch nicht erfasst (DTSU666)</p><p class="subtle">Das Wallbox-Limit ist kein Messwert des Gebäudestroms.</p></article>
-      <article class="card"><h2>Wallbox-Diagnose</h2><p id="wallbox-error" class="diagnostic">—</p><dl class="facts"><div><dt>Ladezustand</dt><dd id="charging-state">—</dd></div><div><dt>Ladezustand (Rohwert)</dt><dd id="charging-raw">—</dd></div><div><dt>Buchsenverriegelung (Rohwert)</dt><dd id="lock">—</dd></div></dl><p class="subtle">Verriegelungswert der Wallbox, nicht des ESP32-Servos. Online-Telemetrie bedeutet nicht Fehlerfreiheit.</p></article>
+      <article class="card" data-metrics="current-0 current-1 current-2 voltage-0 voltage-1 voltage-2"><h2>Phasenmessung</h2><table><caption>Strom und Spannung je Phase</caption><thead><tr><th scope="col">Phase</th><th class="phase-current" scope="col">Strom</th><th class="phase-voltage" scope="col">Spannung</th></tr></thead><tbody>
+        <tr data-metrics="current-0 voltage-0"><th scope="row">L1</th><td class="phase-current"><span data-metric="current-0" id="current-0">—</span></td><td class="phase-voltage"><span data-metric="voltage-0" id="voltage-0">—</span></td></tr>
+        <tr data-metrics="current-1 voltage-1"><th scope="row">L2</th><td class="phase-current"><span data-metric="current-1" id="current-1">—</span></td><td class="phase-voltage"><span data-metric="voltage-1" id="voltage-1">—</span></td></tr>
+        <tr data-metrics="current-2 voltage-2"><th scope="row">L3</th><td class="phase-current"><span data-metric="current-2" id="current-2">—</span></td><td class="phase-voltage"><span data-metric="voltage-2" id="voltage-2">—</span></td></tr>
+      </tbody></table></article>
+      <article class="card"><h2>Grenzen &amp; Verbrauch</h2><dl class="facts"><div data-metric="limit"><dt>Stromlimit der Wallbox</dt><dd id="limit">—</dd></div><div data-metric="below"><dt>Unter Sollstrom</dt><dd id="below">Unbekannt</dd></div></dl><p class="notice">Gebäudestrom: Noch nicht erfasst (DTSU666)</p><p class="subtle">Das Wallbox-Limit ist kein Messwert des Gebäudestroms.</p></article>
+      <article class="card" data-metrics="wallbox-error charging-state charging-raw lock"><h2>Wallbox-Diagnose</h2><p data-metric="wallbox-error" id="wallbox-error" class="diagnostic">—</p><dl class="facts"><div data-metric="charging-state"><dt>Ladezustand</dt><dd id="charging-state">—</dd></div><div data-metric="charging-raw"><dt>Ladezustand (Rohwert)</dt><dd id="charging-raw">—</dd></div><div data-metric="lock"><dt>Buchsenverriegelung (Rohwert)</dt><dd id="lock">—</dd></div></dl><p class="subtle">Verriegelungswert der Wallbox, nicht des ESP32-Servos. Online-Telemetrie bedeutet nicht Fehlerfreiheit.</p></article>
       <article class="card"><h2>Datenprotokoll</h2><dl class="facts timestamps"><div><dt>Letzte Messung</dt><dd id="timestamp">—</dd></div><div><dt>Letzte erfolgreiche Abfrage</dt><dd id="last-success">—</dd></div><div><dt>Messwertalter</dt><dd id="age">—</dd></div><div><dt>Lesefehler</dt><dd id="read-error">—</dd></div></dl></article>
+    </section>
+    <section class="history-section" aria-labelledby="history-heading">
+      <div class="history-heading"><h2 id="history-heading">Zeitverläufe <span class="readonly">Historische Messwerte</span></h2><label for="chart-range">Zeitfenster <select id="chart-range"><option value="1">1 Minute</option><option value="5" selected>5 Minuten</option><option value="15">15 Minuten</option></select></label></div>
+      <p class="subtle">Nur seit Öffnen dieser Seite erfasste Messwerte, maximal 15 Minuten. Kein Datenbank-Verlauf; Neuladen leert ihn. Fehlende Daten bleiben Lücken. Punkte und Linien sind historisch, keine Live-Anzeige.</p>
+      <div id="chart-grid" class="chart-grid"></div>
     </section>
     <footer>Nur Anzeige · Keine Steuerung · Automatische Abfrage jede Sekunde<br>Bei fehlenden oder veralteten Daten werden Messwerte ausgeblendet.</footer>
     <noscript><p class="notice">Für aktuelle Messwerte muss JavaScript aktiviert sein.</p></noscript>

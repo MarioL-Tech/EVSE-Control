@@ -25,6 +25,28 @@ Pi-Localhost gebunden, kein neues Internet-/LAN-Portmapping. Keine SSH-/WG-Ände
 Alle Schritte zu Konfiguration, Passwortdatei, Portkonflikten, Diagnose und Tests:
 [zentraler Installationsguide](../../docs/installation.md#9-lesendes-weboverlay).
 
+## Diagramme und Anzeigeauswahl
+
+„Anzeige auswählen“ schaltet jeden der 16 Telemetriewerte und seine Diagrammkurve
+einzeln ein/aus. Auswahl und Zeitfenster werden lokal im Browser gespeichert;
+„Alle Messwerte anzeigen“ setzt sie zurück. Status, Messzeit und aktive
+Wallbox-Fehlerwarnung bleiben sichtbar. Bei blockiertem Browserspeicher gilt
+die Auswahl nur für die geöffnete Seite; Credentials werden nie gespeichert.
+
+SVG-Diagramme zeigen Leistung (kW), Phasenströme/Limit (A), Spannungen (V),
+Sessionenergie (kWh) sowie getrennte Stufenverläufe für Anschluss/Laden und
+Diagnosecodes/Rohwerte. Phasenkurven behalten beim Ausblenden ihre Farbe.
+Zeitfenster: **1, 5 oder 15 Minuten**. Erst ein Messpunkt ist ein Punkt, keine Linie.
+
+**Kein Datenbankarchiv:** maximal 15 Minuten/1200 Messzeitpunkte im RAM dieses
+Browser-Tabs, nur seit Seitenöffnung beobachtet. Neuladen leert den Verlauf.
+Wiederholte API-Polls zählen nicht als neue Messungen; bei gleicher Sekunden-
+Zeitmarke bleibt der letzte beobachtete Wert. Fehler, Offline und unbekannte
+Werte sind Lücken, nicht Nullwerte; Pausen über 10 s bleiben unverbunden.
+Historische Kurven bleiben bei Ausfall sichtbar, während Live-Werte ausgeblendet
+werden. Zwischenwerte während Browser-/Netzausfällen werden nicht nachgeladen.
+Sessionenergie kann bei neuer Session zurückgesetzt werden, kein Gesamtsummenzähler.
+
 ## Datenmodell und Grenzen
 
 - `GET /api/state`: normalisierter Read-only-Snapshot, niemals Credentials.
