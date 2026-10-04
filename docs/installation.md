@@ -706,6 +706,8 @@ Blockierter/defekter Browserspeicher darf die Anzeige nicht verhindern; dann
 gelten Defaults beziehungsweise die Auswahl der geöffneten Seite. Zum vollständigen
 Zurücksetzen ggf. nur diesen Eintrag in den Browser-Websitedaten löschen.
 Keine Zugangsdaten oder Messwertverläufe werden im localStorage gespeichert.
+Bei Rückkehr über Browser-Zurück/Vorwärts werden gespeicherte Einstellungen
+erneut gelesen; ohne lesbaren Speicher bleiben temporäre Einstellungen erhalten.
 
 Zeitverläufe nutzen native SVG, keine zusätzlichen Pakete/CDNs. Zeitfenster
 **1, 5 oder 15 Minuten**, Default 5. Leistung kW, Strom A, Spannung V,
@@ -759,6 +761,13 @@ bestätigt 21 Python-/MQTT-/HTTP-Tests, 27 JavaScript-Tests und beide Chromium-
 Browsersuiten (Auswahl, Persistenz, Phasenspalten, mobile SVGs, Ausfalllücken).
 Desktop-/Mobilbilder verwenden simulierte Werte; echten Pi-Empfang/Browserverlauf
 separat prüfen, nicht aus diesen Screenshots ableiten.
+
+Dashboard-CI [37220017350](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37220017350)
+bestätigt 21 Python-/MQTT-/HTTP- und 28 JavaScript-Tests plus drei Chromium-Suiten:
+beide Seiten in hell/dunkel bei 320/390/768/1440 px, Navigation/Tastatur, Auswahl,
+geschützte Warnungen/Frische, CSP und blockierter Browserspeicher. Simulierte
+Desktop-/Mobilbilder wurden geprüft; nachträgliche Seitencache-Präferenzregression
+wird separat nachgetestet. Die echte Pi-Browserprüfung bleibt offen.
 
 ### Lokale Konfiguration und optionale Zugangsdaten
 

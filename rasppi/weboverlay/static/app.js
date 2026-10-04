@@ -144,7 +144,7 @@
   }
   document.addEventListener('visibilitychange', resetView);
   window.addEventListener('pageshow', event => {
-    if (event.persisted) { charts.clear(); resetView(); }
+    if (event.persisted) { charts.restore(); resetView(); }
   });
   // This clock is independent of HTTP; a hung request cannot preserve live values.
   setInterval(render, 100);

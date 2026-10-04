@@ -110,12 +110,20 @@ const fs = require('node:fs');
     assert(await page.locator('#chart-power').isVisible(), 'Corrupt storage should fall back to defaults');
     assert(!(await page.locator('[data-series="power"]').getAttribute('d')).includes('L'), 'Reload discards history');
     await page.evaluate(() => {
+      const prefs = JSON.parse(localStorage.getItem('evse-display-v1'));
+      prefs.minutes = 15; prefs.selected.power = false; prefs.selected['current-1'] = false;
+      localStorage.setItem('evse-display-v1', JSON.stringify(prefs));
       const event = new Event('pageshow');
       Object.defineProperty(event, 'persisted', { value: true });
       window.dispatchEvent(event);
     });
     await page.waitForFunction(() => document.getElementById('status').textContent === 'Live');
-    assert(!(await page.locator('[data-series="power"]').getAttribute('d')).includes('L'), 'Cached page restoration starts fresh history');
+    assert(!(await page.locator('[data-series="energy"]').getAttribute('d')).includes('L'), 'Cached page restoration starts fresh history');
+    assert(!await page.locator('#chart-power').isVisible(), 'Cached page reloads shared preferences');
+    assert.equal(await page.locator('#chart-range').inputValue(), '15');
+    assert(!await page.locator('#show-current-1').isChecked());
+    assert.equal(await page.locator('[data-series="current-1"], [data-legend="current-1"]').count(), 0);
+    assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem('evse-display-v1')))).minutes, 15);
     assert.deepEqual(errors, []);
     console.log('Charts browser: SVG lines, mobile, display/series/column selection, persistence, reset, warnings and outage gaps passed');
   } finally { await browser.close(); }

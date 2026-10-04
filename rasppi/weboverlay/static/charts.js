@@ -237,7 +237,19 @@
     }
     apply();
     return {
-      clear() { history.clear(); lastRevision = -1; draw(Date.now()); },
+      restore() {
+        // Another page may have changed the shared settings while this page
+        // was frozen in the back/forward cache. Preserve session-only choices
+        // if storage cannot be read, rather than resetting them silently.
+        let raw;
+        try { raw = storage.getItem(STORAGE_KEY); } catch (_) { /* session-only */ }
+        if (raw !== undefined) {
+          try { prefs = normalizePreferences(JSON.parse(raw)); } catch (_) { prefs = defaults(); }
+        }
+        if (range) range.value = String(prefs.minutes);
+        for (const m of METRICS) document.getElementById(`show-${m.id}`).checked = prefs.selected[m.id];
+        history.clear(); apply();
+      },
       update(view, now = Date.now()) {
         if (figures.size) history.observe(view, now);
         if (history.revision !== lastRevision || now - lastDraw >= 1000 || now < lastDraw) draw(now);

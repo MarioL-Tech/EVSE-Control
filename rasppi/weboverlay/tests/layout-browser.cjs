@@ -147,6 +147,12 @@ function clean(run) {
         const first = denied.page.locator('#metric-options input').first();
         await first.uncheck(); assert.equal(await first.isChecked(), false);
         await globals(denied.page);
+        await denied.page.evaluate(() => {
+          const event = new Event('pageshow');
+          Object.defineProperty(event, 'persisted', { value: true }); window.dispatchEvent(event);
+        });
+        await live(denied.page);
+        assert.equal(await first.isChecked(), false, 'Cached page keeps session-only choices without storage');
         await denied.page.reload(); await live(denied.page);
         assert.equal(await first.isChecked(), true); clean(denied);
       } finally { await denied.context.close(); }
