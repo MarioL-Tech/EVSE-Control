@@ -78,11 +78,16 @@
           // reader intervals, schema-v1 timestamps only distinguish seconds:
           // keep the last values for that second, never fill an outage with them.
           if (!broken && points.length && JSON.stringify(points.at(-1).values) !== JSON.stringify(values)) {
-            points.at(-1).values = values; revision++;
+            const last = points.at(-1);
+            for (const m of METRICS) {
+              if (last.values[m.id] === null || values[m.id] === null) last.seriesBreak[m.id] = true;
+            }
+            last.values = values; revision++;
           }
           return;
         }
-        points.push({ t, values, breakBefore: broken || (lastStamp !== null && t - lastStamp > MAX_GAP_MS) });
+        points.push({ t, values, seriesBreak: Object.fromEntries(METRICS.map(m => [m.id, values[m.id] === null])),
+          breakBefore: broken || (lastStamp !== null && t - lastStamp > MAX_GAP_MS) });
         if (points.length > MAX_POINTS) points.splice(0, points.length - MAX_POINTS);
         lastStamp = t; broken = false; revision++;
       },
@@ -91,7 +96,7 @@
       window(now, minutes) {
         const duration = [1, 5, 15].includes(minutes) ? minutes * 60000 : 300000;
         return points.filter(p => p.t >= now - duration && p.t <= now).map(p =>
-          ({ ...p, values: { ...p.values } }));
+          ({ ...p, values: { ...p.values }, seriesBreak: { ...p.seriesBreak } }));
       }
     };
   }
@@ -114,7 +119,8 @@
         const value = p.values[m.id];
         if (value === null) { previous = null; continue; }
         const px = x(p.t).toFixed(2), py = y(value).toFixed(2);
-        const connect = previous && !p.breakBefore && p.t - previous.t <= MAX_GAP_MS;
+        const connect = previous && !p.breakBefore && !p.seriesBreak?.[m.id] &&
+          !previous.seriesBreak?.[m.id] && p.t - previous.t <= MAX_GAP_MS;
         path += !connect ? `M${px},${py}` : group.step ? `H${px}V${py}` : `L${px},${py}`;
         previous = p; last = { x: px, y: py, value, t: p.t };
       }

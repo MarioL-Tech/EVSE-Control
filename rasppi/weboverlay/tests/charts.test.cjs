@@ -62,6 +62,21 @@ test('buffer has point and 15 minute bounds even at high sample rates', () => {
   h.observe({ status: 'offline' }, epoch + RETENTION_MS + 5000);
   assert.equal(h.size, 0);
 });
+test('same-second unknown transitions keep gaps on both sides of only that series', () => {
+  for (const key of ['plugged_in', 'charging']) {
+    const id = key === 'plugged_in' ? 'plugged' : 'charging';
+    const h = createHistory();
+    h.observe(live(epoch, { [key]: true }), epoch);
+    h.observe(live(epoch + 2000, { [key]: null }), epoch + 2000);
+    h.observe(live(epoch + 2000, { [key]: true }), epoch + 2100);
+    h.observe(live(epoch + 4000, { [key]: true }), epoch + 4000);
+    const path = plot(h, 'flags', epoch + 4000).paths.find(p => p.metric.id === id).path;
+    assert.equal((path.match(/M/g) || []).length, 3);
+    assert.equal((plot(h, 'power', epoch + 4000).paths[0].path.match(/M/g) || []).length, 1);
+    const copy = h.window(epoch + 4000, 15); copy[1].seriesBreak[id] = false;
+    assert(h.window(epoch + 4000, 15)[1].seriesBreak[id]);
+  }
+});
 test('clock reversal resets history; future/old/invalid timestamps do not enter it', () => {
   const h = createHistory(); h.observe(live(epoch), epoch);
   h.observe({ status: 'waiting' }, epoch - 1000); assert.equal(h.size, 0);

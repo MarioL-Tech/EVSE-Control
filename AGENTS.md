@@ -312,7 +312,9 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   lokal im Browser (`evse-display-v1`), keine Messwerte/Credentials im localStorage.
   Nicht verfügbarer Speicher fällt auf aktuelle Sitzung zurück. Status, Messzeit
   und aktive Wallbox-Fehlerwarnung bleiben unabhängig von Auswahl sichtbar.
-- Zusätzliche Diagramm-Unit-/Chromiumtests integriert, Docker-CI noch ausstehend.
+- Erste Diagramm-Docker-CI `37203503188` für `4edb64f` erfolgreich. Codeprüfung
+  ergänzt pro Kurve konservative Same-Second-Unknown-Unterbrechungen (beide
+  Nachbarsegmente); erweiterte Regression/erneuter Lauf noch ausstehend.
 
 ## Geplant / noch nicht implementiert
 
