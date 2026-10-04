@@ -9,6 +9,13 @@ permissions:
   contents: read
 jobs:
   docker:
+    name: MariaDB ${{ matrix.mariadb }}
+    strategy:
+      fail-fast: false
+      matrix:
+        mariadb: ['10.11', '11.8.8', '11.8']
+    env:
+      MARIADB_TEST_VERSION: ${{ matrix.mariadb }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

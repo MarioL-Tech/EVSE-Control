@@ -25,7 +25,8 @@ Weboverlay und MQTT-Wallbox-Zustandsspeicherung für MariaDB sind implementiert.
   Ladestrom, Fahrzeuganschluss und tatsächlichem Ladestatus bereitstellen.
 - Weboverlay um eine modulare Einrichtung mit Wallbox-Befehlseingabe erweitern.
 - Übergeordnete Softwarekommunikation über MQTT mit **einem gemeinsamen Broker**.
-- Pi-Dienste modular und ausschließlich über Docker Compose betreiben.
+- Pi-Dienste modular und ausschließlich über Docker Compose betreiben;
+  später ein gemeinsamer Start-/Stop-Befehl für mehrere spezialisierte Container.
 
 ## Was bereits implementiert ist
 
@@ -80,6 +81,12 @@ Remote-Zugriff: Rechner --> WireGuard/SSH-Tunnel --> Pi-Weboverlay
 Der Pi ist Modbus-Master; **Adresse 9 gehört zur Wallbox**. UART bleibt die
 direkte ESP32-Pi-Verbindung, ohne WiFi. Der Reader veröffentlicht Modbus-Daten
 auf MQTT, die UART-MQTT-Bridge folgt. MQTT ersetzt keine Hardwareleitungen.
+
+**Späteres Betriebsziel, noch nicht umgesetzt:** eine gemeinsame Compose-Datei
+für die getrennten Pi-Projektdienste, kein All-in-one- oder Verwaltungscontainer.
+Docker/Compose startet/stoppt die Container; ein geplanter Ladecontroller regelt
+das Laden über MQTT. Vorhandener Broker und MariaDB bleiben externe Infrastruktur.
+Bis zur späteren Zusammenführung gelten die heutigen dienstweisen Startbefehle.
 
 ## Schnellstart: Wallbox lesen
 

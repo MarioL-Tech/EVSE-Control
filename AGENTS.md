@@ -14,7 +14,9 @@ Geplant sind Ladefreigabe und Ladestatus, Erkennung eines angeschlossenen
 Fahrzeugs, Energie- und Strommesswerte, Regelung nach verfügbarer Leistung und
 Dringlichkeit, Datenbank, Weboverlay sowie eine eigene Home-Assistant-Integration.
 Der modulare Aufbau mit Docker-Compose-Komponenten ist ein erklärtes Projektziel.
-Die konkrete Aufteilung der Dienste und Compose-Dateien ist noch festzulegen.
+Festgelegt ist ein gemeinsamer Compose-Einstieg für mehrere spezialisierte
+Container. Detailaufteilung und Zusammenführung der heutigen Compose-Dateien
+sind noch umzusetzen; Mario wünscht diese Umstellung ausdrücklich erst später.
 
 ### Konkretisierte Anforderungen (Umsetzungsstand siehe unten)
 
@@ -98,6 +100,15 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
 ```
 
 - Der Pi ist die zentrale Steuerungsplattform und Modbus-Master.
+- Später eine gemeinsame Docker-Compose-Datei für die Pi-Projektdienste:
+  ein Start-/Stop-Befehl für mehrere getrennte Container, kein All-in-one-
+  Container und kein zusätzlicher Container, der andere Container verwaltet.
+  Docker/Compose übernimmt den Containerlebenszyklus; ein geplanter Ladecontroller
+  übernimmt ausschließlich die fachliche Ladeautomatisierung über MQTT.
+- Vorhandener MQTT-Broker und MariaDB werden weiterhin extern wiederverwendet,
+  nicht ersetzt oder beim Stoppen des Projektstacks mit heruntergefahren.
+  Aktuell bleiben die einzelnen Dienst-Compose-Dateien unverändert; keine
+  Zusammenführung oder Laufzeitumstellung ohne späteren ausdrücklichen Auftrag.
 - Die Wallbox-Schnittstelle ist bereits entschieden: ABB Terra AC über
   USB-RS485, `/dev/ttyUSBEVSEcontrol`, **57600 Baud, 8E1, Slave-ID 9**.
   Die ID 9 gehört zur Wallbox, nicht zum Pi als Master.
@@ -330,8 +341,8 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Auswahl/Frische/Warnings, 320/390/768/1440 px, hell/dunkel, blockierter Speicher).
   Desktop-/Mobilbilder mit simulierten Werten geprüft, keine Pi-Bestätigung.
   Codeprüfung ergänzt getestetes Präferenz-Neuladen bei Seitencache-Rückkehr;
-  temporäre Auswahl ohne lesbaren Speicher bleibt erhalten. PR #33 erstellt,
-  Merge durch Mario; echtes Pi-Deployment/Browserprüfung weiterhin offen.
+  temporäre Auswahl ohne lesbaren Speicher bleibt erhalten. Mario hat PR #33
+  als `863c66c` gemergt; echtes Pi-Deployment/Browserprüfung weiterhin offen.
 - Erste Diagramm-Docker-CI `37203503188` für `4edb64f` erfolgreich. Codeprüfung
   ergänzt pro Kurve konservative Same-Second-Unknown-Unterbrechungen (beide
   Nachbarsegmente); erweiterte CI `37203627509` erfolgreich. Isolierte Samples
@@ -372,13 +383,44 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Retained/Restart-Deduplizierung, DB-Recovery, ACK-MID-Eigentum und fail-closed
   Secretdateien. Gap-`dropped` zählt Records inklusive Collectorereignisse, nicht
   die Zahl fehlender Hardwaremessungen. Echte Pi-Einrichtung/DB-Empfang offen.
-  Vor Deployment DB-Version/Container, Netzwerke, Accounts/Grants, TLS-Anforderungen
-  und vorhandene Backups klären. Pi-Bestandsaufnahme/11.8.x-Kompatibilität ist
-  separat in PR #32 vorbereitet; nicht Teil des Dashboard-Branches. Mario hat
-  die bestehende MariaDB nicht eingerichtet und derzeit keinen autorisierten
-  DB-Adminzugriff. Deployment/Migration bis zur Bereitstellung durch den
-  zuständigen Betreiber pausiert; keine fremden Secrets suchen oder Auth/Volumes
-  zurücksetzen. UI-Arbeit benötigt diesen Zugang nicht.
+  Vor Deployment konkrete DB-Version, Netzwerke, Accounts/Grants, TLS-Anforderungen
+  und vorhandene Backups klären.
+- Mario bestätigt am 2026-10-04 per `docker ps`-Screenshot den laufenden MariaDB-
+  Container `maria_uno`, Image `mariadb:lts`, Hostport 3306 an IPv4/IPv6 allen
+  Schnittstellen. `lts` ist keine konkrete Serverversion; Volume,
+  Accounts und tatsächliche Port-Erreichbarkeit/Firewall sind dadurch nicht bestätigt.
+  Vorhandenen Container/Volumes beibehalten, keine Port-/Netzwerkänderung ausgeführt.
+  Ebenso sind `grafana`, `elastic_lumiere`, Reader und Weboverlay-Container gelistet;
+  letzterer bindet 127.0.0.1:8080. Das beweist Containerbetrieb, nicht HTTP-/MQTT-
+  Readiness oder korrekte Browserwerte. `deb-mbpoll` ist ebenfalls gelistet; daraus
+  keinen tatsächlich laufenden Modbus-Master ableiten, Parallelzugriff weiter vermeiden.
+- Zweiter Screenshot: MariaDB ist nur im Standardnetz `bridge`, keine Aliases;
+  kein bestätigter DB-Netzzugang für den Collector. `mariadb -u root -p -e
+  'SELECT VERSION();'` wurde mit 1045 (`root@localhost`, Passwort verwendet)
+  abgewiesen. Ursache/Adminzugang nicht bekannt, kein Reset/Containerneustart.
+  Installierte Server-Binary-Version ersetzt nicht den Nachweis erfolgreichen DB-Zugangs.
+- Dritter Screenshot: `mariadbd --version` meldet **11.8.8-MariaDB-ubu2404, aarch64**;
+  Docker-Volume mit langem generiert wirkendem Namen, Driver `local`, RW nach
+  `/var/lib/mysql`. Das ist persistente Datenhaltung, kein Backup-/Restore-Nachweis.
+  Volume/Container nicht löschen oder neu initialisieren. Vorhandene Start-/Compose-
+  Definition weiter unbekannt. CI `37212624186` für `d30f00f` bestätigt je
+  39 Tests + Runtime für 10.11.19, exakt 11.8.8 und 11.8.9 (rollender 11.8-Tag).
+  CI ist amd64, kein Pi-ARM64-/Adminzugangs-/Deploymentnachweis;
+  keine Änderung am Produktionsserver. Loginfreie Version nicht mit `SELECT VERSION()`
+  oder bestätigter Admin-Authentifizierung gleichsetzen.
+- Mario meldet am 2026-10-04 **keinen DB-Adminzugang**. Pi-Provisionierung/Migration
+  bleibt blockiert; vorhandenen berechtigten Betreiber bzw. ursprüngliche lokale
+  Compose-/Env-/Secret-Einrichtung klären. Root-Passwort muss nicht an Mario/Agent
+  gegeben werden: Betreiber kann eigenes EVSE-Schema/least-privilege Accounts
+  bereitstellen. Keine weiteren Passwortversuche, Secret-Ausgaben, neue Produktions-
+  DB oder Reset ohne separaten Auftrag; gesichertes Recovery wäre eigener Abschnitt.
+- Mario hat MariaDB **nicht selbst eingerichtet**. Bestehenden Einrichter/
+  berechtigten Betreiber um eigenes EVSE-Schema und passende Accounts bitten,
+  nicht selbst fremde Credentials auslesen oder Server-Authentifizierung ändern.
+  Root ist kein Pflichtaccount: Provisionierung braucht einen DB-Login mit
+  CREATE USER/entsprechendem GRANT-Recht, Migration CREATE/SELECT/INSERT nur im
+  eigenen Schema, laufender Collector SELECT/INSERT. SSH-/Dockerzugang allein
+  ersetzt SQL-Rechte nicht. Entwicklung/isolierte Tests können unabhängig weitergehen.
 
 ## Geplant / noch nicht implementiert
 
@@ -390,8 +432,11 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Einrichtungsfunktion), SQL-Historienabfrage/-Diagrammanbindung und weitere
   Datenmodelle für Ladesessions, UART/RFID und Zählerdaten.
 - Ladeautomatisierung nach verfügbarer Leistung und Dringlichkeit.
-- Vollständige modulare Dienst-/Containerstruktur; Reader-Compose nutzt den
-  bereits vorhandenen gemeinsamen MQTT-Broker, Gesamtsystem noch offen.
+- Gemeinsamer Compose-Einstieg für getrennte modulare Pi-Projektdienste,
+  erst später umzusetzen. Konkrete Dienste/Startabhängigkeiten und kontrollierte
+  Migration der bisherigen Einzel-Stacks noch offen; bestehende Infrastruktur
+  bleibt extern. Kein Container-Orchestrator im Projekt und kein Docker-Socket-
+  Zugriff für den fachlichen Ladecontroller.
 - RFID-Berechtigungsliste und weitere Hardware-/Fehlerfalltests.
 - Anforderungen mit dem Lehrer sowie Diplomarbeitsanmeldung abstimmen.
 

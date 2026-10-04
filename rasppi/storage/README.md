@@ -65,9 +65,15 @@ docker compose -f compose.test.yaml up --abort-on-container-exit --exit-code-fro
 docker compose -f compose.test.yaml down --volumes
 ```
 
-**Nur diese Test-Datei** enthält einen temporären MariaDB-10.11-Server und Broker,
+**Nur diese Test-Datei** enthält einen temporären MariaDB-Server und Broker,
 im isolierten Docker-Netz ohne Hostports/Produktionsnetz; bekannte Dummy-Passwörter
 sind nur Testdaten. Das Aufräumen gilt nicht für vorhandene Produktionsdienste.
+Default-Testversion 10.11; für den bestätigten Pi-Binary-Stand jedem Compose-Aufruf
+`MARIADB_TEST_VERSION=11.8.8` voranstellen. CI prüft 10.11, exakt 11.8.8 und den
+rollenden 11.8-Tag unabhängig. Letzterer war im ersten Matrixlauf bereits 11.8.9;
+CI [37212624186](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37212624186)
+für `d30f00f`: **je 39 Tests + Runtime-Smoke** unter 10.11.19, 11.8.8 und 11.8.9
+bestanden (amd64, kein echter ARM64-/Pi-Test). Produktionsimage bleibt unverändert.
 Unit-Tests laufen zusätzlich bei jedem Runtime-Image-Build. GitHub-Docker-CI prüft
 SQL/MQTT, eingeschränkte Grants, Retained-/Restart-Deduplizierung, DB-Recovery und
 das gehärtete Runtime-Image. CI

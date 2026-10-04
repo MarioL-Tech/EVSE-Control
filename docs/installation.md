@@ -23,6 +23,7 @@ auf dem Pi steht noch aus (Abschnitt 9).
 7. [Wiederinstallation vorbereiten](#7-was-für-eine-spätere-wiederholung-gesichert-werden-muss)
 8. [Hardware und Erstvorbereitung](#8-hardware-und-erstvorbereitung)
 9. [Lesendes Weboverlay](#9-lesendes-weboverlay)
+10. [MQTT-Zustandsspeicherung](#10-mqtt-zustandsspeicherung-in-der-vorhandenen-mariadb)
 
 ## 1. Voraussetzungen und Regeln
 
@@ -56,6 +57,22 @@ Windows-Terminal ohne SSH. Abschnitt 8 kennzeichnet separate Schritte auf dem
 Entwicklungsrechner ausdrücklich. Befehle einzeln einfügen; sichtbarer Zeilenumbruch
 im Terminal darf nicht als zusätzliches Enter übernommen werden. Es gab beim
 Test ein von Mario Windows zugeordnetes Aufrufproblem.
+
+### Späterer gemeinsamer Compose-Einstieg (noch nicht umgesetzt)
+
+Vereinbart ist eine gemeinsame Compose-Datei für mehrere spezialisierte
+Pi-Projektcontainer. Ziel: gemeinsamer Start mit `docker compose up -d` und
+Stop mit `docker compose down` im später festgelegten Stack-Verzeichnis.
+**Diese Gesamtstart-Anleitung ist noch nicht verfügbar:** derzeit gelten die
+getrennten Befehle der jeweiligen Dienstabschnitte, keine Umstellung jetzt.
+
+Ein fachlicher Ladecontroller wird später per MQTT die Ladeautomatisierung
+übernehmen, nicht andere Container starten/stoppen. Kein zusätzlicher Docker-
+Verwaltungscontainer und kein Docker-Socket-Mount für diese Aufgabe.
+Vorhandener Broker, MariaDB und andere fremde Dienste bleiben außerhalb des
+Projektstacks; gemeinsames Stoppen darf diese Infrastruktur nicht beenden.
+Kontrollierte Übernahme der bisherigen Stacks, Hardwareport-Eigentum, externe
+Netzwerke, Secrets und Startabhängigkeiten werden erst bei Umsetzung dokumentiert.
 
 ## 2. Repository bereitstellen und Stand notieren
 
@@ -864,9 +881,16 @@ Die Produktions-Compose startet **keinen DB-Server und keinen Broker**.
 
 ### Bestehende Datenbank prüfen, nicht ersetzen
 
-Bisher ist nur bekannt, dass eine MariaDB und Grafana laufen. Containername,
-Version, Datenvolumes, Netzwerke, Accounts, TLS und Backupverfahren sind nicht
-bestätigt. Vor Einrichtung lokal auf dem Pi prüfen (keine Passwörter posten):
+Mario hat am 2026-10-04 per Containerübersicht bestätigt: **`maria_uno`**, Image
+**`mariadb:lts`**, Hostport 3306 an allen IPv4/IPv6-Schnittstellen. Das ist kein
+Nachweis öffentlicher Erreichbarkeit (Firewall/Netz unbekannt) oder konkreter
+Serverversion. Ein weiterer Screenshot bestätigt ausschließlich Standardnetz
+`bridge`, ohne Alias. Ein dritter Screenshot bestätigt die installierte Server-
+Binary **11.8.8-MariaDB-ubu2404 auf aarch64** und ein lokales Docker-Volume RW
+nach `/var/lib/mysql`. Volume ist kein Backup; dessen lange automatisch wirkende
+Namenskennung und Mount erhalten, nicht neu initialisieren/löschen. Accounts,
+TLS und Backupverfahren bleiben unbekannt. Vor Einrichtung lokal auf dem Pi
+prüfen (keine Passwörter posten):
 
 ```bash
 docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}'
@@ -876,12 +900,86 @@ docker inspect --format '{{json .NetworkSettings.Networks}}' <mariadb-container>
 docker inspect --format '{{json .Mounts}}' <mariadb-container>
 ```
 
+Für den bestätigten aktuellen Container sind die nächsten reinen Diagnosebefehle:
+
+```bash
+docker inspect --format '{{json .NetworkSettings.Networks}}' maria_uno
+docker inspect --format '{{json .Mounts}}' maria_uno
+docker exec -it maria_uno mariadb -u root -p -e 'SELECT VERSION();'
+```
+
+Adminpasswort nur lokal am Prompt eingeben. Bei anderer vorhandener Admin-
+Authentifizierung das bestehende Verfahren nutzen; keine Root-Freigabe anlegen.
+`mariadb:lts` kann bei Neuerstellung eine andere Version bezeichnen. Nicht neu
+erstellen/upgraden, nur um die Version herauszufinden. Portbindung ist ein
+separater Sicherheitspunkt: nicht als abgesichert behaupten und nicht ohne
+Auftrag ändern. Collector selbst veröffentlicht keinen Hostport.
+
+Marios Versuch mit `root -p` wurde mit **1045 / Access denied** abgewiesen.
+Das beweist weder eine defekte DB noch eindeutig ein falsches Passwort; Account,
+Authentifizierungsart und ursprünglicher Adminzugang müssen geklärt werden.
+DB-Adminpasswort ist nicht automatisch das SSH-Passwort. Keine Passwörter teilen,
+keinen Container/Volume löschen und keinen Passwortreset ohne gesonderten Auftrag.
+Version der installierten Server-Binary und Mounts sind unabhängig vom Login lesbar:
+
+```bash
+docker exec maria_uno mariadbd --version
+docker inspect --format '{{json .Mounts}}' maria_uno
+```
+
+Binary-Version ist nicht dieselbe Bestätigung wie `SELECT VERSION()` am laufenden
+Server. Die Mount-Ausgabe liegt nun vor, der sichere Adminzugang weiterhin nicht.
+Früher wurde ein lesender Socket-Login als Diagnose vorgeschlagen; ein Erfolg
+ist nicht bestätigt. **Mario hat keinen autorisierten DB-Adminzugang und hat
+MariaDB nicht eingerichtet: jetzt keine weiteren Loginversuche durchführen.**
+Nur der berechtigte Betreiber kann bei Bedarf und mit gesondertem Auftrag prüfen,
+ob Root per lokalem Unix-Socket authentifiziert ist:
+
+```bash
+docker exec -it maria_uno mariadb --protocol=socket -u root -e 'SELECT VERSION();'
+```
+
+Das ändert keine Passwörter oder Accounts. Erneutes 1045 heißt nicht, dass die DB
+neu aufgebaut werden muss: vorhandenen Adminzugang/ursprüngliche geschützte
+Einrichtung klären, nicht Passwörter raten oder Env-/Secretwerte teilen.
+Bis sicherer Adminzugang geklärt ist, keine Accounts/Migration oder Server-/
+Netzänderung vornehmen.
+
+**Aktueller Blocker:** Mario hat keinen DB-Adminzugang. Zuerst klären, wer MariaDB
+eingerichtet/verwaltet hat. Dieser berechtigte Betreiber kann das eigene EVSE-
+Schema sowie Runtime-/Migrationsaccount wie unten bereitstellen, ohne Root-
+Passwort weiterzugeben. App-Secrets ausschließlich lokal/sicher übergeben.
+Falls Mario die ursprüngliche Einrichtung selbst verwaltet, deren geschützte
+Compose-/Env-/Secret-Dateien nur lokal prüfen, keine Inhalte in Chat/Git/logs teilen.
+Keine weitere Passwortsuche durch Raten, kein Ersatzserver, keine Neuinitialisierung
+des Volumes. Passwort-Recovery/Reset erfordert gesonderten Auftrag, geprüftes Backup,
+Ausfallplanung und Rücksicht auf bestehende DB-Nutzer; ist hier nicht durchgeführt.
+
+Mario hat MariaDB nicht selbst eingerichtet. Daher den bestehenden berechtigten
+Betreiber kontaktieren, statt fremde Einrichtungs-Secrets zu suchen. Root ist
+**kein Pflichtaccount**: ein anderer DB-Login mit den nötigen Account-/Grant-
+Rechten kann provisionieren. SSH-/Dockerrechte geben nicht automatisch SQL-Rechte.
+Dem Betreiber folgende Anforderung weitergeben (SQL-Beispiele siehe unten):
+
+- Eigenes, noch unbenutztes Schema `evse_control`, UTF-8; keine Grafana-/Fremdtabellen nutzen.
+- `evse_storage`: ausschließlich SELECT/INSERT in diesem Schema für Dauerbetrieb.
+- Separater `evse_migrator`: SELECT/INSERT/CREATE in diesem Schema, nur für explizite
+  Initialisierung. Alternativ führt der Betreiber die initiale Migration selbst aus.
+- Nur App-Accounts/-Secrets sicher lokal bereitstellen, kein Root-Passwort an Agent/Chat.
+- Bestehendes Datenvolume/Backup sichern und den zulässigen lokalen Docker-Zugangsweg klären.
+
+Ohne passenden DB-Zugang bleibt nur das Pi-Deployment blockiert; Entwicklung und
+die isolierten Docker-Tests benötigen keine Produktionsrechte.
+
 Keine komplette `docker inspect`-/Env-Ausgabe teilen: sie kann Credentials enthalten.
 Falls MariaDB nicht als Container läuft, zunächst deren tatsächlichen sicheren
 Zugangsweg klären; keine Container-Aliasbefehle blind auf einen Hostdienst anwenden
 oder dafür dessen Bindadresse/Firewall ohne Auftrag öffnen.
 Serverversion zusätzlich mit `SELECT VERSION();` im bestehenden DB-Client prüfen.
-Getesteter Zielstand: MariaDB **10.11**; andere Versionen erst prüfen, niemals
+CI [37212624186](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37212624186)
+bestätigt je 39 Tests + Runtime unter 10.11.19, exakt **11.8.8** und 11.8.9.
+Der rollende `11.8`-Tag bezeichnet nicht zwingend Marios installierte 11.8.8;
+CI ist amd64 und kein echter Pi-ARM64-/Zugriffstest. Andere Versionen erst prüfen, niemals
 den bestehenden Server/Volumes zum Erfüllen dieser Versionsangabe ersetzen.
 Vor Änderungen bestehende Backup-/Restorefähigkeit klären. Keine globalen
 SQL-Settings, WireGuard/SSH, Portfreigaben oder fremden Schemas ändern.
@@ -1076,7 +1174,7 @@ umask 077
 mkdir -p backups
 docker run --rm --network evse-data --user 10001:10001 \
   --mount type=bind,src="$PWD/secrets/backup.cnf",dst=/run/secrets/client.cnf,readonly \
-  mariadb:10.11 mariadb-dump --defaults-extra-file=/run/secrets/client.cnf \
+  mariadb:11.8 mariadb-dump --defaults-extra-file=/run/secrets/client.cnf \
   --single-transaction --skip-triggers --no-tablespaces --databases evse_control \
   > "backups/evse-$(date -u +%Y%m%dT%H%M%SZ).sql"
 ```
@@ -1110,11 +1208,14 @@ docker compose -f compose.test.yaml up --abort-on-container-exit --exit-code-fro
 docker compose -f compose.test.yaml down --volumes
 ```
 
-Nur diese Testdatei startet einen flüchtigen MariaDB-10.11-Server und Testbroker
+Nur diese Testdatei startet einen flüchtigen MariaDB-Server und Testbroker
 im isolierten Netz ohne Hostports/Produktionsnetze, mit bekannten Dummy-Credentials.
 Tests prüfen typed SQL/null, Schema-/Grant-Grenzen, Duplikate/Same-Second/Retained,
 Restart/DB-Recovery und Parameterbindung. Runtime-Image-Build führt Unit-Tests aus;
 GitHub-CI ergänzt diese Integration und non-root/readonly/No-Network-Smoke-Test.
+Default 10.11, weitere Matrixversionen exakt 11.8.8 und rollend 11.8. Lokal für
+11.8.8 jedem Compose-Aufruf `MARIADB_TEST_VERSION=11.8.8` voranstellen; keine Produktiv-Image-/Server-
+änderung. CI nutzt Linux amd64, das ist kein Pi-ARM64-Deploymentnachweis.
 CI [37209898185](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37209898185)
 für `50794db` bestanden: **32 Unit- und 7 SQL/MQTT-Integrationstests**, eingeschränkte
 Grants/Schemaverifikation, Retained-/Restart-Deduplizierung, DB-Recovery und
