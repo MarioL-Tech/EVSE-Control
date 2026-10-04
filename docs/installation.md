@@ -835,8 +835,9 @@ Die Produktions-Compose startet **keinen DB-Server und keinen Broker**.
 Mario hat am 2026-10-04 per Containerübersicht bestätigt: **`maria_uno`**, Image
 **`mariadb:lts`**, Hostport 3306 an allen IPv4/IPv6-Schnittstellen. Das ist kein
 Nachweis öffentlicher Erreichbarkeit (Firewall/Netz unbekannt) oder konkreter
-Serverversion. Datenvolumes, Netzwerke, Accounts, TLS und Backupverfahren sind
-noch nicht bestätigt. Vor Einrichtung lokal auf dem Pi prüfen (keine Passwörter posten):
+Serverversion. Ein weiterer Screenshot bestätigt ausschließlich Standardnetz
+`bridge`, ohne Alias. Datenvolumes, Accounts, TLS und Backupverfahren sind noch
+nicht bestätigt. Vor Einrichtung lokal auf dem Pi prüfen (keine Passwörter posten):
 
 ```bash
 docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}'
@@ -860,6 +861,23 @@ Authentifizierung das bestehende Verfahren nutzen; keine Root-Freigabe anlegen.
 erstellen/upgraden, nur um die Version herauszufinden. Portbindung ist ein
 separater Sicherheitspunkt: nicht als abgesichert behaupten und nicht ohne
 Auftrag ändern. Collector selbst veröffentlicht keinen Hostport.
+
+Marios Versuch mit `root -p` wurde mit **1045 / Access denied** abgewiesen.
+Das beweist weder eine defekte DB noch eindeutig ein falsches Passwort; Account,
+Authentifizierungsart und ursprünglicher Adminzugang müssen geklärt werden.
+DB-Adminpasswort ist nicht automatisch das SSH-Passwort. Keine Passwörter teilen,
+keinen Container/Volume löschen und keinen Passwortreset ohne gesonderten Auftrag.
+Version der installierten Server-Binary und Mounts sind unabhängig vom Login lesbar:
+
+```bash
+docker exec maria_uno mariadbd --version
+docker inspect --format '{{json .Mounts}}' maria_uno
+```
+
+Binary-Version ist nicht dieselbe Bestätigung wie `SELECT VERSION()` am laufenden
+Server. Die Mount-Ausgabe fehlt bisher, weil versehentlich die Netzwerkausgabe
+wiederholt wurde. Bis sicherer Adminzugang und Datenhaltung geklärt sind, keine
+Accounts/Migration oder Server-/Netzänderung vornehmen.
 
 Keine komplette `docker inspect`-/Env-Ausgabe teilen: sie kann Credentials enthalten.
 Falls MariaDB nicht als Container läuft, zunächst deren tatsächlichen sicheren

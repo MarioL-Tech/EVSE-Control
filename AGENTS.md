@@ -359,13 +359,20 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   und vorhandene Backups klären.
 - Mario bestätigt am 2026-10-04 per `docker ps`-Screenshot den laufenden MariaDB-
   Container `maria_uno`, Image `mariadb:lts`, Hostport 3306 an IPv4/IPv6 allen
-  Schnittstellen. `lts` ist keine konkrete Serverversion; Netzwerk, Volume,
+  Schnittstellen. `lts` ist keine konkrete Serverversion; Volume,
   Accounts und tatsächliche Port-Erreichbarkeit/Firewall sind dadurch nicht bestätigt.
   Vorhandenen Container/Volumes beibehalten, keine Port-/Netzwerkänderung ausgeführt.
   Ebenso sind `grafana`, `elastic_lumiere`, Reader und Weboverlay-Container gelistet;
   letzterer bindet 127.0.0.1:8080. Das beweist Containerbetrieb, nicht HTTP-/MQTT-
   Readiness oder korrekte Browserwerte. `deb-mbpoll` ist ebenfalls gelistet; daraus
   keinen tatsächlich laufenden Modbus-Master ableiten, Parallelzugriff weiter vermeiden.
+- Zweiter Screenshot: MariaDB ist nur im Standardnetz `bridge`, keine Aliases;
+  kein bestätigter DB-Netzzugang für den Collector. `mariadb -u root -p -e
+  'SELECT VERSION();'` wurde mit 1045 (`root@localhost`, Passwort verwendet)
+  abgewiesen. Ursache/Adminzugang nicht bekannt, kein Reset/Containerneustart.
+  Mounts wurden noch nicht geliefert (Netzwerkabfrage versehentlich wiederholt).
+  Installierte Server-Binary-Version kann ohne Login per `mariadbd --version`
+  gelesen werden; das ersetzt nicht den Nachweis des erfolgreichen DB-Zugangs.
 
 ## Geplant / noch nicht implementiert
 
