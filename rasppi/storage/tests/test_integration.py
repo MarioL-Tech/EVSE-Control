@@ -211,6 +211,9 @@ class Integration(unittest.TestCase):
                 self.assertEqual(self.query(f"SELECT COUNT(*) FROM {name}.evse_schema_versions")[0][0], 0)
                 with self.assertRaises(ValueError):
                     bad.verify()
+                self.query(f"INSERT INTO {name}.evse_schema_versions VALUES (1, UTC_TIMESTAMP(6))")
+                with self.assertRaises(ValueError):
+                    bad.migrate()
             finally:
                 bad.close()
                 self.query(f"DROP DATABASE {name}")

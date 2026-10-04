@@ -845,6 +845,9 @@ docker inspect --format '{{json .Mounts}}' <mariadb-container>
 ```
 
 Keine komplette `docker inspect`-/Env-Ausgabe teilen: sie kann Credentials enthalten.
+Falls MariaDB nicht als Container läuft, zunächst deren tatsächlichen sicheren
+Zugangsweg klären; keine Container-Aliasbefehle blind auf einen Hostdienst anwenden
+oder dafür dessen Bindadresse/Firewall ohne Auftrag öffnen.
 Serverversion zusätzlich mit `SELECT VERSION();` im bestehenden DB-Client prüfen.
 Getesteter Zielstand: MariaDB **10.11**; andere Versionen erst prüfen, niemals
 den bestehenden Server/Volumes zum Erfüllen dieser Versionsangabe ersetzen.
@@ -933,10 +936,10 @@ Beispiel für interaktive Bash ohne Geheimnis im Shell-History-Befehl:
 
 ```bash
 umask 077
-read -r -s -p 'DB-Writer-Passwort: ' SECRET; printf '\n'
+IFS= read -r -s -p 'DB-Writer-Passwort: ' SECRET; printf '\n'
 printf '%s\n' "$SECRET" > secrets/db-password.txt
 unset SECRET
-read -r -s -p 'DB-Migrations-Passwort: ' SECRET; printf '\n'
+IFS= read -r -s -p 'DB-Migrations-Passwort: ' SECRET; printf '\n'
 printf '%s\n' "$SECRET" > secrets/migration-password.txt
 unset SECRET
 sudo chown 10001:10001 secrets/db-password.txt secrets/migration-password.txt

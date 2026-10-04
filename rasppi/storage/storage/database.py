@@ -99,6 +99,8 @@ class Database:
                 cursor.execute("SELECT version FROM evse_schema_versions ORDER BY version")
                 versions = cursor.fetchall()
                 if versions == ((1,),):
+                    self.verify_shape()
+                    self.connection.commit()
                     return
                 if versions:
                     raise ValueError("Unsupported database version")
