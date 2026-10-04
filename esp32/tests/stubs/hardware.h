@@ -45,6 +45,8 @@ public:
     std::vsnprintf(buffer, sizeof(buffer), format, args); va_end(args);
     output += buffer; sim.trace.emplace_back(label_);
   }
+private:
+  const char *label_;
 };
 inline SerialPort Serial("USB_OUT"), Serial2("UART_OUT");
 inline uint32_t millis() { return sim.now; }
