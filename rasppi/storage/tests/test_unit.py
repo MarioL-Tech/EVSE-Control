@@ -176,6 +176,16 @@ class ConfigTests(unittest.TestCase):
             config(MQTT_PASSWORD="secret")
         self.assertEqual(config(MQTT_USERNAME="reader", MQTT_PASSWORD="secret").mqtt_user, "reader")
 
+    def test_optional_mqtt_secret_file_must_not_silently_fall_back_to_no_password(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "mqtt-secret"
+            for value in (b"", b"\n", b"x" * 4097, b"first\nsecond"):
+                path.write_bytes(value)
+                with self.assertRaises(ValueError):
+                    config(MQTT_USERNAME="reader", MQTT_PASSWORD_FILE=str(path))
+            with self.assertRaises(ValueError):
+                config(MQTT_USERNAME="reader", MQTT_PASSWORD_FILE=directory)
+
     def test_prefix(self):
         for prefix in ("", "/evse", "evse/", "evse/+", "evse/#", "x\n", "x" * 241):
             with self.assertRaises(ValueError):

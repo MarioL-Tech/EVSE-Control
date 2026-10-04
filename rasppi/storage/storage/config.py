@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 import os
 from pathlib import Path
 import re
+import stat
 
 
 def number(env, key, default, low, high):
@@ -17,10 +18,17 @@ def secret(env, key, required=False):
         raise ValueError(f"Use {key} or {key}_FILE, not both")
     if filename:
         try:
-            value = Path(filename).read_text(encoding="utf-8") if Path(filename).stat().st_size <= 4096 else ""
+            path = Path(filename)
+            info = path.stat()
+            if not stat.S_ISREG(info.st_mode) or info.st_size > 4096:
+                raise ValueError(f"Invalid {key}_FILE")
+            with path.open(encoding="utf-8") as stream:
+                value = stream.read(4097)
         except (OSError, UnicodeError) as error:
             raise ValueError(f"Cannot read {key}_FILE") from error
         value = value.rstrip("\r\n")
+        if not value:
+            raise ValueError(f"Empty {key}_FILE")
     if (required and not value) or len(value.encode()) > 4096 or any(c in value for c in ("\r", "\n", "\x00")):
         raise ValueError(f"Invalid {key}")
     return value

@@ -349,7 +349,9 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   bei Crash/Restart verloren. Startup-/Gap-Ereignisse markieren unbekannte Abdeckung.
   Keine automatische Aufbewahrungs-/Backup-Policy, RFID/UART/DTSU666 oder SQL-
   Diagrammanbindung. Der Browserverlauf bleibt unverändert im Tab-RAM.
-- Unit-/isolierte MariaDB-10.11-/MQTT-Tests und Docker-CI angelegt, Lauf noch offen.
+- Erste Docker-CI `37208830988` für `ab7f656` erfolgreich: isolierte MariaDB-10.11-/
+  MQTT-Integration und gehärtete Runtime. Zusätzliche Secretdatei-Regression/finaler
+  Lauf folgt; konfigurierte leere/zu große Dateien müssen fail-closed bleiben.
   Vor Deployment DB-Version/Container, Netzwerke, Accounts/Grants, TLS-Anforderungen
   und vorhandene Backups klären; bisher nur Existenz der MariaDB bestätigt.
 
