@@ -405,41 +405,102 @@ Host-Pfad vorab mit `UART_DEVICE` setzen. Firmware, Verdrahtung und UART-
 Hardwarefreigabe müssen vorhanden sein. `on`/`off` ändern nur den ESP32-Spiegel,
 nicht die reale Wallbox. Details: [UART-Protokoll](uart-protocol.md).
 
-### Erwartete Meldungen und Funktionstest
+### Neue Firmware und Erwartungsgrenzen
 
-Wenn der ESP32 bootet und die Brücke bereits lauscht:
+Die frühere Firmware war ein **UART-Kommunikationstest**, startete bei 0° und
+ließ jede lesbare Karte toggeln. Die neue Allowlist-/Persistenzimplementierung
+ist **noch ungeflasht und nicht am realen ESP32 verifiziert**. Docker-CI
+[37235418853](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37235418853)
+für `8f98c41` bestätigt 41 native Sanitizer-Fälle, fünf simulierte Adapter-Suiten,
+kompletten Xtensa-Zielcompile, vier Artefakte und Flash-CLI-Hilfe ohne USB/Upload.
+Prüfhost Linux-amd64, kein Pi-ARM64- oder Hardwaretest; folgende Hardwareprüfung
+ist ein Plan, kein Erfolg.
+Vor dem Upgrade [Flash-/Sicherheitsablauf](#esp32-bauen-und-flashen) beachten:
+mit leerem NVS wechselt der Start von **0° auf 90°**.
+
+UART bleibt 115200/8N1 mit denselben Pins. Die Python-Brücke ist unverändert:
+Managementbefehle unten als rohe Zeilen eingeben. Physischer UART und Pi bilden
+die Vertrauensgrenze; ein bösartiger Pi kann Karten aufnehmen/Bootpolicy ändern.
+Keine Anbindung an anonyme MQTT-Befehlstopics oder aktuelle lesende HTTP-Controls.
+Gateway/HA/GUI-Steuerung sind geplant und benötigen später geschützte,
+authentifizierte, autorisierte Weiterleitung.
+
+Bei neuem Erststart mit leerem NVS und bereits lauschender Brücke erwartet:
 
 ```text
-EVSE UART bridge: listening on /dev/serial0 @ 115200 baud
 RX <- ESP32: EVSE:STATUS:CHARGING:OFF:SRC:boot
-RX <- ESP32: EVSE:STATUS:ANTITHEFT:INACTIVE:SRC:boot
+RX <- ESP32: EVSE:STATUS:ANTITHEFT:ACTIVE:SRC:boot
+RX <- ESP32: EVSE:STATUS:SECURITY:STORE:READY:FAULT:NONE:BOOT:RESTORE:CARDS:0:ENROLL:OFF:READER:SPI_OK:SERVO:PWM_OK
 ```
 
-Ein schon laufender ESP32 sendet beim Start der Pi-Brücke nicht automatisch
-erneut seine Bootmeldungen. Mit `status` beide Zustände abfragen.
+Ein laufender ESP32 wiederholt beim Start der Brücke keine Bootmeldungen;
+`status` fragt Lade-/Servoziel und Security-Status ab. Eine vorhandene gültige
+NVS-Konfiguration bleibt erhalten, dann sind Kartenanzahl/Bootziel nicht
+zwangsläufig wie oben. **Nicht zum Erzwingen dieses Beispiels NVS löschen.**
+`ACTIVE`/`INACTIVE` melden nur angeforderte 90°/0°, keine mechanische Messung.
+`SPI_OK`/`PWM_OK` bestätigen keine vollständige Karten-/Servo-/Schlossfunktion.
+Die früher beobachtete MFRC522-Kennung `0x82` ist ebenfalls nur SPI-Diagnose;
+`0x91`/`0x92` sind üblich, `0x00`/`0xFF` deuten auf Anschluss-/Versorgungsprobleme.
 
-Im USB-Serial-Monitor des ESP32 (115200 Baud) erscheinen zusätzlich etwa:
+### Geplanter Hardwaretest nach abgestimmtem Flashen
 
-```text
-MFRC522 firmware version: 0x82
-EVSE RFID controller started
-```
+Nur mit gesichertem Bewegungsraum, koordinierter Betreuung vor Ort und ohne
+reale Wallboxsteuerung durchführen. Ergebnisse privat notieren, keine echten
+UIDs in Git, Scripts, Chat oder geteilte Screenshots/Logs übernehmen.
 
-`0x91`/`0x92` sind übliche MFRC522-Kennungen; `0x82` wurde an der vorhandenen
-Hardware beobachtet und zeigt SPI-Erreichbarkeit, nicht allein vollständige
-RFID-Funktion. `0x00`/`0xFF` deuten auf Verdrahtungs-/Versorgungsprobleme hin.
+1. `status`: bei neuem leerem NVS `CARDS:0`, `RESTORE`, `ACTIVE`, Store READY
+   erwarten. Bei `FAULT` stoppen und Ursache prüfen; nicht automatisch löschen.
+2. Karte aus dem Lesefeld entfernen, `CMD:RFID:ENROLL:START` senden und
+   `EVSE:RESULT:ENROLL:ENROLL_STARTED` abwarten. **Nach diesem START** Lesefeld
+   mindestens 500 ms sauber leer lassen, praktisch **1 s warten**; erst dann
+   innerhalb der 30 s genau eine bewusst gewählte 13,56-MHz-Karte auflegen.
+   Ein echter START setzt das Presence-Gate erneut auf requireRemoval, auch
+   wenn zuvor Leere beobachtet wurde. Bereits gehaltene Karten werden nicht
+   durch START zum Kandidaten. Wiederholtes START im aktiven Fenster verändert
+   weder Gate noch Frist (`ENROLL_ACTIVE`).
+3. `EVSE:RESULT:ENROLL:ENROLLED:UID:<uid>` und Kartenanzahl 1 prüfen; UID nur
+   privat lokal für den Widerruf festhalten. Aufnahme bewegt den Servo nicht.
+   Bereits erlaubte Karte ergibt `ALREADY_ALLOWED` und schließt ebenfalls das
+   Fenster ohne Toggle. USB-Ausgabe redigiert die UID; Pi-Brücke zeigt sie.
+4. Karte mindestens 500 ms sauber entfernen (praktisch 1 s), erneut auflegen:
+   zuerst 0°/`UNLOCKED`, nach erneutem Entfernen/Auflegen 90°/`LOCKED` erwarten.
+   Zwischen erfolgreichen Toggles mindestens 800 ms; kein künstlicher
+   800-ms-Startaufschub. Gehaltene Karte darf keine Wiederholung erzeugen.
+   Auch bei Boot gehaltene Karte muss erst sauber entfernt werden. Selectfehler,
+   Kollision oder SPI-Fehler sind keine Entfernungsnachweise.
+5. Andere, nicht erlaubte Karte frisch präsentieren: `DENIED`, kein Toggle,
+   keine UID-Ausgabe. Cancel (`CMD:RFID:ENROLL:CANCEL`) und Ablauf des Fensters
+   nach 30 s ebenfalls prüfen. Jeder echte neue START verlangt erneut Leere.
+6. `CMD:RFID:REVOKE:<uid>` mit der **nur lokal** erfassten UID senden
+   (`<uid>` ersetzen; 4/7/10 Bytes, zwei Hexzeichen je Byte, Doppelpunkttrenner).
+   `REVOKED`, Kartenanzahl und anschließend `DENIED` ohne Bewegung prüfen.
+7. Für jede Policy `CMD:ANTITHEFT:BOOT:RESTORE`, `...:LOCKED`, `...:UNLOCKED`
+   einzeln senden: Einstellung darf **jetzt nicht bewegen**. Jeweils einen
+   abgestimmten **ESP32-Neustart** auslösen, nicht ungefragt den Remote-Pi rebooten.
+   RESTORE: letzter gespeicherter angeforderter Zielwert; LOCKED: 90°;
+   UNLOCKED: 0°. Vorher Zielwert/Policy notieren, NVS-Erhalt prüfen. Zum Test
+   beider RESTORE-Ziele kann die private Testkarte erneut aufgenommen werden.
+   Gewünschte endgültige Policy und Kartenbestand bewusst festlegen.
 
-Mit einer lesbaren 13,56-MHz-Karte wird zuerst verriegelt, beim nächsten Tap
-entriegelt. Der Servo startet bei 0°, erster Tap bewegt ihn auf 90°:
+Persistenz: maximal 16 UIDs mit 4/7/10 Bytes in einem version-/CRC-geprüften
+NVS-Blob, Namespace `evse-lock`, Schlüssel `state`, über direkte ESP-IDF-NVS-API
+in eigener Partition `evse_nvs`, nicht Preferences; **keine zugesicherte
+Verschlüsselung**, kein automatisches Erase/Factoryreset. Startupfehler
+(`UNAVAILABLE`, `CORRUPT`, `WRITE`) fordern verriegelt an und verweigern
+Management-/Kartenänderungen. Runtime-Schreibfehler fordern **LOCKED/90°** an,
+brechen Aufnahme ab und sperren Änderungen bis Neustart. Das Fallback kann bei
+Schreibfehler nicht gespeichert werden; RESTORE beim nächsten Start liest den
+letzten tatsächlich gültigen dauerhaften Blob, dessen Ziel abweichen kann.
+Speichern erfolgt vor Erfolg/normalem Servotoggle; ein ungewisser Schreibausgang
+kann nach Neustart dennoch angewendet werden. Keine absichtlichen
+Stromunterbrechungen ohne eigenen,
+sicher abgestimmten Testplan.
 
-```text
-RX <- ESP32: EVSE:RFID:CARD:UID:AB:CD:EF:12
-RX <- ESP32: EVSE:STATUS:ANTITHEFT:ACTIVE:SRC:rfid
-RX <- ESP32: EVSE:STATUS:ANTITHEFT:INACTIVE:SRC:rfid
-```
-
-Jeder Tap meldet außerdem seinen UID-Event. Der Servo ist unabhängig vom
-Ladevorgang. Derzeit akzeptiert die Firmware jede lesbare Karte, keine Whitelist.
+UIDs sind klonbar, keine kryptografische Authentifizierung. SG90 ist keine
+zertifizierte physische Diebstahlsicherung; kein mechanischer Sensor oder
+Sicherheitsversprechen bei Stromverlust. Kein direkter UART-Unlock-Befehl.
+Vollständige Frames/Fehler/Antworten: [UART-Vertrag](uart-protocol.md),
+Firmwareübersicht: [ESP32-README](../esp32/README.md).
 
 | Symptom | Prüfen |
 |---|---|
@@ -551,12 +612,96 @@ versorgen, nicht 5 V. Karten müssen 13,56 MHz verwenden, keine 125-kHz-Tags.
 | GND | gemeinsame Masse mit ESP32/Pi |
 
 Nicht aus der ESP32-3,3-V-Schiene versorgen. 0° bedeutet entriegelt/inaktiv,
-90° verriegelt/aktiv; RFID toggelt unabhängig vom Laden. Bootzustand: 0°.
+90° verriegelt/aktiv; erlaubte RFID-Karten toggeln unabhängig vom Laden.
+Neuer Erststart mit leerem NVS: 90°, keine Karten, RESTORE. Sonst konfigurierte
+Bootpolicy gemäß Abschnitt 6. Status ist ein angeforderter Zielwert, kein
+mechanischer Nachweis. Vor Upgrade/Bewegung sichere Freigängigkeit koordinieren.
 
-### ESP32 flashen
+### ESP32 bauen und flashen
+
+**Upgrade vor Ort koordinieren:** Die alte UART-Testfirmware startete bei 0°;
+neue Firmware startet bei leerem NVS mit 90°. Servo/Mechanik müssen sich sicher
+bewegen können. USB-Zugang/Versorgung und Flashen mit einer Person vor Ort
+abstimmen; kein vorhandener Agentzugang zum ESP32 oder bestätigter Remote-Flashweg.
+Keine Hardwareprüfung/Deployment als bereits erfolgt behandeln.
+
+**Board-/Partitionsvoraussetzung:** 4-MB-ESP32; eigene Tabelle
+`esp32/partitions.csv` mit `evse_nvs` bei `0x290000`, Größe `0x6000`.
+Direkte ESP-IDF-NVS-API isoliert Securitydaten vom Arduino-Default-NVS und
+dessen möglichem Autoerase. Nur genau `ESP_ERR_NVS_NOT_FOUND` bedeutet fehlender
+Eintrag; Initialisierungs-/Open-/Korruptionsfehler nicht durch Löschen beheben.
+Die alte Stock-SPIFFS-Region überlappt die neue Securitypartition:
+**keinen SPIFFS-Zugriff und kein Stock-Partitionsimage verwenden**.
+Der geprüfte frühere UART-Testcode persistierte keine Kartenfreigaben;
+dies ist keine Freigabe zum Löschen unbekannter Daten anderer Geräte.
+
+Beim ersten Deployment muss die **neue Partitionstabelle zusammen mit passender
+Firmware und Bootloader** aus demselben Build-/Toolchainstand geflasht werden.
+Nur `firmware.bin` über einer alten Tabelle reicht nicht. Vor Upload Boardgröße,
+aktive Tabelle und vollständige Uploadliste/-Offsets des geprüften PlatformIO-
+Builds lokal kontrollieren; nicht Binärdateien verschiedener Stände mischen.
+Kein `erase-all`/Erase-Flash-Befehl, kein automatisches Reset des Kartenstores.
+Ohne bestätigte 4-MB-/USB-/Partitionsvoraussetzungen nicht flashen.
+
+Toolchain gepinnt: `espressif32@6.9.0`, Framework `3.20017.0` (Arduino 2.0.17),
+MFRC522 `1.4.11`. ESP32Servo entfernt; native Arduino-2-LEDC-PWM auf GPIO13:
+Baseline 544 µs für 0°, 1472 µs für 90°, Bereich 544–2400 µs
+(Referenz: Defaultmapping ESP32Servo 1.1.2; reale Mechanik ungeprüft).
+Timer/Duty werden vor GPIO-Anbindung gesetzt. Diese Startreihenfolge ersetzt
+keine sichere mechanische Kalibrierung vor Ort; `PWM_OK` ist kein Positionsbeweis.
+
+Vorgesehener reproduzierbarer Build aus dem Repository-Hauptverzeichnis, mit
+Docker auf dem Entwicklungsrechner oder Pi (keine Hostpakete auf dem Pi):
+
+```bash
+docker build -f esp32/Dockerfile -t evse-esp32:test esp32
+```
+
+Der Image-Build führt native Security-/Protokoll- und simulierte Adaptertests
+unter ASAN/UBSAN sowie den vollständigen
+PlatformIO-Zielcompile aus. Bei Fehler abbrechen, kein altes Artefakt
+flashen. CI-Lauf oben bestätigt den Build/Softwaretest, nicht reale
+ESP32-Funktion. Das finale Image ist **artefakt-only**, kein PlatformIO-Runtime
+zum Flashen. Artefakte lokal entnehmen (Zielordner vorher auf Kollision prüfen):
+
+```bash
+docker create --name evse-esp32-artifacts evse-esp32:test
+docker cp evse-esp32-artifacts:/firmware ./esp32-firmware
+docker rm evse-esp32-artifacts
+```
+
+Nur der eigens erstellte temporäre Artefaktcontainer wird entfernt, keine
+Volumes; wenn sein Name schon belegt ist, erst Eigentum klären/anderen Namen
+verwenden, nicht fremden Container löschen. `firmware.bin`, `bootloader.bin`,
+`partitions.bin` und `boot_app0.bin` (OTA-Initialisierung) aus demselben Build
+bleiben **nur lokal, nicht Git**. Commit/Buildquelle privat notieren.
+Das finale Image unterstützt **keinen `pio`-Upload**. Ein gesonderter,
+ausdrücklich gewählter Docker-Flash-Target enthält Toolchain, bestandene native
+Buildtests und Firmware. Erst nach bestätigter Hardware-/Partitionsfreigabe
+auf einem Linux-Rechner mit lokalem ESP32-USB-Zugang verwenden:
+
+```bash
+docker build --target flash -t evse-esp32:flash esp32
+# Platzhalter ersetzen: ESP32-USB-Geraet vorher eindeutig identifizieren!
+ESP32_USB_DEVICE=/dev/DEIN_ESP32_USB_GERAET
+docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
+  --device "${ESP32_USB_DEVICE}:/dev/ttyESP32" \
+  evse-esp32:flash --upload-port /dev/ttyESP32
+```
+
+Der Target-Build und `--help` wurden in Docker-CI ohne USB geprüft;
+das ist **kein ausgeführter oder hardwarebestätigter Upload**. Kein
+`--privileged`, keine Hostpakete, keine Docker-Socket-Freigabe. Nicht den
+Wallbox-RS485-Port `/dev/ttyUSBEVSEcontrol` oder die UART-Headerverbindung
+`/dev/serial0` auswählen. Kein automatisches Ermitteln/Öffnen fremder Ports.
+Windows-USB-Passthrough zu Docker ist hier nicht eingerichtet; Docker ohne
+USB-Zugang kann nur bauen/Artefakte liefern. Gerät und freien Zugriff vorab
+bestätigen; Upload übernimmt die projektbezogene Partitionstabelle, kein Erase-All.
 
 Auf dem Entwicklungsrechner mit vorhandenem PlatformIO/VS Code das Verzeichnis
-`esp32/` öffnen; Flashen setzt Zugang zum USB-Anschluss des ESP32 voraus:
+`esp32/` am gleichen geprüften Commit öffnen; Flashen setzt Zugang zum
+USB-Anschluss des ESP32 voraus. Dieser Weg baut mit der lokalen Dev-Toolchain
+und lädt deren Firmware hoch, nicht automatisch das Docker-Artefakt:
 
 ```bash
 pio run -t upload
@@ -564,7 +709,9 @@ pio run -t upload
 
 Dies ist keine Anleitung zur PlatformIO-Installation auf dem Pi-Host und kein
 bereits eingerichteter Remote-Flashweg. Firmware initialisiert RFID/Servo und
-UART mit 115200 Baud. Funktionstest siehe [Abschnitt 6](#6-optionale-esp32-uart-testbrücke).
+UART mit 115200 Baud, 8N1. Kein automatisches NVS-Erase/Factoryreset vornehmen;
+bei Storagefehler Ursache prüfen. Funktionstest siehe
+[Abschnitt 6](#6-optionale-esp32-uart-testbrücke).
 
 ### RS485 zur Wallbox
 

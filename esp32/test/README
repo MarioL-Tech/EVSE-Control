@@ -1,11 +1,28 @@
 
-This directory is intended for PlatformIO Test Runner and project tests.
+ESP32-Prüfungen (hardwareunabhängig)
 
-Unit Testing is a software testing method by which individual units of
-source code, sets of one or more MCU program modules together with associated
-control data, usage procedures, and operating procedures, are tested to
-determine whether they are fit for use. Unit testing finds problems early
-in the development cycle.
+Der Docker-Build führt 41 native Security-/Protokollfälle und fünf simulierte
+Firmwareadapter-Suiten unter ASAN/UBSAN sowie den vollständigen
+PlatformIO-Zielcompile aus. Reproduzierbare Befehle:
+docs/installation.md, Abschnitt „ESP32 bauen und flashen“.
+CI 37235418853 für 8f98c41 bestätigt alle Softwaretests, Targetcompile,
+Artefaktprüfung und Flash-CLI-Hilfe ohne USB/Upload auf Linux-amd64.
+Dies bestätigt keine reale ESP32- oder Pi-ARM64-Funktion.
 
-More information about PlatformIO Unit Testing:
-- https://docs.platformio.org/en/latest/advanced/unit-testing/index.html
+Prüfziele: Allowlist und UID-Parsing, Blob-Version/CRC, Bootpolicies,
+Storagefehler und Save-before-success, Enrollmentfristen, Presence-Gate,
+Aktionssperre und UART-Framing/Timeout. Native Speicher-/Beobachtungsmodelle
+ersetzen keine Prüfung von echtem NVS, SPI, Servo-PWM oder Stromverlust.
+Der Zielcompile allein bestätigt keine funktionierende Hardware.
+Runtime-Schreibfehler müssen LOCKED anfordern, Enrollment abbrechen und den
+Fehler bis Neustart halten. Das nicht speicherbare Fallback darf nicht mit dem
+dauerhaften Ziel im letzten gültigen Blob verwechselt werden. Die dedicated
+evse_nvs-Partition (4 MB) und LEDC-Startreihenfolge erfordern zusätzlich echte,
+sicher koordinierte Hardwareprüfung; kein erase-all oder SPIFFS-Zugriff.
+
+Die neue Firmware ist noch ungeflasht/unverifiziert am realen ESP32.
+Hardwaretests und koordinierte USB-Flaschritte stehen im zentralen Guide;
+keine Projektpakete auf dem Pi-Host installieren. Nach ENROLL_STARTED muss
+das Lesefeld erneut mindestens 500 ms sauber leer sein (praktisch 1 s warten),
+bevor eine Karte aufgelegt wird. Bereits gehaltene Karten bleiben gesperrt.
+Keine echten UIDs in Tests, Scripts, Git oder geteilten Screenshots verwenden.

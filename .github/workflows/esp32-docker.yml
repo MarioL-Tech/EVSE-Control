@@ -1,0 +1,38 @@
+name: ESP32 Docker tests and firmware build
+on:
+  push:
+    paths:
+      - 'esp32/**'
+      - '.github/workflows/esp32-docker.yml'
+  pull_request:
+    paths:
+      - 'esp32/**'
+      - '.github/workflows/esp32-docker.yml'
+permissions:
+  contents: read
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Native sanitizers, simulated hardware and full ESP32 target compile in Docker
+        run: docker build --progress=plain -t evse-esp32:test esp32
+      - name: Extract build artifacts without running or flashing firmware
+        run: |
+          docker create --name evse-esp32-artifacts evse-esp32:test
+          docker cp evse-esp32-artifacts:/firmware ./esp32-firmware
+          docker rm evse-esp32-artifacts
+          test -s esp32-firmware/firmware.bin
+          test -s esp32-firmware/bootloader.bin
+          test -s esp32-firmware/partitions.bin
+          test -s esp32-firmware/boot_app0.bin
+      - name: Check opt-in flash toolchain without USB or upload
+        run: |
+          docker build --progress=plain --target flash -t evse-esp32:flash esp32
+          docker run --rm --network none evse-esp32:flash --help | grep -- '--upload-port'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: esp32-firmware
+          path: esp32-firmware/
+          if-no-files-found: error
