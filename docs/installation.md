@@ -6,7 +6,7 @@ werden. Die Betriebsschritte setzen einen vorbereiteten Pi voraus. Hardware-
 und Erstvorbereitungsreferenz stehen in Abschnitt 8; eine vollständige OS-,
 Docker- oder Broker-Neuinstallation ist damit noch nicht beschrieben.
 
-**Stand:** 2026-10-03. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
+**Stand:** 2026-10-04. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
 zyklischer Betrieb wurden von Mario bestätigt. Der vorhandene MQTT-Broker ist
 erreichbar; Mario hat auch den Empfang der echten Reader-Messwerte bestätigt.
 Das neue rein lesende Weboverlay ist implementiert, der Browser-/Deploymenttest

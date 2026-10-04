@@ -1,6 +1,6 @@
 # Arbeitskontext für Agents: EVSE-Control
 
-Stand: 2026-10-03. Diese Datei beschreibt den geprüften Repositoryzustand und
+Stand: 2026-10-04. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Mit Mario auf Deutsch kommunizieren.
 
@@ -289,6 +289,9 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - Build/Tests ausschließlich in Docker. Neuer CI-Workflow, Python-Unit-/MQTT-
   HTTP-Integration und Frontendtests; Ergebnisse zunächst noch ausstehend.
   Tatsächlicher Pi-Browser-/Deploymenttest bleibt offen.
+- Mario hat den Prototyp als `80f2808` auf `main` committed/gepusht. Erster
+  Weboverlay-CI-Lauf `37154800334` scheiterte an einer nicht abgeschlossenen
+  CSP-Zeichenkette in `overlay/app.py`; Syntax korrigiert, erneute Docker-CI folgt.
 
 ## Geplant / noch nicht implementiert
 

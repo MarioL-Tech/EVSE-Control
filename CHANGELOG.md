@@ -4,6 +4,10 @@ All notable changes to the EVSE-Control project. This file is **actively maintai
 
 Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
+## 2026-10-04
+
+- **13:39** — **Fix: Weboverlay-CI nach Prototyp-Commit fortgesetzt** — Marios main-Commit 80f2808 übernommen; fehlendes schließendes Anführungszeichen im CSP-Header korrigiert, das den ersten Docker-Build verhinderte. Keine Änderungen am Reader, Broker oder Netzwerk; erneute Docker-/Browserprüfung noch ausstehend.
+
 ## 2026-10-03
 
 - **23:11** — **Feat: Lesendes MQTT-Weboverlay und Empfangsnachweis ergänzt** — Eigenständiger Docker-Dienst mit Flask/Gunicorn/Paho, validiertem flüchtigem Snapshot, Frische-/Offline-Prüfung und deutscher Browseranzeige. Kein Hardwarezugriff oder Steuerkanal; Localhost-Bindung/SSH-Tunnel, optionale Passwortdatei und reproduzierbare Schritte im Installationsguide. Marios 15 erfolgreiche reale MQTT-Samples von 23:03:18–23:03:46 Wien dokumentiert; kein Langzeitnachweis. Neue isolierte Docker-/Frontendtests und CI ergänzt; Ausführung und Pi-Browserprüfung noch offen.
