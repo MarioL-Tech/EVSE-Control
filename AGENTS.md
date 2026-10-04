@@ -1,6 +1,6 @@
 # Arbeitskontext für Agents: EVSE-Control
 
-Stand: 2026-10-03. Diese Datei beschreibt den geprüften Repositoryzustand und
+Stand: 2026-10-04. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Mit Mario auf Deutsch kommunizieren.
 
@@ -286,9 +286,19 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   SSH-Tunnel über WireGuard, keine Firewall-/SSH-/Netzwerkänderungen.
 - Kein HTTP-Login/TLS; nicht öffentlich freigeben. MQTT-Credentials nur Backend,
   optional Passwortdatei mit `compose.auth.yaml`, für UID 10001 lesbar.
-- Build/Tests ausschließlich in Docker. Neuer CI-Workflow, Python-Unit-/MQTT-
-  HTTP-Integration und Frontendtests; Ergebnisse zunächst noch ausstehend.
-  Tatsächlicher Pi-Browser-/Deploymenttest bleibt offen.
+- Build/Tests ausschließlich in Docker. CI `37200290345` für `cf7184f` erfolgreich:
+  21 Python-/MQTT-/HTTP-Tests, 13 Frontend-Unit- und Chromium-Browsertests,
+  gehärtetes Runtime-Image ohne Broker. Desktop-/Mobil-Screenshots mit simulierten
+  Werten geprüft; tatsächlicher Pi-Browser-/Deploymenttest bleibt offen.
+- Mario hat den Prototyp als `80f2808` auf `main` committed/gepusht. Erster
+  Weboverlay-CI-Lauf `37154800334` scheiterte an einer nicht abgeschlossenen
+  CSP-Zeichenkette in `overlay/app.py`; Syntax korrigiert und CI erfolgreich.
+- Erweiterte Tests prüfen UTF-8-Payloads, API-Feld-Whitelist und parallele HTTP-
+  Leser. OS-DNS kann geordneten MQTT-Shutdown verzögern; Prozessfristen gelten,
+  es werden dabei keine Hardwareports oder MQTT-Publisher beeinflusst.
+- Browser-Codeprüfung: unveränderte Live-Region-Texte werden nicht mehr ständig
+  ersetzt; zusätzliche Browser-Regressionen für Timeout/Spätantworten, Visibility/
+  Pageshow, Request-Parallelität und Live-Region-Mutationen; erweiterte CI erfolgreich.
 
 ## Geplant / noch nicht implementiert
 

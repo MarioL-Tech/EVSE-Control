@@ -99,7 +99,11 @@
   let active = null, pollTimer = null;
   function render() {
     const view = state.snapshot();
-    for (const [id, value] of Object.entries(present(view))) document.getElementById(id).textContent = value;
+    for (const [id, value] of Object.entries(present(view))) {
+      const element = document.getElementById(id);
+      // Avoid repeating unchanged live-region text on every countdown tick.
+      if (element.textContent !== value) element.textContent = value;
+    }
     document.getElementById('status').dataset.tone = view.status === 'live' ? 'good' : view.status === 'waiting' ? 'muted' : 'warning';
     document.getElementById('wallbox-error').dataset.tone = view.values && view.values.error_code !== 0 ? 'warning' : 'muted';
   }

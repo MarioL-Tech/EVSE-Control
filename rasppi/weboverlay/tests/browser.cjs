@@ -16,8 +16,28 @@ const fs = require('node:fs');
       below_commanded_current: true, plugged_in: true, charging: false, current_limit_a: 6,
       current_a: [0, 0, 0], voltage_v: [235.7, 233.4, 235.3], active_power_w: 0, session_energy_wh: 0 }
   };
-  let networkFailure = false;
-  await page.route('**/api/state', route => networkFailure ? route.abort() : route.fulfill({ json: data }));
+  let networkFailure = false, holdRequests = false;
+  const held = [], requests = new Set();
+  let peakRequests = 0;
+  page.on('request', request => {
+    if (request.url().endsWith('/api/state')) {
+      requests.add(request);
+      peakRequests = Math.max(peakRequests, requests.size);
+    }
+  });
+  page.on('requestfinished', request => requests.delete(request));
+  page.on('requestfailed', request => requests.delete(request));
+  await page.route('**/api/state', route => {
+    if (holdRequests) { held.push(route); return; }
+    return networkFailure ? route.abort() : route.fulfill({ json: data });
+  });
+  async function releaseHeld(count = held.length) {
+    for (const route of held.splice(0, count)) {
+      // A browser-aborted request can no longer be fulfilled. Both outcomes
+      // must leave its invalidated token unable to restore old measurements.
+      await route.fulfill({ json: data }).catch(() => {});
+    }
+  }
   try {
     await page.goto(process.env.WEB_TEST_URL || 'http://127.0.0.1:8080');
     await page.waitForFunction(() => document.getElementById('status').textContent === 'Live');
@@ -44,8 +64,67 @@ const fs = require('node:fs');
     networkFailure = true;
     await page.waitForFunction(() => document.getElementById('reason').textContent.includes('nicht abgerufen'));
     assert.equal(await page.locator('#current-0').innerText(), '—');
+
+    networkFailure = false;
+    data = { ...data, status: 'live', values: { error_code: 0, socket_lock_state: 273,
+      charging_state_raw: 33024, charging_state: 1, below_commanded_current: true,
+      plugged_in: true, charging: false, current_limit_a: 6, current_a: [0, 0, 0],
+      voltage_v: [235.7, 233.4, 235.3], active_power_w: 0, session_energy_wh: 0 },
+      error: null, reason: 'Aktuelle Wallbox-Messdaten', fresh_for_seconds: 2 };
+    await page.waitForFunction(() => document.getElementById('status').textContent === 'Live');
+    holdRequests = true;
+    await page.waitForRequest('**/api/state');
+    await page.waitForFunction(() => document.getElementById('status').textContent === 'Daten veraltet');
+    assert.equal(await page.locator('#power').innerText(), '—');
+    await page.waitForFunction(() => document.getElementById('reason').textContent.includes('Zeitüberschreitung'));
+    assert.equal(await page.locator('#limit').innerText(), '—');
+    data = { ...data, fresh_for_seconds: 8 };
+    await releaseHeld(1); // Deliver only the timed-out response, not a later request.
+    assert.notEqual(await page.locator('#status').innerText(), 'Live');
+    holdRequests = false;
+    await releaseHeld();
+    await page.waitForFunction(() => document.getElementById('status').textContent === 'Live');
+
+    // Exercise real DOM listeners and fetch cancellation, not just the helper
+    // state machine. The hidden property is simulated deterministically because
+    // headless tab visibility differs between Chromium versions.
+    holdRequests = true;
+    await page.waitForRequest('**/api/state');
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    assert.equal(await page.locator('#plugged').innerText(), 'Unbekannt');
+    assert.equal(await page.locator('#power').innerText(), '—');
+    await releaseHeld();
+    await page.waitForTimeout(100); // Let aborted fetch finally run while hidden.
+    holdRequests = false;
+    await page.evaluate(() => {
+      delete document.hidden;
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.waitForFunction(() => document.getElementById('status').textContent === 'Live');
+    holdRequests = true;
+    await page.waitForRequest('**/api/state');
+    await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
+    assert.equal(await page.locator('#current-0').innerText(), '—');
+    await releaseHeld();
+    holdRequests = false;
+    await releaseHeld();
+    await page.waitForFunction(() => document.getElementById('status').textContent === 'Live');
+    assert(peakRequests <= 1, `Overlapping API requests: ${peakRequests}`);
+
+    const unchangedMutations = await page.evaluate(async () => {
+      let changes = 0;
+      const observer = new MutationObserver(records => { changes += records.length; });
+      observer.observe(document.getElementById('reason'), { childList: true, characterData: true, subtree: true });
+      await new Promise(resolve => setTimeout(resolve, 400));
+      observer.disconnect();
+      return changes;
+    });
+    assert.equal(unchangedMutations, 0, 'Unchanged status text should not be re-announced');
     assert.deepEqual(errors, []);
-    console.log('Browser: live/unknown/offline, safe text rendering, mobile layout and network failure passed');
+    console.log('Browser: layout, safe text, freshness, timeout/late responses, visibility/pageshow, nonoverlapping fetch and stable live region passed');
   } finally {
     await browser.close();
   }

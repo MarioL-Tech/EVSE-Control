@@ -134,6 +134,7 @@ class StateTests(unittest.TestCase):
 
     def test_malformed_inputs_invalidate_immediately(self):
         cases = [b"", b"{", b"null", b"[]", b"\xff", b" " * 16385,
+                 json.dumps(sample(self.now)).encode("utf-16"),
                  b'{"schema_version":1,"schema_version":1}']
         for key, value in (("schema_version", 2), ("schema_version", True), ("device", "other"),
                            ("timestamp", "2026-10-03T12:00:00"), ("values", None)):
@@ -160,6 +161,26 @@ class StateTests(unittest.TestCase):
         self.assertEqual(result["timestamp"], sample(self.now)["timestamp"])
         result["values"]["current_a"][0] = 999
         self.assertEqual(self.store.snapshot()["values"]["current_a"][0], 0)
+
+    def test_api_drops_unrecognized_fields(self):
+        data = sample(self.now)
+        data["private_extra"] = "test-only-not-for-api"
+        data["values"]["private_extra"] = "test-only-not-for-api"
+        self.load(data)
+        self.assertNotIn("test-only-not-for-api", json.dumps(self.store.snapshot()))
+
+    def test_concurrent_api_readers(self):
+        from concurrent.futures import ThreadPoolExecutor
+        self.load()
+        app = create_app(Config(), self.store, start_mqtt=False)
+        def query(_):
+            with app.test_client() as client:
+                return client.get("/api/state").get_json()
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            results = list(executor.map(query, range(40)))
+        for result in results:
+            self.assertEqual(result["status"], "live")
+            self.assertEqual(result["values"]["current_limit_a"], 6)
 
     def test_http_read_only_headers_and_allowlist(self):
         self.load()

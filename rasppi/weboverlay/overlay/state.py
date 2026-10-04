@@ -31,9 +31,9 @@ def reject_constant(_):
 
 
 def decode_sample(payload):
-    if len(payload) > 16384:
+    if not isinstance(payload, bytes) or len(payload) > 16384:
         raise ValueError("Payload too large")
-    data = json.loads(payload, object_pairs_hook=unique_keys, parse_constant=reject_constant)
+    data = json.loads(payload.decode("utf-8"), object_pairs_hook=unique_keys, parse_constant=reject_constant)
     if not isinstance(data, dict) or type(data.get("schema_version")) is not int or data["schema_version"] != 1:
         raise ValueError("Unknown schema")
     if data.get("device") != "abb_terra_ac" or data.get("status") not in ("ok", "error"):

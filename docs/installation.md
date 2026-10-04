@@ -6,7 +6,7 @@ werden. Die Betriebsschritte setzen einen vorbereiteten Pi voraus. Hardware-
 und Erstvorbereitungsreferenz stehen in Abschnitt 8; eine vollständige OS-,
 Docker- oder Broker-Neuinstallation ist damit noch nicht beschrieben.
 
-**Stand:** 2026-10-03. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
+**Stand:** 2026-10-04. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
 zyklischer Betrieb wurden von Mario bestätigt. Der vorhandene MQTT-Broker ist
 erreichbar; Mario hat auch den Empfang der echten Reader-Messwerte bestätigt.
 Das neue rein lesende Weboverlay ist implementiert, der Browser-/Deploymenttest
@@ -745,6 +745,19 @@ oder vorhandenen Broker. Der Dienst speichert keinen Verlauf; nach Neustart
 werden neue/retained Nachrichten erneut geprüft. Kein Datenbankdienst enthalten.
 Gunicorn bleibt bei **einem Worker** mit mehreren HTTP-Threads; mehrere Worker
 würden getrennte Snapshots und konkurrierende MQTT-Client-IDs erzeugen.
+Blockierende OS-DNS-Auflösung im MQTT-Thread kann das saubere Beenden verzögern;
+Gunicorn-/Compose-Stopfristen begrenzen dann den Prozess statt eine erfolgreiche
+MQTT-Abmeldung zu garantieren. Das Overlay veröffentlicht selbst nichts und
+besitzt keinen Hardwareport, auch ein erzwungenes Beenden stoppt den Reader nicht.
+
+Docker-CI [37200290345](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37200290345)
+bestätigt 21 Python-/MQTT-/HTTP-Tests, 13 JavaScript-Tests und Chromium-Browsertests sowie das
+gehärtete Laufzeit-Image ohne Broker. Desktop-/Mobil-Screenshots mit simulierten
+Messwerten wurden geprüft; das ist kein Nachweis der Browseranzeige am echten Pi.
+Browser-Regressionen prüfen auch Ablauf ohne Antwort, hängende/verspätete Requests,
+Abort-Verhalten, simulierte Visibility-/Pageshow-Ereignisse, fehlende Fetch-
+Parallelität und unveränderte Live-Region-Texte. Simulatorereignisse sind kein
+vollständiger Nachweis aller Bfcache-/Suspend-Varianten jedes Browsers.
 
 **Noch zu bestätigen:** tatsächlicher Pi-Start und Browseranzeige über deinen
 Tunnel. Die automatischen Tests ersetzen diese Bedien-/Deploymentprüfung nicht.
