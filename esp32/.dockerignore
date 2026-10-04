@@ -1,0 +1,9 @@
+.pio
+.vscode
+.git
+test
+tests/artifacts
+README.md
+**/*.local.*
+secrets*
+config.local.h

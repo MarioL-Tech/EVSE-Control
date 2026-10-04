@@ -13,6 +13,8 @@ Weboverlay und MQTT-Wallbox-Zustandsspeicherung für MariaDB sind implementiert.
 > Weboverlay ist implementiert; Pi-Browser-/Deploymenttest steht noch aus.
 > MariaDB-Speicherdienst implementiert und Docker-getestet; Pi-Konfiguration offen.
 > Reale Ladesteuerung und bedienende Funktionen fehlen noch.
+> ESP32-Whitelist und persistierter Startmodus ersetzen den bisherigen
+> UART-Kommunikationstest; neue Firmware noch ungeflasht und hardwareunverifiziert.
 > Ein Docker-Einmaltest mit FC03 an der realen Wallbox wurde
 > bestätigt; Dauerbetrieb und weitere Hardwarevalidierung stehen noch aus.
 
@@ -33,7 +35,7 @@ Weboverlay und MQTT-Wallbox-Zustandsspeicherung für MariaDB sind implementiert.
 | Komponente | Aktueller Umfang |
 |---|---|
 | ESP32-Firmware | MFRC522-RFID, Servo, UART-Befehle und Zustandsmeldungen |
-| Diebstahlsicherung | RFID-Tap toggelt 0°/90°, startet entriegelt; unabhängig vom Laden |
+| Diebstahlsicherungsmodell | Erlaubte RFID-UID toggelt 0°/90°; NVS-Allowlist und Bootpolicy; neuer Erststart verriegelt, Hardwareprüfung offen |
 | UART-Testbrücke | Interaktive Python-Brücke im Docker-Container |
 | Wallbox-Reader | C++17/libmodbus, zyklische FC03-Abfragen, dekodierte Messwerte als JSON |
 | MQTT-Publisher | retained State und Verfügbarkeit mit libmosquitto; vorhandener Broker wird wiederverwendet |
@@ -51,7 +53,11 @@ Das ersetzt keinen Test mit der tatsächlichen Wallbox-Firmware.
 
 - `CMD:CHARGE:ON/OFF` an den ESP32 ändert aktuell nur seinen gespiegelten
   Ladezustand, nicht den realen Ladevorgang.
-- Jede lesbare RFID-Karte kann derzeit den Servo toggeln; eine UID-Whitelist fehlt.
+- Nur aufgenommene UIDs dürfen den Modellservo toggeln. Erststart mit leerem NVS:
+  90°, leere Allowlist, Bootpolicy `RESTORE`. UIDs sind klonbar, kein
+  kryptografischer Berechtigungsnachweis; kein mechanischer Positionssensor
+  oder zugesicherter Schutz bei Stromausfall. SG90 ist keine zertifizierte
+  physische Diebstahlsicherung. Details: [ESP32](esp32/README.md).
 - Das ausgelesene Wallbox-Stromlimit ist nicht der im Gebäude verfügbare Strom.
   Die DTSU666-Erfassung und Berechnung sind noch geplant.
 
@@ -140,6 +146,9 @@ Die interaktive Brücke verwendet `/dev/serial0` und nimmt `status`, `on`, `off`
 oder rohe UART-Nachrichten entgegen. Nur ein Prozess darf den UART-Port verwenden.
 `Ctrl+C` beendet die Brücke. Verdrahtung und erwartete Meldungen stehen im
 [Installationsguide](docs/installation.md#6-optionale-esp32-uart-testbrücke).
+**Vor dem Firmwareupgrade:** Erststart wechselt von früher 0° auf 90°;
+Flashen und sicheren Bewegungsraum vor Ort koordinieren. Aufnahme/Bootpolicy
+nur über vertrauenswürdigen Pi-UART, nicht über anonymes MQTT oder lesendes HTTP.
 
 ## Repositorystruktur
 
@@ -159,6 +168,7 @@ CHANGELOG.md             Änderungsverlauf
 - [Installation, Hardware und Wiederinbetriebnahme](docs/installation.md)
 - [Pinbelegung](docs/pin-connection.md)
 - [ESP32-Pi-UART-Protokoll](docs/uart-protocol.md)
+- [ESP32-Firmware, Persistenz und Prüfgrenzen](esp32/README.md)
 - [MQTT-Topics, Payloads und Verfügbarkeit](docs/mqtt-protocol.md)
 - [Wallbox-Dienst und Docker-Betrieb](rasppi/wallbox/README.md)
 - [Lesendes Weboverlay](rasppi/weboverlay/README.md)

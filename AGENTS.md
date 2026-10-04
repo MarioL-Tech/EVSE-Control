@@ -51,7 +51,9 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
 
 - `esp32/src/main.cpp`: ESP32-Firmware (Arduino/PlatformIO).
 - `esp32/include/config.h`: Pins, UART-Baudrate und Servo-/RFID-Konfiguration.
-- `esp32/platformio.ini`: ESP32 DevKit, MFRC522 und ESP32Servo als Abhängigkeiten.
+- `esp32/platformio.ini`: ESP32 DevKit (4 MB), gepinnte Arduino-2-/MFRC522-Toolchain;
+  Servo über nativen LEDC-Adapter statt ESP32Servo. `esp32/Dockerfile` baut native
+  Tests mit Sanitizern und die komplette Firmware; opt-in Flash-Target separat.
 - `rasppi/src/main.py`: derzeit interaktive UART-Brücke, kein zentraler Backenddienst.
 - `rasppi/requirements.txt`: derzeit nur `pyserial`.
 - `rasppi/Dockerfile.uart` und `rasppi/compose.yaml`: interaktive UART-Testbrücke
@@ -155,15 +157,47 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
   Beide Seiten haben 3,3-V-Logik; keine 5 V an GPIOs anlegen.
 - Servo-Signal GPIO13; Versorgung mit 5 V und gemeinsamer Masse,
   nicht über die 3,3-V-Schiene des ESP32.
-- Die Diebstahlsicherung startet **inaktiv/entriegelt bei 0°**.
-  RFID-Taps toggeln unabhängig vom Laden zwischen 90° (aktiv) und 0°.
-- Jede lesbare RFID-Karte kann derzeit toggeln. Es gibt **keine UID-Whitelist**.
-  MFRC522 verwendet 13,56-MHz-Karten, keine 125-kHz-Tags.
+- Die frühere Firmware war ein UART-Kommunikationstest (beliebige Karte,
+  Start 0°). Neue Firmware: maximal 16 freigegebene UIDs (4/7/10 Bytes) toggeln
+  unabhängig vom Laden zwischen 90°/0°. Unbekannte/widerrufene Karten abweisen.
+  MFRC522 verwendet 13,56-MHz-Karten, keine 125-kHz-Tags. UIDs sind klonbar;
+  Whitelist ist kein kryptografischer Berechtigungsnachweis.
+- Startmodus `RESTORE` (Default), `LOCKED`, `UNLOCKED` über vertrauenswürdigen
+  Pi-UART konfigurierbar, gilt erst beim nächsten ESP32-Neustart. Neuer leerer
+  Store: verriegelt/90°, keine Karten. `RESTORE` lädt letzten gespeicherten
+  **angeforderten** Servozielwert. Keine mechanische Rückmeldung, kein zugesicherter
+  Schutz bei Stromausfall; Modellservo, keine zertifizierte Diebstahlsicherung.
+- Version-/CRC-/semantikgeprüfter 188-Byte-Blob speichert Karten, Policy und Ziel
+  zusammen: direkte ESP-IDF-NVS-API, Partition `evse_nvs` (0x290000/0x6000),
+  Namespace `evse-lock`, Key `state`. Eigene 4-MB-Partitionstabelle isoliert den
+  Store vom Arduino-Default-NVS-Autoerase. Kein automatisches Löschen, kein
+  Factoryreset, keine zugesicherte Verschlüsselung. Nur exaktes NOT_FOUND
+  initialisiert einen neuen Store; Korruptions-/Lesefehler nicht als Leere behandeln.
+- Startup-Storefehler fordern verriegelt an; Laufzeit-Schreibfehler ebenfalls
+  LOCKED, beenden Anlernen und sperren Änderungen bis Neustart. Normale Aktionen
+  erst nach erfolgreicher Speicherung bestätigen/ausgeben. Fehler-Fallback ist
+  nicht sicher persistierbar: nächster RESTORE-Start liest tatsächlich letzten
+  gültigen Blob (kann abweichendes Ziel/ungewissen Commitausgang enthalten).
+- Anlernen: bewusster START über Pi-UART, 30 s/eine Karte, kein Toggle bei Aufnahme;
+  Duplikat schließt Fenster ohne Bewegung, Cancel/Ablauf/Widerruf beendet es.
+  Wiederholtes aktives START verlängert nicht und setzt Gate nicht zurück. Nach
+  START erneut mindestens 500 ms saubere Leere verlangen, erst dann auflegen.
+  Boot-/gehaltene Karten und UID-Wechsel ohne Leere erzeugen keine frische
+  Präsentation. WUPA/Selektieren/HALT statt falscher REQA-Entfernungserkennung;
+  nur Chip-TimerIRQ ohne Fehler zählt als Abwesenheitsindiz. Poll-Lücken >250 ms,
+  Kollisionen/Select-/SPI-/Softwaretimeoutfehler brechen die Serie ab. Funkkopplungs-
+  verlust kann physisches Entfernen imitieren; keine Hardware-Anwesenheitsgarantie.
+  Zusätzlich 800 ms Aktionssperre, kein künstlicher Startaufschub.
+- Native LEDC-PWM auf GPIO13: Defaultmapping-Referenz ESP32Servo 1.1.2,
+  544..2400 µs (0°=544, 90°=1472); Zielduty vor GPIO-Anbindung. Pulsform,
+  Mechanik/Kalibrierung und tatsächlicher NVS-/Powerloss-Betrieb noch hardwareoffen.
+  Firmware aktuell ungeflasht; Docker-CI/Tests noch zu bestätigen. Kein Agent-
+  Hardwarezugang. Erstupgrade verändert Boot0° auf90° und Partitionstabelle;
+  vor Ort sicher koordinieren, kein Erase-All/Stock-SPIFFS-Zugriff.
 - Laut Projektinhaber wurde eine Reader-Firmwarekennung `0x82` beobachtet.
   Das ist ein SPI-Diagnosehinweis, kein Nachweis vollständiger RFID-Funktion.
-- Ladezustand startet OFF und wird durch Pi-UART-Befehle gespiegelt.
-  `applyChargingState()` ist bereits implementiert, steuert aber **keine reale
-  Wallbox**. Keine neue ESP32-Wallbox-Schnittstelle als offene Architekturentscheidung
+- Ladezustand startet OFF und wird durch Pi-UART-Befehle gespiegelt, steuert
+  **keine reale Wallbox**. Keine neue ESP32-Wallbox-Schnittstelle als offene Architekturentscheidung
   darstellen: die reale Steuerung soll über den Pi und Modbus erfolgen.
 
 ### UART und Pi
@@ -172,13 +206,23 @@ Zeilenbasiertes ASCII-Protokoll mit Newline; dokumentiert in
 `docs/uart-protocol.md`:
 
 - `CMD:CHARGE:ON`, `CMD:CHARGE:OFF`, `CMD:STATUS`.
+- `CMD:RFID:ENROLL:START`, `CMD:RFID:ENROLL:CANCEL`, `CMD:RFID:REVOKE:<uid>`.
+- `CMD:ANTITHEFT:BOOT:RESTORE|LOCKED|UNLOCKED`; kein direkter Servo-Unlock-Befehl.
 - `EVSE:STATUS:CHARGING:ON|OFF:SRC:<quelle>`.
 - `EVSE:STATUS:ANTITHEFT:ACTIVE|INACTIVE:SRC:<quelle>`.
-- `EVSE:RFID:CARD:UID:<uid>`.
-- `EVSE:ERROR:UNKNOWN_CMD:<befehl>`.
+- `EVSE:STATUS:SECURITY:...` meldet Storefehler, Bootpolicy, Kartenanzahl,
+  Anlernfenster sowie SPI-/PWM-Diagnosen (keine mechanische Bestätigung).
+- `EVSE:RESULT:<aktion>:<ergebnis>`; UID-Zusatz nur bei erfolgreicher bewusster
+  Aufnahme am Pi-UART, nicht in USB-Diagnosen oder gewöhnlichen RFID-Ereignissen.
+- Generische `EVSE:ERROR:UNKNOWN_CMD`/`INVALID_ARGUMENT`/`UART:...` ohne Eingabeecho;
+  alte allgemeine UID-Nachricht bewusst entfernt. Vertragsdetails im UART-Dokument.
 
+ASCII-Frames maximal 192 Bytes, LF/CRLF, absolute 2-s-Frist; ungültige/abgelaufene
+Frames bis LF verwerfen, pro Loop maximal 64 Bytes/ein Befehl. Keine Protokoll-
+authentifizierung: physischer UART vertraut dem Pi. Kein anonymes MQTT-/HTTP-
+Management; spätere Gateway/HA/Overlay-Bedienung separat geschützt implementieren.
 Die Schreibweise mit `|` oben bezeichnet Alternativen, keine wörtlichen Nachrichten.
-`CMD:STATUS` meldet beide Zustände. Zustandsänderungen und Bootzustände werden
+`CMD:STATUS` meldet drei Statuszeilen. Zustandsänderungen und Bootzustände werden
 gemeldet. Das Pi-Skript druckt empfangene Zeilen und übersetzt interaktive
 Eingaben `on`, `off`, `status`; andere Eingaben werden unverändert gesendet.
 Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
@@ -437,11 +481,14 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Migration der bisherigen Einzel-Stacks noch offen; bestehende Infrastruktur
   bleibt extern. Kein Container-Orchestrator im Projekt und kein Docker-Socket-
   Zugriff für den fachlichen Ladecontroller.
-- RFID-Berechtigungsliste und weitere Hardware-/Fehlerfalltests.
+- Tatsächliches ESP32-Flashen und Hardware-/Fehlerfallprüfung der neuen
+  RFID-Allowlist/Persistenz/LEDC-Startreihenfolge; geschützte HA-/Overlay-Konfiguration
+  über das weiterhin geplante UART-MQTT-Gateway.
 - Anforderungen mit dem Lehrer sowie Diplomarbeitsanmeldung abstimmen.
 
 Wallbox-Decoder-/Simulationstests stehen unter `rasppi/wallbox/tests/`;
-`esp32/test/README` bleibt ein PlatformIO-Platzhalter. Vorhandene Verdrahtung und
+`esp32/tests/` enthält native Core-/UART-Tests und simulierte Firmwareadaptertests,
+`esp32/test/README` verweist auf Docker-Test-/Flashablauf. Vorhandene Verdrahtung und
 berichtete frühere Tests nicht mit aktuell durchgeführten Hardwaretests gleichsetzen.
 
 ## Wichtige Modbus- und Sicherheitsgrenzen
@@ -526,8 +573,9 @@ verfügbare Toolchain jeweils prüfen; ohne Buildlauf keinen Build-Erfolg behaup
   Keine Historienumschreibung, Änderung bestehender Commitidentitäten,
   Secretrotation oder Anpassung von Deployment-/Zugangsdaten ohne gesonderten
   Auftrag. Neue Bereinigungscommits ohne persönliche Autorenfelder erstellen,
-  ohne globale Git-Konfiguration zu ändern. RFID-UID-Ausgabe ist eine
-  bestehende Laufzeitfunktion; keine echte UID ist im aktuellen Code hinterlegt.
+  ohne globale Git-Konfiguration zu ändern. RFID-UID-Ausgabe erfolgt nur zur
+  bewussten Aufnahme am Pi-UART, USB redigiert. Keine echte UID in Code, Chat,
+  CI oder Repository hinterlegen; nur private lokale Notiz für Widerruf.
 - Herstellerreferenzen/Urheberhinweise nicht mit privaten Projektdaten verwechseln.
 
 **`AGENTS.md` ist aktiv zu pflegen, kein einmaliger Übergabetext.**

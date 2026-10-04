@@ -10,14 +10,22 @@
 #define RFID_SS_PIN   5      // SDA/SS of the MFRC522
 #define RFID_RST_PIN  22     // RST of the MFRC522
 
-// --- Behavior ---
-#define CARD_DEBOUNCE_MS 800 // ignore re-reads while the card is held on the reader
+// --- Reader timing (authorization/persistence/framing constants: security.h/protocol.h) ---
+#define RFID_POLL_MS       50
+#define UART_BYTE_BUDGET   64
 
 // --- Anti-theft servo ---
-// Model servo (e.g. SG90) used as anti-theft lock. Toggled by RFID taps
-// (manual override), independent of the charging state: first tap locks
-// (SERVO_LOCK_DEG), next tap unlocks (SERVO_UNLOCK_DEG). At boot the lock
-// starts RELEASED (SERVO_UNLOCK_DEG).
+// Model servo; authorized taps toggle independently of charging.
+// Startup policy is persisted in NVS; default RESTORE with LOCKED fallback.
+// Requested position only: there is no mechanical feedback sensor.
 #define SERVO_PIN       13
 #define SERVO_UNLOCK_DEG 0
 #define SERVO_LOCK_DEG   90
+
+// Explicit pulse mapping replaces the unpinned servo library. Calibrate unloaded.
+// ESP32Servo 1.1.2 default range: 544..2400 us for 0..180 degrees.
+#define SERVO_MIN_US     544
+#define SERVO_MAX_US     2400
+#define SERVO_CHANNEL    0
+#define SERVO_HZ         50
+#define SERVO_BITS       16
