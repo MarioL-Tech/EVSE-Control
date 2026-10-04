@@ -27,6 +27,9 @@ venv/
 secrets.h
 config.local.h
 
+# Local Playwright MCP logs/screenshots (not application source)
+.playwright-mcp/
+
 # Slidev deck (local experiment)
 slide/node_modules/
 slide/dist/

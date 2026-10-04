@@ -733,6 +733,12 @@ Reader/Broker weiterlaufen lassen. Bestehenden SSH-Tunnel wie oben nutzen und
 die Seite neu laden; bei altem Browsercode notfalls mit Strg+F5 aktualisieren.
 Keine neue Netzwerk-/SSH-Freigabe oder Host-Pakete erforderlich.
 
+Diagramm-CI [37204010318](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37204010318)
+bestätigt 21 Python-/MQTT-/HTTP-Tests, 27 JavaScript-Tests und beide Chromium-
+Browsersuiten (Auswahl, Persistenz, Phasenspalten, mobile SVGs, Ausfalllücken).
+Desktop-/Mobilbilder verwenden simulierte Werte; echten Pi-Empfang/Browserverlauf
+separat prüfen, nicht aus diesen Screenshots ableiten.
+
 ### Lokale Konfiguration und optionale Zugangsdaten
 
 Eigene `.env` unter `rasppi/weboverlay/`, unabhängig von `rasppi/wallbox/.env`:

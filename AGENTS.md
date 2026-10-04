@@ -316,7 +316,10 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   ergänzt pro Kurve konservative Same-Second-Unknown-Unterbrechungen (beide
   Nachbarsegmente); erweiterte CI `37203627509` erfolgreich. Isolierte Samples
   bekommen sichtbare Punktmarker; kleine Skalen werden nicht auf 0/0 gerundet.
-  Abschließende Regression/CI für diese Darstellungsgrenzen noch offen.
+  Abschließende CI `37204010318` für `70b21d7` erfolgreich: 21 Python-Tests,
+  27 JS-Tests und beide Chromium-Browsersuiten. Desktop-/Mobil-Diagramme mit
+  simulierten Daten geprüft, echte Pi-Anzeige weiterhin offen. Lokale MCP-
+  Artefakte bleiben außerhalb Git und werden nicht als Projektdaten behandelt.
 
 ## Geplant / noch nicht implementiert
 
