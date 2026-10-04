@@ -79,7 +79,7 @@ void persistenceFailures() {
   CHECK(Serial2.output.find("BOOT:STORAGE_ERROR") != std::string::npos);
   CHECK(Serial2.output.find("SRC:storage_fault") != std::string::npos);
   sim.nvsCommitFail = false; restart(); CHECK(!security.locked()); // actual last durable state
-  for (unsigned failure = 0; failure < 6; ++failure) {
+  for (unsigned failure = 0; failure < 7; ++failure) {
     sim = SimulatedHardware{}; seed(false);
     if (failure == 0) sim.nvsInitFail = true;
     if (failure == 1) sim.nvsOpenFail = true;
@@ -87,6 +87,7 @@ void persistenceFailures() {
     if (failure == 3) sim.nvsWrongType = true;
     if (failure == 4) sim.durable.pop_back();
     if (failure == 5) sim.durable[0] ^= 1;
+    if (failure == 6) sim.nvsReadSizeChanged = true;
     const auto original = sim.durable;
     restart(); CHECK(!security.ready()); CHECK(security.locked());
     CHECK(sim.durable == original); // no reinitialization/erasure on read/corruption errors

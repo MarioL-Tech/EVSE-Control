@@ -31,7 +31,7 @@ FrameResult LineReader::feed(char byte, uint32_t now) {
   if (byte == '\r') { cr_ = true; return FrameResult::None; }
   const auto value = static_cast<unsigned char>(byte);
   if (value < 32 || value > 126) return discard(FrameResult::Invalid);
-  if (length_ >= LINE_MAX) return discard(FrameResult::TooLong);
+  if (length_ >= UART_LINE_CAPACITY) return discard(FrameResult::TooLong);
   buffer_[length_++] = byte;
   return FrameResult::None;
 }

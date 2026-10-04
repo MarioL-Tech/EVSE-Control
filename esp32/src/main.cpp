@@ -27,8 +27,9 @@ public:
     if (found == ESP_ERR_NVS_TYPE_MISMATCH) return evse::LoadResult::Corrupt;
     if (found != ESP_OK) return evse::LoadResult::Error;
     if (length != blob.size()) return evse::LoadResult::Corrupt;
-    return nvs_get_blob(handle_, "state", blob.data(), &length) == ESP_OK
-               ? evse::LoadResult::Found : evse::LoadResult::Error;
+    if (nvs_get_blob(handle_, "state", blob.data(), &length) != ESP_OK)
+      return evse::LoadResult::Error;
+    return length == blob.size() ? evse::LoadResult::Found : evse::LoadResult::Corrupt;
   }
   bool save(const evse::Blob &blob) override {
     return opened_ && nvs_set_blob(handle_, "state", blob.data(), blob.size()) == ESP_OK &&

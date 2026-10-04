@@ -21,6 +21,7 @@ struct SimulatedHardware {
   bool nvsInitFail = false, nvsOpenFail = false, nvsReadFail = false;
   bool nvsWrongType = false, nvsSetFail = false, nvsCommitFail = false;
   bool ambiguousCommit = false, pwmFail = false;
+  bool nvsReadSizeChanged = false;
   bool found = false;
   std::vector<uint8_t> durable, pending;
   std::vector<std::string> trace;
@@ -100,7 +101,9 @@ inline esp_err_t nvs_get_blob(nvs_handle_t, const char *, void *data, std::size_
     if (*length < sim.durable.size()) return ESP_FAIL;
     std::memcpy(data, sim.durable.data(), sim.durable.size());
   }
-  *length = sim.durable.size(); return ESP_OK;
+  *length = sim.durable.size();
+  if (data && sim.nvsReadSizeChanged && *length > 0) --*length;
+  return ESP_OK;
 }
 inline esp_err_t nvs_set_blob(nvs_handle_t, const char *, const void *data, std::size_t length) {
   if (sim.nvsSetFail) return ESP_FAIL;

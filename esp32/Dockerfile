@@ -29,7 +29,8 @@ COPY src/ src/
 RUN pio run --environment esp32dev \
     && mkdir /firmware \
     && cp .pio/build/esp32dev/firmware.bin .pio/build/esp32dev/bootloader.bin \
-          .pio/build/esp32dev/partitions.bin /firmware/
+          .pio/build/esp32dev/partitions.bin /firmware/ \
+    && cp /opt/platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin /firmware/
 
 # Explicit flashing target, opt-in only. Requires a locally accessible ESP32 USB port.
 FROM firmware-build AS flash

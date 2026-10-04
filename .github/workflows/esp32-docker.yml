@@ -26,6 +26,11 @@ jobs:
           test -s esp32-firmware/firmware.bin
           test -s esp32-firmware/bootloader.bin
           test -s esp32-firmware/partitions.bin
+          test -s esp32-firmware/boot_app0.bin
+      - name: Check opt-in flash toolchain without USB or upload
+        run: |
+          docker build --progress=plain --target flash -t evse-esp32:flash esp32
+          docker run --rm --network none evse-esp32:flash --help | grep -- '--upload-port'
       - uses: actions/upload-artifact@v4
         with:
           name: esp32-firmware

@@ -3,7 +3,7 @@
 #include "security.h"
 
 namespace evse {
-constexpr std::size_t LINE_MAX = 192;
+constexpr std::size_t UART_LINE_CAPACITY = 192;
 constexpr uint32_t FRAME_MS = 2000;
 enum class FrameResult { None, Line, TooLong, Invalid, Timeout };
 class LineReader {
@@ -14,7 +14,7 @@ public:
 private:
   FrameResult discard(FrameResult reason);
   void reset();
-  std::array<char, LINE_MAX + 1> buffer_{};
+  std::array<char, UART_LINE_CAPACITY + 1> buffer_{};
   std::size_t length_ = 0;
   bool started_ = false;
   bool discarding_ = false;

@@ -729,7 +729,7 @@ void requireRemovalResetsPartialAbsence() {
 }
 
 void frameExactLimits() {
-  static_assert(LINE_MAX == 192, "UART payload bound is fixed");
+  static_assert(UART_LINE_CAPACITY == 192, "UART payload bound is fixed");
   for (const std::string &ending : {std::string("\n"), std::string("\r\n")}) {
     LineReader r;
     std::string text(192, '~');
