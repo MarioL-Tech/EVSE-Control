@@ -745,6 +745,15 @@ oder vorhandenen Broker. Der Dienst speichert keinen Verlauf; nach Neustart
 werden neue/retained Nachrichten erneut geprüft. Kein Datenbankdienst enthalten.
 Gunicorn bleibt bei **einem Worker** mit mehreren HTTP-Threads; mehrere Worker
 würden getrennte Snapshots und konkurrierende MQTT-Client-IDs erzeugen.
+Blockierende OS-DNS-Auflösung im MQTT-Thread kann das saubere Beenden verzögern;
+Gunicorn-/Compose-Stopfristen begrenzen dann den Prozess statt eine erfolgreiche
+MQTT-Abmeldung zu garantieren. Das Overlay veröffentlicht selbst nichts und
+besitzt keinen Hardwareport, auch ein erzwungenes Beenden stoppt den Reader nicht.
+
+Docker-CI [37199530223](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37199530223)
+bestätigt Python-, MQTT-/HTTP-, JavaScript- und Chromium-Browsertests sowie das
+gehärtete Laufzeit-Image ohne Broker. Desktop-/Mobil-Screenshots mit simulierten
+Messwerten wurden geprüft; das ist kein Nachweis der Browseranzeige am echten Pi.
 
 **Noch zu bestätigen:** tatsächlicher Pi-Start und Browseranzeige über deinen
 Tunnel. Die automatischen Tests ersetzen diese Bedien-/Deploymentprüfung nicht.

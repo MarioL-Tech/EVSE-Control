@@ -6,6 +6,7 @@ Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
 ## 2026-10-04
 
+- **13:53** — **Test/Fix: Weboverlay geprüft und Browser-Ausfälle abgesichert** — Docker-CI 37199530223 erfolgreich: 19 Python-/MQTT-/HTTP-Tests, 13 Frontendtests, Chromium und gehärtetes Runtime-Image ohne Broker. Desktop-/Mobilansicht mit simulierten Werten geprüft. Unveränderte Live-Region-Texte werden nicht ständig ersetzt; echte Browserverkabelung um Timeout-/Spätantwort-, Visibility-/Pageshow-, Parallelitäts- und Accessibility-Regressionstests erweitert. API prüft UTF-8 strikt; zusätzliche Feld-Whitelist-/Parallel-Leser-Tests und dokumentierte DNS-Shutdown-Grenze. Erweiterter CI-Lauf folgt; Pi-Browserprüfung weiterhin offen.
 - **13:39** — **Fix: Weboverlay-CI nach Prototyp-Commit fortgesetzt** — Marios main-Commit 80f2808 übernommen; fehlendes schließendes Anführungszeichen im CSP-Header korrigiert, das den ersten Docker-Build verhinderte. Keine Änderungen am Reader, Broker oder Netzwerk; erneute Docker-/Browserprüfung noch ausstehend.
 
 ## 2026-10-03
