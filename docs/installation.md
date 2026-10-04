@@ -898,9 +898,10 @@ Falls MariaDB nicht als Container läuft, zunächst deren tatsächlichen sichere
 Zugangsweg klären; keine Container-Aliasbefehle blind auf einen Hostdienst anwenden
 oder dafür dessen Bindadresse/Firewall ohne Auftrag öffnen.
 Serverversion zusätzlich mit `SELECT VERSION();` im bestehenden DB-Client prüfen.
-CI `37212431818` bestätigt 10.11.19 und 11.8.9; der rollende `11.8`-Tag bezeichnet
-nicht zwingend Marios installierte 11.8.8. Exakte **11.8.8**-Prüfung zusätzlich
-ergänzt, neuer Lauf noch offen. Andere Versionen erst prüfen, niemals
+CI [37212624186](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37212624186)
+bestätigt je 39 Tests + Runtime unter 10.11.19, exakt **11.8.8** und 11.8.9.
+Der rollende `11.8`-Tag bezeichnet nicht zwingend Marios installierte 11.8.8;
+CI ist amd64 und kein echter Pi-ARM64-/Zugriffstest. Andere Versionen erst prüfen, niemals
 den bestehenden Server/Volumes zum Erfüllen dieser Versionsangabe ersetzen.
 Vor Änderungen bestehende Backup-/Restorefähigkeit klären. Keine globalen
 SQL-Settings, WireGuard/SSH, Portfreigaben oder fremden Schemas ändern.

@@ -375,9 +375,9 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Docker-Volume mit langem generiert wirkendem Namen, Driver `local`, RW nach
   `/var/lib/mysql`. Das ist persistente Datenhaltung, kein Backup-/Restore-Nachweis.
   Volume/Container nicht löschen oder neu initialisieren. Vorhandene Start-/Compose-
-  Definition weiter unbekannt. CI `37212431818` bestätigt je 39 Tests + Runtime
-  für 10.11.19/11.8.9 (rollender 11.8-Tag). Exakte 11.8.8-Matrix zusätzlich
-  ergänzt, Lauf noch offen; nicht 11.8.9-Test als 11.8.8-/ARM-Nachweis ausgeben;
+  Definition weiter unbekannt. CI `37212624186` für `d30f00f` bestätigt je
+  39 Tests + Runtime für 10.11.19, exakt 11.8.8 und 11.8.9 (rollender 11.8-Tag).
+  CI ist amd64, kein Pi-ARM64-/Adminzugangs-/Deploymentnachweis;
   keine Änderung am Produktionsserver. Loginfreie Version nicht mit `SELECT VERSION()`
   oder bestätigter Admin-Authentifizierung gleichsetzen.
 
