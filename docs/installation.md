@@ -659,7 +659,7 @@ docker build -f esp32/Dockerfile -t evse-esp32:test esp32
 
 Der Image-Build führt native Security-/Protokoll- und simulierte Adaptertests
 unter ASAN/UBSAN sowie den vollständigen
-PlatformIO-Zielcompile ausführen. Bei Fehler abbrechen, kein altes Artefakt
+PlatformIO-Zielcompile aus. Bei Fehler abbrechen, kein altes Artefakt
 flashen. CI-Lauf oben bestätigt den Build/Softwaretest, nicht reale
 ESP32-Funktion. Das finale Image ist **artefakt-only**, kein PlatformIO-Runtime
 zum Flashen. Artefakte lokal entnehmen (Zielordner vorher auf Kollision prüfen):
