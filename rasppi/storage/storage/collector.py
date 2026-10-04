@@ -47,7 +47,7 @@ class Inbox:
             if not (self.pending_dropped or self.pending_invalid):
                 return None
             item = event(self.prefix, "ingestion_gap", rejected_deliveries=self.pending_invalid,
-                         queue_rejected_deliveries=self.pending_dropped, missed_samples="unknown")
+                         queue_rejected_records=self.pending_dropped, missed_samples="unknown")
             self.pending_invalid = self.pending_dropped = 0
             return item
 

@@ -212,7 +212,7 @@ class InboxTests(unittest.TestCase):
         self.assertTrue(inbox.pressure.is_set())
         self.assertEqual(inbox.stats(), {"queued": 1, "dropped": 2, "invalid": 2})
         details = json.loads(inbox.gap()["details"])
-        self.assertEqual(details, {"rejected_deliveries": 2, "queue_rejected_deliveries": 2, "missed_samples": "unknown"})
+        self.assertEqual(details, {"rejected_deliveries": 2, "queue_rejected_records": 2, "missed_samples": "unknown"})
         self.assertIsNone(inbox.gap())
         self.assertEqual(inbox.stats()["dropped"], 2)
 

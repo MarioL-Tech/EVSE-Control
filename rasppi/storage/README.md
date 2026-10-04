@@ -25,7 +25,7 @@ docker compose logs --tail 50 storage
   und retained Reconnects erzeugen keine neue Zeile. **Gleiche Sekundenzeit mit
   anderen Werten** bleibt eine eigene Zeile; Empfangsmetadaten werden nie erneuert.
 - `evse_ingest_events`: Availability-Beobachtungen (auch wiederholtes `online`),
-  Broker-/Collectorgrenzen und zusammengefasste verworfene Zustellungen. UUID
+  Broker-/Collectorgrenzen und zusammengefasste verworfene Records/Zustellungen. UUID
   einmal pro Beobachtung, unverändert bei SQL-Retry. Availability hat keinen
   Gerätestempel und ist keine atomare Aussage zu einem bestimmten Sample.
 - Strukturvalidierte alte/zukünftige Samples werden als Historie gespeichert,
@@ -40,7 +40,8 @@ docker compose logs --tail 50 storage
   Nach Recovery kommt der neueste retained Snapshot, **kein Nachladen** fehlender Reads.
 - Kein Disk-Spool, keine verlustfreie Zusage: Restart verliert RAM, Queue-Überlauf
   verwirft Zustellungen. Gap-Zähler/Startgrenzen kennzeichnen unbestimmte Abdeckung,
-  nicht die exakte Anzahl fehlender Messungen. Bei Broker-/DB-Ausfall bleiben Lücken.
+  nicht die exakte Anzahl fehlender Messungen. Queue-Zähler enthalten auch verworfene
+  Collector-Ereignisse, Invalid-Zähler nur abgelehnte MQTT-Payloads. Bei Ausfall bleiben Lücken.
 - Keine automatische Löschung/Aggregation, Sessionerkennung, RFID-/UART-/Zählerdaten
   oder Verbindung der Browserdiagramme mit SQL. Das folgt separat. Speicherplatz
   und Backups überwachen; default 2 s ergeben etwa 43.200 Samples **plus** wiederholte

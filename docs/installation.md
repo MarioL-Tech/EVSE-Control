@@ -1020,6 +1020,8 @@ keine kompletten Samples oder Zugangsdaten; volle Logpipes dürfen nicht blockie
   fehlen Reads; **kein Disk-Spool/Replay und keine Verlustfreiheitsgarantie**.
   Überlauf verwirft Zustellungen, Invalid-Payloads werden bewusst abgelehnt.
   Gap-Zähler kennen nur lokal verworfene Zustellungen, nicht alle fehlenden Reads.
+  `queue_rejected_records`/`dropped` enthält auch verworfene System-/Collector-
+  Ereignisse; `rejected_deliveries`/`invalid` nur abgelehnte MQTT-Payloads.
   Restart verliert RAM und setzt eine neue Grenze unbekannter Abdeckung.
 - SIGTERM stoppt Intake und versucht 8 s zu drainen. SQL-/OS-DNS kann darüber
   hinaus dauern; Compose-20-s-Frist beendet nötigenfalls den Prozess, dann können
