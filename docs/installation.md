@@ -832,9 +832,11 @@ Die Produktions-Compose startet **keinen DB-Server und keinen Broker**.
 
 ### Bestehende Datenbank prüfen, nicht ersetzen
 
-Bisher ist nur bekannt, dass eine MariaDB und Grafana laufen. Containername,
-Version, Datenvolumes, Netzwerke, Accounts, TLS und Backupverfahren sind nicht
-bestätigt. Vor Einrichtung lokal auf dem Pi prüfen (keine Passwörter posten):
+Mario hat am 2026-10-04 per Containerübersicht bestätigt: **`maria_uno`**, Image
+**`mariadb:lts`**, Hostport 3306 an allen IPv4/IPv6-Schnittstellen. Das ist kein
+Nachweis öffentlicher Erreichbarkeit (Firewall/Netz unbekannt) oder konkreter
+Serverversion. Datenvolumes, Netzwerke, Accounts, TLS und Backupverfahren sind
+noch nicht bestätigt. Vor Einrichtung lokal auf dem Pi prüfen (keine Passwörter posten):
 
 ```bash
 docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}'
@@ -843,6 +845,21 @@ docker inspect --format '{{.Config.Image}}' <mariadb-container>
 docker inspect --format '{{json .NetworkSettings.Networks}}' <mariadb-container>
 docker inspect --format '{{json .Mounts}}' <mariadb-container>
 ```
+
+Für den bestätigten aktuellen Container sind die nächsten reinen Diagnosebefehle:
+
+```bash
+docker inspect --format '{{json .NetworkSettings.Networks}}' maria_uno
+docker inspect --format '{{json .Mounts}}' maria_uno
+docker exec -it maria_uno mariadb -u root -p -e 'SELECT VERSION();'
+```
+
+Adminpasswort nur lokal am Prompt eingeben. Bei anderer vorhandener Admin-
+Authentifizierung das bestehende Verfahren nutzen; keine Root-Freigabe anlegen.
+`mariadb:lts` kann bei Neuerstellung eine andere Version bezeichnen. Nicht neu
+erstellen/upgraden, nur um die Version herauszufinden. Portbindung ist ein
+separater Sicherheitspunkt: nicht als abgesichert behaupten und nicht ohne
+Auftrag ändern. Collector selbst veröffentlicht keinen Hostport.
 
 Keine komplette `docker inspect`-/Env-Ausgabe teilen: sie kann Credentials enthalten.
 Falls MariaDB nicht als Container läuft, zunächst deren tatsächlichen sicheren

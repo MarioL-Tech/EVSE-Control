@@ -355,8 +355,17 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Retained/Restart-Deduplizierung, DB-Recovery, ACK-MID-Eigentum und fail-closed
   Secretdateien. Gap-`dropped` zählt Records inklusive Collectorereignisse, nicht
   die Zahl fehlender Hardwaremessungen. Echte Pi-Einrichtung/DB-Empfang offen.
-  Vor Deployment DB-Version/Container, Netzwerke, Accounts/Grants, TLS-Anforderungen
-  und vorhandene Backups klären; bisher nur Existenz der MariaDB bestätigt.
+  Vor Deployment konkrete DB-Version, Netzwerke, Accounts/Grants, TLS-Anforderungen
+  und vorhandene Backups klären.
+- Mario bestätigt am 2026-10-04 per `docker ps`-Screenshot den laufenden MariaDB-
+  Container `maria_uno`, Image `mariadb:lts`, Hostport 3306 an IPv4/IPv6 allen
+  Schnittstellen. `lts` ist keine konkrete Serverversion; Netzwerk, Volume,
+  Accounts und tatsächliche Port-Erreichbarkeit/Firewall sind dadurch nicht bestätigt.
+  Vorhandenen Container/Volumes beibehalten, keine Port-/Netzwerkänderung ausgeführt.
+  Ebenso sind `grafana`, `elastic_lumiere`, Reader und Weboverlay-Container gelistet;
+  letzterer bindet 127.0.0.1:8080. Das beweist Containerbetrieb, nicht HTTP-/MQTT-
+  Readiness oder korrekte Browserwerte. `deb-mbpoll` ist ebenfalls gelistet; daraus
+  keinen tatsächlich laufenden Modbus-Master ableiten, Parallelzugriff weiter vermeiden.
 
 ## Geplant / noch nicht implementiert
 
