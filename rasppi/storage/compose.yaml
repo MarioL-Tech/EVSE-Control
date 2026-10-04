@@ -1,0 +1,69 @@
+name: evse-storage
+
+x-runtime: &runtime
+  image: evse-storage:local
+  build: .
+  user: "10001:10001"
+  read_only: true
+  tmpfs:
+    - /tmp:size=16m,mode=1777
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  init: true
+  mem_limit: 256m
+  pids_limit: 64
+  stop_grace_period: 20s
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  storage:
+    <<: *runtime
+    restart: unless-stopped
+    networks: [mqtt, database]
+    environment:
+      DB_HOST: ${DB_HOST:?Set existing MariaDB hostname in .env}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_NAME: ${DB_NAME:-evse_control}
+      DB_USERNAME: ${DB_USERNAME:-evse_storage}
+      DB_PASSWORD_FILE: /run/secrets/db-password
+      DB_TIMEOUT_SECONDS: ${DB_TIMEOUT_SECONDS:-3}
+      MQTT_HOST: ${MQTT_HOST:-mqtt-broker}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      MQTT_TOPIC_PREFIX: ${MQTT_TOPIC_PREFIX:-evse/wallbox}
+      MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-evse-storage}
+      MQTT_USERNAME: ${MQTT_USERNAME:-}
+      STORAGE_QUEUE_SIZE: ${STORAGE_QUEUE_SIZE:-256}
+    volumes:
+      - ./secrets/db-password.txt:/run/secrets/db-password:ro
+    healthcheck:
+      test: [CMD, python, -m, storage, --healthcheck]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+  migrate:
+    <<: *runtime
+    profiles: [tools]
+    command: [--migrate]
+    networks: [database]
+    environment:
+      DB_HOST: ${DB_HOST:?Set existing MariaDB hostname in .env}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_NAME: ${DB_NAME:-evse_control}
+      DB_USERNAME: ${DB_MIGRATION_USERNAME:-evse_migrator}
+      DB_PASSWORD_FILE: /run/secrets/migration-password
+      DB_TIMEOUT_SECONDS: ${DB_TIMEOUT_SECONDS:-3}
+    volumes:
+      - ./secrets/migration-password.txt:/run/secrets/migration-password:ro
+
+networks:
+  mqtt:
+    external: true
+    name: evse-mqtt
+  database:
+    external: true
+    name: ${DB_NETWORK:-evse-data}

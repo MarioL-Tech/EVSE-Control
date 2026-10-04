@@ -2,7 +2,8 @@
 
 Der Reader veröffentlicht Messwerte über den vorhandenen Broker. Er empfängt
 **keine Steuerbefehle**. Das [lesende Weboverlay](../rasppi/weboverlay/README.md)
-abonniert beide Topics; ESP32-UART-Gateway und Home Assistant folgen separat.
+abonniert beide Topics; der [MariaDB-Collector](../rasppi/storage/README.md) archiviert
+sie unabhängig davon. ESP32-UART-Gateway und Home Assistant folgen separat.
 Topic-Präfix standardmäßig `evse/wallbox`, konfigurierbar.
 
 | Topic | Payload | QoS | Retained |
@@ -80,6 +81,21 @@ Einmalmodus wartet kurz auf ACKs. Sein Exitcode beschreibt **Modbus**, nicht
 MQTT: Ein erfolgreicher Read ohne Broker kann Exitcode 0 liefern. Warnung und
 Subscriber-Empfang prüfen. QoS-ACKs bestätigen außerdem keine UI-Zustellung;
 ACLs und Empfang auf den tatsächlichen Topics mit einem Subscriber testen.
+
+## Historische Speicherung
+
+Der Collector speichert Originalmesszeit und Empfangszeit getrennt. Alte retained
+Samples dürfen ins Archiv, aber nicht daraus als aktuell dargestellt werden.
+Identische normalisierte State-Snapshots werden pro Präfix dedupliziert; gleiche
+Zeitmarke mit anderen Werten bleibt erhalten. Schema 1 hat keinen Sequenzzähler:
+zwei identische Reads in derselben Sekunde sind nicht unterscheidbar.
+
+Availability ist eine Beobachtung ohne Gerätezeitstempel. Wiederholte `online`-
+Nachrichten sind keine neuen Ladesessions oder sicher zeitlich zuordenbare Übergänge.
+Die beiden Topics sind weiterhin nicht atomar. Collector-Start/Gaps markieren
+unbekannte Aufzeichnungsabdeckung; DB-Ausfall/Queue-Überlauf/Restart können Reads
+verlieren. MQTT-QoS 1 und manuelle ACKs nach SQL-Commit sind **keine End-to-End-
+Verlustfreiheitsgarantie**; Publisher/Broker stellen keine vollständige Historie bereit.
 
 ## Netzwerk und Zugang
 

@@ -1,0 +1,6 @@
+services:
+  storage:
+    environment:
+      MQTT_PASSWORD_FILE: /run/secrets/mqtt-password
+    volumes:
+      - ./secrets/mqtt-password.txt:/run/secrets/mqtt-password:ro
