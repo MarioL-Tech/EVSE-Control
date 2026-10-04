@@ -898,8 +898,9 @@ Falls MariaDB nicht als Container läuft, zunächst deren tatsächlichen sichere
 Zugangsweg klären; keine Container-Aliasbefehle blind auf einen Hostdienst anwenden
 oder dafür dessen Bindadresse/Firewall ohne Auftrag öffnen.
 Serverversion zusätzlich mit `SELECT VERSION();` im bestehenden DB-Client prüfen.
-Zuvor getesteter Zielstand: MariaDB **10.11**; CI-Matrix für **11.8** ergänzt,
-neuer Lauf noch offen. Andere Versionen erst prüfen, niemals
+CI `37212431818` bestätigt 10.11.19 und 11.8.9; der rollende `11.8`-Tag bezeichnet
+nicht zwingend Marios installierte 11.8.8. Exakte **11.8.8**-Prüfung zusätzlich
+ergänzt, neuer Lauf noch offen. Andere Versionen erst prüfen, niemals
 den bestehenden Server/Volumes zum Erfüllen dieser Versionsangabe ersetzen.
 Vor Änderungen bestehende Backup-/Restorefähigkeit klären. Keine globalen
 SQL-Settings, WireGuard/SSH, Portfreigaben oder fremden Schemas ändern.
@@ -1133,8 +1134,8 @@ im isolierten Netz ohne Hostports/Produktionsnetze, mit bekannten Dummy-Credenti
 Tests prüfen typed SQL/null, Schema-/Grant-Grenzen, Duplikate/Same-Second/Retained,
 Restart/DB-Recovery und Parameterbindung. Runtime-Image-Build führt Unit-Tests aus;
 GitHub-CI ergänzt diese Integration und non-root/readonly/No-Network-Smoke-Test.
-Default 10.11, weitere Matrixversion 11.8. Lokal für 11.8 jedem obigen Compose-
-Aufruf `MARIADB_TEST_VERSION=11.8` voranstellen; keine Produktiv-Image-/Server-
+Default 10.11, weitere Matrixversionen exakt 11.8.8 und rollend 11.8. Lokal für
+11.8.8 jedem Compose-Aufruf `MARIADB_TEST_VERSION=11.8.8` voranstellen; keine Produktiv-Image-/Server-
 änderung. CI nutzt Linux amd64, das ist kein Pi-ARM64-Deploymentnachweis.
 CI [37209898185](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37209898185)
 für `50794db` bestanden: **32 Unit- und 7 SQL/MQTT-Integrationstests**, eingeschränkte
