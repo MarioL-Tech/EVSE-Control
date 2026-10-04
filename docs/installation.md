@@ -370,7 +370,7 @@ Reader-Samples im 2-Sekunden-Takt plus `availability online`. Zustand B1,
 angeschlossen/nicht ladend, Fehlercode 0, Limit 6 A, Ströme/Leistung 0 und
 Spannungen ungefähr 233–236 V. Das bestätigt Wallbox → Reader → vorhandener
 Broker → Subscriber, nicht Langzeitstabilität oder Ausfallverhalten am Pi.
-Weboverlay siehe Abschnitt 9; Home Assistant, Datenbank, UART-MQTT-Bridge und
+Weboverlay siehe Abschnitt 9, MariaDB-Speicherung Abschnitt 10; Home Assistant, UART-MQTT-Bridge und
 Ladesteuerung bleiben geplant.
 
 ## 6. Optionale ESP32-UART-Testbrücke
@@ -822,3 +822,260 @@ vollständiger Nachweis aller Bfcache-/Suspend-Varianten jedes Browsers.
 
 **Noch zu bestätigen:** tatsächlicher Pi-Start und Browseranzeige über deinen
 Tunnel. Die automatischen Tests ersetzen diese Bedien-/Deploymentprüfung nicht.
+
+## 10. MQTT-Zustandsspeicherung in der vorhandenen MariaDB
+
+**Erster Datenbankabschnitt:** Wallbox-Samples (auch Lesefehler) und Availability-
+Beobachtungen speichern. Keine Ladesteuerung, SQL-Diagrammabfrage, RFID-/UART-
+oder Zählerdaten. Weboverlay bleibt unverändert: Live-MQTT und Browser-RAM-Verlauf.
+Die Produktions-Compose startet **keinen DB-Server und keinen Broker**.
+
+### Bestehende Datenbank prüfen, nicht ersetzen
+
+Bisher ist nur bekannt, dass eine MariaDB und Grafana laufen. Containername,
+Version, Datenvolumes, Netzwerke, Accounts, TLS und Backupverfahren sind nicht
+bestätigt. Vor Einrichtung lokal auf dem Pi prüfen (keine Passwörter posten):
+
+```bash
+docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}'
+# <mariadb-container> durch den tatsächlich gefundenen Namen ersetzen:
+docker inspect --format '{{.Config.Image}}' <mariadb-container>
+docker inspect --format '{{json .NetworkSettings.Networks}}' <mariadb-container>
+docker inspect --format '{{json .Mounts}}' <mariadb-container>
+```
+
+Keine komplette `docker inspect`-/Env-Ausgabe teilen: sie kann Credentials enthalten.
+Serverversion zusätzlich mit `SELECT VERSION();` im bestehenden DB-Client prüfen.
+Getesteter Zielstand: MariaDB **10.11**; andere Versionen erst prüfen, niemals
+den bestehenden Server/Volumes zum Erfüllen dieser Versionsangabe ersetzen.
+Vor Änderungen bestehende Backup-/Restorefähigkeit klären. Keine globalen
+SQL-Settings, WireGuard/SSH, Portfreigaben oder fremden Schemas ändern.
+Dieser Schritt bietet kein DB-/MQTT-TLS; falls vorhandene DB TLS verlangt,
+Unterstützung vor Deployment ergänzen, nicht die Serverpflicht deaktivieren.
+
+### Docker-Netzwerk und Alias
+
+Collector benötigt das vorhandene `evse-mqtt` für `mqtt-broker` und ein **externes
+DB-Netzwerk**. MariaDB muss nicht im MQTT-Netz stehen. Entweder geeignetes bestehendes
+DB-Netz als `DB_NETWORK` verwenden oder nach Prüfung ein eigenes `evse-data`
+vorbereiten. Beispiel für die bewusste manuelle Vorbereitung, nicht automatisch
+von Compose ausgeführt:
+
+```bash
+docker network inspect evse-data
+# Nur wenn es noch nicht existiert und dieses Netzwerk gewünscht ist:
+docker network create evse-data
+# Nur wenn MariaDB noch nicht dort mit passendem Alias verbunden ist:
+docker network connect --alias evse-database evse-data <mariadb-container>
+```
+
+`DB_HOST=evse-database` gilt nur nach dieser tatsächlichen Aliaszuordnung;
+alternativ vorhandenen erreichbaren DB-Alias eintragen. `127.0.0.1` im Collector
+ist nicht MariaDB/Pi-Localhost. Kein neues Host-Portmapping erforderlich.
+Manuelle Netzwerkzuordnung überlebt Containerneustart, nicht dessen Neuerstellung.
+Die ursprüngliche MariaDB-Compose muss später dasselbe externe Netz/Alias pflegen;
+deren bisher unbekannte Definition/Volumes keinesfalls durch Beispiel-Compose ersetzen.
+
+### Eigene Datenbank und zwei Accounts
+
+Einen **eigenen**, bisher unbenutzten Schemanamen (Default `evse_control`) verwenden.
+Wenn Schema/Accounts bereits existieren, zuerst Zweck/Grants klären; nichts löschen,
+keine Passwörter vorhandener Grafana-/Root-Accounts ändern. Namen in SQL und `.env`
+müssen übereinstimmen. Datenbankname: ASCII-Buchstaben, Ziffern, Unterstrich.
+
+Mit bestehendem Adminzugang im vorhandenen Container interaktiv arbeiten:
+
+```bash
+docker exec -e MYSQL_HISTFILE=/dev/null -it <mariadb-container> mariadb -u root -p
+```
+
+`-p` ohne Passwortwert, Eingabe am Prompt. Wenn Root anders authentifiziert ist,
+das bestehende sichere Adminverfahren verwenden, keine neue Root-Freigabe anlegen.
+**Beispiel-SQL: Platzhalter nur lokal durch zwei unterschiedliche Passwörter ersetzen.**
+Keine echten Passwörter als Shell-Argument, Chatinhalt oder Git-Datei:
+
+```sql
+CREATE DATABASE evse_control CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+CREATE USER 'evse_storage'@'%' IDENTIFIED BY 'LOKAL_GEWAHLTES_WRITER_PASSWORT';
+CREATE USER 'evse_migrator'@'%' IDENTIFIED BY 'LOKAL_GEWAHLTES_MIGRATIONS_PASSWORT';
+GRANT SELECT, INSERT ON evse_control.* TO 'evse_storage'@'%';
+GRANT SELECT, INSERT, CREATE ON evse_control.* TO 'evse_migrator'@'%';
+```
+
+`%` ist ein Beispiel für variable Container-IP-Adressen, keine Empfehlung für
+öffentlichen DB-Zugang. Account-Hostbereich soweit möglich auf das geprüfte lokale
+Docker-Netz begrenzen; bestehende Server-Erreichbarkeit unabhängig prüfen.
+Runtime darf **nicht** UPDATE, DELETE, DDL, globale Rechte oder Adminrechte erhalten.
+Migration nutzt CREATE nur im eigenen Schema; spätere Schema-Versionen können
+andere ausdrücklich freizugebende Rechte benötigen. Kein `GRANT ALL` für Runtime.
+
+### Konfiguration und Passwortdateien
+
+Auf dem Pi nach Merge:
+
+```bash
+cd ~/EVSE-Control
+git switch main
+git pull --ff-only
+cd rasppi/storage
+cp .env.example .env
+mkdir -p secrets
+chmod 700 secrets
+```
+
+`.env` lokal editieren: verifizierte `DB_HOST`, `DB_NETWORK`, `DB_PORT`, `DB_NAME`,
+Accounts und ggf. MQTT-Benutzer. Keine Passwörter in `.env` erforderlich.
+`MQTT_CLIENT_ID=evse-storage` muss sich vom Reader/Overlay und jedem anderen
+laufenden Client unterscheiden. Präfix muss dem Reader entsprechen; keine Wildcards.
+
+Zwei Passwortdateien mit den zuvor lokal vergebenen Accountpasswörtern anlegen.
+Beispiel für interaktive Bash ohne Geheimnis im Shell-History-Befehl:
+
+```bash
+umask 077
+read -r -s -p 'DB-Writer-Passwort: ' SECRET; printf '\n'
+printf '%s\n' "$SECRET" > secrets/db-password.txt
+unset SECRET
+read -r -s -p 'DB-Migrations-Passwort: ' SECRET; printf '\n'
+printf '%s\n' "$SECRET" > secrets/migration-password.txt
+unset SECRET
+sudo chown 10001:10001 secrets/db-password.txt secrets/migration-password.txt
+sudo chmod 0400 secrets/db-password.txt secrets/migration-password.txt
+```
+
+Bei Rootless-/Usernamespace-Docker die entsprechende Host-UID-Zuordnung prüfen.
+Dateien werden einzeln readonly gemountet und müssen für Container-UID **10001**
+lesbar sein. Nie bestehende Broker-/DB-Passwortdateien chmod/chownen oder Secrets
+weltlesbar machen. Zum späteren Ersetzen ggf. eine neue Datei im geschützten
+Verzeichnis schreiben, berechtigen und austauschen, nicht fremde Dateien verändern.
+Leere/zu große Dateien, mehrzeilige Passwörter und parallele ENV-/FILE-Angabe
+werden abgelehnt. `secrets/`, `.env`, `backups/` sind ausgeschlossen aus Git/Build.
+
+Bei MQTT-Passwort ebenfalls eine **eigene** `secrets/mqtt-password.txt` mit diesen
+Berechtigungen vorbereiten und `MQTT_USERNAME` setzen. Ab dann alle Runtime-
+Aufrufe mit `docker compose -f compose.yaml -f compose.auth.yaml …` ausführen.
+Ohne Passwortdatei Basis-Compose verwenden; anonymous Brokerzugang bleibt nur
+eine bestehende Konfiguration, kein Sicherheitsnachweis.
+
+### Explizite Migration und Start
+
+```bash
+docker compose build storage
+docker compose --profile tools run --rm --no-deps -T --interactive=false migrate
+```
+
+Migration muss erfolgreich `schema version 1 ready` melden (stderr), Exitcode 0.
+Sie erstellt nur `evse_schema_versions`, `evse_wallbox_samples`, `evse_ingest_events`
+im konfigurierten Schema; keine Datenbank/Accounts und keine fremden Tabellen.
+Ein DB-Lock verhindert parallele Migration. Wiederholung von Version 1 ist
+idempotent. MariaDB-DDL ist nicht komplett transaktional: nach Teilabbruch dieselbe
+Version kontrolliert erneut ausführen, keine fremden Tabellen manuell löschen.
+Andere registrierte Versionen werden abgelehnt, nicht automatisch überschrieben.
+Engine, Spaltentypen, Nullability und Unique-Identitäten werden vor Bestätigung
+geprüft; bereits bestehende inkompatible Tabellen führen zum Abbruch. Nicht einfach
+die Versionszeile manuell eintragen. Während Schemaänderungen Collector stoppen,
+Reader/Broker können weiterlaufen; spätere Versionen verlangen eigene Migrationen.
+Migrationsdatei kann nach erfolgreicher Einrichtung geschützt/offline verwahrt
+werden; laufender Collector mountet sie nicht.
+
+Danach (ggf. mit Auth-Overlay wie oben):
+
+```bash
+docker compose up -d storage
+docker compose ps
+docker compose logs --tail 100 storage
+```
+
+Ohne Schema/DB-Zugang bleibt MQTT-Intake pausiert und der Container unready;
+Runtime führt nie automatische DDL aus. Healthcheck prüft DB/MQTT-Readiness,
+nicht vollständige Aufzeichnung oder fehlerfreie Wallbox. DB-Ping etwa alle 5 s,
+MQTT-ACKs erst nach SQL-Commit/bestätigtem Duplikat. Logs enthalten Zähler,
+keine kompletten Samples oder Zugangsdaten; volle Logpipes dürfen nicht blockieren.
+
+### Datenmodell, Lücken und Betriebsgrenzen
+
+- Sample-Tabelle: `source` ist das MQTT-Präfix als exakte UTF-8-Bytes, getrennte
+  UTC-`measured_at`/`received_at`, `last_success_at`, erster Retained-Status,
+  `status=ok|error`, nullable Flags und Messwerte; A/V/W/Wh bleiben dokumentierte
+  Einheiten. Readfehler speichern Messwerte **NULL**, nicht 0. Kein Ladestatus aus
+  bloßer Ladefreigabe/Online oder Stromlimit ableiten.
+- Pro Source normalisierte Payload-SHA256: gleiche Samples nur einmal, neue Werte
+  mit derselben Sekunde bleiben eigene Zeilen. Immutable Daten, kein Update der
+  Empfangszeit beim retained Reconnect. Schema 1 unterscheidet identische Reads
+  derselben Sekunde nicht; kein impliziter Sequenz-/Ladesessionzähler.
+- Alte und zukünftige formal gültige Samples werden archiviert, nicht live
+  ausgegeben. Eine spätere Historien-API muss Geräte-/Empfangszeit, Lücken und
+  Clock-Anomalien unterscheiden. Der aktuelle `/api/state`-Vertrag bleibt unverändert.
+- Events: Availability-Beobachtungen mit Empfangszeit, aber ohne Gerätezeit;
+  Start-/Stop-/Broker-/Gap-Grenzen. Wiederholtes `online` ist normal, kein Nachweis
+  einer neuen Session. State/Availability sind nicht atomar zugestellt.
+- RAM-Queue default 256 + ein ausstehender Record und aggregierte Gap-Zähler,
+  `STORAGE_QUEUE_SIZE=8..4096`. DB-Ausfall disconnectet nur den Collector und
+  hält bereits angenommene Records im RAM. Identischer Hash/UUID wird nach ungewissem
+  Commit wiederholt, keine blind duplizierte Zeile. Backoff bis 30 s.
+- Retained stellt nach Recovery nur den neuesten Snapshot bereit. Dazwischen
+  fehlen Reads; **kein Disk-Spool/Replay und keine Verlustfreiheitsgarantie**.
+  Überlauf verwirft Zustellungen, Invalid-Payloads werden bewusst abgelehnt.
+  Gap-Zähler kennen nur lokal verworfene Zustellungen, nicht alle fehlenden Reads.
+  Restart verliert RAM und setzt eine neue Grenze unbekannter Abdeckung.
+- SIGTERM stoppt Intake und versucht 8 s zu drainen. SQL-/OS-DNS kann darüber
+  hinaus dauern; Compose-20-s-Frist beendet nötigenfalls den Prozess, dann können
+  Records verloren gehen. Reader/Broker/Hardware werden nicht gestoppt.
+- Kein automatisches Löschen/Aggregieren: etwa **43.200 Samples pro Tag** bei 2 s,
+  zusätzlich viele Availability-Zeilen/Indizes. Speicherplatz, Datenwachstum und
+  Backupzustand regelmäßig prüfen; Aufbewahrungsfrist ist noch abzustimmen.
+
+### Backup und unabhängiger Empfangsnachweis
+
+Bestehendes Backupverfahren bevorzugen. Falls ein eigenes logisches Backup für
+Schema 1 nötig ist: geschützte `secrets/backup.cnf` mit lokalem Host/User/Passwort
+für dieses Schema anlegen (`[client]`, `host`, `user`, `password`; Client-Options-
+Escaping bei Sonderzeichen beachten), UID 10001 lesbar, nicht committen. Schema 1
+hat keine Trigger/Views/Routinen; der folgende Dump überspringt Trigger ausdrücklich.
+Bei späteren Schemaerweiterungen Backupoptionen anpassen, nicht unbemerkt ausschließen.
+
+```bash
+umask 077
+mkdir -p backups
+docker run --rm --network evse-data --user 10001:10001 \
+  --mount type=bind,src="$PWD/secrets/backup.cnf",dst=/run/secrets/client.cnf,readonly \
+  mariadb:10.11 mariadb-dump --defaults-extra-file=/run/secrets/client.cnf \
+  --single-transaction --skip-triggers --no-tablespaces --databases evse_control \
+  > "backups/evse-$(date -u +%Y%m%dT%H%M%SZ).sql"
+```
+
+Netz/Schema/Clientversion an bestätigte Einrichtung anpassen. Exitcode/Dumpgröße
+prüfen, Backup außerhalb dieses Pi geschützt kopieren und Restore nur in isolierter
+Testdatenbank prüfen. Nie blind einen Dump auf vorhandene Produktivschemas anwenden.
+
+Im lokalen DB-Client mit SELECT-Rechten unabhängig prüfen:
+
+```sql
+SELECT COUNT(*) FROM evse_wallbox_samples;
+SELECT CONVERT(source USING utf8mb4) AS source, measured_at, received_at, status,
+       plugged_in, charging, current_limit_a, active_power_w
+FROM evse_wallbox_samples ORDER BY id DESC LIMIT 5;
+SELECT kind, availability, received_at FROM evse_ingest_events
+ORDER BY received_at DESC LIMIT 10;
+```
+
+Wachsende Samples/korrekte UTC-Werte mit laufendem Reader/Subscriber vergleichen;
+nicht nur Containerstatus oder Logs als End-to-End-Nachweis werten. Keine reale
+Wallbox-/Broker-/DB-Abschaltung für Tests ohne separaten Auftrag. Stoppen mit
+`docker compose down` in `rasppi/storage` betrifft nur diese Clients, nicht
+MariaDB/Grafana/Broker. **Kein `down --volumes` auf bestehender Infrastruktur.**
+
+### Isolierte Tests (Docker-only)
+
+```bash
+docker compose -f compose.test.yaml build tests
+docker compose -f compose.test.yaml up --abort-on-container-exit --exit-code-from tests
+docker compose -f compose.test.yaml down --volumes
+```
+
+Nur diese Testdatei startet einen flüchtigen MariaDB-10.11-Server und Testbroker
+im isolierten Netz ohne Hostports/Produktionsnetze, mit bekannten Dummy-Credentials.
+Tests prüfen typed SQL/null, Schema-/Grant-Grenzen, Duplikate/Same-Second/Retained,
+Restart/DB-Recovery und Parameterbindung. Runtime-Image-Build führt Unit-Tests aus;
+GitHub-CI ergänzt diese Integration und non-root/readonly/No-Network-Smoke-Test.
+Erster CI-Lauf und echtes Pi-Deployment/DB-Empfang sind noch offen.

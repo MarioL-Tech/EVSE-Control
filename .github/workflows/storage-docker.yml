@@ -1,0 +1,43 @@
+name: Storage Docker tests
+on:
+  push:
+    paths: ['rasppi/storage/**', '.github/workflows/storage-docker.yml']
+  pull_request:
+    paths: ['rasppi/storage/**', '.github/workflows/storage-docker.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate deployment Compose (no production connection)
+        working-directory: rasppi/storage
+        env:
+          DB_HOST: existing-db-placeholder
+        run: |
+          docker compose config --quiet
+          docker compose -f compose.yaml -f compose.auth.yaml config --quiet
+          docker compose -f compose.test.yaml config --quiet
+      - name: Unit and isolated MariaDB/MQTT integration tests
+        working-directory: rasppi/storage
+        run: |
+          trap 'docker compose -f compose.test.yaml down --volumes' EXIT
+          docker compose -f compose.test.yaml build tests
+          docker compose -f compose.test.yaml up --abort-on-container-exit --exit-code-from tests
+      - name: Hardened runtime with absent database
+        working-directory: rasppi/storage
+        run: |
+          docker build --target runtime -t evse-storage-runtime .
+          trap 'docker logs evse-storage-smoke; docker rm -f evse-storage-smoke' EXIT
+          docker run -d --name evse-storage-smoke --network none --read-only \
+            --tmpfs /tmp:rw,size=16m,mode=1777 --cap-drop ALL --security-opt no-new-privileges \
+            -e DB_HOST=127.0.0.1 -e DB_PASSWORD=isolated-smoke evse-storage-runtime
+          sleep 4
+          test "$(docker inspect -f '{{.State.Running}}' evse-storage-smoke)" = true
+          test "$(docker exec evse-storage-smoke id -u)" = 10001
+          docker exec evse-storage-smoke python -c 'import json; s=json.load(open("/tmp/evse-storage-health.json")); assert not s["database_ready"] and not s["subscribed"]'
+          docker stop -t 20 evse-storage-smoke
+          test "$(docker inspect -f '{{.State.ExitCode}}' evse-storage-smoke)" = 0

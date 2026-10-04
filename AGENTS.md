@@ -58,6 +58,8 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
   simulierte RTU-Tests, CMake sowie Dockerfile/Compose und Pi-Startanleitung.
 - `rasppi/weboverlay/`: lesendes Flask-/Paho-Backend, Browseroberfläche, isolierte
   MQTT-/HTTP- und Frontendtests, Docker/Compose; kein direkter Hardwarezugriff.
+- `rasppi/storage/`: MQTT-Collector für vorhandene MariaDB, Schema/Migration,
+  typisierte Wallbox-Historie, Docker-only-Tests; keine Steuerung/Hardwareports.
 - `docs/pin-connection.md`, `docs/uart-protocol.md`: Pinreferenz und UART-Protokoll.
 - `docs/installation.md`: zentrale Anleitung für Installation, Hardware und
   Wiederinbetriebnahme; vereint die frühere Setup-Datei mit dem Docker-only-Ablauf
@@ -89,6 +91,7 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
                          |
                          +-- Wallbox-MQTT -> vorhandener Broker
                          |                   -> Weboverlay (lesend)
+                         |                   -> Speichercollector -> vorhandene MariaDB
                          |                   -> HA / weitere Dienste (geplant)
                          +-- UART-MQTT-Gateway (geplant)
                          +-- DTSU666-Messwerterfassung (geplant)
@@ -215,7 +218,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   oder andere Master vermeiden. Die Python-UART-Logik bleibt unverändert,
   ihr unterstützter Startweg ist jetzt `docker compose -f rasppi/compose.yaml
   run --rm --build uart-bridge` aus dem Repository-Hauptverzeichnis.
-- Keine Ladefreigabe oder Datenbank. MQTT-Empfang am Pi bestätigt; lesende
+- Keine Ladefreigabe oder SQL-Anbindung im Reader. MQTT-Empfang am Pi bestätigt; lesende
   Browseroberfläche implementiert, deren Pi-Deploymenttest steht noch aus.
 
 ### MQTT-Publisher im Reader
@@ -321,6 +324,35 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   simulierten Daten geprüft, echte Pi-Anzeige weiterhin offen. Lokale MCP-
   Artefakte bleiben außerhalb Git und werden nicht als Projektdaten behandelt.
 
+### MQTT-Speichercollector / MariaDB
+
+- `rasppi/storage/`: Subscribe-only Paho + PyMySQL, eigener Client `evse-storage`,
+  bestehendes `evse-mqtt`. Produktions-Compose enthält nur Collector und expliziten
+  Migrations-Client; vorhandene MariaDB extern über konfigurierbares `DB_NETWORK`
+  (Default `evse-data`), kein zweiter DB-Server/Broker, keine Hostports/Hardware.
+- Schema 1: `evse_wallbox_samples` (typisierte A/V/W/Wh, Nullable-Flags, Readfehler,
+  Mess-/Empfangszeit UTC, bereinigtes JSON, erstes Retained-Flag) und
+  `evse_ingest_events` (Availability, Verbindungs-/Startup-/Shutdowngrenzen, Gaps).
+  Source-Präfix exakt UTF-8 als VARBINARY, Hash-Deduplizierung pro Source.
+  Gleiche UTC-Zeit mit geändertem Inhalt bleibt erhalten; Duplikate überschreiben
+  weder Empfangszeit noch Werte. Events haben unveränderte UUIDs bei Commit-Retry.
+- Kein SQL im MQTT-Callback. Bounded RAM-Queue 256 + ausstehender Record/Gap-Zähler,
+  manuelle ACKs erst nach Commit/bestätigtem Duplikat. Generation + Delivery-Version
+  schützen auch gegen MID-Wiederverwendung in derselben Verbindung. Ungültige
+  Payloads werden bewusst verworfen, Überlauf/DB-Ausfall pausiert nur Collector-MQTT.
+- Explizites `--migrate` mit CREATE/SELECT/INSERT-Account; Runtime SELECT/INSERT,
+  keine automatische DDL/Löschung. Secrets per Datei, Runtime non-root 10001,
+  readonly/cap-drop/tmpfs, Readiness ohne Webserver. SIGTERM versucht 8 s zu drainen;
+  Query/DNS kann darüber hinaus verzögern, Compose-Stop 20 s bleibt Prozessgrenze.
+- Alte/zukünftige valide Samples werden als Archiv gespeichert, nicht als live
+  angeboten. Keine lückenlose Aufzeichnung: retained ist kein Replay, RAM geht
+  bei Crash/Restart verloren. Startup-/Gap-Ereignisse markieren unbekannte Abdeckung.
+  Keine automatische Aufbewahrungs-/Backup-Policy, RFID/UART/DTSU666 oder SQL-
+  Diagrammanbindung. Der Browserverlauf bleibt unverändert im Tab-RAM.
+- Unit-/isolierte MariaDB-10.11-/MQTT-Tests und Docker-CI angelegt, Lauf noch offen.
+  Vor Deployment DB-Version/Container, Netzwerke, Accounts/Grants, TLS-Anforderungen
+  und vorhandene Backups klären; bisher nur Existenz der MariaDB bestätigt.
+
 ## Geplant / noch nicht implementiert
 
 - Dauerbetriebs-/Fehlerfallprüfung und weitere Hardwarevalidierung der ABB-Abfragen sowie
@@ -328,7 +360,8 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - DTSU666-Messwerterfassung und Berechnung verfügbarer Ladeleistung.
 - UART-MQTT-Gateway und dessen Topic-/Payload-Vertrag. Wallbox-Telemetrie ist definiert.
 - Home-Assistant-Integration, bedienendes Weboverlay (inklusive modularer Wallbox-
-  Einrichtungsfunktion) und Datenbankmodell zur Zustandsspeicherung.
+  Einrichtungsfunktion), SQL-Historienabfrage/-Diagrammanbindung und weitere
+  Datenmodelle für Ladesessions, UART/RFID und Zählerdaten.
 - Ladeautomatisierung nach verfügbarer Leistung und Dringlichkeit.
 - Vollständige modulare Dienst-/Containerstruktur; Reader-Compose nutzt den
   bereits vorhandenen gemeinsamen MQTT-Broker, Gesamtsystem noch offen.

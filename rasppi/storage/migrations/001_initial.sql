@@ -1,0 +1,42 @@
+CREATE TABLE IF NOT EXISTS evse_wallbox_samples (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  source VARBINARY(240) NOT NULL,
+  payload_sha256 BINARY(32) NOT NULL,
+  measured_at DATETIME(6) NOT NULL,
+  received_at DATETIME(6) NOT NULL,
+  last_success_at DATETIME(6) NULL,
+  retained BOOLEAN NOT NULL,
+  status ENUM('ok','error') NOT NULL,
+  communication_error VARCHAR(1024) NULL,
+  error_code INT UNSIGNED NULL,
+  socket_lock_state INT UNSIGNED NULL,
+  charging_state_raw INT UNSIGNED NULL,
+  charging_state INT UNSIGNED NULL,
+  below_commanded_current BOOLEAN NULL,
+  plugged_in BOOLEAN NULL,
+  charging BOOLEAN NULL,
+  current_limit_a DECIMAL(14,3) NULL,
+  current_l1_a DECIMAL(14,3) NULL,
+  current_l2_a DECIMAL(14,3) NULL,
+  current_l3_a DECIMAL(14,3) NULL,
+  voltage_l1_v DECIMAL(14,1) NULL,
+  voltage_l2_v DECIMAL(14,1) NULL,
+  voltage_l3_v DECIMAL(14,1) NULL,
+  active_power_w INT UNSIGNED NULL,
+  session_energy_wh INT UNSIGNED NULL,
+  payload_json LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (JSON_VALID(payload_json)),
+  UNIQUE KEY sample_identity (source, payload_sha256),
+  KEY source_measurement (source, measured_at, id),
+  KEY receipt_time (received_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS evse_ingest_events (
+  event_id BINARY(16) NOT NULL PRIMARY KEY,
+  source VARBINARY(240) NOT NULL,
+  received_at DATETIME(6) NOT NULL,
+  kind ENUM('availability','collector_started','broker_connected','broker_disconnected','ingestion_gap','collector_stopping') NOT NULL,
+  availability ENUM('online','offline') NULL,
+  retained BOOLEAN NOT NULL,
+  details_json LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (JSON_VALID(details_json)),
+  KEY source_receipt (source, received_at, event_id)
+) ENGINE=InnoDB;

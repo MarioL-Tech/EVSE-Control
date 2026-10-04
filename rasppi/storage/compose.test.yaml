@@ -1,0 +1,44 @@
+name: evse-storage-test
+services:
+  db:
+    image: mariadb:10.11
+    command: [--character-set-server=utf8mb4, --collation-server=utf8mb4_bin]
+    environment:
+      MARIADB_ROOT_PASSWORD: isolated-root
+      MARIADB_DATABASE: evse_test
+      MARIADB_USER: evse_test
+      MARIADB_PASSWORD: isolated-client
+    tmpfs:
+      - /var/lib/mysql:size=512m
+    networks: [isolated]
+    healthcheck:
+      test: [CMD, healthcheck.sh, --connect, --innodb_initialized]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+  broker:
+    image: eclipse-mosquitto:2
+    volumes:
+      - ./tests/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    networks: [isolated]
+  tests:
+    build:
+      context: .
+      target: test
+    environment:
+      STORAGE_INTEGRATION: "1"
+      DB_HOST: db
+      DB_NAME: evse_test
+      DB_USERNAME: evse_test
+      DB_PASSWORD: isolated-client
+      MQTT_HOST: broker
+      DB_ROOT_PASSWORD: isolated-root
+    depends_on:
+      db:
+        condition: service_healthy
+      broker:
+        condition: service_started
+    networks: [isolated]
+networks:
+  isolated:
+    internal: true

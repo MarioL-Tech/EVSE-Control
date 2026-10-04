@@ -5,13 +5,14 @@ Ladestation** mit Raspberry Pi, ESP32 und RFID-basierter Diebstahlsicherung.
 
 Der Raspberry Pi liest eine ABB Terra AC über Modbus RTU aus. Der ESP32
 übernimmt RFID und einen separaten Servo als Modell der Diebstahlsicherung.
-Geplant sind Ladeautomatisierung, Zustandsspeicherung und Bedienung über
-Home Assistant. Ein erstes rein lesendes Weboverlay ist implementiert.
+Geplant sind Ladeautomatisierung und Bedienung über Home Assistant. Ein lesendes
+Weboverlay und MQTT-Wallbox-Zustandsspeicherung für MariaDB sind implementiert.
 
 > **Entwicklungsstand:** Der Wallbox-Dienst ist ausschließlich lesend.
 > MQTT-Empfang echter Wallboxdaten am Pi ist bestätigt. Das neue lesende
 > Weboverlay ist implementiert; Pi-Browser-/Deploymenttest steht noch aus.
-> Reale Ladesteuerung, Datenbank und bedienende Funktionen fehlen noch.
+> MariaDB-Speicherdienst implementiert; Tests/Pi-Konfiguration noch offen.
+> Reale Ladesteuerung und bedienende Funktionen fehlen noch.
 > Ein Docker-Einmaltest mit FC03 an der realen Wallbox wurde
 > bestätigt; Dauerbetrieb und weitere Hardwarevalidierung stehen noch aus.
 
@@ -36,6 +37,7 @@ Home Assistant. Ein erstes rein lesendes Weboverlay ist implementiert.
 | Wallbox-Reader | C++17/libmodbus, zyklische FC03-Abfragen, dekodierte Messwerte als JSON |
 | MQTT-Publisher | retained State und Verfügbarkeit mit libmosquitto; vorhandener Broker wird wiederverwendet |
 | Weboverlay | Lesende MQTT-Anzeige mit wählbaren Messwerten und Browser-Zeitverläufen; Frischeprüfung |
+| Zustandsspeicherung | Separater MQTT-Collector für vorhandene MariaDB; Schema/Migration und typisierte Wallbox-Historie |
 | Fehlerbehandlung | Timeouts, erneute Verbindung, ungültige Messwerte als `null`, sauberer Shutdown |
 | Softwaretests | Decoder-/JSON-Tests und simulierte RTU-Kommunikation einschließlich Fehlerfällen |
 | Containerbetrieb | Dockerfiles, Compose-Konfigurationen und Startanleitungen vorhanden |
@@ -69,7 +71,7 @@ Raspberry Pi — lokale Hardwareanbindung, Dienste in Docker
         +-- Wallbox-MQTT --> vorhandener gemeinsamer Message Broker
                               |-- Home Assistant      [geplant]
                               |-- Weboverlay          [lesend]
-                              +-- Datenbankdienst     [geplant]
+                              +-- Speicherdienst --> vorhandene MariaDB
         +-- ESP32-UART-MQTT-Gateway                    [geplant]
 
 Remote-Zugriff: Rechner --> WireGuard/SSH-Tunnel --> Pi-Weboverlay
@@ -157,7 +159,7 @@ CHANGELOG.md             Änderungsverlauf
 
 Nächster Meilenstein ist die Pi-Browserprüfung des Weboverlays sowie weitere
 Dauerbetriebs-/Zustands- und Messwertvergleiche. Danach folgen UART-MQTT-Gateway,
-abgesicherte Ladesteuerung, Energiezähler, Zustandsspeicherung und Automationen.
+abgesicherte Ladesteuerung, Energiezähler, SQL-Historienabfragen und Automationen.
 
 **Sicherheit:** Widersprüchliche Register-/Steuernotizen nicht ungeprüft
 übernehmen. Der Reader sendet keine Modbus-Schreibbefehle. Arbeiten an
