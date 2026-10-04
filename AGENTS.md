@@ -370,9 +370,14 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   kein bestätigter DB-Netzzugang für den Collector. `mariadb -u root -p -e
   'SELECT VERSION();'` wurde mit 1045 (`root@localhost`, Passwort verwendet)
   abgewiesen. Ursache/Adminzugang nicht bekannt, kein Reset/Containerneustart.
-  Mounts wurden noch nicht geliefert (Netzwerkabfrage versehentlich wiederholt).
-  Installierte Server-Binary-Version kann ohne Login per `mariadbd --version`
-  gelesen werden; das ersetzt nicht den Nachweis des erfolgreichen DB-Zugangs.
+  Installierte Server-Binary-Version ersetzt nicht den Nachweis erfolgreichen DB-Zugangs.
+- Dritter Screenshot: `mariadbd --version` meldet **11.8.8-MariaDB-ubu2404, aarch64**;
+  Docker-Volume mit langem generiert wirkendem Namen, Driver `local`, RW nach
+  `/var/lib/mysql`. Das ist persistente Datenhaltung, kein Backup-/Restore-Nachweis.
+  Volume/Container nicht löschen oder neu initialisieren. Vorhandene Start-/Compose-
+  Definition weiter unbekannt. CI-Matrix 10.11/11.8 ergänzt, 11.8-Lauf noch offen;
+  keine Änderung am Produktionsserver. Loginfreie Version nicht mit `SELECT VERSION()`
+  oder bestätigter Admin-Authentifizierung gleichsetzen.
 
 ## Geplant / noch nicht implementiert
 

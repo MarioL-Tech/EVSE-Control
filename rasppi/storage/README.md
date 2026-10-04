@@ -65,9 +65,12 @@ docker compose -f compose.test.yaml up --abort-on-container-exit --exit-code-fro
 docker compose -f compose.test.yaml down --volumes
 ```
 
-**Nur diese Test-Datei** enthält einen temporären MariaDB-10.11-Server und Broker,
+**Nur diese Test-Datei** enthält einen temporären MariaDB-Server und Broker,
 im isolierten Docker-Netz ohne Hostports/Produktionsnetz; bekannte Dummy-Passwörter
 sind nur Testdaten. Das Aufräumen gilt nicht für vorhandene Produktionsdienste.
+Default-Testversion 10.11; für 11.8 jedem dieser Compose-Aufrufe
+`MARIADB_TEST_VERSION=11.8` voranstellen. CI führt beide Versionen unabhängig aus;
+neue 11.8-Kompatibilitätsprüfung noch ausstehend. Produktionsimage wird nicht verändert.
 Unit-Tests laufen zusätzlich bei jedem Runtime-Image-Build. GitHub-Docker-CI prüft
 SQL/MQTT, eingeschränkte Grants, Retained-/Restart-Deduplizierung, DB-Recovery und
 das gehärtete Runtime-Image. CI
