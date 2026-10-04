@@ -1,11 +1,13 @@
 
 ESP32-Prüfungen (hardwareunabhängig)
 
-Der vorgesehene Docker-Build führt native Security-/Protokolltests und den
-vollständigen PlatformIO-Zielcompile aus. Reproduzierbare Befehle:
+Der Docker-Build führt 41 native Security-/Protokollfälle und fünf simulierte
+Firmwareadapter-Suiten unter ASAN/UBSAN sowie den vollständigen
+PlatformIO-Zielcompile aus. Reproduzierbare Befehle:
 docs/installation.md, Abschnitt „ESP32 bauen und flashen“.
-ESP32-Build-/CI-Erfolg ist noch zu bestätigen; diese Dokumentation behauptet
-keinen bereits bestandenen Lauf.
+CI 37235418853 für 8f98c41 bestätigt alle Softwaretests, Targetcompile,
+Artefaktprüfung und Flash-CLI-Hilfe ohne USB/Upload auf Linux-amd64.
+Dies bestätigt keine reale ESP32- oder Pi-ARM64-Funktion.
 
 Prüfziele: Allowlist und UID-Parsing, Blob-Version/CRC, Bootpolicies,
 Storagefehler und Save-before-success, Enrollmentfristen, Presence-Gate,

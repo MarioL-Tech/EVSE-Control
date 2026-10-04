@@ -2,7 +2,11 @@
 
 Die neue Firmware ersetzt den bisherigen **UART-Kommunikationstest** durch
 Whitelist-gesteuerte RFID-Toggles und konfigurierten persistierten Start.
-**Noch ungeflasht und nicht am realen ESP32 geprüft. ESP32-CI-Erfolg offen.**
+**Noch ungeflasht und nicht am realen ESP32 geprüft.** Docker-CI
+[37235418853](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37235418853)
+für `8f98c41` bestätigt 41 native Sanitizer-Fälle, fünf simulierte
+Firmwareadapter-Suiten, kompletten Targetcompile, Artefakte und Flash-CLI-Hilfe
+ohne USB/Upload; Linux-amd64-Prüfhost, kein Pi-ARM64-/Hardwaretest.
 Wallboxsteuerung, UART-MQTT-Gateway, HA und GUI-Bedienung werden dadurch nicht
 implementiert; die Python-UART-Brücke bleibt unverändert.
 
@@ -86,8 +90,8 @@ wäre kein wirksamer Startschutz gewesen.
 
 Reproduzierbare Befehle und Upgrade-/Hardwaretestablauf stehen zentral im
 [Installationsguide](../docs/installation.md#esp32-bauen-und-flashen).
-Der vorgesehene Docker-Image-Build führt native Tests und den vollständigen
-PlatformIO-Zielcompile aus; Ergebnis/CI sind noch zu bestätigen.
+Der Docker-Image-Build führt native Core-/UART- und simulierte Adaptertests
+unter Sanitizern sowie den vollständigen PlatformIO-Zielcompile aus.
 Das finale Image enthält nur Artefakte, **keinen PlatformIO-Flashruntime**.
 Der gesonderte opt-in Docker-Target `flash` benötigt lokalen, eindeutig
 identifizierten ESP32-USB-Zugang; Befehle und Grenzen stehen im Guide.

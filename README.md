@@ -12,7 +12,7 @@ Weboverlay und MQTT-Wallbox-Zustandsspeicherung für MariaDB sind implementiert.
 > MQTT-Empfang echter Wallboxdaten am Pi ist bestätigt. Das neue lesende
 > Weboverlay ist implementiert; Pi-Browser-/Deploymenttest steht noch aus.
 > MariaDB-Speicherdienst implementiert und Docker-getestet; Pi-Konfiguration offen.
-> Reale Ladesteuerung und bedienende Funktionen fehlen noch.
+> Reale Ladesteuerung und bedienende HA-/Webfunktionen fehlen noch.
 > ESP32-Whitelist und persistierter Startmodus ersetzen den bisherigen
 > UART-Kommunikationstest; neue Firmware noch ungeflasht und hardwareunverifiziert.
 > Ein Docker-Einmaltest mit FC03 an der realen Wallbox wurde

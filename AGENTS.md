@@ -191,7 +191,11 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
 - Native LEDC-PWM auf GPIO13: Defaultmapping-Referenz ESP32Servo 1.1.2,
   544..2400 µs (0°=544, 90°=1472); Zielduty vor GPIO-Anbindung. Pulsform,
   Mechanik/Kalibrierung und tatsächlicher NVS-/Powerloss-Betrieb noch hardwareoffen.
-  Firmware aktuell ungeflasht; Docker-CI/Tests noch zu bestätigen. Kein Agent-
+  Firmware aktuell ungeflasht; Docker-CI 37235418853 für 8f98c41 bestätigt
+  41 native Sanitizer-Fälle, fünf simulierte Firmwareadapter-Suiten, kompletten
+  Xtensa-Targetcompile und Artefakt-/Flash-CLI-Smoke ohne USB/Upload. Prüfhost
+  Linux-amd64, keine echte NVS-/SPI-/Servo-/Pi-ARM64-Prüfung. Unabhängige
+  Codeprüfung ohne weitere belegte Defekte. Kein Agent-
   Hardwarezugang. Erstupgrade verändert Boot0° auf90° und Partitionstabelle;
   vor Ort sicher koordinieren, kein Erase-All/Stock-SPIFFS-Zugriff.
 - Laut Projektinhaber wurde eine Reader-Firmwarekennung `0x82` beobachtet.

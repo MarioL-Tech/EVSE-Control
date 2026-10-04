@@ -409,8 +409,12 @@ nicht die reale Wallbox. Details: [UART-Protokoll](uart-protocol.md).
 
 Die frühere Firmware war ein **UART-Kommunikationstest**, startete bei 0° und
 ließ jede lesbare Karte toggeln. Die neue Allowlist-/Persistenzimplementierung
-ist **noch ungeflasht und nicht am realen ESP32 verifiziert**. ESP32-Build/CI
-ebenfalls noch zu bestätigen; folgende Hardwareprüfung ist ein Plan, kein Erfolg.
+ist **noch ungeflasht und nicht am realen ESP32 verifiziert**. Docker-CI
+[37235418853](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37235418853)
+für `8f98c41` bestätigt 41 native Sanitizer-Fälle, fünf simulierte Adapter-Suiten,
+kompletten Xtensa-Zielcompile, vier Artefakte und Flash-CLI-Hilfe ohne USB/Upload.
+Prüfhost Linux-amd64, kein Pi-ARM64- oder Hardwaretest; folgende Hardwareprüfung
+ist ein Plan, kein Erfolg.
 Vor dem Upgrade [Flash-/Sicherheitsablauf](#esp32-bauen-und-flashen) beachten:
 mit leerem NVS wechselt der Start von **0° auf 90°**.
 
@@ -653,10 +657,11 @@ Docker auf dem Entwicklungsrechner oder Pi (keine Hostpakete auf dem Pi):
 docker build -f esp32/Dockerfile -t evse-esp32:test esp32
 ```
 
-Der Image-Build soll native Security-/Protokolltests und den vollständigen
+Der Image-Build führt native Security-/Protokoll- und simulierte Adaptertests
+unter ASAN/UBSAN sowie den vollständigen
 PlatformIO-Zielcompile ausführen. Bei Fehler abbrechen, kein altes Artefakt
-flashen. **Build-/CI-Erfolg steht noch aus**; dies ist kein bereits bestätigter
-ESP32-Testlauf. Das finale Image ist **artefakt-only**, kein PlatformIO-Runtime
+flashen. CI-Lauf oben bestätigt den Build/Softwaretest, nicht reale
+ESP32-Funktion. Das finale Image ist **artefakt-only**, kein PlatformIO-Runtime
 zum Flashen. Artefakte lokal entnehmen (Zielordner vorher auf Kollision prüfen):
 
 ```bash
@@ -667,7 +672,8 @@ docker rm evse-esp32-artifacts
 
 Nur der eigens erstellte temporäre Artefaktcontainer wird entfernt, keine
 Volumes; wenn sein Name schon belegt ist, erst Eigentum klären/anderen Namen
-verwenden, nicht fremden Container löschen. `firmware.bin` und Begleitartefakte
+verwenden, nicht fremden Container löschen. `firmware.bin`, `bootloader.bin`,
+`partitions.bin` und `boot_app0.bin` (OTA-Initialisierung) aus demselben Build
 bleiben **nur lokal, nicht Git**. Commit/Buildquelle privat notieren.
 Das finale Image unterstützt **keinen `pio`-Upload**. Ein gesonderter,
 ausdrücklich gewählter Docker-Flash-Target enthält Toolchain, bestandene native
@@ -683,7 +689,8 @@ docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
   evse-esp32:flash --upload-port /dev/ttyESP32
 ```
 
-Das ist **kein ausgeführter oder hardwarebestätigter Flashweg**. Kein
+Der Target-Build und `--help` wurden in Docker-CI ohne USB geprüft;
+das ist **kein ausgeführter oder hardwarebestätigter Upload**. Kein
 `--privileged`, keine Hostpakete, keine Docker-Socket-Freigabe. Nicht den
 Wallbox-RS485-Port `/dev/ttyUSBEVSEcontrol` oder die UART-Headerverbindung
 `/dev/serial0` auswählen. Kein automatisches Ermitteln/Öffnen fremder Ports.
