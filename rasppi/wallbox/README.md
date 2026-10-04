@@ -226,7 +226,7 @@ entspricht dem [MQTT-State-Vertrag](../../docs/mqtt-protocol.md).
 
 ## Vor realer Nutzung verifizieren
 
-- Bestätigter Einmaltest laut Mario (2026-10-03): Docker-Reader liest den
+- Bestätigter Einmaltest laut Projektinhaber (2026-10-03): Docker-Reader liest den
   gesamten Block per FC03 erfolgreich, `status=ok`, Fehlercode 0. Zustand B1,
   16-A-Limit und Phasenspannungen wurden ausgegeben. Das ist noch keine
   Dauerbetriebs-/Fehlerfallprüfung oder unabhängige Messwertvalidierung.

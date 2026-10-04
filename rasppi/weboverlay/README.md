@@ -16,9 +16,11 @@ docker compose up -d --build
 Auf deinem Rechner mit dem **bereits verwendeten SSH-Ziel**:
 
 ```bash
-ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.0.1:8080 ml@elke
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.0.1:8080 'BENUTZER@PI-ADRESSE'
 ```
 
+`BENUTZER@PI-ADRESSE` durch dein vorhandenes SSH-Ziel oder deinen SSH-Alias ersetzen;
+dieses tatsächliche Ziel nur lokal aufbewahren, nicht im Repository.
 Browser: **http://127.0.0.1:8080**. SSH-Tunnel offen halten. Hostport ist nur an
 Pi-Localhost gebunden, kein neues Internet-/LAN-Portmapping. Keine SSH-/WG-Änderung.
 
@@ -78,4 +80,4 @@ Sessionenergie kann bei neuer Session zurückgesetzt werden, kein Gesamtsummenz�
 
 Docker-Build führt Backend-, HTTP-/MQTT-Integrations- und Frontendtests aus.
 Testbroker nur im Build-Container; Produktivbroker/Hardware werden nicht berührt.
-Pi-Browser-/Deploymentprüfung ist separat durch Mario zu bestätigen.
+Pi-Browser-/Deploymentprüfung ist separat durch den Projektinhaber zu bestätigen.

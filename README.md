@@ -116,8 +116,9 @@ cd rasppi/weboverlay
 docker compose up -d --build
 ```
 
-Auf deinem Rechner: `ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.0.1:8080 ml@elke`
-(dein vorhandenes SSH-Ziel verwenden), dann **http://127.0.0.1:8080** öffnen.
+Auf deinem Rechner: `ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.0.1:8080 'BENUTZER@PI-ADRESSE'`
+(`BENUTZER@PI-ADRESSE` durch dein vorhandenes SSH-Ziel oder deinen SSH-Alias ersetzen),
+dann **http://127.0.0.1:8080** öffnen.
 Pi-Port bleibt nur lokal gebunden. Keine Start-/Stop- oder Limitänderung enthalten.
 [Konfiguration und Diagnose](docs/installation.md#9-lesendes-weboverlay).
 
