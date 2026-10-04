@@ -55,7 +55,11 @@ const fs = require('node:fs');
     await page.screenshot({ path: '/artifacts/weboverlay-mobile.png', fullPage: true });
     data = { ...data, values: { ...data.values, plugged_in: null, charging: null, error_code: 7 } };
     await page.waitForFunction(() => document.getElementById('plugged').textContent === 'Unbekannt');
+    assert(await page.locator('#wallbox-warning').isVisible(), 'Active warning remains outside closed diagnostics');
+    await page.locator('.technical-details > summary').click();
     assert.equal(await page.locator('#wallbox-error').innerText(), 'Wallbox-Fehler · Code 7');
+    await page.locator('.technical-details > summary').click();
+    assert(await page.locator('#wallbox-warning').isVisible());
     data = { ...data, status: 'read_error', values: null, fresh_for_seconds: 0,
       error: '<img src=x onerror=alert(1)>', reason: 'Lesefehler' };
     await page.waitForFunction(() => document.getElementById('read-error').textContent.includes('<img'));

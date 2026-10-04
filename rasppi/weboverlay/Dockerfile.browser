@@ -4,4 +4,5 @@ WORKDIR /tests
 RUN npm install --no-audit --no-fund --save-exact playwright@1.55.0
 COPY tests/browser.cjs ./
 COPY tests/charts-browser.cjs ./
-CMD ["sh", "-c", "node browser.cjs && node charts-browser.cjs"]
+COPY tests/layout-browser.cjs ./
+CMD ["sh", "-c", "node browser.cjs && node charts-browser.cjs && node layout-browser.cjs"]

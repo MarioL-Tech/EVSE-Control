@@ -277,6 +277,11 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - Deutsche statische Oberfläche, keine CDN-/Browser-MQTT-Abhängigkeiten.
   Unterscheidet Anschluss, tatsächliches Laden, Wallbox-Limit und noch nicht
   erfassten Gebäudestrom. Unknown/null bleibt unbekannt, nicht „Nein“.
+- Dashboard `/` und eigene Diagrammseite `/diagramme` mit gemeinsamer echter
+  Navigation, responsivem Layout und automatischem hell/dunklem Farbschema.
+  Vier kompakte Übersichtskarten, Phasen/Leistungsrahmen, einklappbare Diagnose.
+  Diagramme: vier elektrische Gruppen plus fünf einklappbare Zustands-/Rohwert-
+  Gruppen. Status, Frische, Messzeit und aktive Fehlerwarnung bleiben sichtbar.
 - `/api/state` liefert Messwerte nur bei verbundenem Broker, gültigem Sample,
   `availability online` und Frische (default 10 s). Ungültige/alte/zu weit
   zukünftige Payloads, Readfehler und Offline blenden Werte aus. Browser lässt
@@ -303,9 +308,10 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   ersetzt; zusätzliche Browser-Regressionen für Timeout/Spätantworten, Visibility/
   Pageshow, Request-Parallelität und Live-Region-Mutationen; erweiterte CI erfolgreich.
 - `static/charts.js`: dependency-freie SVG-Zeitverläufe für die 16 Telemetriewerte,
-  gruppiert nach Einheit, Bool-/Codewerte als Stufen. Nur im geöffneten Browser
+  gruppiert nach Einheit, Bool-/Codewerte als Stufen. Nur auf der Diagrammseite
   erfasste Werte im RAM, maximal 15 Minuten/1200 Messzeitpunkte; Zeitfenster 1/5/15
-  Minuten. Kein DB-/MQTT-Verlauf; Neuladen verwirft Daten.
+  Minuten. Kein DB-/MQTT-Verlauf; Neuladen/Seitenwechsel und Wiederherstellung
+  aus dem Browser-Seitencache verwerfen Daten. Übersicht sammelt keinen Verlauf.
 - Wiederholte API-Samples werden nicht mehrfach gezählt. Bei gleicher Sekunden-
   Zeitmarke werden geänderte Werte nur ohne Ausfall durch den letzten Wert ersetzt.
   Offline/Fehler/Unknown erzeugen Lücken, Pausen >10 s werden nicht verbunden;
@@ -315,6 +321,17 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   lokal im Browser (`evse-display-v1`), keine Messwerte/Credentials im localStorage.
   Nicht verfügbarer Speicher fällt auf aktuelle Sitzung zurück. Status, Messzeit
   und aktive Wallbox-Fehlerwarnung bleiben unabhängig von Auswahl sichtbar.
+- Seitenrendering toleriert fehlende seitenspezifische Felder; Auswahl wird
+  auf beiden Seiten unter demselben Schlüssel verwendet. Keine neuen MQTT-
+  Clients, SQL-Abfragen, Hardwarebefehle oder Netzwerk-/Portänderungen.
+- Abschließende Dashboard-CI `37220843434` für `154e7f2` und PR-CI `37221004357`
+  erfolgreich: 21 Python-/MQTT-/HTTP-
+  und 28 JS-Tests plus drei Chromium-Suiten (beide Seiten, Navigation/Fokus,
+  Auswahl/Frische/Warnings, 320/390/768/1440 px, hell/dunkel, blockierter Speicher).
+  Desktop-/Mobilbilder mit simulierten Werten geprüft, keine Pi-Bestätigung.
+  Codeprüfung ergänzt getestetes Präferenz-Neuladen bei Seitencache-Rückkehr;
+  temporäre Auswahl ohne lesbaren Speicher bleibt erhalten. PR #33 erstellt,
+  Merge durch Mario; echtes Pi-Deployment/Browserprüfung weiterhin offen.
 - Erste Diagramm-Docker-CI `37203503188` für `4edb64f` erfolgreich. Codeprüfung
   ergänzt pro Kurve konservative Same-Second-Unknown-Unterbrechungen (beide
   Nachbarsegmente); erweiterte CI `37203627509` erfolgreich. Isolierte Samples
@@ -356,7 +373,12 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Secretdateien. Gap-`dropped` zählt Records inklusive Collectorereignisse, nicht
   die Zahl fehlender Hardwaremessungen. Echte Pi-Einrichtung/DB-Empfang offen.
   Vor Deployment DB-Version/Container, Netzwerke, Accounts/Grants, TLS-Anforderungen
-  und vorhandene Backups klären; bisher nur Existenz der MariaDB bestätigt.
+  und vorhandene Backups klären. Pi-Bestandsaufnahme/11.8.x-Kompatibilität ist
+  separat in PR #32 vorbereitet; nicht Teil des Dashboard-Branches. Mario hat
+  die bestehende MariaDB nicht eingerichtet und derzeit keinen autorisierten
+  DB-Adminzugriff. Deployment/Migration bis zur Bereitstellung durch den
+  zuständigen Betreiber pausiert; keine fremden Secrets suchen oder Auth/Volumes
+  zurücksetzen. UI-Arbeit benötigt diesen Zugang nicht.
 
 ## Geplant / noch nicht implementiert
 

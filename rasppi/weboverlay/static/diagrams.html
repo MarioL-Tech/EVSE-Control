@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Diagramme · EVSE Control</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/charts.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Zum Inhalt</a>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Arbeitsbereich">
+      <a class="brand" href="/" aria-label="EVSE Control – Übersicht"><span class="brand-mark" aria-hidden="true">E<span>↗</span></span><span>EVSE<span class="brand-subtitle">CONTROL</span></span></a>
+      <p class="nav-label">Arbeitsbereich</p>
+      <nav aria-label="Hauptnavigation">
+        <a class="nav-link" href="/"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Übersicht</a>
+        <a class="nav-link" href="/diagramme" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4v16h16M7 15l4-5 4 3 5-7"/></svg>Diagramme</a>
+      </nav>
+      <div class="sidebar-context"><span class="context-label">Datenquelle</span><strong>ABB Terra AC</strong><span>Modbus → MQTT</span><p>Monitoring ohne Steuerzugriff</p></div>
+    </aside>
+    <main id="main-content" tabindex="-1">
+      <header class="page-header"><div><p class="eyebrow">Wallbox-Monitoring</p><h1>Diagramme</h1><p class="page-subtitle">Messwerte im zeitlichen Verlauf — getrennt von der Live-Übersicht.</p></div><span class="readonly"><span aria-hidden="true">◈</span> Nur lesen</span></header>
+      <section class="status-panel" aria-label="Datenstatus">
+        <div class="status-line" role="status"><span id="status" class="badge" data-tone="muted">Warten auf Daten</span><span id="reason">Verbindung zur Anzeige wird hergestellt.</span></div>
+        <div class="metadata"><span>MQTT-Broker <strong id="broker">Unbekannt</strong></span><span>Telemetrie <strong id="availability">Unbekannt</strong></span><span>Restgültigkeit <strong id="freshness">—</strong></span><span>Letzte Messung <strong id="timestamp">—</strong></span></div>
+        <p id="wallbox-warning" class="warning-message" data-tone="warning" role="status" hidden></p>
+      </section>
+      <details class="display-options"><summary>Anzeige auswählen <span>Kurven individuell ein-/ausblenden</span></summary><div class="options-content"><fieldset><legend>Messwerte auf beiden Seiten ein-/ausblenden</legend><div id="metric-options" class="metric-options"></div></fieldset><div class="options-footer"><button id="reset-display" type="button">Alle Messwerte anzeigen</button><p id="display-storage" class="subtle"></p></div><p class="subtle">Auswahl gilt auch auf der Übersicht. Status und Warnungen bleiben sichtbar.</p></div></details>
+      <p id="display-empty" class="notice" hidden>Alle Messwerte sind ausgeblendet. Unter „Anzeige auswählen“ wieder einschalten.</p>
+      <section class="history-section" aria-labelledby="history-heading">
+        <div class="section-heading history-heading"><div><p class="eyebrow">Historische Messwerte</p><h2 id="history-heading">Elektrische Zeitverläufe</h2></div><label for="chart-range">Zeitfenster <select id="chart-range"><option value="1">1 Minute</option><option value="5" selected>5 Minuten</option><option value="15">15 Minuten</option></select></label></div>
+        <div class="history-note"><strong>Verlauf seit Öffnen dieser Seite</strong><p>Maximal 15 Minuten im Browser-RAM, kein Datenbankarchiv. Neuladen oder Seitenwechsel leert ihn. Linien sind historisch, nicht live; fehlende Daten bleiben Lücken.</p></div>
+        <div id="chart-grid" class="chart-grid"></div>
+        <details class="technical-details history-diagnostics"><summary>Zustands- &amp; Diagnoseverläufe <span>Anschluss, Ladezustand und Rohwerte</span></summary><div id="chart-diagnostics-grid" class="chart-grid"></div></details>
+      </section>
+      <footer><span>EVSE Control <span class="footer-separator">/</span> Read-only Monitoring</span><span>Ausfälle werden nicht als Nullwerte dargestellt.</span></footer>
+      <noscript><p class="notice">Für Messwerte und Zeitverläufe muss JavaScript aktiviert sein.</p></noscript>
+    </main>
+  </div>
+</body>
+</html>

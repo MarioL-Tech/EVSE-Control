@@ -25,7 +25,17 @@ Pi-Localhost gebunden, kein neues Internet-/LAN-Portmapping. Keine SSH-/WG-Ände
 Alle Schritte zu Konfiguration, Passwortdatei, Portkonflikten, Diagnose und Tests:
 [zentraler Installationsguide](../../docs/installation.md#9-lesendes-weboverlay).
 
-## Diagramme und Anzeigeauswahl
+## Übersicht und eigene Diagrammseite
+
+**Übersicht `/`:** kompakte Karten für Leistung, Fahrzeug, Sessionenergie und
+Wallbox-Limit; Phasenmessung und Leistungsrahmen darunter. Technische Rohwerte
+unter „Diagnose & Datenqualität“. Datenstatus, Messzeit, Frische und aktive
+Fehlerwarnungen bleiben außerhalb der einklappbaren Bereiche sichtbar.
+
+**Diagramme `/diagramme`:** über die gemeinsame Navigation öffnen. Vier
+elektrische Zeitverläufe, weitere Zustands-/Rohwertkurven unter „Zustands- &
+Diagnoseverläufe“. Beide Seiten unterstützen Desktop/Mobil und folgen dem
+hellen/dunklen Farbschema des Browsers. Keine zusätzlichen Pakete/Ports nötig.
 
 „Anzeige auswählen“ schaltet jeden der 16 Telemetriewerte und seine Diagrammkurve
 einzeln ein/aus. Auswahl und Zeitfenster werden lokal im Browser gespeichert;
@@ -39,7 +49,9 @@ Diagnosecodes/Rohwerte. Phasenkurven behalten beim Ausblenden ihre Farbe.
 Zeitfenster: **1, 5 oder 15 Minuten**. Erst ein Messpunkt ist ein Punkt, keine Linie.
 
 **Kein Datenbankarchiv:** maximal 15 Minuten/1200 Messzeitpunkte im RAM dieses
-Browser-Tabs, nur seit Seitenöffnung beobachtet. Neuladen leert den Verlauf.
+Browser-Tabs, nur seit Öffnen der **Diagrammseite** beobachtet. Neuladen oder
+Seitenwechsel leert den Verlauf, auch Rückkehr über den Browser-Seitencache.
+Die Übersicht sammelt keinen verdeckten Diagrammverlauf.
 Wiederholte API-Polls zählen nicht als neue Messungen; bei gleicher Sekunden-
 Zeitmarke bleibt der letzte beobachtete Wert. Fehler, Offline und unbekannte
 Werte sind Lücken, nicht Nullwerte; Pausen über 10 s bleiben unverbunden.
