@@ -2,7 +2,7 @@
 
 Stand: 2026-10-04. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
-bereits implementiert zu behandeln. Mit Mario auf Deutsch kommunizieren.
+bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
 ## Projekt und Ziele
 
@@ -16,7 +16,7 @@ Dringlichkeit, Datenbank, Weboverlay sowie eine eigene Home-Assistant-Integratio
 Der modulare Aufbau mit Docker-Compose-Komponenten ist ein erklärtes Projektziel.
 Festgelegt ist ein gemeinsamer Compose-Einstieg für mehrere spezialisierte
 Container. Detailaufteilung und Zusammenführung der heutigen Compose-Dateien
-sind noch umzusetzen; Mario wünscht diese Umstellung ausdrücklich erst später.
+sind noch umzusetzen; diese Umstellung ist ausdrücklich erst später gewünscht.
 
 ### Konkretisierte Anforderungen (Umsetzungsstand siehe unten)
 
@@ -68,7 +68,7 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
   inklusive Broker, Netzwerk, Tests und bekannten Einrichtungsgrenzen.
   Die separate `docs/setup.md` wurde entfernt; keine zweite Anleitung parallel pflegen.
   **Jeden neuen Installations-/Konfigurationsschritt dort ebenfalls dokumentieren**;
-  Mario muss die Einrichtung später reproduzieren können.
+  Die Einrichtung muss später ohne persönliche Angaben reproduzierbar sein.
 - `docs/wallbox/`: ABB-Terra-AC-Modbus-Dokumentation und Befehlsreferenz.
 - `docs/wallbox/modbusRegisters.txt`: ergänzte Register-/Testnotizen mit Verweis
   auf Handbuch v1.11; das entsprechende PDF liegt derzeit nicht im Repository.
@@ -124,8 +124,8 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
 
 ## Betrieb und Remote-Zugriff
 
-- Mario hat keinen direkten physischen Zugang zu Pi oder Wallbox. Zugriff auf
-  den Pi erfolgt über WireGuard; SSH-Zugriff ist laut Mario bereits möglich.
+- Der Projektinhaber hat keinen direkten physischen Zugang zu Pi oder Wallbox.
+  Zugriff auf den Pi erfolgt über WireGuard; SSH-Zugriff ist laut Projektinhaber bereits möglich.
   Das bedeutet nicht, dass ein Agent automatisch SSH-Zugang hat.
 - Das Programm soll auf den **Raspberry Pi übertragen und dort ausgeführt**
   werden. Der Pi greift lokal auf USB-RS485/Modbus und ESP32-UART zu; diese
@@ -201,20 +201,20 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   libmodbus 3.1.6 und 3.1.11): Decoder/JSON sowie simulierte RTU-Kommunikation über PTY.
   Fehlerfall-, CLI- und Shutdown-Prüfungen sind hardwareunabhängig, einschließlich
   Teilantwort-Timeout, Shutdown während einer Abfrage und blockierter Ausgabe.
-- Mario hat am 2026-10-03 einen erfolgreichen Docker-Einmaltest am realen
+- Der Projektinhaber hat am 2026-10-03 einen erfolgreichen Docker-Einmaltest am realen
   Pi/Wallbox per Screenshot bestätigt: FC03, Slave 9, Block `0x4008..0x401F`,
   `status=ok`, Fehlercode 0, Zustand 1/B1, angeschlossen, nicht ladend,
   Stromlimit 16 A; Spannungen 237,6/234,6/237,2 V. Damit ist FC03 für diesen
   Block an der getesteten Wallbox bestätigt; FC04-Unterstützung anderer Register
   oder die Korrektheit aller Zustände/Messwerte ist dadurch nicht nachgewiesen.
   Langzeitbetrieb, gezielte Fehlerfalltests und Messwertvergleich bleiben offen.
-- Mario hat einen kurzen zyklischen Docker-Betrieb protokolliert: 13 Abfragen
+- Der Projektinhaber hat einen kurzen zyklischen Docker-Betrieb protokolliert: 13 Abfragen
   über etwa 25 s, davon 12 erfolgreich und 1 Timeout; beim folgenden Read
   Recovery ohne Eingriff. Stromlimit dort 6 A, Messströme/Leistung 0. Der Reader
   setzt keine Limits; Wechsel von zuvor 16 A wurde nicht vom Reader verursacht,
   seine Ursache ist ungeklärt (z. B. interne Wallbox-Logik oder andere Steuerung).
   Diese Beobachtung nicht als Langzeitstabilität oder unabhängige Messvalidierung ausgeben.
-- Mario ordnet die anfänglich fehlende Ausgabe/fehlerhafte Exitcode-Abfrage
+- Der Projektinhaber ordnet die anfänglich fehlende Ausgabe/fehlerhafte Exitcode-Abfrage
   einem Windows-Problem beim Befehlsaufruf zu, nicht der Wallbox-Kommunikation.
   Die genaue Windows-Ursache wurde hier nicht unabhängig untersucht.
 - Einmaltests mit `docker compose run --rm --no-deps -T --interactive=false
@@ -266,14 +266,14 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Version nutzt `evse-mqtt`. Containername ist deploymentabhängig.
 - **Diesen Broker wiederverwenden, keinen zweiten starten.** Grafana und MariaDB
   laufen ebenfalls bereits; keine bestehende Infrastruktur ersetzen.
-- Mario hat `evse-mqtt` angelegt und den Broker mit Alias `mqtt-broker` verbunden.
+- Der Projektinhaber hat `evse-mqtt` angelegt und den Broker mit Alias `mqtt-broker` verbunden.
   Docker-Testclient über dieses Netzwerk bestätigt `CONNACK (0)` und QoS-1-
   `PUBACK RC:0` für `evse/test` ohne Zugangsdaten. Das bestätigt weder alle ACLs
   noch Subscriber-Zustellung; Authentifizierung/Port-Erreichbarkeit prüfen.
 - Netzwerkzuordnung übersteht Neustart desselben Containers, nicht automatisch
   dessen Neuerstellung. Ursprüngliche Broker-Compose-/Config-/Volume-Einrichtung
   ist noch nicht bekannt; keine vollständige Broker-Neuinstallation vortäuschen.
-- Mario hat am 2026-10-03 den tatsächlichen Subscriber-Empfang bestätigt:
+- Der Projektinhaber hat am 2026-10-03 den tatsächlichen Subscriber-Empfang bestätigt:
   15 erfolgreiche Samples von 21:03:18 bis 21:03:46 UTC (23:03:18–23:03:46 Wien),
   alle 2 s, jeweils `availability online`. Zustand B1/angeschlossen/nicht ladend,
   Fehlercode 0, Limit 6 A, Ströme/Leistung 0, Spannungen etwa 233–236 V.
@@ -309,7 +309,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   21 Python-/MQTT-/HTTP-Tests, 13 Frontend-Unit- und Chromium-Browsertests,
   gehärtetes Runtime-Image ohne Broker. Desktop-/Mobil-Screenshots mit simulierten
   Werten geprüft; tatsächlicher Pi-Browser-/Deploymenttest bleibt offen.
-- Mario hat den Prototyp als `80f2808` auf `main` committed/gepusht. Erster
+- Der Projektinhaber hat den Prototyp als `80f2808` auf `main` committed/gepusht. Erster
   Weboverlay-CI-Lauf `37154800334` scheiterte an einer nicht abgeschlossenen
   CSP-Zeichenkette in `overlay/app.py`; Syntax korrigiert und CI erfolgreich.
 - Erweiterte Tests prüfen UTF-8-Payloads, API-Feld-Whitelist und parallele HTTP-
@@ -341,7 +341,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Auswahl/Frische/Warnings, 320/390/768/1440 px, hell/dunkel, blockierter Speicher).
   Desktop-/Mobilbilder mit simulierten Werten geprüft, keine Pi-Bestätigung.
   Codeprüfung ergänzt getestetes Präferenz-Neuladen bei Seitencache-Rückkehr;
-  temporäre Auswahl ohne lesbaren Speicher bleibt erhalten. Mario hat PR #33
+  temporäre Auswahl ohne lesbaren Speicher bleibt erhalten. Der Projektinhaber hat PR #33
   als `863c66c` gemergt; echtes Pi-Deployment/Browserprüfung weiterhin offen.
 - Erste Diagramm-Docker-CI `37203503188` für `4edb64f` erfolgreich. Codeprüfung
   ergänzt pro Kurve konservative Same-Second-Unknown-Unterbrechungen (beide
@@ -385,7 +385,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   die Zahl fehlender Hardwaremessungen. Echte Pi-Einrichtung/DB-Empfang offen.
   Vor Deployment konkrete DB-Version, Netzwerke, Accounts/Grants, TLS-Anforderungen
   und vorhandene Backups klären.
-- Mario bestätigt am 2026-10-04 per `docker ps`-Screenshot den laufenden MariaDB-
+- Der Projektinhaber bestätigt am 2026-10-04 per `docker ps`-Screenshot den laufenden MariaDB-
   Container `maria_uno`, Image `mariadb:lts`, Hostport 3306 an IPv4/IPv6 allen
   Schnittstellen. `lts` ist keine konkrete Serverversion; Volume,
   Accounts und tatsächliche Port-Erreichbarkeit/Firewall sind dadurch nicht bestätigt.
@@ -408,13 +408,13 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   CI ist amd64, kein Pi-ARM64-/Adminzugangs-/Deploymentnachweis;
   keine Änderung am Produktionsserver. Loginfreie Version nicht mit `SELECT VERSION()`
   oder bestätigter Admin-Authentifizierung gleichsetzen.
-- Mario meldet am 2026-10-04 **keinen DB-Adminzugang**. Pi-Provisionierung/Migration
+- Der Projektinhaber meldet am 2026-10-04 **keinen DB-Adminzugang**. Pi-Provisionierung/Migration
   bleibt blockiert; vorhandenen berechtigten Betreiber bzw. ursprüngliche lokale
-  Compose-/Env-/Secret-Einrichtung klären. Root-Passwort muss nicht an Mario/Agent
+  Compose-/Env-/Secret-Einrichtung klären. Root-Passwort muss nicht an Projektinhaber/Agent
   gegeben werden: Betreiber kann eigenes EVSE-Schema/least-privilege Accounts
   bereitstellen. Keine weiteren Passwortversuche, Secret-Ausgaben, neue Produktions-
   DB oder Reset ohne separaten Auftrag; gesichertes Recovery wäre eigener Abschnitt.
-- Mario hat MariaDB **nicht selbst eingerichtet**. Bestehenden Einrichter/
+- Der Projektinhaber hat MariaDB **nicht selbst eingerichtet**. Bestehenden Einrichter/
   berechtigten Betreiber um eigenes EVSE-Schema und passende Accounts bitten,
   nicht selbst fremde Credentials auslesen oder Server-Authentifizierung ändern.
   Root ist kein Pflichtaccount: Provisionierung braucht einen DB-Login mit
@@ -502,7 +502,7 @@ berichtete frühere Tests nicht mit aktuell durchgeführten Hardwaretests gleich
 6. Bei jeder Code-, Dokumentations- oder Infrastrukturänderung `CHANGELOG.md`
    mit aktuellem Europe/Vienna-Zeitstempel ergänzen, neueste Einträge oben.
 7. Pull Request erstellen, sofern im Auftrag vorgesehen und Zugriff vorhanden.
-   **Mario führt den Merge selbst durch**, außer er erteilt ausdrücklich eine
+   **Der Projektinhaber führt den Merge selbst durch**, außer er erteilt ausdrücklich eine
    Ausnahme. Commit/Push/PR-Status wahrheitsgemäß berichten.
 
 Historische Commit-/Branch-Angaben aus älteren Zusammenfassungen immer mit Git
@@ -512,6 +512,23 @@ Das ist kein bestätigter aktueller Windows-Buildfehler. Betriebssystem und
 verfügbare Toolchain jeweils prüfen; ohne Buildlauf keinen Build-Erfolg behaupten.
 
 ## Diese Datei regelmäßig aktualisieren
+
+### Datenschutz bei Dokumentation und Änderungen
+
+- Keine persönlichen Namen, SSH-Ziele oder Benutzer-Homepfade in neue Beispiele,
+  Changelog-Einträge oder Berichte übernehmen; Rollen und Platzhalter verwenden.
+- Funktionsrelevante personenbezogene Angaben zuerst melden, nicht ungefragt
+  entfernen/ersetzen. Der persönliche Compilerpfad in
+  `esp32/.vscode/settings.json` bleibt bis zu einer gesonderten Entscheidung
+  unverändert; er betrifft die lokale Editorintegration, nicht die Firmwarelaufzeit.
+- Git-Autor-/Committerdaten, historische Dateien und öffentliche Repository-/CI-
+  Referenzen sind nicht durch eine Bereinigung des aktuellen Dateistands entfernt.
+  Keine Historienumschreibung, Änderung bestehender Commitidentitäten,
+  Secretrotation oder Anpassung von Deployment-/Zugangsdaten ohne gesonderten
+  Auftrag. Neue Bereinigungscommits ohne persönliche Autorenfelder erstellen,
+  ohne globale Git-Konfiguration zu ändern. RFID-UID-Ausgabe ist eine
+  bestehende Laufzeitfunktion; keine echte UID ist im aktuellen Code hinterlegt.
+- Herstellerreferenzen/Urheberhinweise nicht mit privaten Projektdaten verwechseln.
 
 **`AGENTS.md` ist aktiv zu pflegen, kein einmaliger Übergabetext.**
 

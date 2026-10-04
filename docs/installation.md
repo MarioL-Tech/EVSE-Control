@@ -7,8 +7,8 @@ und Erstvorbereitungsreferenz stehen in Abschnitt 8; eine vollständige OS-,
 Docker- oder Broker-Neuinstallation ist damit noch nicht beschrieben.
 
 **Stand:** 2026-10-04. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
-zyklischer Betrieb wurden von Mario bestätigt. Der vorhandene MQTT-Broker ist
-erreichbar; Mario hat auch den Empfang der echten Reader-Messwerte bestätigt.
+zyklischer Betrieb wurden vom Projektinhaber bestätigt. Der vorhandene MQTT-Broker ist
+erreichbar; der Empfang der echten Reader-Messwerte wurde ebenfalls bestätigt.
 Das neue rein lesende Weboverlay ist implementiert, der Browser-/Deploymenttest
 auf dem Pi steht noch aus (Abschnitt 9).
 
@@ -56,7 +56,7 @@ Die Betriebsbefehle laufen **in der SSH-Shell auf dem Pi**, nicht in einem
 Windows-Terminal ohne SSH. Abschnitt 8 kennzeichnet separate Schritte auf dem
 Entwicklungsrechner ausdrücklich. Befehle einzeln einfügen; sichtbarer Zeilenumbruch
 im Terminal darf nicht als zusätzliches Enter übernommen werden. Es gab beim
-Test ein von Mario Windows zugeordnetes Aufrufproblem.
+Test ein vom Projektinhaber Windows zugeordnetes Aufrufproblem.
 
 ### Späterer gemeinsamer Compose-Einstieg (noch nicht umgesetzt)
 
@@ -273,7 +273,7 @@ docker run --rm --network evse-mqtt eclipse-mosquitto:alpine mosquitto_pub -h mq
 
 Der Client läuft nur kurz in Docker und sendet keine Wallbox-Befehle.
 Erwartete Ausgabe enthält `CONNACK (0)` und `PUBACK ... RC:0`.
-Mario hat diese Ausgabe am 2026-10-03 bestätigt: Eine Verbindung und Veröffentlichung
+Der Projektinhaber hat diese Ausgabe am 2026-10-03 bestätigt: Eine Verbindung und Veröffentlichung
 auf `evse/test` ohne Zugangsdaten funktionieren über dieses Netzwerk.
 
 Das bestätigt weder Berechtigungen auf allen Topics noch die Zustellung an einen
@@ -381,7 +381,7 @@ Die GitHub-Docker-CI baut ebenfalls ausschließlich in Docker.
 Bestätigter Lauf [37153110560](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37153110560):
 alle drei Tests und Runtime-Smoke-Test erfolgreich; dies ersetzt keinen Pi-Empfangstest.
 
-**Realer Empfang bestätigt:** Marios Subscriber-Auszug vom 2026-10-03,
+**Realer Empfang bestätigt:** Subscriber-Auszug des Projektinhabers vom 2026-10-03,
 21:03:18–21:03:46 UTC (23:03:18–23:03:46 Europe/Vienna), zeigt 15 erfolgreiche
 Reader-Samples im 2-Sekunden-Takt plus `availability online`. Zustand B1,
 angeschlossen/nicht ladend, Fehlercode 0, Limit 6 A, Ströme/Leistung 0 und
@@ -652,19 +652,21 @@ HTTP-Login und kein TLS in dieser ersten Version: nicht ins Internet freigeben.
 Auf **deinem Rechner**, in einem separaten Terminal, nicht auf dem Pi:
 
 ```bash
-ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.0.1:8080 ml@elke
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.0.1:8080 'BENUTZER@PI-ADRESSE'
 ```
 
-`ml@elke` nur verwenden, wenn es dein bereits funktionierendes SSH-Ziel ist;
-sonst denselben Benutzer und dieselbe Pi-Adresse wie bei deiner üblichen
-SSH-Verbindung über WireGuard einsetzen. Keine neue öffentliche IP/Freigabe
+`BENUTZER@PI-ADRESSE` ist ein Platzhalter: denselben Benutzer und dieselbe
+Pi-Adresse oder deinen vorhandenen SSH-Alias wie bei deiner üblichen
+SSH-Verbindung über WireGuard einsetzen. Das tatsächliche Ziel nur lokal in
+deiner SSH-Konfiguration/privaten Einrichtungsnotiz aufbewahren, nicht im Repository.
+Keine neue öffentliche IP/Freigabe
 einrichten. Terminal offen lassen und im Browser **http://127.0.0.1:8080** öffnen.
 `Ctrl+C` beendet den Tunnel, nicht den Pi-Webdienst oder Reader.
 
 Ist Port 8080 **auf deinem Rechner** belegt, links 8081 wählen:
 
 ```bash
-ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8081:127.0.0.1:8080 ml@elke
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8081:127.0.0.1:8080 'BENUTZER@PI-ADRESSE'
 ```
 
 Dann http://127.0.0.1:8081 öffnen. Ist Port 8080 hingegen **auf dem Pi** belegt,
@@ -786,7 +788,7 @@ geschützte Warnungen/Frische, CSP und blockierter Browserspeicher. Simulierte
 Desktop-/Mobilbilder wurden geprüft; Seitencache-Rückkehr lädt gemeinsame
 Einstellungen neu beziehungsweise bewahrt temporäre Auswahl bei blockiertem
 Speicher. PR-CI `37221004357` ebenfalls erfolgreich. Die echte Pi-Browserprüfung
-bleibt offen. PR #33 wird durch Mario gemergt; danach obige Updatefolge verwenden.
+bleibt offen. PR #33 wurde durch den Projektinhaber gemergt; obige Updatefolge verwenden.
 
 ### Lokale Konfiguration und optionale Zugangsdaten
 
@@ -881,7 +883,7 @@ Die Produktions-Compose startet **keinen DB-Server und keinen Broker**.
 
 ### Bestehende Datenbank prüfen, nicht ersetzen
 
-Mario hat am 2026-10-04 per Containerübersicht bestätigt: **`maria_uno`**, Image
+Der Projektinhaber hat am 2026-10-04 per Containerübersicht bestätigt: **`maria_uno`**, Image
 **`mariadb:lts`**, Hostport 3306 an allen IPv4/IPv6-Schnittstellen. Das ist kein
 Nachweis öffentlicher Erreichbarkeit (Firewall/Netz unbekannt) oder konkreter
 Serverversion. Ein weiterer Screenshot bestätigt ausschließlich Standardnetz
@@ -915,7 +917,7 @@ erstellen/upgraden, nur um die Version herauszufinden. Portbindung ist ein
 separater Sicherheitspunkt: nicht als abgesichert behaupten und nicht ohne
 Auftrag ändern. Collector selbst veröffentlicht keinen Hostport.
 
-Marios Versuch mit `root -p` wurde mit **1045 / Access denied** abgewiesen.
+Der berichtete Versuch mit `root -p` wurde mit **1045 / Access denied** abgewiesen.
 Das beweist weder eine defekte DB noch eindeutig ein falsches Passwort; Account,
 Authentifizierungsart und ursprünglicher Adminzugang müssen geklärt werden.
 DB-Adminpasswort ist nicht automatisch das SSH-Passwort. Keine Passwörter teilen,
@@ -930,7 +932,7 @@ docker inspect --format '{{json .Mounts}}' maria_uno
 Binary-Version ist nicht dieselbe Bestätigung wie `SELECT VERSION()` am laufenden
 Server. Die Mount-Ausgabe liegt nun vor, der sichere Adminzugang weiterhin nicht.
 Früher wurde ein lesender Socket-Login als Diagnose vorgeschlagen; ein Erfolg
-ist nicht bestätigt. **Mario hat keinen autorisierten DB-Adminzugang und hat
+ist nicht bestätigt. **Der Projektinhaber hat keinen autorisierten DB-Adminzugang und hat
 MariaDB nicht eingerichtet: jetzt keine weiteren Loginversuche durchführen.**
 Nur der berechtigte Betreiber kann bei Bedarf und mit gesondertem Auftrag prüfen,
 ob Root per lokalem Unix-Socket authentifiziert ist:
@@ -945,17 +947,17 @@ Einrichtung klären, nicht Passwörter raten oder Env-/Secretwerte teilen.
 Bis sicherer Adminzugang geklärt ist, keine Accounts/Migration oder Server-/
 Netzänderung vornehmen.
 
-**Aktueller Blocker:** Mario hat keinen DB-Adminzugang. Zuerst klären, wer MariaDB
+**Aktueller Blocker:** Der Projektinhaber hat keinen DB-Adminzugang. Zuerst klären, wer MariaDB
 eingerichtet/verwaltet hat. Dieser berechtigte Betreiber kann das eigene EVSE-
 Schema sowie Runtime-/Migrationsaccount wie unten bereitstellen, ohne Root-
 Passwort weiterzugeben. App-Secrets ausschließlich lokal/sicher übergeben.
-Falls Mario die ursprüngliche Einrichtung selbst verwaltet, deren geschützte
+Falls der Projektinhaber die ursprüngliche Einrichtung selbst verwaltet, deren geschützte
 Compose-/Env-/Secret-Dateien nur lokal prüfen, keine Inhalte in Chat/Git/logs teilen.
 Keine weitere Passwortsuche durch Raten, kein Ersatzserver, keine Neuinitialisierung
 des Volumes. Passwort-Recovery/Reset erfordert gesonderten Auftrag, geprüftes Backup,
 Ausfallplanung und Rücksicht auf bestehende DB-Nutzer; ist hier nicht durchgeführt.
 
-Mario hat MariaDB nicht selbst eingerichtet. Daher den bestehenden berechtigten
+Der Projektinhaber hat MariaDB nicht selbst eingerichtet. Daher den bestehenden berechtigten
 Betreiber kontaktieren, statt fremde Einrichtungs-Secrets zu suchen. Root ist
 **kein Pflichtaccount**: ein anderer DB-Login mit den nötigen Account-/Grant-
 Rechten kann provisionieren. SSH-/Dockerrechte geben nicht automatisch SQL-Rechte.
@@ -978,7 +980,7 @@ oder dafür dessen Bindadresse/Firewall ohne Auftrag öffnen.
 Serverversion zusätzlich mit `SELECT VERSION();` im bestehenden DB-Client prüfen.
 CI [37212624186](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37212624186)
 bestätigt je 39 Tests + Runtime unter 10.11.19, exakt **11.8.8** und 11.8.9.
-Der rollende `11.8`-Tag bezeichnet nicht zwingend Marios installierte 11.8.8;
+Der rollende `11.8`-Tag bezeichnet nicht zwingend die bestätigte installierte 11.8.8;
 CI ist amd64 und kein echter Pi-ARM64-/Zugriffstest. Andere Versionen erst prüfen, niemals
 den bestehenden Server/Volumes zum Erfüllen dieser Versionsangabe ersetzen.
 Vor Änderungen bestehende Backup-/Restorefähigkeit klären. Keine globalen
