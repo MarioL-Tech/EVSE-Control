@@ -96,6 +96,7 @@
   if (typeof module !== 'undefined' && module.exports) module.exports = { createViewState, present, flag, TIMEOUT_MS };
   if (typeof document === 'undefined') return;
   const state = createViewState();
+  const charts = window.OverlayCharts.mount();
   let active = null, pollTimer = null;
   function render() {
     const view = state.snapshot();
@@ -106,6 +107,11 @@
     }
     document.getElementById('status').dataset.tone = view.status === 'live' ? 'good' : view.status === 'waiting' ? 'muted' : 'warning';
     document.getElementById('wallbox-error').dataset.tone = view.values && view.values.error_code !== 0 ? 'warning' : 'muted';
+    const warning = document.getElementById('wallbox-warning');
+    const message = view.values && view.values.error_code !== 0 ? `Wallbox meldet Fehlercode ${view.values.error_code}.` : '';
+    warning.hidden = !message;
+    if (warning.textContent !== message) warning.textContent = message;
+    charts.update(view);
   }
   async function poll() {
     if (active || document.hidden) return;

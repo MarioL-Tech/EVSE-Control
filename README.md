@@ -35,7 +35,7 @@ Home Assistant. Ein erstes rein lesendes Weboverlay ist implementiert.
 | UART-Testbrücke | Interaktive Python-Brücke im Docker-Container |
 | Wallbox-Reader | C++17/libmodbus, zyklische FC03-Abfragen, dekodierte Messwerte als JSON |
 | MQTT-Publisher | retained State und Verfügbarkeit mit libmosquitto; vorhandener Broker wird wiederverwendet |
-| Weboverlay | MQTT-Backend und lesende Browseranzeige, blendet veraltete/offline Daten aus |
+| Weboverlay | Lesende MQTT-Anzeige mit wählbaren Messwerten und Browser-Zeitverläufen; Frischeprüfung |
 | Fehlerbehandlung | Timeouts, erneute Verbindung, ungültige Messwerte als `null`, sauberer Shutdown |
 | Softwaretests | Decoder-/JSON-Tests und simulierte RTU-Kommunikation einschließlich Fehlerfällen |
 | Containerbetrieb | Dockerfiles, Compose-Konfigurationen und Startanleitungen vorhanden |
@@ -111,6 +111,10 @@ Auf deinem Rechner: `ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.
 (dein vorhandenes SSH-Ziel verwenden), dann **http://127.0.0.1:8080** öffnen.
 Pi-Port bleibt nur lokal gebunden. Keine Start-/Stop- oder Limitänderung enthalten.
 [Konfiguration und Diagnose](docs/installation.md#9-lesendes-weboverlay).
+
+„Anzeige auswählen“ blendet Messwerte und Kurven einzeln ein/aus. Diagramme
+zeigen bis zu 15 Minuten **seit Seitenöffnung**, kein Datenbankarchiv.
+Auswahl bleibt lokal gespeichert; Neuladen leert die Messwerthistorie.
 
 ## ESP32-UART-Verbindung testen
 

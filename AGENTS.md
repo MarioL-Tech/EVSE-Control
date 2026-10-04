@@ -277,7 +277,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - `/api/state` liefert Messwerte nur bei verbundenem Broker, gültigem Sample,
   `availability online` und Frische (default 10 s). Ungültige/alte/zu weit
   zukünftige Payloads, Readfehler und Offline blenden Werte aus. Browser lässt
-  Werte auch ohne weitere API-Antworten ablaufen. Kein Verlauf/keine Datenbank.
+  Werte auch ohne weitere API-Antworten ablaufen. Kein serverseitiger Verlauf/keine Datenbank.
 - `/healthz` ist HTTP-Liveness, nicht MQTT-Readiness. Brokerausfall startet
   den Webserver nicht neu. Reconnect verwirft alte Availability/Samples.
 - Compose nutzt bestehenden `evse-mqtt`/`mqtt-broker`, Client-ID `evse-weboverlay`
@@ -299,6 +299,27 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - Browser-Codeprüfung: unveränderte Live-Region-Texte werden nicht mehr ständig
   ersetzt; zusätzliche Browser-Regressionen für Timeout/Spätantworten, Visibility/
   Pageshow, Request-Parallelität und Live-Region-Mutationen; erweiterte CI erfolgreich.
+- `static/charts.js`: dependency-freie SVG-Zeitverläufe für die 16 Telemetriewerte,
+  gruppiert nach Einheit, Bool-/Codewerte als Stufen. Nur im geöffneten Browser
+  erfasste Werte im RAM, maximal 15 Minuten/1200 Messzeitpunkte; Zeitfenster 1/5/15
+  Minuten. Kein DB-/MQTT-Verlauf; Neuladen verwirft Daten.
+- Wiederholte API-Samples werden nicht mehrfach gezählt. Bei gleicher Sekunden-
+  Zeitmarke werden geänderte Werte nur ohne Ausfall durch den letzten Wert ersetzt.
+  Offline/Fehler/Unknown erzeugen Lücken, Pausen >10 s werden nicht verbunden;
+  rückwärts springende Browserzeit löscht den Verlauf. Historische Kurven bleiben
+  bei Offline sichtbar und sind ausdrücklich nicht als Live-Anzeige bezeichnet.
+- „Anzeige auswählen“ schaltet Werte und zugehörige Kurven einzeln; Einstellungen
+  lokal im Browser (`evse-display-v1`), keine Messwerte/Credentials im localStorage.
+  Nicht verfügbarer Speicher fällt auf aktuelle Sitzung zurück. Status, Messzeit
+  und aktive Wallbox-Fehlerwarnung bleiben unabhängig von Auswahl sichtbar.
+- Erste Diagramm-Docker-CI `37203503188` für `4edb64f` erfolgreich. Codeprüfung
+  ergänzt pro Kurve konservative Same-Second-Unknown-Unterbrechungen (beide
+  Nachbarsegmente); erweiterte CI `37203627509` erfolgreich. Isolierte Samples
+  bekommen sichtbare Punktmarker; kleine Skalen werden nicht auf 0/0 gerundet.
+  Abschließende CI `37204010318` für `70b21d7` erfolgreich: 21 Python-Tests,
+  27 JS-Tests und beide Chromium-Browsersuiten. Desktop-/Mobil-Diagramme mit
+  simulierten Daten geprüft, echte Pi-Anzeige weiterhin offen. Lokale MCP-
+  Artefakte bleiben außerhalb Git und werden nicht als Projektdaten behandelt.
 
 ## Geplant / noch nicht implementiert
 

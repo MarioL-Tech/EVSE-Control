@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends mosquitto mosqu
 COPY overlay ./overlay
 COPY static ./static
 COPY tests ./tests
-RUN python -m unittest discover -s tests -v && node --test tests/frontend.test.cjs \
+RUN python -m unittest discover -s tests -v && node --test tests/frontend.test.cjs tests/charts.test.cjs \
     && touch /tests-passed
 
 FROM base AS runtime

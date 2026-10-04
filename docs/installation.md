@@ -678,6 +678,67 @@ Eine unterbrochene Verbindung wird nicht zwingend sofort erkannt, aber alte
 Messwerte bleiben nicht unbegrenzt als „aktuell“ sichtbar. Retained MQTT-Werte
 werden nach Backend-Reconnect erst mit beiden Topics und gültiger Frische gezeigt.
 
+### Diagramme und Messwerte auswählen
+
+Unter **„Anzeige auswählen“** jeden der 16 Messwerte einzeln ein-/ausblenden.
+Die Auswahl gilt sowohl für die aktuelle Anzeige als auch für die zugehörige
+Diagrammkurve/Legende. L1/L2/L3 können einzeln gewählt werden; wenn alle Ströme
+oder Spannungen abgewählt sind, verschwindet die entsprechende Tabellenspalte.
+Leere Messwertkarten/Diagramme werden ausgeblendet. Verbindung, Frische, Messzeit
+und aktive Wallbox-Fehlerwarnungen bleiben zur Sicherheit sichtbar.
+
+**„Alle Messwerte anzeigen“** setzt Auswahl und Zeitfenster auf die Defaults
+zurück. Auswahl/Zeitraum werden in diesem Browser im localStorage unter
+`evse-display-v1` gespeichert, weder auf dem Pi noch kontoübergreifend.
+Blockierter/defekter Browserspeicher darf die Anzeige nicht verhindern; dann
+gelten Defaults beziehungsweise die Auswahl der geöffneten Seite. Zum vollständigen
+Zurücksetzen ggf. nur diesen Eintrag in den Browser-Websitedaten löschen.
+Keine Zugangsdaten oder Messwertverläufe werden im localStorage gespeichert.
+
+Zeitverläufe nutzen native SVG, keine zusätzlichen Pakete/CDNs. Zeitfenster
+**1, 5 oder 15 Minuten**, Default 5. Leistung kW, Strom A, Spannung V,
+Sessionenergie kWh; Bool-Zustände zeigen Nein/Ja, unbekannte Zustände Lücken.
+Codes/Rohwerte sind separate Stufendiagramme, keine physikalischen Messgrößen.
+Skalierung erfolgt je Diagramm; Spannungen sind automatisch skaliert, die
+Achsenwerte stehen links. Phasenkurven werden mit Farben und Linienstilen unterschieden.
+
+Der Verlauf beginnt erst mit Öffnen der Seite und liegt ausschließlich im RAM
+des Tabs (maximal 15 Minuten/1200 Zeitpunkte). **Neuladen leert die Daten**, nicht
+die Anzeigeauswahl. Erste Messung: einzelner Punkt; eine Linie entsteht erst
+mit weiteren verschiedenen Zeitmarken. Doppelte API-Antworten erzeugen keine
+zusätzlichen Punkte; gleiche Sekunden-Zeitmarken behalten den zuletzt beobachteten
+Wert, da Schema 1 keine Subsekunden unterscheidet. Kurze Zwischenwerte/Fehler
+zwischen Browserabfragen können fehlen; dies ist kein lückenloses Datenarchiv.
+
+Offline, Lesefehler, ungültige/veraltete Daten, Tabwechsel und unbekannte Werte
+unterbrechen Kurven. Zeitabstände >10 s werden ebenfalls nicht verbunden;
+eine rückwärts springende Browseruhr leert den Verlauf. Nach Wiederverbindung
+werden keine Messungen rückwirkend nachgeladen oder Nullwerte erfunden.
+**Historische Linien bleiben bei Offline sichtbar** und sind ausdrücklich als
+historisch markiert; aktuelle Werte bleiben dann ausgeblendet. Maus über den
+letzten Punkt zeigt dessen Wert/Zeit. Sessionenergie ist je Ladesitzung und
+kann zurückgesetzt werden, nicht der Gesamtverbrauch.
+
+Update der Diagrammversion nach Merge, auf dem Pi:
+
+```bash
+cd ~/EVSE-Control
+git switch main
+git pull --ff-only
+cd rasppi/weboverlay
+docker compose up -d --build
+```
+
+Reader/Broker weiterlaufen lassen. Bestehenden SSH-Tunnel wie oben nutzen und
+die Seite neu laden; bei altem Browsercode notfalls mit Strg+F5 aktualisieren.
+Keine neue Netzwerk-/SSH-Freigabe oder Host-Pakete erforderlich.
+
+Diagramm-CI [37204010318](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37204010318)
+bestätigt 21 Python-/MQTT-/HTTP-Tests, 27 JavaScript-Tests und beide Chromium-
+Browsersuiten (Auswahl, Persistenz, Phasenspalten, mobile SVGs, Ausfalllücken).
+Desktop-/Mobilbilder verwenden simulierte Werte; echten Pi-Empfang/Browserverlauf
+separat prüfen, nicht aus diesen Screenshots ableiten.
+
 ### Lokale Konfiguration und optionale Zugangsdaten
 
 Eigene `.env` unter `rasppi/weboverlay/`, unabhängig von `rasppi/wallbox/.env`:
@@ -736,12 +797,12 @@ Tests unabhängig von Hardware wiederholen, vollständig in Docker:
 ```bash
 docker build --target test -t evse-weboverlay-tests .
 docker run --rm evse-weboverlay-tests python -m unittest discover -s tests -v
-docker run --rm evse-weboverlay-tests node --test tests/frontend.test.cjs
+docker run --rm evse-weboverlay-tests node --test tests/frontend.test.cjs tests/charts.test.cjs
 ```
 
 Update nach Git-Aktualisierung: `docker compose up -d --build`.
 Stoppen: `docker compose down`. Das betrifft nur das Weboverlay, nicht Reader
-oder vorhandenen Broker. Der Dienst speichert keinen Verlauf; nach Neustart
+oder vorhandenen Broker. Der Dienst speichert keinen serverseitigen Verlauf; nach Neustart
 werden neue/retained Nachrichten erneut geprüft. Kein Datenbankdienst enthalten.
 Gunicorn bleibt bei **einem Worker** mit mehreren HTTP-Threads; mehrere Worker
 würden getrennte Snapshots und konkurrierende MQTT-Client-IDs erzeugen.
