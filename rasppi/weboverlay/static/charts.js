@@ -114,17 +114,27 @@
     const x = t => 62 + (t - start) / Math.max(1, end - start) * 420;
     const y = v => 180 - (v - lo) / (hi - lo) * 155;
     const paths = metrics.map(m => {
-      let path = '', previous = null, last = null;
+      let path = '', previous = null, last = null, segmentLast = null, segmentLength = 0;
+      const markers = [];
       for (const p of points) {
         const value = p.values[m.id];
-        if (value === null) { previous = null; continue; }
+        if (value === null) {
+          if (segmentLength === 1) markers.push(segmentLast);
+          previous = null; segmentLength = 0; continue;
+        }
         const px = x(p.t).toFixed(2), py = y(value).toFixed(2);
         const connect = previous && !p.breakBefore && !p.seriesBreak?.[m.id] &&
           !previous.seriesBreak?.[m.id] && p.t - previous.t <= MAX_GAP_MS;
+        if (!connect) {
+          if (segmentLength === 1) markers.push(segmentLast);
+          segmentLength = 1;
+        } else segmentLength++;
         path += !connect ? `M${px},${py}` : group.step ? `H${px}V${py}` : `L${px},${py}`;
-        previous = p; last = { x: px, y: py, value, t: p.t };
+        previous = p; last = { x: px, y: py, value, t: p.t }; segmentLast = last;
       }
-      return { metric: m, path, last };
+      if (segmentLength === 1) markers.push(segmentLast);
+      if (last && !markers.includes(last)) markers.push(last);
+      return { metric: m, path, last, markers };
     });
     return { lo, hi, paths, metrics, count: points.length };
   }
@@ -140,7 +150,8 @@
     let prefs = loadPreferences(storage), lastDraw = 0, lastRevision = -1;
     const controls = document.getElementById('metric-options'), figures = new Map();
     const svgNS = 'http://www.w3.org/2000/svg';
-    const fmt = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2, notation: 'compact' });
+    const fmt = new Intl.NumberFormat('de-DE', { maximumSignificantDigits: 4, notation: 'compact' });
+    const valueFmt = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 3 });
     const timeFmt = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const node = (tag, text, attributes = {}, svg = false) => {
       const element = svg ? document.createElementNS(svgNS, tag) : document.createElement(tag);
@@ -205,10 +216,11 @@
             : METRICS.filter(m => m.group === g.id).findIndex(m => m.id === series.metric.id);
           const css = `series-${color % 4}`;
           svg.append(node('path', null, { d: series.path, class: `chart-line ${css}`, 'data-series': series.metric.id }, true));
-          if (series.last) {
-            const dot = node('circle', null, { cx: series.last.x, cy: series.last.y, r: 3, class: `chart-dot ${css}` }, true);
-            const valueText = g.boolean ? (series.last.value ? 'Ja' : 'Nein') : `${fmt.format(series.last.value)} ${g.unit}`;
-            dot.append(node('title', `${series.metric.label}: ${valueText} · ${timeFmt.format(series.last.t)}`, {}, true));
+          for (const marker of series.markers) {
+            const dot = node('circle', null, { cx: marker.x, cy: marker.y, r: 3, class: `chart-dot ${css}`,
+              'data-series-marker': series.metric.id }, true);
+            const valueText = g.boolean ? (marker.value ? 'Ja' : 'Nein') : `${valueFmt.format(marker.value)} ${g.unit}`;
+            dot.append(node('title', `${series.metric.label}: ${valueText} · ${timeFmt.format(marker.t)}`, {}, true));
             svg.append(dot);
           }
           legend.append(node('li', series.metric.label, { class: css, 'data-legend': series.metric.id }));

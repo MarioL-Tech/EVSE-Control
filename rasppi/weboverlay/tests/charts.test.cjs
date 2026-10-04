@@ -34,6 +34,7 @@ test('offline/recovery gaps cannot be filled by the same cached timestamp', () =
   h.observe(live(epoch + 4000), epoch + 4000);
   const path = plot(h, 'power', epoch + 4000).paths[0].path;
   assert.equal((path.match(/M/g) || []).length, 2); assert(!path.includes('L'));
+  assert.equal(plot(h, 'power', epoch + 4000).paths[0].markers.length, 2);
 });
 test('all nonlive states create gaps, without invented zero measurements', () => {
   for (const status of ['waiting', 'offline', 'stale', 'clock_error', 'invalid', 'read_error']) {
@@ -48,6 +49,7 @@ test('regular samples connect; unknown values and missed intervals break individ
   const h = createHistory();
   h.observe(live(epoch), epoch); h.observe(live(epoch + 2000), epoch + 2000);
   assert(plot(h, 'power', epoch + 2000).paths[0].path.includes('L'));
+  assert.equal(plot(h, 'power', epoch + 2000).paths[0].markers.length, 1);
   h.observe(live(epoch + 4000, { plugged_in: null }), epoch + 4000);
   h.observe(live(epoch + 6000), epoch + 6000);
   const flag = plot(h, 'flags', epoch + 6000).paths.find(p => p.metric.id === 'plugged').path;

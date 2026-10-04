@@ -28,6 +28,8 @@ const fs = require('node:fs');
   try {
     await page.goto(process.env.WEB_TEST_URL || 'http://127.0.0.1:8080');
     await page.waitForFunction(() => document.getElementById('status').textContent === 'Live');
+    const energyAxes = (await page.locator('#chart-energy .chart-axis').allTextContents()).slice(0, 2);
+    assert.notEqual(energyAxes[0], energyAxes[1], 'Small kWh ranges must not round both axes to zero');
     assert.equal(await page.locator('#metric-options input').count(), 16);
     await page.locator('.display-options summary').click();
     const initialColor = await page.locator('[data-series="current-1"]').getAttribute('class');

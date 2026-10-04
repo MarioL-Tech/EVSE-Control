@@ -314,7 +314,9 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   und aktive Wallbox-Fehlerwarnung bleiben unabhängig von Auswahl sichtbar.
 - Erste Diagramm-Docker-CI `37203503188` für `4edb64f` erfolgreich. Codeprüfung
   ergänzt pro Kurve konservative Same-Second-Unknown-Unterbrechungen (beide
-  Nachbarsegmente); erweiterte Regression/erneuter Lauf noch ausstehend.
+  Nachbarsegmente); erweiterte CI `37203627509` erfolgreich. Isolierte Samples
+  bekommen sichtbare Punktmarker; kleine Skalen werden nicht auf 0/0 gerundet.
+  Abschließende Regression/CI für diese Darstellungsgrenzen noch offen.
 
 ## Geplant / noch nicht implementiert
 
