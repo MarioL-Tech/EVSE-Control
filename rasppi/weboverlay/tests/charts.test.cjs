@@ -25,6 +25,17 @@ test('polling a cached timestamp adds no measurements, same-second updates repla
   h.observe(live(epoch, { active_power_w: 8000 }), epoch + 5000);
   assert.equal(h.size, 1); assert.equal(h.window(epoch + 5000, 15)[0].values.power, 8);
 });
+test('page restoration clears measurements, timestamp identity and clock anchors', () => {
+  const h = createHistory();
+  h.observe(live(epoch), epoch); h.observe(live(epoch + 2000), epoch + 2000);
+  const revision = h.revision;
+  h.clear();
+  assert.equal(h.size, 0); assert(h.revision > revision);
+  h.observe(live(epoch), epoch);
+  assert.equal(h.size, 1);
+  const p = plot(h, 'power', epoch);
+  assert(!p.paths[0].path.includes('L')); assert.equal(p.paths[0].markers.length, 1);
+});
 test('offline/recovery gaps cannot be filled by the same cached timestamp', () => {
   const h = createHistory();
   h.observe(live(epoch), epoch);

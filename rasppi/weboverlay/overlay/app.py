@@ -24,6 +24,10 @@ def create_app(config=None, store=None, start_mqtt=True):
     def index():
         return app.send_static_file("index.html")
 
+    @app.get("/diagramme")
+    def diagrams():
+        return app.send_static_file("diagrams.html")
+
     @app.get("/api/state")
     def state():
         return jsonify(store.snapshot())

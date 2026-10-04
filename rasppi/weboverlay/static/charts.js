@@ -61,6 +61,7 @@
     function gap() { if (!broken) { broken = true; revision++; } }
     return {
       gap,
+      clear() { points = []; lastStamp = null; lastClock = null; broken = true; revision++; },
       observe(view, now = Date.now()) {
         if (lastClock !== null && now < lastClock) {
           points = []; lastStamp = null; broken = true; revision++;
@@ -165,20 +166,24 @@
       checkbox.addEventListener('change', () => { prefs.selected[m.id] = checkbox.checked; apply(); });
       label.append(checkbox, node('span', m.label)); controls.append(label);
     }
-    for (const g of GROUPS) {
+    const chartGrid = document.getElementById('chart-grid');
+    for (const g of chartGrid ? GROUPS : []) {
       const figure = node('figure', null, { class: 'card chart-card', id: `chart-${g.id}` });
       figure.append(node('figcaption', `${g.label} · ${g.unit}`));
       const svg = node('svg', null, { viewBox: '0 0 500 225', role: 'img', 'aria-label': g.label }, true);
       const legend = node('ul', null, { class: 'chart-legend', 'aria-label': 'Angezeigte Kurven' });
       const description = node('p', 'Warte auf erste Messwerte.', { class: 'chart-description' });
-      figure.append(svg, legend, description); document.getElementById('chart-grid').append(figure);
+      const grid = ['power', 'current', 'voltage', 'energy'].includes(g.id) ? chartGrid : document.getElementById('chart-diagnostics-grid');
+      figure.append(svg, legend, description); (grid || chartGrid).append(figure);
       figures.set(g.id, { figure, svg, legend, description });
     }
     const range = document.getElementById('chart-range');
-    range.value = String(prefs.minutes);
-    range.addEventListener('change', () => { prefs.minutes = Number(range.value); apply(); });
+    if (range) {
+      range.value = String(prefs.minutes);
+      range.addEventListener('change', () => { prefs.minutes = Number(range.value); apply(); });
+    }
     document.getElementById('reset-display').addEventListener('click', () => {
-      prefs = defaults(); range.value = String(prefs.minutes);
+      prefs = defaults(); if (range) range.value = String(prefs.minutes);
       for (const m of METRICS) document.getElementById(`show-${m.id}`).checked = true;
       apply();
     });
@@ -197,7 +202,7 @@
     }
     function draw(now) {
       const points = history.window(now, prefs.minutes), start = now - prefs.minutes * 60000;
-      for (const g of GROUPS) {
+      for (const g of GROUPS.filter(g => figures.has(g.id))) {
         const { figure, svg, legend, description } = figures.get(g.id);
         const plot = buildPlot(points, g, prefs.selected, start, now);
         figure.hidden = plot.metrics.length === 0;
@@ -232,8 +237,9 @@
     }
     apply();
     return {
+      clear() { history.clear(); lastRevision = -1; draw(Date.now()); },
       update(view, now = Date.now()) {
-        history.observe(view, now);
+        if (figures.size) history.observe(view, now);
         if (history.revision !== lastRevision || now - lastDraw >= 1000 || now < lastDraw) draw(now);
       }
     };

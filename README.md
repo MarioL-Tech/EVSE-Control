@@ -114,9 +114,10 @@ Auf deinem Rechner: `ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.
 Pi-Port bleibt nur lokal gebunden. Keine Start-/Stop- oder Limitänderung enthalten.
 [Konfiguration und Diagnose](docs/installation.md#9-lesendes-weboverlay).
 
-„Anzeige auswählen“ blendet Messwerte und Kurven einzeln ein/aus. Diagramme
-zeigen bis zu 15 Minuten **seit Seitenöffnung**, kein Datenbankarchiv.
-Auswahl bleibt lokal gespeichert; Neuladen leert die Messwerthistorie.
+**Übersicht** zeigt aktuelle Werte; **Diagramme** ist eine eigene Seite
+(`/diagramme`) mit bis zu 15 Minuten **seit Öffnen der Diagrammseite**, kein
+Datenbankarchiv. „Anzeige auswählen“ gilt auf beiden Seiten. Auswahl bleibt
+lokal gespeichert; Neuladen oder Seitenwechsel leert die Messwerthistorie.
 
 ## ESP32-UART-Verbindung testen
 
