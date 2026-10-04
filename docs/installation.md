@@ -762,12 +762,14 @@ Browsersuiten (Auswahl, Persistenz, Phasenspalten, mobile SVGs, Ausfalllücken).
 Desktop-/Mobilbilder verwenden simulierte Werte; echten Pi-Empfang/Browserverlauf
 separat prüfen, nicht aus diesen Screenshots ableiten.
 
-Dashboard-CI [37220017350](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37220017350)
+Abschließende Dashboard-CI [37220843434](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37220843434)
 bestätigt 21 Python-/MQTT-/HTTP- und 28 JavaScript-Tests plus drei Chromium-Suiten:
 beide Seiten in hell/dunkel bei 320/390/768/1440 px, Navigation/Tastatur, Auswahl,
 geschützte Warnungen/Frische, CSP und blockierter Browserspeicher. Simulierte
-Desktop-/Mobilbilder wurden geprüft; nachträgliche Seitencache-Präferenzregression
-wird separat nachgetestet. Die echte Pi-Browserprüfung bleibt offen.
+Desktop-/Mobilbilder wurden geprüft; Seitencache-Rückkehr lädt gemeinsame
+Einstellungen neu beziehungsweise bewahrt temporäre Auswahl bei blockiertem
+Speicher. PR-CI `37221004357` ebenfalls erfolgreich. Die echte Pi-Browserprüfung
+bleibt offen. PR #33 wird durch Mario gemergt; danach obige Updatefolge verwenden.
 
 ### Lokale Konfiguration und optionale Zugangsdaten
 

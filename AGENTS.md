@@ -324,12 +324,14 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - Seitenrendering toleriert fehlende seitenspezifische Felder; Auswahl wird
   auf beiden Seiten unter demselben Schlüssel verwendet. Keine neuen MQTT-
   Clients, SQL-Abfragen, Hardwarebefehle oder Netzwerk-/Portänderungen.
-- Dashboard-CI `37220017350` für `30c1179` erfolgreich: 21 Python-/MQTT-/HTTP-
+- Abschließende Dashboard-CI `37220843434` für `154e7f2` und PR-CI `37221004357`
+  erfolgreich: 21 Python-/MQTT-/HTTP-
   und 28 JS-Tests plus drei Chromium-Suiten (beide Seiten, Navigation/Fokus,
   Auswahl/Frische/Warnings, 320/390/768/1440 px, hell/dunkel, blockierter Speicher).
   Desktop-/Mobilbilder mit simulierten Werten geprüft, keine Pi-Bestätigung.
-  Anschließende Codeprüfung ergänzt Präferenz-Neuladen bei Seitencache-Rückkehr;
-  temporäre Auswahl ohne lesbaren Speicher bleibt erhalten. Abschließende CI folgt.
+  Codeprüfung ergänzt getestetes Präferenz-Neuladen bei Seitencache-Rückkehr;
+  temporäre Auswahl ohne lesbaren Speicher bleibt erhalten. PR #33 erstellt,
+  Merge durch Mario; echtes Pi-Deployment/Browserprüfung weiterhin offen.
 - Erste Diagramm-Docker-CI `37203503188` für `4edb64f` erfolgreich. Codeprüfung
   ergänzt pro Kurve konservative Same-Second-Unknown-Unterbrechungen (beide
   Nachbarsegmente); erweiterte CI `37203627509` erfolgreich. Isolierte Samples
