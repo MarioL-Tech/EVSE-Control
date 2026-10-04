@@ -893,6 +893,32 @@ Einrichtung klären, nicht Passwörter raten oder Env-/Secretwerte teilen.
 Bis sicherer Adminzugang geklärt ist, keine Accounts/Migration oder Server-/
 Netzänderung vornehmen.
 
+**Aktueller Blocker:** Mario hat keinen DB-Adminzugang. Zuerst klären, wer MariaDB
+eingerichtet/verwaltet hat. Dieser berechtigte Betreiber kann das eigene EVSE-
+Schema sowie Runtime-/Migrationsaccount wie unten bereitstellen, ohne Root-
+Passwort weiterzugeben. App-Secrets ausschließlich lokal/sicher übergeben.
+Falls Mario die ursprüngliche Einrichtung selbst verwaltet, deren geschützte
+Compose-/Env-/Secret-Dateien nur lokal prüfen, keine Inhalte in Chat/Git/logs teilen.
+Keine weitere Passwortsuche durch Raten, kein Ersatzserver, keine Neuinitialisierung
+des Volumes. Passwort-Recovery/Reset erfordert gesonderten Auftrag, geprüftes Backup,
+Ausfallplanung und Rücksicht auf bestehende DB-Nutzer; ist hier nicht durchgeführt.
+
+Mario hat MariaDB nicht selbst eingerichtet. Daher den bestehenden berechtigten
+Betreiber kontaktieren, statt fremde Einrichtungs-Secrets zu suchen. Root ist
+**kein Pflichtaccount**: ein anderer DB-Login mit den nötigen Account-/Grant-
+Rechten kann provisionieren. SSH-/Dockerrechte geben nicht automatisch SQL-Rechte.
+Dem Betreiber folgende Anforderung weitergeben (SQL-Beispiele siehe unten):
+
+- Eigenes, noch unbenutztes Schema `evse_control`, UTF-8; keine Grafana-/Fremdtabellen nutzen.
+- `evse_storage`: ausschließlich SELECT/INSERT in diesem Schema für Dauerbetrieb.
+- Separater `evse_migrator`: SELECT/INSERT/CREATE in diesem Schema, nur für explizite
+  Initialisierung. Alternativ führt der Betreiber die initiale Migration selbst aus.
+- Nur App-Accounts/-Secrets sicher lokal bereitstellen, kein Root-Passwort an Agent/Chat.
+- Bestehendes Datenvolume/Backup sichern und den zulässigen lokalen Docker-Zugangsweg klären.
+
+Ohne passenden DB-Zugang bleibt nur das Pi-Deployment blockiert; Entwicklung und
+die isolierten Docker-Tests benötigen keine Produktionsrechte.
+
 Keine komplette `docker inspect`-/Env-Ausgabe teilen: sie kann Credentials enthalten.
 Falls MariaDB nicht als Container läuft, zunächst deren tatsächlichen sicheren
 Zugangsweg klären; keine Container-Aliasbefehle blind auf einen Hostdienst anwenden

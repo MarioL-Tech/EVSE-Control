@@ -380,6 +380,19 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   CI ist amd64, kein Pi-ARM64-/Adminzugangs-/Deploymentnachweis;
   keine Änderung am Produktionsserver. Loginfreie Version nicht mit `SELECT VERSION()`
   oder bestätigter Admin-Authentifizierung gleichsetzen.
+- Mario meldet am 2026-10-04 **keinen DB-Adminzugang**. Pi-Provisionierung/Migration
+  bleibt blockiert; vorhandenen berechtigten Betreiber bzw. ursprüngliche lokale
+  Compose-/Env-/Secret-Einrichtung klären. Root-Passwort muss nicht an Mario/Agent
+  gegeben werden: Betreiber kann eigenes EVSE-Schema/least-privilege Accounts
+  bereitstellen. Keine weiteren Passwortversuche, Secret-Ausgaben, neue Produktions-
+  DB oder Reset ohne separaten Auftrag; gesichertes Recovery wäre eigener Abschnitt.
+- Mario hat MariaDB **nicht selbst eingerichtet**. Bestehenden Einrichter/
+  berechtigten Betreiber um eigenes EVSE-Schema und passende Accounts bitten,
+  nicht selbst fremde Credentials auslesen oder Server-Authentifizierung ändern.
+  Root ist kein Pflichtaccount: Provisionierung braucht einen DB-Login mit
+  CREATE USER/entsprechendem GRANT-Recht, Migration CREATE/SELECT/INSERT nur im
+  eigenen Schema, laufender Collector SELECT/INSERT. SSH-/Dockerzugang allein
+  ersetzt SQL-Rechte nicht. Entwicklung/isolierte Tests können unabhängig weitergehen.
 
 ## Geplant / noch nicht implementiert
 
