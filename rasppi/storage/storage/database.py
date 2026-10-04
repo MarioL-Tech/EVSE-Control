@@ -120,7 +120,7 @@ class Database:
                     sample = item["sample"]
                     columns = "source,payload_sha256,measured_at,received_at,last_success_at,retained,status,communication_error," + ",".join(MEASUREMENT_COLUMNS) + ",payload_json"
                     values = [item["source"], sample["hash"], sample["measured_at"], item["received_at"], sample["last_success_at"],
-                              item["retained"], sample["status"], sample["error"], *sample["columns"], sample["payload"]
+                              item["retained"], sample["status"], sample["error"], *sample["columns"], sample["payload"]]
                     cursor.execute(f"INSERT INTO evse_wallbox_samples ({columns}) VALUES ({','.join(['%s'] * len(values))})", values)
                 else:
                     cursor.execute("INSERT INTO evse_ingest_events (event_id,source,received_at,kind,availability,retained,details_json) VALUES (%s,%s,%s,%s,%s,%s,%s)",
