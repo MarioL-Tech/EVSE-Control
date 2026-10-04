@@ -70,4 +70,7 @@ im isolierten Docker-Netz ohne Hostports/Produktionsnetz; bekannte Dummy-Passwö
 sind nur Testdaten. Das Aufräumen gilt nicht für vorhandene Produktionsdienste.
 Unit-Tests laufen zusätzlich bei jedem Runtime-Image-Build. GitHub-Docker-CI prüft
 SQL/MQTT, eingeschränkte Grants, Retained-/Restart-Deduplizierung, DB-Recovery und
-das gehärtete Runtime-Image. Ausführung für den neuen Dienst noch ausstehend.
+das gehärtete Runtime-Image. CI
+[37209898185](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37209898185)
+für `50794db` erfolgreich: **32 Unit- und 7 Integrationstests** sowie Runtime-Smoke.
+Das bestätigt isolierte Softwaretests, nicht echte Pi-/DB-Einrichtung.

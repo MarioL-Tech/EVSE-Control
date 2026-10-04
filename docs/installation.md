@@ -1083,4 +1083,8 @@ im isolierten Netz ohne Hostports/Produktionsnetze, mit bekannten Dummy-Credenti
 Tests prüfen typed SQL/null, Schema-/Grant-Grenzen, Duplikate/Same-Second/Retained,
 Restart/DB-Recovery und Parameterbindung. Runtime-Image-Build führt Unit-Tests aus;
 GitHub-CI ergänzt diese Integration und non-root/readonly/No-Network-Smoke-Test.
-Erster CI-Lauf und echtes Pi-Deployment/DB-Empfang sind noch offen.
+CI [37209898185](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37209898185)
+für `50794db` bestanden: **32 Unit- und 7 SQL/MQTT-Integrationstests**, eingeschränkte
+Grants/Schemaverifikation, Retained-/Restart-Deduplizierung, DB-Recovery und
+gehärteter Runtime-Smoke. Keine Produktionsverbindung. **Echtes Pi-Deployment/
+DB-Empfang weiterhin offen**; vorhandene MariaDB-Konfiguration erst bestätigen.

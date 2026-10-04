@@ -11,7 +11,7 @@ Weboverlay und MQTT-Wallbox-Zustandsspeicherung für MariaDB sind implementiert.
 > **Entwicklungsstand:** Der Wallbox-Dienst ist ausschließlich lesend.
 > MQTT-Empfang echter Wallboxdaten am Pi ist bestätigt. Das neue lesende
 > Weboverlay ist implementiert; Pi-Browser-/Deploymenttest steht noch aus.
-> MariaDB-Speicherdienst implementiert; Tests/Pi-Konfiguration noch offen.
+> MariaDB-Speicherdienst implementiert und Docker-getestet; Pi-Konfiguration offen.
 > Reale Ladesteuerung und bedienende Funktionen fehlen noch.
 > Ein Docker-Einmaltest mit FC03 an der realen Wallbox wurde
 > bestätigt; Dauerbetrieb und weitere Hardwarevalidierung stehen noch aus.
@@ -153,6 +153,7 @@ CHANGELOG.md             Änderungsverlauf
 - [MQTT-Topics, Payloads und Verfügbarkeit](docs/mqtt-protocol.md)
 - [Wallbox-Dienst und Docker-Betrieb](rasppi/wallbox/README.md)
 - [Lesendes Weboverlay](rasppi/weboverlay/README.md)
+- [MQTT-MariaDB-Speicherung](rasppi/storage/README.md)
 - [Wallbox-Handbücher und Registerreferenzen](docs/wallbox/)
 - [DTSU666-Handbuch](docs/smartmeter/)
 - [Projektkontext für Agents](AGENTS.md) und [Changelog](CHANGELOG.md)

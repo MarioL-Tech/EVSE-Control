@@ -349,9 +349,12 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   bei Crash/Restart verloren. Startup-/Gap-Ereignisse markieren unbekannte Abdeckung.
   Keine automatische Aufbewahrungs-/Backup-Policy, RFID/UART/DTSU666 oder SQL-
   Diagrammanbindung. Der Browserverlauf bleibt unverändert im Tab-RAM.
-- Erste Docker-CI `37208830988` für `ab7f656` erfolgreich: isolierte MariaDB-10.11-/
-  MQTT-Integration und gehärtete Runtime. Zusätzliche Secretdatei-Regression/finaler
-  Lauf folgt; konfigurierte leere/zu große Dateien müssen fail-closed bleiben.
+- Docker-CI `37209898185` für `50794db` erfolgreich: 32 Unit- und 7 isolierte
+  MariaDB-10.11-/MQTT-Integrationstests sowie non-root/readonly Runtime-Smoke ohne DB.
+  Prüft auch defekte bereits registrierte Schemas, eingeschränkte Runtime-Grants,
+  Retained/Restart-Deduplizierung, DB-Recovery, ACK-MID-Eigentum und fail-closed
+  Secretdateien. Gap-`dropped` zählt Records inklusive Collectorereignisse, nicht
+  die Zahl fehlender Hardwaremessungen. Echte Pi-Einrichtung/DB-Empfang offen.
   Vor Deployment DB-Version/Container, Netzwerke, Accounts/Grants, TLS-Anforderungen
   und vorhandene Backups klären; bisher nur Existenz der MariaDB bestätigt.
 
