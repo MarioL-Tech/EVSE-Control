@@ -86,4 +86,4 @@ Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 ## 2026-02-02
 
 - **23:31** — Trial reading data ESP32 ↔ Raspi (initial UART attempt).
-- **21:46** — Repo repaired, cleanup of initial commits.
+- **21:46** — Repo repaired, cleanup of initial commits
