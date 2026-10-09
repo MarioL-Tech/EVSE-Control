@@ -4,6 +4,10 @@ All notable changes to the EVSE-Control project. This file is **actively maintai
 
 Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
+## 2026-10-09
+
+- **19:07** — **Docs: Oberflächenplanung aktualisiert** — Eigene Home-Assistant-Integration/Modul aus dem Projektumfang genommen; späteren Websiteumbau und anschließend eine Smartphone-WebApp als noch nicht umgesetzte Ziele mit offenen Details aufgenommen. AGENTS, Projekteinstieg, Dienst-Dokumentation, Installationsguide und Protokollverweise abgeglichen. Bestehende responsive Browseranzeige ist nicht als fertige WebApp zu behandeln. Keine Änderungen an Laufzeitcode, Compose, Hardware, Netzwerk oder laufenden Diensten; Umsetzung erst mit gesondertem Auftrag. Historische Changelog-Einträge bleiben unverändert.
+
 ## 2026-10-04
 
 - **23:22** — **Docs: ESP32-Abschlussprüfung und Buildformulierung präzisiert** — Push-/PR-CI 37235712619/37235716130 für 0b1aab7 erneut vollständig erfolgreich. Rein sprachliche Korrektur im Docker-Buildabschnitt des Installationsguides; Laufzeitcode unverändert. PR #35 bleibt offen, Firmware ungeflasht und Hardwaretest ausstehend.

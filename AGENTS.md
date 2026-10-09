@@ -1,6 +1,6 @@
 # Arbeitskontext für Agents: EVSE-Control
 
-Stand: 2026-10-04. Diese Datei beschreibt den geprüften Repositoryzustand und
+Stand: 2026-10-09. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
@@ -12,11 +12,20 @@ Repository: https://github.com/MarioL-Tech/EVSE-Control
 
 Geplant sind Ladefreigabe und Ladestatus, Erkennung eines angeschlossenen
 Fahrzeugs, Energie- und Strommesswerte, Regelung nach verfügbarer Leistung und
-Dringlichkeit, Datenbank, Weboverlay sowie eine eigene Home-Assistant-Integration.
+Dringlichkeit, Datenbank und Bedienung über die Website.
 Der modulare Aufbau mit Docker-Compose-Komponenten ist ein erklärtes Projektziel.
 Festgelegt ist ein gemeinsamer Compose-Einstieg für mehrere spezialisierte
 Container. Detailaufteilung und Zusammenführung der heutigen Compose-Dateien
 sind noch umzusetzen; diese Umstellung ist ausdrücklich erst später gewünscht.
+
+**Aktualisierte Oberflächenplanung:** Es wird kein eigenes Home-Assistant-Modul
+und keine eigene Home-Assistant-Integration entwickelt. Die Website soll später
+umgebaut werden; danach ist eine Smartphone-WebApp vorgesehen. Funktionsumfang,
+Gestaltung, Technologie und Zusammenspiel der Oberflächen sind noch festzulegen.
+Die vorhandene responsive, rein lesende Browseranzeige ist nicht als bereits
+umgesetzte Smartphone-WebApp zu behandeln. Diese Planungsänderung verändert
+weder Laufzeitcode noch Dienste; Umbau und WebApp werden erst mit gesondertem
+Umsetzungsauftrag begonnen.
 
 ### Konkretisierte Anforderungen (Umsetzungsstand siehe unten)
 
@@ -24,7 +33,8 @@ sind noch umzusetzen; diese Umstellung ist ausdrücklich erst später gewünscht
   und den Ladevorgang steuern. Abfrageintervalle und Fehlerbehandlung sind noch
   festzulegen; die Modbus-Timeout-Grenzen beachten.
 - System- und Ladezustände in einer Datenbank sichern.
-- Home-Assistant-Integration und Weboverlay zur Bedienung bereitstellen.
+- Website zur Bedienung bereitstellen; späterer Websiteumbau und anschließend
+  eine Smartphone-WebApp sind geplant, Details noch offen.
 - Übergeordnete Softwarekommunikation über MQTT mit **demselben Message Broker**
   für alle beteiligten Dienste; Hardwareanbindungen siehe Architekturabschnitt.
 - Dienste modular mit Docker Compose betreiben.
@@ -33,7 +43,8 @@ sind noch umzusetzen; diese Umstellung ist ausdrücklich erst später gewünscht
   Compiler, CMake, Python-/pip-Paketen, libmodbus, mbpoll oder Mosquitto empfehlen
   oder durchführen. Docker Engine und Compose sind bestehende Voraussetzungen.
 
-Home Assistant und Weboverlay sollen folgende Funktionen anbieten:
+Für die bedienende Website sind folgende Funktionen vorgesehen; die genaue
+Übernahme in die spätere Smartphone-WebApp ist noch abzustimmen:
 
 - **Bedienung:** AN-/AUS-Button für die Ladefreigabe.
 - **Anzeigen:** vorhandener/verfügbarer Strom, tatsächlicher Ladestrom,
@@ -96,7 +107,7 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
                          +-- Wallbox-MQTT -> vorhandener Broker
                          |                   -> Weboverlay (lesend)
                          |                   -> Speichercollector -> vorhandene MariaDB
-                         |                   -> HA / weitere Dienste (geplant)
+                         |                   -> weitere Dienste (geplant)
                          +-- UART-MQTT-Gateway (geplant)
                          +-- DTSU666-Messwerterfassung (geplant)
 ```
@@ -224,7 +235,7 @@ Zeilenbasiertes ASCII-Protokoll mit Newline; dokumentiert in
 ASCII-Frames maximal 192 Bytes, LF/CRLF, absolute 2-s-Frist; ungültige/abgelaufene
 Frames bis LF verwerfen, pro Loop maximal 64 Bytes/ein Befehl. Keine Protokoll-
 authentifizierung: physischer UART vertraut dem Pi. Kein anonymes MQTT-/HTTP-
-Management; spätere Gateway/HA/Overlay-Bedienung separat geschützt implementieren.
+Management; spätere Gateway-/Webbedienung separat geschützt implementieren.
 Die Schreibweise mit `|` oben bezeichnet Alternativen, keine wörtlichen Nachrichten.
 `CMD:STATUS` meldet drei Statuszeilen. Zustandsänderungen und Bootzustände werden
 gemeldet. Das Pi-Skript druckt empfangene Zeilen und übersetzt interaktive
@@ -476,9 +487,11 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   anschließende Pi-Modbus-Steuerung der ABB Terra AC.
 - DTSU666-Messwerterfassung und Berechnung verfügbarer Ladeleistung.
 - UART-MQTT-Gateway und dessen Topic-/Payload-Vertrag. Wallbox-Telemetrie ist definiert.
-- Home-Assistant-Integration, bedienendes Weboverlay (inklusive modularer Wallbox-
-  Einrichtungsfunktion), SQL-Historienabfrage/-Diagrammanbindung und weitere
-  Datenmodelle für Ladesessions, UART/RFID und Zählerdaten.
+- Späterer Websiteumbau und anschließend Smartphone-WebApp; Anforderungen,
+  Gestaltung und technische Umsetzung noch offen. Kein Home-Assistant-Modul.
+- Bedienende Website (inklusive modularer Wallbox-Einrichtungsfunktion),
+  SQL-Historienabfrage/-Diagrammanbindung und weitere Datenmodelle für
+  Ladesessions, UART/RFID und Zählerdaten.
 - Ladeautomatisierung nach verfügbarer Leistung und Dringlichkeit.
 - Gemeinsamer Compose-Einstieg für getrennte modulare Pi-Projektdienste,
   erst später umzusetzen. Konkrete Dienste/Startabhängigkeiten und kontrollierte
@@ -486,7 +499,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   bleibt extern. Kein Container-Orchestrator im Projekt und kein Docker-Socket-
   Zugriff für den fachlichen Ladecontroller.
 - Tatsächliches ESP32-Flashen und Hardware-/Fehlerfallprüfung der neuen
-  RFID-Allowlist/Persistenz/LEDC-Startreihenfolge; geschützte HA-/Overlay-Konfiguration
+  RFID-Allowlist/Persistenz/LEDC-Startreihenfolge; geschützte Webkonfiguration
   über das weiterhin geplante UART-MQTT-Gateway.
 - Anforderungen mit dem Lehrer sowie Diplomarbeitsanmeldung abstimmen.
 
