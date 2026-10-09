@@ -6,11 +6,17 @@ werden. Die Betriebsschritte setzen einen vorbereiteten Pi voraus. Hardware-
 und Erstvorbereitungsreferenz stehen in Abschnitt 8; eine vollständige OS-,
 Docker- oder Broker-Neuinstallation ist damit noch nicht beschrieben.
 
-**Stand:** 2026-10-04. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
+**Stand:** 2026-10-09. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
 zyklischer Betrieb wurden vom Projektinhaber bestätigt. Der vorhandene MQTT-Broker ist
 erreichbar; der Empfang der echten Reader-Messwerte wurde ebenfalls bestätigt.
 Das neue rein lesende Weboverlay ist implementiert, der Browser-/Deploymenttest
 auf dem Pi steht noch aus (Abschnitt 9).
+
+**Planungsänderung:** Kein eigenes Home-Assistant-Modul. Die Website soll später
+umgebaut werden; anschließend ist eine Smartphone-WebApp vorgesehen. Details
+sind noch offen, beide Vorhaben noch nicht umgesetzt. Die aktuelle Browseranzeige
+und ihre Startbefehle bleiben unverändert; es gibt dafür keine neuen
+Installationsschritte oder Netzwerkfreigaben.
 
 ## Inhalt
 
@@ -387,8 +393,8 @@ Reader-Samples im 2-Sekunden-Takt plus `availability online`. Zustand B1,
 angeschlossen/nicht ladend, Fehlercode 0, Limit 6 A, Ströme/Leistung 0 und
 Spannungen ungefähr 233–236 V. Das bestätigt Wallbox → Reader → vorhandener
 Broker → Subscriber, nicht Langzeitstabilität oder Ausfallverhalten am Pi.
-Weboverlay siehe Abschnitt 9, MariaDB-Speicherung Abschnitt 10; Home Assistant, UART-MQTT-Bridge und
-Ladesteuerung bleiben geplant.
+Weboverlay siehe Abschnitt 9, MariaDB-Speicherung Abschnitt 10;
+UART-MQTT-Bridge und Ladesteuerung bleiben geplant.
 
 ## 6. Optionale ESP32-UART-Testbrücke
 
@@ -422,7 +428,7 @@ UART bleibt 115200/8N1 mit denselben Pins. Die Python-Brücke ist unverändert:
 Managementbefehle unten als rohe Zeilen eingeben. Physischer UART und Pi bilden
 die Vertrauensgrenze; ein bösartiger Pi kann Karten aufnehmen/Bootpolicy ändern.
 Keine Anbindung an anonyme MQTT-Befehlstopics oder aktuelle lesende HTTP-Controls.
-Gateway/HA/GUI-Steuerung sind geplant und benötigen später geschützte,
+Gateway und Webbedienung sind geplant und benötigen später geschützte,
 authentifizierte, autorisierte Weiterleitung.
 
 Bei neuem Erststart mit leerem NVS und bereits lauschender Brücke erwartet:

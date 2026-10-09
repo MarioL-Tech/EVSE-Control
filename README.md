@@ -5,14 +5,18 @@ Ladestation** mit Raspberry Pi, ESP32 und RFID-basierter Diebstahlsicherung.
 
 Der Raspberry Pi liest eine ABB Terra AC über Modbus RTU aus. Der ESP32
 übernimmt RFID und einen separaten Servo als Modell der Diebstahlsicherung.
-Geplant sind Ladeautomatisierung und Bedienung über Home Assistant. Ein lesendes
+Geplant sind Ladeautomatisierung und Bedienung über die Website. Ein lesendes
 Weboverlay und MQTT-Wallbox-Zustandsspeicherung für MariaDB sind implementiert.
+Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die Website soll später
+umgebaut werden; anschließend ist eine Smartphone-WebApp geplant. Umfang,
+Gestaltung und technische Umsetzung sind noch offen, derzeit keine Umsetzung.
 
 > **Entwicklungsstand:** Der Wallbox-Dienst ist ausschließlich lesend.
 > MQTT-Empfang echter Wallboxdaten am Pi ist bestätigt. Das neue lesende
 > Weboverlay ist implementiert; Pi-Browser-/Deploymenttest steht noch aus.
 > MariaDB-Speicherdienst implementiert und Docker-getestet; Pi-Konfiguration offen.
-> Reale Ladesteuerung und bedienende HA-/Webfunktionen fehlen noch.
+> Reale Ladesteuerung und bedienende Webfunktionen fehlen noch.
+> Websiteumbau und Smartphone-WebApp sind noch nicht umgesetzt.
 > ESP32-Whitelist und persistierter Startmodus ersetzen den bisherigen
 > UART-Kommunikationstest; neue Firmware noch ungeflasht und hardwareunverifiziert.
 > Ein Docker-Einmaltest mit FC03 an der realen Wallbox wurde
@@ -23,9 +27,12 @@ Weboverlay und MQTT-Wallbox-Zustandsspeicherung für MariaDB sind implementiert.
 - Ladezustand durch zyklische Abfragen erkennen („Repeating Request“).
 - Laden starten/stoppen und nach verfügbarem Strom sowie Dringlichkeit regeln.
 - System- und Ladezustände in einer Datenbank speichern.
-- Home-Assistant-Integration und Weboverlay mit AN/AUS, verfügbarem Strom,
+- Website mit AN/AUS, verfügbarem Strom,
   Ladestrom, Fahrzeuganschluss und tatsächlichem Ladestatus bereitstellen.
 - Weboverlay um eine modulare Einrichtung mit Wallbox-Befehlseingabe erweitern.
+- Website später umbauen und anschließend eine Smartphone-WebApp entwickeln;
+  Details noch festzulegen. Die bestehende mobile Browseransicht ist nicht
+  bereits die geplante WebApp.
 - Übergeordnete Softwarekommunikation über MQTT mit **einem gemeinsamen Broker**.
 - Pi-Dienste modular und ausschließlich über Docker Compose betreiben;
   später ein gemeinsamer Start-/Stop-Befehl für mehrere spezialisierte Container.
@@ -76,7 +83,6 @@ Raspberry Pi — lokale Hardwareanbindung, Dienste in Docker
         +-- DTSU666-Messwerterfassung                    [geplant]
         |
         +-- Wallbox-MQTT --> vorhandener gemeinsamer Message Broker
-                              |-- Home Assistant      [geplant]
                               |-- Weboverlay          [lesend]
                               +-- Speicherdienst --> vorhandene MariaDB
         +-- ESP32-UART-MQTT-Gateway                    [geplant]

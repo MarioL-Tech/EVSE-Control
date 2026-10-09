@@ -3,7 +3,8 @@
 Der Reader veröffentlicht Messwerte über den vorhandenen Broker. Er empfängt
 **keine Steuerbefehle**. Das [lesende Weboverlay](../rasppi/weboverlay/README.md)
 abonniert beide Topics; der [MariaDB-Collector](../rasppi/storage/README.md) archiviert
-sie unabhängig davon. ESP32-UART-Gateway und Home Assistant folgen separat.
+sie unabhängig davon. Das ESP32-UART-Gateway bleibt separat geplant;
+ein eigenes Home-Assistant-Modul ist nicht mehr vorgesehen.
 Topic-Präfix standardmäßig `evse/wallbox`, konfigurierbar.
 
 | Topic | Payload | QoS | Retained |
