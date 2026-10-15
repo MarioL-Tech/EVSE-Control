@@ -4,6 +4,10 @@ All notable changes to the EVSE-Control project. This file is **actively maintai
 
 Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
+## 2026-10-15
+
+- **15:25** — **Docs: Drei spätere Lademodi als Anforderungen ergänzt** — „Laden wenn Solarstrom“, „Laden ohne Solarstrom“ und „Benutzerdefiniert“ in AGENTS, README und Installationsguide als noch nicht implementiert festgehalten. Solar-Messquelle, PV-Überschussregel, Schwellwerte, Ausfallverhalten, benutzerdefinierte Vorgaben und Moduswechsel bleiben zu klären. Keine Ladesteuerung, Bedienfunktion, Compose-/Hardware- oder Deploymentänderung.
+
 ## 2026-10-04
 
 - **23:22** — **Docs: ESP32-Abschlussprüfung und Buildformulierung präzisiert** — Push-/PR-CI 37235712619/37235716130 für 0b1aab7 erneut vollständig erfolgreich. Rein sprachliche Korrektur im Docker-Buildabschnitt des Installationsguides; Laufzeitcode unverändert. PR #35 bleibt offen, Firmware ungeflasht und Hardwaretest ausstehend.

@@ -6,7 +6,7 @@ werden. Die Betriebsschritte setzen einen vorbereiteten Pi voraus. Hardware-
 und Erstvorbereitungsreferenz stehen in Abschnitt 8; eine vollständige OS-,
 Docker- oder Broker-Neuinstallation ist damit noch nicht beschrieben.
 
-**Stand:** 2026-10-04. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
+**Stand:** 2026-10-15. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
 zyklischer Betrieb wurden vom Projektinhaber bestätigt. Der vorhandene MQTT-Broker ist
 erreichbar; der Empfang der echten Reader-Messwerte wurde ebenfalls bestätigt.
 Das neue rein lesende Weboverlay ist implementiert, der Browser-/Deploymenttest
@@ -73,6 +73,16 @@ Vorhandener Broker, MariaDB und andere fremde Dienste bleiben außerhalb des
 Projektstacks; gemeinsames Stoppen darf diese Infrastruktur nicht beenden.
 Kontrollierte Übernahme der bisherigen Stacks, Hardwareport-Eigentum, externe
 Netzwerke, Secrets und Startabhängigkeiten werden erst bei Umsetzung dokumentiert.
+
+### Spätere Lademodi (noch nicht einrichtbar)
+
+Geplant sind **Laden wenn Solarstrom**, **Laden ohne Solarstrom** und
+**Benutzerdefiniert**. Die Modi sind noch nicht implementiert; aktuell gibt es
+weder Modusauswahl noch zugehörige Konfigurationsschritte oder Steuerbefehle.
+Solar-Messquelle/-Messpunkt, PV-Überschussregel, Schwellwerte, Ausfallverhalten,
+benutzerdefinierte Vorgaben und Moduswechsel sind noch zu klären.
+Die heutigen lesenden Dienste und Startbefehle bleiben unverändert. Sobald die
+Modi umgesetzt werden, ihre Einrichtung und Bedienung hier dokumentieren.
 
 ## 2. Repository bereitstellen und Stand notieren
 
