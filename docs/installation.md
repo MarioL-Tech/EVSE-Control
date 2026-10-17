@@ -729,7 +729,15 @@ Klemmen/Verdrahtung mit dem Terra-AC-Installationshandbuch abgleichen. In
 57600 Baud, Even-Parität, 8 Datenbits, 1 Stoppbit, Slave-ID 9.
 
 `/dev/ttyUSBEVSEcontrol` ist der bestehende udev-Symlink; Rohgerät häufig
-`/dev/ttyUSB0`. Konkrete udev-Regel ist noch nicht als Neuinstallation dokumentiert.
+`/dev/ttyUSB0`. Ein Symlink kann über eine udev-Regel erzeugt werden. Die 
+USB-Ports sind am RP physisch eindeutig mit einer USB-ID zuordenbar:
+
+```bash
+cat << EOF >> /etc/udev/rules.d/99-setUSBNames.rules
+ACTION=="add", SUBSYSTEMS=="usb", KERNELS=="1-1", SYMLINK+="ttyUSBEVSEcontrol"
+EOF
+```
+
 Docker-Test und Betrieb stehen einmalig in [Abschnitt 3](#3-wallbox-reader-bauen-und-einmal-testen).
 
 ### Optionale Einzelabfrage mit mbpoll im Diagnosecontainer
