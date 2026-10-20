@@ -1,6 +1,6 @@
 # Arbeitskontext für Agents: EVSE-Control
 
-Stand: 2026-10-04. Diese Datei beschreibt den geprüften Repositoryzustand und
+Stand: 2026-10-15. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
@@ -42,6 +42,21 @@ Home Assistant und Weboverlay sollen folgende Funktionen anbieten:
 - **Automationen:** Laden abhängig vom verfügbaren Strom sowie von einer
   festgelegten Dringlichkeit. Messpunkt/Einheiten des verfügbaren Stroms und
   Definition der Dringlichkeit sind noch zu präzisieren.
+
+### Geplante Lademodi (noch nicht implementiert)
+
+Für die spätere Ladesteuerung sind drei Modi vorgesehen:
+
+1. **Laden wenn Solarstrom**: Laden abhängig von verfügbarem Solarstrom.
+2. **Laden ohne Solarstrom**: Laden soll auch ohne verfügbaren Solarstrom möglich sein.
+3. **Benutzerdefiniert**: Laden nach benutzerdefinierten Vorgaben; deren Umfang ist noch offen.
+
+Noch zu klären sind Datenquelle und Messpunkt für Solarstrom, ob Modus 1 nur
+PV-Überschuss nutzen soll, Schwellwerte und Verhalten bei fehlenden/veralteten
+Messwerten sowie die konfigurierbaren Regeln des benutzerdefinierten Modus.
+Standardmodus, Moduswechsel und Zusammenspiel mit Ladefreigabe, verfügbarem
+Strom und Dringlichkeit sind ebenfalls noch festzulegen. Die Modi ändern keine
+Geräte-/Sicherheitsgrenzen und sind keine bereits verfügbaren Bedienfunktionen.
 
 Zusätzlich soll das Weboverlay eine **modulare Einrichtungsfunktion mit
 Befehlseingabe für Wallboxbefehle** anbieten. Befehlsformat, Validierung und
@@ -479,7 +494,9 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - Home-Assistant-Integration, bedienendes Weboverlay (inklusive modularer Wallbox-
   Einrichtungsfunktion), SQL-Historienabfrage/-Diagrammanbindung und weitere
   Datenmodelle für Ladesessions, UART/RFID und Zählerdaten.
-- Ladeautomatisierung nach verfügbarer Leistung und Dringlichkeit.
+- Ladeautomatisierung nach verfügbarer Leistung und Dringlichkeit mit den drei
+  geplanten Modi „Laden wenn Solarstrom“, „Laden ohne Solarstrom“ und
+  „Benutzerdefiniert“; Detailregeln siehe Anforderungen oben.
 - Gemeinsamer Compose-Einstieg für getrennte modulare Pi-Projektdienste,
   erst später umzusetzen. Konkrete Dienste/Startabhängigkeiten und kontrollierte
   Migration der bisherigen Einzel-Stacks noch offen; bestehende Infrastruktur
