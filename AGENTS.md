@@ -1,6 +1,6 @@
 # Arbeitskontext für Agents: EVSE-Control
 
-Stand: 2026-10-15. Diese Datei beschreibt den geprüften Repositoryzustand und
+Stand: 2026-10-24. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
@@ -565,6 +565,14 @@ berichtete frühere Tests nicht mit aktuell durchgeführten Hardwaretests gleich
 3. Änderungen auf einem Feature-Branch, nicht direkt auf `main`, durchführen.
 4. Nur beabsichtigte Dateien committen; keine Secrets, generierten Dateien
    oder fremden Änderungen aufnehmen.
+   Neue Commits immer unter der persönlichen, vom Projektinhaber verwendeten
+   Git-Identität erstellen, auch bei Agent-Unterstützung und Bereinigungen.
+   Keine Ersatzautoren wie `EVSE-Control-AGENT`, `EVSE-Control Agent` oder
+   `EVSE-Control` und keine erfundenen Automationsadressen verwenden.
+   Vor jedem Commit `git var GIT_AUTHOR_IDENT` und `git var GIT_COMMITTER_IDENT`
+   prüfen; bei fehlender oder unklarer Identität nachfragen statt raten.
+   Einstellungen nur repositorylokal setzen, globale Git-Konfiguration nicht
+   ändern. Abweichende Autor-/Committer-Overrides nicht verwenden.
 5. Relevante Tests/Builds und Dokumentation prüfen; nicht ausgeführte oder
    hardwareabhängige Prüfungen ausdrücklich benennen.
 6. Bei jeder Code-, Dokumentations- oder Infrastrukturänderung `CHANGELOG.md`
@@ -593,8 +601,10 @@ verfügbare Toolchain jeweils prüfen; ohne Buildlauf keinen Build-Erfolg behaup
   Referenzen sind nicht durch eine Bereinigung des aktuellen Dateistands entfernt.
   Keine Historienumschreibung, Änderung bestehender Commitidentitäten,
   Secretrotation oder Anpassung von Deployment-/Zugangsdaten ohne gesonderten
-  Auftrag. Neue Bereinigungscommits ohne persönliche Autorenfelder erstellen,
-  ohne globale Git-Konfiguration zu ändern. RFID-UID-Ausgabe erfolgt nur zur
+  Auftrag. Neue Bereinigungscommits ebenfalls unter der persönlichen
+  Git-Identität des Projektinhabers erstellen (siehe Entwicklungsablauf);
+  die frühere Vorgabe anonymisierter Autoren gilt nicht mehr.
+  RFID-UID-Ausgabe erfolgt nur zur
   bewussten Aufnahme am Pi-UART, USB redigiert. Keine echte UID in Code, Chat,
   CI oder Repository hinterlegen; nur private lokale Notiz für Widerruf.
 - Herstellerreferenzen/Urheberhinweise nicht mit privaten Projektdaten verwechseln.
