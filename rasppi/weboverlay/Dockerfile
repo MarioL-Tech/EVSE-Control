@@ -1,25 +1,49 @@
-FROM python:3.12-slim-bookworm AS base
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+FROM composer:2.8 AS composer
+
+FROM php:8.4-apache-bookworm AS base
+ENV EVSE_HTTP_PORT=8080
 WORKDIR /app
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN docker-php-ext-install pcntl
+COPY docker/apache.conf /etc/apache2/apache2.conf
+COPY docker/php.ini /usr/local/etc/php/conf.d/evse.ini
+
+FROM base AS dependencies
+COPY --from=composer /usr/bin/composer /usr/local/bin/composer
+COPY composer.json composer.lock ./
+RUN apt-get update && apt-get install -y --no-install-recommends unzip \
+    && rm -rf /var/lib/apt/lists/* \
+    && composer validate --no-check-publish \
+    && composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
 
 FROM base AS test
 RUN apt-get update && apt-get install -y --no-install-recommends mosquitto mosquitto-clients nodejs \
     && rm -rf /var/lib/apt/lists/*
-COPY overlay ./overlay
+COPY --from=dependencies /app/vendor ./vendor
+COPY --from=dependencies /app/composer.lock ./composer.lock
+COPY php ./php
+COPY public ./public
+COPY docker ./docker
 COPY static ./static
 COPY tests ./tests
-RUN python -m unittest discover -s tests -v && node --test tests/frontend.test.cjs tests/charts.test.cjs \
-    && touch /tests-passed
+RUN chmod +x docker/entrypoint.sh
+USER 10001:10001
+RUN find php public docker tests -name '*.php' -print0 | xargs -0 -n1 php -l \
+    && apache2 -t \
+    && php tests/unit.php && php tests/shared.php && php tests/transport.php \
+    && node tests/integration.cjs && node --test tests/frontend.test.cjs tests/charts.test.cjs \
+    && touch /tmp/tests-passed
 
 FROM base AS runtime
-COPY --from=test /tests-passed /tests-passed
-COPY overlay ./overlay
+COPY --from=test /tmp/tests-passed /tests-passed
+COPY --from=dependencies /app/vendor ./vendor
+COPY --from=dependencies /app/composer.lock ./composer.lock
+COPY php ./php
+COPY public ./public
+COPY docker ./docker
 COPY static ./static
+RUN chmod +x docker/entrypoint.sh
 USER 10001:10001
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).close()"
-# Exactly one worker owns the in-memory snapshot and MQTT connection. No preload.
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "4", "--timeout", "30", "--graceful-timeout", "5", "--worker-tmp-dir", "/tmp", "overlay.app:create_app()"]
+    CMD ["php", "/app/docker/healthcheck.php"]
+ENTRYPOINT ["/app/docker/entrypoint.sh"]

@@ -1,14 +1,17 @@
 # Lesendes Weboverlay
 
-Eigenständiger Docker-Dienst: Paho-MQTT → validierter In-Memory-Snapshot →
-Flask/Gunicorn → deutsche Browseranzeige. Kein Hardwarezugriff, keine Publish-
+Eigenständiger Docker-Dienst, **PHP-Migration implementiert und Docker-getestet**:
+ein PHP-CLI-MQTT-Subscriber → privater atomarer Snapshot → PHP 8.4/Apache →
+unveränderte deutsche Browseranzeige. Kein Hardwarezugriff, keine Publish-
 oder Steuerbefehle, keine Datenbank. Bestehender Broker im Netzwerk `evse-mqtt`.
 
 **Spätere Planung:** Die Website soll umgebaut werden; anschließend ist eine
 Smartphone-WebApp vorgesehen. Umfang, Gestaltung und technische Umsetzung
 sind noch offen. Beides ist noch nicht umgesetzt; die bestehende responsive
 Browseranzeige bleibt unverändert und ist nicht bereits die geplante WebApp.
-Ein eigenes Home-Assistant-Modul wird nicht entwickelt.
+Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die jetzt autorisierte
+Backendmigration ist kein visueller Umbau: HTML/CSS/JS, Seiten und Diagramme
+bleiben erhalten. C++-Reader, UART-Brücke und Speichercollector bleiben unverändert.
 
 ## Start auf dem Pi
 
@@ -79,11 +82,28 @@ Sessionenergie kann bei neuer Session zurückgesetzt werden, kein Gesamtsummenz�
 - Browser prüft Frische unabhängig von weiteren HTTP-Antworten und blendet bei
   Netzfehlern/abgelaufenen Daten Messwerte aus. Zeitstempel werden lokal dargestellt.
 - `GET /healthz`: nur Prozess-/HTTP-Liveness; MQTT-Ausfall ist kein Neustartgrund.
-- Ein Gunicorn-Worker mit vier Threads; Paho läuft als eigener Netzwerkthread.
+- Apache non-root UID 10001, intern Port 8080, plus genau ein PHP-CLI-Worker;
+  `php-mqtt/client` exakt 2.3.2, Abhängigkeiten exakt über `composer.lock` im
+  Docker-Build. Kein PHP/Composer auf dem Host installieren; kein Python in
+  Websitebackend, Runtime, Healthcheck oder Backendtests.
+- Bash überwacht beide Prozesse: unerwarteter HTTP-/Workertod beendet den anderen
+  und den Container mit Fehler; SIGTERM stoppt beide. Bei Brokerausfall bleibt
+  HTTP aktiv, Worker-Reconnect nach 1–30 s. Beide SUBACKs erforderlich;
+  Reconnect verwirft Sample und Availability. MQTT-Restlänge maximal 32768 Bytes (ohne Festheader),
+  Statepayload maximal 16384 Bytes.
+- Privater tmpfs-Snapshot unter `/tmp/evse-weboverlay`, stabile flock-Datei mit
+  maximal 200 ms Wartezeit, atomarer Austausch bis 64 KiB. Workerheartbeat alle
+  250 ms; HTTP erneuert ihn nie. Nach 3 s Stillstand oder bei fehlendem/defektem
+  Snapshot liefert die API fail-closed offline und keine Werte.
 - Keine externen CDN-/Font-/Browser-MQTT-Abhängigkeiten, keine Zugangsdaten im JS.
 - Kein HTTP-Login/TLS: nur vertrauenswürdiger Zugang über den vorhandenen SSH-Tunnel.
 - MQTT-Vertrag: [Topics, Einheiten und Verfügbarkeit](../../docs/mqtt-protocol.md).
 
-Docker-Build führt Backend-, HTTP-/MQTT-Integrations- und Frontendtests aus.
+Docker-CI [40365837026](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/40365837026)
+für `06a3626` erfolgreich: 16 PHP-Zustands-/Config-Fälle, IPC-Suite,
+21 Transportfälle, vier echte MQTT-/HTTP-/Auth-/ACL-Szenarien, 28 JS-Tests und
+drei Chromium-Suiten sowie non-root/readonly Runtime ohne Broker/Python.
+Installation aus committed Composer-Lock und Bytevergleich ebenfalls bestätigt.
+Prüfsystem Linux-amd64, kein Pi-ARM64-/Produktionsnachweis; alte Python-CI historisch.
 Testbroker nur im Build-Container; Produktivbroker/Hardware werden nicht berührt.
 Pi-Browser-/Deploymentprüfung ist separat durch den Projektinhaber zu bestätigen.

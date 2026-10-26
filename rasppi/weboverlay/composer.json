@@ -1,0 +1,16 @@
+{
+  "name": "evse-control/weboverlay",
+  "type": "project",
+  "require": {
+    "php": "^8.4",
+    "ext-json": "*",
+    "ext-pcntl": "*",
+    "php-mqtt/client": "2.3.2",
+    "psr/log": "3.0.2",
+    "myclabs/php-enum": "1.8.5"
+  },
+  "autoload": {
+    "psr-4": { "EvseOverlay\\": "php/" }
+  },
+  "config": { "sort-packages": true }
+}
