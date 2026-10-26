@@ -56,6 +56,9 @@ async function setup(browser, options = {}, blocked = null) {
   const context = await browser.newContext(options), errors = [], requests = [];
   context.setDefaultTimeout(7000); context.setDefaultNavigationTimeout(15000);
   if (blocked) await context.addInitScript(kind => {
+    // Playwright also initializes about:blank; its opaque origin has no storage.
+    // Install the simulated failure only on the real HTTP(S) application document.
+    if (!['http:', 'https:'].includes(location.protocol)) return;
     if (kind === 'getter') Object.defineProperty(window, 'localStorage', { get() { throw new Error('denied'); } });
     else {
       localStorage.setItem('evse-theme-v1', 'dark');
