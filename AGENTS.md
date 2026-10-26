@@ -1,6 +1,6 @@
 # Arbeitskontext für Agents: EVSE-Control
 
-Stand: 2026-10-24. Diese Datei beschreibt den geprüften Repositoryzustand und
+Stand: 2026-10-26. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
@@ -565,8 +565,10 @@ berichtete frühere Tests nicht mit aktuell durchgeführten Hardwaretests gleich
 3. Änderungen auf einem Feature-Branch, nicht direkt auf `main`, durchführen.
 4. Nur beabsichtigte Dateien committen; keine Secrets, generierten Dateien
    oder fremden Änderungen aufnehmen.
-   Neue Commits immer unter der persönlichen, vom Projektinhaber verwendeten
-   Git-Identität erstellen, auch bei Agent-Unterstützung und Bereinigungen.
+   Neue Commits immer mit dem GitHub-Benutzernamen des Projektinhabers als
+   Autor- und Committername erstellen, nicht mit dessen Klar- oder Kurznamen;
+   die bereits zugeordnete Commit-E-Mail beibehalten. Dies gilt auch bei
+   Agent-Unterstützung und Bereinigungen.
    Keine Ersatzautoren wie `EVSE-Control-AGENT`, `EVSE-Control Agent` oder
    `EVSE-Control` und keine erfundenen Automationsadressen verwenden.
    Vor jedem Commit `git var GIT_AUTHOR_IDENT` und `git var GIT_COMMITTER_IDENT`
