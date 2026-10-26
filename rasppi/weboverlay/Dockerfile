@@ -27,6 +27,7 @@ COPY tests ./tests
 RUN chmod +x docker/entrypoint.sh
 USER 10001:10001
 RUN find php public docker tests -name '*.php' -print0 | xargs -0 -n1 php -l \
+    && apache2 -t \
     && php tests/unit.php && php tests/shared.php && php tests/transport.php \
     && node tests/integration.cjs && node --test tests/frontend.test.cjs tests/charts.test.cjs \
     && touch /tmp/tests-passed

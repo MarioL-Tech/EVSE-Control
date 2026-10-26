@@ -60,10 +60,11 @@ function launch(command, args, options = {}) {
   const child = spawn(command, args, {
     cwd: '/app', detached: true, stdio: ['ignore', 'pipe', 'pipe'], ...options,
   });
-  // Drain logs, but never include them in failures (even broker auth diagnostics).
-  child.stdout.resume();
-  child.stderr.resume();
-  const record = { child, ended: false, result: null };
+  // Keep only bounded diagnostics from these isolated dummy-credential processes.
+  const record = { child, ended: false, result: null, log: '' };
+  for (const stream of [child.stdout, child.stderr]) {
+    stream.on('data', chunk => { record.log = (record.log + chunk.toString('utf8')).slice(-8192); });
+  }
   record.done = new Promise(resolve => {
     child.once('error', () => {
       record.ended = true;
@@ -95,8 +96,8 @@ async function stop(record) {
   assert.ok(record.ended, 'Child process cleanup exceeded its bound');
 }
 
-async function command(scope, executable, args) {
-  const child = launch(executable, args);
+async function command(scope, executable, args, environment = {}) {
+  const child = launch(executable, args, { env: { ...process.env, ...environment } });
   scope.children.push(child);
   const result = await Promise.race([child.done, pause(5000).then(() => null)]);
   if (!result) await stop(child);
@@ -224,6 +225,11 @@ async function scenario(name, options, run) {
     await graceful(scope);
     completed++;
     console.log(`ok ${completed} - ${name}`);
+  } catch (error) {
+    const redact = text => [PASSWORD, WRONG_PASSWORD, MARKER].reduce((s, value) => s.split(value).join('[redacted]'), text);
+    console.error(redact(String(error.stack || error)));
+    if (scope.web) console.error(redact(scope.web.log));
+    throw error;
   } finally {
     const results = await Promise.allSettled(scope.children.map(stop));
     await fs.rm(directory, { recursive: true, force: true });
@@ -246,6 +252,7 @@ function security(response) {
 }
 
 async function httpContract(scope) {
+  await command(scope, 'php', ['/app/docker/healthcheck.php'], { EVSE_HTTP_PORT: String(scope.webPort) });
   for (const [url, title] of [['/', 'Übersicht · EVSE Control'], ['/diagramme', 'Diagramme · EVSE Control']]) {
     const response = await request(scope.webPort, url);
     assert.equal(response.code, 200);
