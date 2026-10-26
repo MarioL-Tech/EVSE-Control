@@ -4,6 +4,14 @@ All notable changes to the EVSE-Control project. This file is **actively maintai
 
 Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
+## 2026-10-26
+
+- **17:07** — **Docs: Commitnamen auf GitHub-Benutzernamen präzisiert** — Auf ausdrücklichen Wunsch für neue Commits den GitHub-Benutzernamen des Projektinhabers als Autor- und Committername statt Klar-/Kurzname festgelegt. Repositorylokale Einstellung entsprechend korrigiert, vorhandene Commit-E-Mail und globale Konfiguration unverändert. Bestehende Commits nicht umgeschrieben; keine Laufzeitänderung.
+
+## 2026-10-24
+
+- **15:35** — **Docs: Persönliche Commit-Identität verbindlich festgelegt** — Neue Commits einschließlich agentunterstützter Änderungen und Bereinigungen verwenden die persönliche Git-Identität des Projektinhabers statt Projekt-/Agent-Ersatzautoren. Widersprüchliche Anonymisierungsvorgabe in AGENTS entfernt; Autor und Committer vor jedem Commit prüfen, globale Git-Konfiguration unverändert lassen. Repositorylokale Identität auf die bereits verwendeten persönlichen Angaben gesetzt. Bestehende Commitidentitäten und Historie unverändert; keine Laufzeit-, Hardware- oder Deploymentänderung.
+
 ## 2026-10-15
 
 - **15:25** — **Docs: Drei spätere Lademodi als Anforderungen ergänzt** — „Laden wenn Solarstrom“, „Laden ohne Solarstrom“ und „Benutzerdefiniert“ in AGENTS, README und Installationsguide als noch nicht implementiert festgehalten. Solar-Messquelle, PV-Überschussregel, Schwellwerte, Ausfallverhalten, benutzerdefinierte Vorgaben und Moduswechsel bleiben zu klären. Keine Ladesteuerung, Bedienfunktion, Compose-/Hardware- oder Deploymentänderung.
