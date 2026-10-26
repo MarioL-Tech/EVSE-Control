@@ -6,11 +6,11 @@ werden. Die Betriebsschritte setzen einen vorbereiteten Pi voraus. Hardware-
 und Erstvorbereitungsreferenz stehen in Abschnitt 8; eine vollständige OS-,
 Docker- oder Broker-Neuinstallation ist damit noch nicht beschrieben.
 
-**Stand:** 2026-10-26, 17:52 CET (Europe/Vienna). Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
+**Stand:** 2026-10-26. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
 zyklischer Betrieb wurden vom Projektinhaber bestätigt. Der vorhandene MQTT-Broker ist
 erreichbar; der Empfang der echten Reader-Messwerte wurde ebenfalls bestätigt.
-Das rein lesende Weboverlay wird auf PHP migriert; neue Docker-CI-Verifikation
-und Browser-/Deploymenttest auf dem Pi stehen noch aus (Abschnitt 9).
+Das rein lesende PHP-Weboverlay ist implementiert und Docker-getestet;
+Browser-/Deploymenttest auf dem Pi steht noch aus (Abschnitt 9).
 
 **Planungsänderung:** Kein eigenes Home-Assistant-Modul. Die Website soll später
 umgebaut werden; anschließend ist eine Smartphone-WebApp vorgesehen. Details
@@ -788,14 +788,14 @@ installieren, keinen parallelen Read starten. Mehr [Registerreferenzen](wallbox/
 
 ### Aufbau und Voraussetzungen
 
-`rasppi/weboverlay/` ist ein eigener Docker-Dienst. Die laufende Migration ersetzt
+`rasppi/weboverlay/` ist ein eigener Docker-Dienst. Die Migration ersetzt
 nur sein Websitebackend durch PHP 8.4/Apache und genau einen PHP-CLI-MQTT-
 Subscriber mit `php-mqtt/client` exakt 2.3.2 im selben Container. HTML/CSS/JS,
 Seiten, Diagramme, API-Schema, deutsche Statusgründe, Frische-/Read-only-Semantik,
 CSP und sonstige Sicherheitsheader bleiben erhalten; keine visuelle Neugestaltung.
-**Neue PHP-Docker-CI noch nicht ausgeführt; Pi-Verifikation ebenfalls offen.**
-Die folgenden Befehle beschreiben den vorgesehenen Ablauf nach erfolgreicher
-Verifikation und Merge, nicht einen bestätigten PHP-Deploymenttest.
+**PHP-Docker-CI 40364677345 für 3b40302 erfolgreich; Pi-Verifikation offen.**
+Die folgenden Befehle beschreiben den Ablauf nach Merge, nicht einen bestätigten
+PHP-Deploymenttest. Geprüft auf Linux-amd64, nicht auf dem Pi/ARM64.
 **Kein zusätzlicher Broker, kein Zugriff auf RS485/UART,
 keine Schreibbefehle.** Der laufende Wallbox-Reader muss nicht gestoppt werden.
 
@@ -807,8 +807,8 @@ Apache läuft non-root als UID 10001, intern auf Port 8080. Bash überwacht HTTP
 und Worker: stirbt einer unerwartet, beendet der Entrypoint den anderen und den Container
 mit Fehler; SIGTERM stoppt beide. HTTP bleibt bei Brokerausfall erreichbar,
 der Worker versucht Reconnect mit 1–30 s Abstand. Erst beide SUBACKs erlauben
-die Datenfreigabe, Reconnect verwirft Sample und Availability. MQTT-Pakete sind
-auf 32768 Bytes, Statepayloads auf 16384 Bytes begrenzt.
+die Datenfreigabe, Reconnect verwirft Sample und Availability. Die MQTT-Restlänge
+ist auf 32768 Bytes (ohne Festheader), Statepayloads auf 16384 Bytes begrenzt.
 
 Privater Snapshot unter `/tmp/evse-weboverlay` im vorhandenen tmpfs: stabile
 flock-Datei mit maximal 200 ms Wartezeit, atomarer Austausch bis 64 KiB.
@@ -849,8 +849,10 @@ PHP-/Node-Unit-/HTTP-/MQTT- und JavaScript-Tests aus; ein Testfehler bricht den
 Build ab. Abhängigkeiten werden exakt aus `composer.lock` installiert.
 Kein Python in Websitebackend, Runtime, Healthcheck oder Backendtests.
 Weder PHP/Composer noch Compiler oder Node-Pakete auf dem Pi-Host installieren.
-Neue PHP-Verifikation ist noch ausstehend; keine erfolgreichen neuen Testzahlen
-behaupten. Die bestehenden 28 JS-Tests und drei Chromium-Suiten bleiben unverändert.
+PHP-CI 40364677345 bestätigt 16 Zustands-/Config-Fälle, IPC-Suite,
+21 Transportfälle, vier MQTT-/HTTP-/Auth-/ACL-Szenarien, 28 JS-Tests und drei
+Chromium-Suiten sowie non-root/readonly Runtime ohne Broker/Python. Der
+abschließende Build mit dem daraus übernommenen committed Lockfile folgt.
 
 Der Dienst bindet den Hostport bewusst **nur an `127.0.0.1:8080`**. Es werden
 keine Firewall-, SSH-, WireGuard- oder Routereinstellungen verändert. Kein

@@ -9,17 +9,17 @@ Geplant sind Ladeautomatisierung und Bedienung über die Website. Ein lesendes
 Weboverlay und MQTT-Wallbox-Zustandsspeicherung für MariaDB sind implementiert.
 Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die Website soll später
 umgebaut werden; anschließend ist eine Smartphone-WebApp geplant. Umfang,
-Gestaltung und WebApp-Umsetzung sind noch offen. Separat läuft die autorisierte
-Migration nur des Websitebackends auf PHP 8.4/Apache mit einem PHP-MQTT-Worker;
+Gestaltung und WebApp-Umsetzung sind noch offen. Das Websitebackend ist separat
+auf PHP 8.4/Apache mit einem PHP-MQTT-Worker umgestellt;
 bestehende HTML-/CSS-/JS-Oberfläche, Seiten und Diagramme bleiben unverändert.
 
 > **Entwicklungsstand:** Der Wallbox-Dienst ist ausschließlich lesend.
 > MQTT-Empfang echter Wallboxdaten am Pi ist bestätigt. Das neue lesende
-> Weboverlay wird auf PHP migriert; neue Docker-CI-Verifikation sowie
-> Pi-Browser-/Deploymenttest stehen noch aus. Frühere Python-CI gilt nicht als PHP-Nachweis.
+> PHP-Weboverlay ist implementiert und Docker-getestet;
+> Pi-Browser-/Deploymenttest steht noch aus.
 > MariaDB-Speicherdienst implementiert und Docker-getestet; Pi-Konfiguration offen.
 > Reale Ladesteuerung und bedienende Webfunktionen fehlen noch.
-> Websiteumbau und Smartphone-WebApp sind noch nicht umgesetzt.
+> Visuelle Neugestaltung und Smartphone-WebApp sind noch nicht umgesetzt.
 > ESP32-Whitelist und persistierter Startmodus ersetzen den bisherigen
 > UART-Kommunikationstest; neue Firmware noch ungeflasht und hardwareunverifiziert.
 > Ein Docker-Einmaltest mit FC03 an der realen Wallbox wurde
@@ -61,7 +61,7 @@ noch keine Modusauswahl oder Einrichtung; Geräte-/Sicherheitsgrenzen gelten wei
 | UART-Testbrücke | Interaktive Python-Brücke im Docker-Container |
 | Wallbox-Reader | C++17/libmodbus, zyklische FC03-Abfragen, dekodierte Messwerte als JSON |
 | MQTT-Publisher | retained State und Verfügbarkeit mit libmosquitto; vorhandener Broker wird wiederverwendet |
-| Weboverlay | Lesende MQTT-Anzeige mit Frischeprüfung und Browser-Zeitverläufen; PHP-Backendmigration in Arbeit, Verifikation offen |
+| Weboverlay | PHP-/Apache-Backend mit MQTT-Worker; lesende Anzeige, Frischeprüfung und Browser-Zeitverläufe; Docker-getestet |
 | Zustandsspeicherung | Separater MQTT-Collector für vorhandene MariaDB; Schema/Migration und typisierte Wallbox-Historie |
 | Fehlerbehandlung | Timeouts, erneute Verbindung, ungültige Messwerte als `null`, sauberer Shutdown |
 | Softwaretests | Decoder-/JSON-Tests und simulierte RTU-Kommunikation einschließlich Fehlerfällen |

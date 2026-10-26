@@ -9,9 +9,10 @@ COPY docker/php.ini /usr/local/etc/php/conf.d/evse.ini
 
 FROM base AS dependencies
 COPY --from=composer /usr/bin/composer /usr/local/bin/composer
-COPY composer.* ./
+COPY composer.json composer.lock ./
 RUN apt-get update && apt-get install -y --no-install-recommends unzip \
     && rm -rf /var/lib/apt/lists/* \
+    && composer validate --no-check-publish \
     && composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
 
 FROM base AS test

@@ -27,6 +27,7 @@ jobs:
           docker create --name web-dependencies evse-weboverlay:test
           docker cp web-dependencies:/app/composer.lock ./composer.lock
           docker rm web-dependencies
+          cmp rasppi/weboverlay/composer.lock composer.lock
       - uses: actions/upload-artifact@v4
         with:
           name: weboverlay-composer-lock

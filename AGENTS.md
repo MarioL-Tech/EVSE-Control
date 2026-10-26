@@ -1,6 +1,6 @@
 # Arbeitskontext für Agents: EVSE-Control
 
-Stand: 2026-10-26, 17:52 CET (Europe/Vienna). Diese Datei beschreibt den geprüften Repositoryzustand und
+Stand: 2026-10-26. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
@@ -22,7 +22,7 @@ sind noch umzusetzen; diese Umstellung ist ausdrücklich erst später gewünscht
 und keine eigene Home-Assistant-Integration entwickelt. Die Website soll später
 umgebaut werden; danach ist eine Smartphone-WebApp vorgesehen. Funktionsumfang,
 Gestaltung und Zusammenspiel der Oberflächen sind noch festzulegen. Separat
-autorisiert ist die laufende PHP-Backendmigration ausschließlich der Website
+autorisiert und implementiert ist die PHP-Backendmigration ausschließlich der Website
 `rasppi/weboverlay`; HTML/CSS/JS, Seiten und Diagramme bleiben ohne Neugestaltung.
 Die vorhandene responsive, rein lesende Browseranzeige ist nicht als bereits
 umgesetzte Smartphone-WebApp zu behandeln. Diese Planungsänderung verändert
@@ -88,11 +88,12 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
   mit Python/pyserial ausschließlich im Container, Hardwaregerät durchgereicht.
 - `rasppi/wallbox/`: rein lesender C++17-libmodbus-Dienst, Decoder-/JSON-Tests,
   simulierte RTU-Tests, CMake sowie Dockerfile/Compose und Pi-Startanleitung.
-- `rasppi/weboverlay/`: laufende Migration auf PHP 8.4/Apache und einen PHP-CLI-
+- `rasppi/weboverlay/`: PHP 8.4/Apache und ein PHP-CLI-
   MQTT-Subscriber; `php/` enthält Config, StrictJson, StateStore, SharedState,
   MqttTransport und `worker.php`, `public/` den HTTP-Einstieg, `docker/` Apache-
   Konfiguration, Bash-Supervision und PHP-Healthcheck. Bestehende Browseroberfläche,
-  PHP-/Node-Tests und Docker/Compose; kein direkter Hardwarezugriff. Neue CI offen.
+  PHP-/Node-Tests und Docker/Compose; kein direkter Hardwarezugriff. Docker-CI
+  40364677345 für 3b40302 erfolgreich; echtes Pi-Deployment weiterhin offen.
 - `rasppi/storage/`: MQTT-Collector für vorhandene MariaDB, Schema/Migration,
   typisierte Wallbox-Historie, Docker-only-Tests; keine Steuerung/Hardwareports.
 - `docs/pin-connection.md`, `docs/uart-protocol.md`: Pinreferenz und UART-Protokoll.
@@ -377,7 +378,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 
 ### Rein lesendes Weboverlay
 
-- PHP-Migration in Arbeit, neue Verifikation ausstehend: PHP 8.4/Apache (non-root
+- PHP-Migration implementiert: PHP 8.4/Apache (non-root
   UID 10001, intern Port 8080) plus genau ein PHP-CLI-Subscribe-only-Worker im
   selben Websitecontainer. `php-mqtt/client` exakt 2.3.2; Docker-Builds verwenden
   die exakt gesperrten Abhängigkeiten aus `composer.lock`, keine Hostinstallation
@@ -387,18 +388,20 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   beendet den anderen und den Container mit Fehler; SIGTERM stoppt beide.
   Bei Brokerausfall läuft HTTP weiter, der Worker versucht Reconnect mit 1–30 s
   Abstand. Beide SUBACKs sind Voraussetzung; Reconnect löscht Sample/Availability.
-  MQTT-Pakete maximal 32768 Bytes, Statepayload maximal 16384 Bytes.
+  MQTT-Restlänge maximal 32768 Bytes (ohne Festheader), Statepayload maximal 16384 Bytes.
 - Privater Interprozess-Snapshot unter `/tmp/evse-weboverlay` im tmpfs:
   stabile flock-Datei, höchstens 200 ms Lockwartezeit, atomarer Austausch,
   maximal 64 KiB. Workerheartbeat alle 250 ms, HTTP erneuert ihn niemals.
   Nach 3 s Worker-Stillstand oder bei fehlendem/beschädigtem Snapshot liefert
   die API fail-closed offline/keine Werte. Kein MQTT-Publish, keine seriellen
   Geräte oder Start-/Stop-/Limitbefehle.
-- PHP-/Node-Unit-/Integrationstests ersetzen die bisherigen 21 Python-Tests;
-  die bestehenden 28 JS-Tests und drei Chromium-Suiten bleiben unverändert.
-  Neue PHP-Docker-CI noch nicht ausgeführt; keine neuen Testzahlen oder Erfolge
-  behaupten. Alle nachfolgenden Python-CI-Nachweise sind historische Nachweise
-  der früheren Flask-/Paho-Version, nicht der PHP-Migration.
+- Docker-CI 40364677345 für 3b40302 erfolgreich: 16 PHP-Zustands-/Config-Fälle,
+  IPC-Suite, 21 isolierte Transportfälle, vier echte MQTT-/HTTP-/Auth-/ACL-Szenarien,
+  28 JS-Tests und drei Chromium-Suiten sowie gehärteter Runtime-Smoke ohne Broker
+  und ohne Python. Composer-Lock aus diesem Build unverändert übernommen;
+  abschließender Build mit committed Lockfile folgt. Prüfsystem Linux-amd64,
+  kein Pi-ARM64-/Produktionsnachweis. Alle nachfolgenden Python-CI-Nachweise sind
+  historische Nachweise der früheren Flask-/Paho-Version, nicht der PHP-Migration.
 - Deutsche statische Oberfläche, keine CDN-/Browser-MQTT-Abhängigkeiten.
   Unterscheidet Anschluss, tatsächliches Laden, Wallbox-Limit und noch nicht
   erfassten Gebäudestrom. Unknown/null bleibt unbekannt, nicht „Nein“.

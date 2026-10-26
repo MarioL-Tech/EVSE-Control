@@ -1,6 +1,6 @@
 # Lesendes Weboverlay
 
-Eigenständiger Docker-Dienst, **PHP-Migration in Arbeit, neue CI noch offen**:
+Eigenständiger Docker-Dienst, **PHP-Migration implementiert und Docker-getestet**:
 ein PHP-CLI-MQTT-Subscriber → privater atomarer Snapshot → PHP 8.4/Apache →
 unveränderte deutsche Browseranzeige. Kein Hardwarezugriff, keine Publish-
 oder Steuerbefehle, keine Datenbank. Bestehender Broker im Netzwerk `evse-mqtt`.
@@ -89,7 +89,7 @@ Sessionenergie kann bei neuer Session zurückgesetzt werden, kein Gesamtsummenz�
 - Bash überwacht beide Prozesse: unerwarteter HTTP-/Workertod beendet den anderen
   und den Container mit Fehler; SIGTERM stoppt beide. Bei Brokerausfall bleibt
   HTTP aktiv, Worker-Reconnect nach 1–30 s. Beide SUBACKs erforderlich;
-  Reconnect verwirft Sample und Availability. MQTT-Pakete maximal 32768 Bytes,
+  Reconnect verwirft Sample und Availability. MQTT-Restlänge maximal 32768 Bytes (ohne Festheader),
   Statepayload maximal 16384 Bytes.
 - Privater tmpfs-Snapshot unter `/tmp/evse-weboverlay`, stabile flock-Datei mit
   maximal 200 ms Wartezeit, atomarer Austausch bis 64 KiB. Workerheartbeat alle
@@ -99,9 +99,11 @@ Sessionenergie kann bei neuer Session zurückgesetzt werden, kein Gesamtsummenz�
 - Kein HTTP-Login/TLS: nur vertrauenswürdiger Zugang über den vorhandenen SSH-Tunnel.
 - MQTT-Vertrag: [Topics, Einheiten und Verfügbarkeit](../../docs/mqtt-protocol.md).
 
-Docker-Build ist für PHP-/Node-Unit-, HTTP-/MQTT-Integrations- und Frontendtests
-eingerichtet. Neue PHP-Verifikation steht aus; frühere Python-CI ist nur historisch.
-Die bisherigen 21 Python-Backendtests werden ersetzt, die bestehenden 28 JS-Tests
-und drei Chromium-Suiten bleiben unverändert. Keine neuen Testzahlen zugesichert.
+Docker-CI [40364677345](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/40364677345)
+für `3b40302` erfolgreich: 16 PHP-Zustands-/Config-Fälle, IPC-Suite,
+21 Transportfälle, vier echte MQTT-/HTTP-/Auth-/ACL-Szenarien, 28 JS-Tests und
+drei Chromium-Suiten sowie non-root/readonly Runtime ohne Broker/Python.
+Abschließender Build mit dem daraus übernommenen committed Composer-Lock folgt.
+Prüfsystem Linux-amd64, kein Pi-ARM64-/Produktionsnachweis; alte Python-CI historisch.
 Testbroker nur im Build-Container; Produktivbroker/Hardware werden nicht berührt.
 Pi-Browser-/Deploymentprüfung ist separat durch den Projektinhaber zu bestätigen.
