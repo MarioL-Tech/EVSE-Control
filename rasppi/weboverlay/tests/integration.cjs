@@ -276,7 +276,7 @@ async function httpContract(scope) {
     assert.ok(response.body.includes(`<title>${title}</title>`));
     security(response);
   }
-  for (const asset of ['app.js', 'charts.js', 'style.css', 'icon.svg']) {
+  for (const asset of ['app.js', 'charts.js', 'theme.js', 'style.css', 'icon.svg']) {
     const response = await request(scope.webPort, `/static/${asset}`);
     assert.equal(response.code, 200);
     assert.ok(response.body.length > 0);

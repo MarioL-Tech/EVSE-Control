@@ -14,10 +14,17 @@ Backendmigration war kein visueller Umbau. Separat ist nun das Theme
 „Compact / Dense“ nach Entwurf Nr. 8 umgesetzt: kühle Blau-/Grautöne,
 dezente Verläufe, feine Rahmen, Schatten und kompaktere Abstände in Hell/Dunkel.
 Die Vorlagen dienen nur als Theme-Referenz; Sidebar, vier Übersichtskarten,
-Messwerte und Seitenaufteilung bleiben erhalten. Farbe weiterhin über die
-Browsereinstellung, kein zusätzlicher Schalter oder gespeicherter Theme-Wert.
-JavaScript-/PHP-/MQTT-Verhalten, C++-Reader, UART-Brücke und Speichercollector
-bleiben unverändert. Theme-CI
+Messwerte und Seitenaufteilung bleiben erhalten. **Darstellung** oben auf beiden
+Seiten bietet **System / Hell / Dunkel**. Default System folgt live der
+Browser-/OS-Präferenz; Hell/Dunkel überschreibt sie und wird unter `evse-theme-v1`
+gespeichert. System entfernt den Schlüssel. Nur ein Darstellungswert, keine
+Messwerte oder Credentials; `evse-display-v1` bleibt unabhängig. Bei blockiertem
+Speicher gilt die Auswahl nur für die aktuelle Seite; bei Pageshow bleibt eine
+nicht speicherbare Wahl erhalten. Gespeicherte Wahl wird bei Pageshow/Storage-
+Ereignissen neu geladen. Ohne JS bleibt das Feld deaktiviert, Systemfarben wirken
+weiter. Selbst gehostetes `theme.js` vor CSS, keine CSP-Ausnahme oder API-Steuerung.
+PHP-/MQTT-/Messwertverhalten, C++-Reader, UART-Brücke und Speichercollector bleiben
+unverändert. Neue Umschalter-CI noch offen. Bisherige Theme-CI
 [40369056814](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/40369056814)
 für `ff496f2` erfolgreich: beide Seiten in Hell/Dunkel bei 320/390/768/1440 px,
 Farbschemawechsel und Textkontrast auf geprüften Flächen mindestens 4,5:1.
@@ -116,4 +123,7 @@ drei Chromium-Suiten sowie non-root/readonly Runtime ohne Broker/Python.
 Installation aus committed Composer-Lock und Bytevergleich ebenfalls bestätigt.
 Prüfsystem Linux-amd64, kein Pi-ARM64-/Produktionsnachweis; alte Python-CI historisch.
 Testbroker nur im Build-Container; Produktivbroker/Hardware werden nicht berührt.
-Pi-Browser-/Deploymentprüfung ist separat durch den Projektinhaber zu bestätigen.
+Pi-Start und Live-Übersicht im Dark-Theme am 2026-10-26 vom Projektinhaber per
+Screenshot bestätigt (18:52:39, MQTT online, angeschlossen/nicht ladend, Limit 6 A).
+Keine Bestätigung von Langzeitbetrieb, gezielten Ausfällen, Diagrammen, Hellansicht
+oder des neuen manuellen Umschalters; kein Agent-Deployment.

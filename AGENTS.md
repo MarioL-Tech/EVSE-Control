@@ -98,7 +98,8 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
   MqttTransport und `worker.php`, `public/` den HTTP-Einstieg, `docker/` Apache-
   Konfiguration, Bash-Supervision und PHP-Healthcheck. Bestehende Browseroberfläche,
   PHP-/Node-Tests und Docker/Compose; kein direkter Hardwarezugriff. Docker-CI
-  40365837026 für 06a3626 erfolgreich; echtes Pi-Deployment weiterhin offen.
+  40365837026 für 06a3626 erfolgreich; Pi-Start und Live-Übersicht am 2026-10-26
+  durch Projektinhaber/Screenshot bestätigt, gezielte Fehlerfallprüfung offen.
 - `rasppi/storage/`: MQTT-Collector für vorhandene MariaDB, Schema/Migration,
   typisierte Wallbox-Historie, Docker-only-Tests; keine Steuerung/Hardwareports.
 - `docs/pin-connection.md`, `docs/uart-protocol.md`: Pinreferenz und UART-Protokoll.
@@ -330,8 +331,8 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   oder andere Master vermeiden. Die Python-UART-Logik bleibt unverändert,
   ihr unterstützter Startweg ist jetzt `docker compose -f rasppi/compose.yaml
   run --rm --build uart-bridge` aus dem Repository-Hauptverzeichnis.
-- Keine Ladefreigabe oder SQL-Anbindung im Reader. MQTT-Empfang am Pi bestätigt; lesende
-  Browseroberfläche implementiert, deren Pi-Deploymenttest steht noch aus.
+- Keine Ladefreigabe oder SQL-Anbindung im Reader. MQTT-Empfang am Pi und
+  lesende Live-Browserübersicht laut Projektinhaber am 2026-10-26 bestätigt.
 
 ### MQTT-Publisher im Reader
 
@@ -407,10 +408,19 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Installation aus committed Lockfile und Bytevergleich ebenfalls bestätigt.
   Simulierte Desktop-/Mobilansichten geprüft. Prüfsystem Linux-amd64,
   kein Pi-ARM64-/Produktionsnachweis. Alle nachfolgenden Python-CI-Nachweise sind
-  historische Nachweise der früheren Flask-/Paho-Version, nicht der PHP-Migration.
+  historische Nachweise der früheren Flask-/Paho-Version, nicht der PHP-Migration;
+  deren damalige Offenvermerke zum Pi ersetzen nicht die aktuelle Bestätigung unten.
 - Deutsche statische Oberfläche, keine CDN-/Browser-MQTT-Abhängigkeiten.
-  Theme „Compact / Dense“ für Dark/Light nach Entwurf Nr. 8; Farbwahl folgt
-  weiterhin der Systemeinstellung des Browsers. Nur CSS und dekorative Inline-
+  Theme „Compact / Dense“ für Dark/Light nach Entwurf Nr. 8; „Darstellung“ auf
+  beiden Seiten bietet System/Hell/Dunkel. Default System folgt weiterhin
+  `prefers-color-scheme`; manuelle Wahl gilt browserlokal über `evse-theme-v1`
+  (nur light/dark, System entfernt den Schlüssel). Blockierter Speicher fällt
+  auf die aktuelle Seite zurück; nicht speicherbare Wahl bleibt bei Pageshow
+  erhalten. Lesbare gespeicherte Wahl wird bei Pageshow/Storage-Ereignissen
+  neu geladen. `theme.js` setzt sie vor dem Stylesheet, ohne Inline-JS oder
+  neue Netzwerk-/Steuerrouten; bei deaktiviertem JS bleibt die Auswahl deaktiviert.
+  Der manuelle Umschalter ist implementiert, dessen neue Docker-CI noch offen.
+  Die ursprüngliche Theme-Änderung betraf nur CSS und dekorative Inline-
   SVG-Symbole geändert, keine Karten umgeordnet oder entfernt. PHP/MQTT/API,
   Frischelogik, Präferenzen und Diagrammdaten unverändert. Theme-CI 40369056814
   für ff496f2 erfolgreich: vollständige PHP-/MQTT-/HTTP-/JS-/Chromium-Prüfungen,
@@ -419,6 +429,14 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Desktop-/Mobilbilder visuell angesehen, kein Pi-Deploymentnachweis.
   Unterscheidet Anschluss, tatsächliches Laden, Wallbox-Limit und noch nicht
   erfassten Gebäudestrom. Unknown/null bleibt unbekannt, nicht „Nein“.
+- Projektinhaber bestätigt am 2026-10-26 Dienststart und sichtbare Werte der
+  Pi-Website; Screenshot der Übersicht zeigt Live/MQTT online, Messzeit 18:52:39,
+  Alter 1 s, 0 kW, 0 kWh, Limit 6 A, angeschlossen/nicht ladend sowie
+  234,8/235,0/235,2 V bei 0 A je Phase. Neues Dark-Theme sichtbar. Nur bestätigte
+  Momentaufnahme, kein Langzeit-/Ausfall-/Messwertvergleichsnachweis und kein
+  Agent-Deployment. Echte Diagramm-/Hellansicht und neuer manueller Umschalter
+  auf dem Pi noch nicht bestätigt. Kein bestätigtes produktives Passwortfile;
+  Start ohne optionales Auth-Override vom Projektinhaber gemeldet.
 - Dashboard `/` und eigene Diagrammseite `/diagramme` mit gemeinsamer echter
   Navigation, responsivem Layout und automatischem hell/dunklem Farbschema.
   Vier kompakte Übersichtskarten, Phasen/Leistungsrahmen, einklappbare Diagnose.

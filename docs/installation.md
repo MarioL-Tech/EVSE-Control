@@ -10,7 +10,9 @@ Docker- oder Broker-Neuinstallation ist damit noch nicht beschrieben.
 zyklischer Betrieb wurden vom Projektinhaber bestätigt. Der vorhandene MQTT-Broker ist
 erreichbar; der Empfang der echten Reader-Messwerte wurde ebenfalls bestätigt.
 Das rein lesende PHP-Weboverlay ist implementiert und Docker-getestet;
-Browser-/Deploymenttest auf dem Pi steht noch aus (Abschnitt 9).
+Pi-Start und Live-Übersicht vom Projektinhaber am 2026-10-26 bestätigt;
+gezielte Ausfalltests, Diagramme und neuer manueller Theme-Schalter noch offen
+(Abschnitt 9).
 
 **Planungsänderung:** Kein eigenes Home-Assistant-Modul. Die Website soll später
 umgebaut werden; anschließend ist eine Smartphone-WebApp vorgesehen. Details
@@ -793,9 +795,10 @@ nur sein Websitebackend durch PHP 8.4/Apache und genau einen PHP-CLI-MQTT-
 Subscriber mit `php-mqtt/client` exakt 2.3.2 im selben Container. HTML/CSS/JS,
 Seiten, Diagramme, API-Schema, deutsche Statusgründe, Frische-/Read-only-Semantik,
 CSP und sonstige Sicherheitsheader bleiben erhalten; keine visuelle Neugestaltung.
-**PHP-Docker-CI 40365837026 für 06a3626 erfolgreich; Pi-Verifikation offen.**
-Die folgenden Befehle beschreiben den Ablauf nach Merge, nicht einen bestätigten
-PHP-Deploymenttest. Geprüft auf Linux-amd64, nicht auf dem Pi/ARM64.
+**PHP-Docker-CI 40365837026 für 06a3626 erfolgreich; Pi-Übersicht bestätigt.**
+Die Software-CI läuft auf Linux-amd64, nicht auf dem Pi/ARM64. Den tatsächlichen
+Pi-Start und die Live-Übersicht bestätigt der Projektinhaber (Details unten).
+Der neue manuelle Farbumschalter muss nach Merge/Update dort noch geprüft werden.
 **Kein zusätzlicher Broker, kein Zugriff auf RS485/UART,
 keine Schreibbefehle.** Der laufende Wallbox-Reader muss nicht gestoppt werden.
 
@@ -899,7 +902,15 @@ kühle Blau-/Grautöne, dezente Kartenverläufe, feine Rahmen und kompaktere
 Abstände. Die Entwürfe sind nur Stilvorlagen; keine Änderung von Sidebar,
 vier Übersichtskarten, Messwerten oder Seitenaufteilung. PHP/API/MQTT und
 Frischelogik unverändert, keine neuen Konfigurationsschritte oder Ports.
-Für Hell-/Dunkelansicht die vorhandene Browser-/Systemeinstellung verwenden.
+Unter **Darstellung** oben auf beiden Seiten **System / Hell / Dunkel** wählen.
+**Hell** zeigt White Mode auch bei dunkler Systemeinstellung; **Dunkel** erzwingt
+Dark Mode. **System** (Default) folgt weiterhin `prefers-color-scheme` einschließlich
+späterer OS-Änderungen. Auswahl gilt beim Seitenwechsel/Neuladen browserlokal über
+`evse-theme-v1` (nur light/dark, System entfernt den Schlüssel); keine Messwerte,
+Zugangsdaten oder neuen Servereinstellungen. Bei blockiertem Speicher gilt die Wahl
+für die aktuelle Seite und bleibt bei Pageshow erhalten, wenn Speichern scheiterte.
+Ohne JavaScript bleibt das Feld deaktiviert; automatische Systemfarben funktionieren.
+Neue Umschalter-CI noch ausstehend, noch kein Pi-Nachweis für diesen Schalter.
 Update wie unten mit `docker compose up -d --build`, bei altem CSS Strg+F5.
 Theme-CI 40369056814 für ff496f2 erfolgreich: beide Seiten in Hell/Dunkel bei
 320/390/768/1440 px, Systemfarbwechsel, geprüfte Textkontraste und weiterhin
@@ -996,7 +1007,8 @@ wechseln: `/diagramme`, gleiches Status-/Warnungsband, Verlauf ab Seitenöffnung
 Die Diagnosekurven aufklappen. Eine Anzeigeoption ändern und zurück zur Übersicht
 wechseln: die Auswahl bleibt, der Diagrammverlauf nicht. Mobilansicht ebenfalls
 prüfen; unbekannte/offline Werte dürfen nicht als Null oder „Nein“ erscheinen.
-Eine echte Pi-/Browserprüfung ist dadurch beschrieben, nicht bereits bestätigt.
+Diese vollständige Prüffolge bleibt nach Updates sinnvoll; bestätigt ist bisher
+die Live-Übersicht, nicht jeder hier beschriebene Fehler-/Bedienfall.
 
 Historische Diagramm-CI der Python-Version [37204010318](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37204010318)
 bestätigt 21 Python-/MQTT-/HTTP-Tests, 27 JavaScript-Tests und beide Chromium-
@@ -1010,8 +1022,9 @@ beide Seiten in hell/dunkel bei 320/390/768/1440 px, Navigation/Tastatur, Auswah
 geschützte Warnungen/Frische, CSP und blockierter Browserspeicher. Simulierte
 Desktop-/Mobilbilder wurden geprüft; Seitencache-Rückkehr lädt gemeinsame
 Einstellungen neu beziehungsweise bewahrt temporäre Auswahl bei blockiertem
-Speicher. PR-CI `37221004357` ebenfalls erfolgreich. Die echte Pi-Browserprüfung
-bleibt offen. PR #33 wurde durch den Projektinhaber gemergt; obige Updatefolge verwenden.
+Speicher. PR-CI `37221004357` ebenfalls erfolgreich. Zum damaligen Stand war die
+echte Pi-Browserprüfung noch offen; die aktuelle Bestätigung steht unten.
+PR #33 wurde durch den Projektinhaber gemergt; obige Updatefolge verwenden.
 
 ### Lokale Konfiguration und optionale Zugangsdaten
 
@@ -1096,8 +1109,13 @@ Abort-Verhalten, simulierte Visibility-/Pageshow-Ereignisse, fehlende Fetch-
 Parallelität und unveränderte Live-Region-Texte. Simulatorereignisse sind kein
 vollständiger Nachweis aller Bfcache-/Suspend-Varianten jedes Browsers.
 
-**Noch zu bestätigen:** tatsächlicher Pi-Start und Browseranzeige über deinen
-Tunnel. Die automatischen Tests ersetzen diese Bedien-/Deploymentprüfung nicht.
+**Am 2026-10-26 vom Projektinhaber bestätigt:** Dienst läuft und zeigt Messwerte
+im Browser; Screenshot der Live-Übersicht im Dark-Theme mit Messzeit 18:52:39,
+MQTT online, Alter 1 s, 0 kW, Limit 6 A, angeschlossen/nicht ladend und
+234,8/235,0/235,2 V. Bestätigte Momentaufnahme, keine unabhängige Messvalidierung.
+**Weiter offen:** Diagrammseite, Hellansicht/neuer Umschalter und gezielte
+Ausfall-/Frischeprüfungen am Pi. Kein Agent-Deployment; automatische Tests
+ersetzen diese Bedien-/Fehlerfallprüfung nicht.
 
 ## 10. MQTT-Zustandsspeicherung in der vorhandenen MariaDB
 
