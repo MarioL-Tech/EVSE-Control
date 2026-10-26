@@ -5,6 +5,7 @@
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs/promises');
+const syncFs = require('node:fs');
 const http = require('node:http');
 const net = require('node:net');
 const os = require('node:os');
@@ -57,13 +58,21 @@ async function poll(label, probe, timeout = 12000) {
 }
 
 function launch(command, args, options = {}) {
+  const { logFile, ...spawnOptions } = options;
+  // Node's stdio='pipe' is a Unix socket: Apache cannot reopen /proc/self/fd/2
+  // when it refers to a socket. Use an owned regular file for the test server;
+  // the separate runtime Docker smoke test exercises Docker's actual log pipes.
+  const descriptor = logFile ? syncFs.openSync(logFile, 'a', 0o600) : null;
   const child = spawn(command, args, {
-    cwd: '/app', detached: true, stdio: ['ignore', 'pipe', 'pipe'], ...options,
+    cwd: '/app', detached: true,
+    stdio: descriptor === null ? ['ignore', 'pipe', 'pipe'] : ['ignore', descriptor, descriptor],
+    ...spawnOptions,
   });
+  if (descriptor !== null) syncFs.closeSync(descriptor);
   // Keep only bounded diagnostics from these isolated dummy-credential processes.
-  const record = { child, ended: false, result: null, log: '' };
+  const record = { child, ended: false, result: null, log: '', logFile };
   for (const stream of [child.stdout, child.stderr]) {
-    stream.on('data', chunk => { record.log = (record.log + chunk.toString('utf8')).slice(-8192); });
+    stream?.on('data', chunk => { record.log = (record.log + chunk.toString('utf8')).slice(-8192); });
   }
   record.done = new Promise(resolve => {
     child.once('error', () => {
@@ -182,7 +191,7 @@ async function launchWeb(scope, rejected = false) {
     env.MQTT_PASSWORD_FILE = path.join(scope.directory, 'rejected-secret');
     await fs.writeFile(env.MQTT_PASSWORD_FILE, WRONG_PASSWORD + '\n', { mode: 0o600 });
   }
-  scope.web = launch('/app/docker/entrypoint.sh', [], { env });
+  scope.web = launch('/app/docker/entrypoint.sh', [], { env, logFile: path.join(scope.directory, 'web.log') });
   scope.children.push(scope.web);
 }
 
@@ -228,7 +237,15 @@ async function scenario(name, options, run) {
   } catch (error) {
     const redact = text => [PASSWORD, WRONG_PASSWORD, MARKER].reduce((s, value) => s.split(value).join('[redacted]'), text);
     console.error(redact(String(error.stack || error)));
-    if (scope.web) console.error(redact(scope.web.log));
+    if (scope.web?.logFile) {
+      const file = await fs.open(scope.web.logFile, 'r');
+      try {
+        const { size } = await file.stat();
+        const buffer = Buffer.alloc(Math.min(size, 8192));
+        const { bytesRead } = await file.read(buffer, 0, buffer.length, Math.max(0, size - buffer.length));
+        console.error(redact(buffer.subarray(0, bytesRead).toString('utf8')));
+      } finally { await file.close(); }
+    }
     throw error;
   } finally {
     const results = await Promise.allSettled(scope.children.map(stop));
