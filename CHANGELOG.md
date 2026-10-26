@@ -6,6 +6,7 @@ Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
 ## 2026-10-26
 
+- **17:08** — **Merge/Docs: PR-Konflikte ohne Inhaltsverlust aufgelöst** — Aktuellen main einschließlich der über PR #37 präzisierten Commit-Identität in den Website-/WebApp-Dokumentationsbranch übernommen. Standdaten vereinheitlicht, Changelog chronologisch zusammengeführt und entfallenes Home-Assistant-Modul mit den drei weiterhin geplanten Lademodi konsistent abgeglichen. Logo und vorhandene udev-Ergänzung bleiben erhalten. Keine Laufzeit-, Compose-, Hardware- oder Deploymentänderung; historische Commitidentitäten unverändert. Zusammenführung auf ausdrücklichen Auftrag des Projektinhabers.
 - **17:07** — **Docs: Commitnamen auf GitHub-Benutzernamen präzisiert** — Auf ausdrücklichen Wunsch für neue Commits den GitHub-Benutzernamen des Projektinhabers als Autor- und Committername statt Klar-/Kurzname festgelegt. Repositorylokale Einstellung entsprechend korrigiert, vorhandene Commit-E-Mail und globale Konfiguration unverändert. Bestehende Commits nicht umgeschrieben; keine Laufzeitänderung.
 
 ## 2026-10-24
@@ -15,6 +16,10 @@ Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 ## 2026-10-15
 
 - **15:25** — **Docs: Drei spätere Lademodi als Anforderungen ergänzt** — „Laden wenn Solarstrom“, „Laden ohne Solarstrom“ und „Benutzerdefiniert“ in AGENTS, README und Installationsguide als noch nicht implementiert festgehalten. Solar-Messquelle, PV-Überschussregel, Schwellwerte, Ausfallverhalten, benutzerdefinierte Vorgaben und Moduswechsel bleiben zu klären. Keine Ladesteuerung, Bedienfunktion, Compose-/Hardware- oder Deploymentänderung.
+
+## 2026-10-09
+
+- **19:07** — **Docs: Oberflächenplanung aktualisiert** — Eigene Home-Assistant-Integration/Modul aus dem Projektumfang genommen; späteren Websiteumbau und anschließend eine Smartphone-WebApp als noch nicht umgesetzte Ziele mit offenen Details aufgenommen. AGENTS, Projekteinstieg, Dienst-Dokumentation, Installationsguide und Protokollverweise abgeglichen. Bestehende responsive Browseranzeige ist nicht als fertige WebApp zu behandeln. Keine Änderungen an Laufzeitcode, Compose, Hardware, Netzwerk oder laufenden Diensten; Umsetzung erst mit gesondertem Auftrag. Historische Changelog-Einträge bleiben unverändert.
 
 ## 2026-10-04
 

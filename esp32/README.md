@@ -7,7 +7,7 @@ Whitelist-gesteuerte RFID-Toggles und konfigurierten persistierten Start.
 für `8f98c41` bestätigt 41 native Sanitizer-Fälle, fünf simulierte
 Firmwareadapter-Suiten, kompletten Targetcompile, Artefakte und Flash-CLI-Hilfe
 ohne USB/Upload; Linux-amd64-Prüfhost, kein Pi-ARM64-/Hardwaretest.
-Wallboxsteuerung, UART-MQTT-Gateway, HA und GUI-Bedienung werden dadurch nicht
+Wallboxsteuerung, UART-MQTT-Gateway und Webbedienung werden dadurch nicht
 implementiert; die Python-UART-Brücke bleibt unverändert.
 
 ## Verhalten

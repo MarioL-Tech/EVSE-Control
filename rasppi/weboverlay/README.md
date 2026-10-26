@@ -4,6 +4,12 @@ Eigenständiger Docker-Dienst: Paho-MQTT → validierter In-Memory-Snapshot →
 Flask/Gunicorn → deutsche Browseranzeige. Kein Hardwarezugriff, keine Publish-
 oder Steuerbefehle, keine Datenbank. Bestehender Broker im Netzwerk `evse-mqtt`.
 
+**Spätere Planung:** Die Website soll umgebaut werden; anschließend ist eine
+Smartphone-WebApp vorgesehen. Umfang, Gestaltung und technische Umsetzung
+sind noch offen. Beides ist noch nicht umgesetzt; die bestehende responsive
+Browseranzeige bleibt unverändert und ist nicht bereits die geplante WebApp.
+Ein eigenes Home-Assistant-Modul wird nicht entwickelt.
+
 ## Start auf dem Pi
 
 Aus dem Repository-Verzeichnis, bei laufendem Reader und vorhandenem Broker:

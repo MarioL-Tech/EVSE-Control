@@ -17,7 +17,8 @@ realen ESP32 verifiziert**. Einrichtung: [Installationsguide](installation.md#6-
   kompromittierter Pi kann Karten aufnehmen oder die Bootpolicy ändern.
 - Die Python-Testbrücke bleibt unverändert: `status`, `on`, `off` werden
   übersetzt, sonstige Eingaben als rohe Zeilen weitergereicht.
-  UART-MQTT-Gateway, Home Assistant und GUI-Steuerung bleiben geplant.
+  UART-MQTT-Gateway und Webbedienung bleiben geplant; ein eigenes
+  Home-Assistant-Modul ist nicht vorgesehen.
   Keine Weiterleitung über anonyme MQTT-Befehlstopics oder das aktuell rein
   lesende HTTP-Weboverlay; spätere Routen benötigen Authentifizierung und
   geschützte, autorisierte Befehlsweiterleitung.
