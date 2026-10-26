@@ -19,7 +19,8 @@ bestehende HTML-/CSS-/JS-Oberfläche, Seiten und Diagramme bleiben unverändert.
 > Pi-Browser-/Deploymenttest steht noch aus.
 > MariaDB-Speicherdienst implementiert und Docker-getestet; Pi-Konfiguration offen.
 > Reale Ladesteuerung und bedienende Webfunktionen fehlen noch.
-> Visuelle Neugestaltung und Smartphone-WebApp sind noch nicht umgesetzt.
+> Theme „Compact / Dense“ in Hell/Dunkel umgesetzt; weitergehender Websiteumbau
+> und Smartphone-WebApp bleiben offen.
 > ESP32-Whitelist und persistierter Startmodus ersetzen den bisherigen
 > UART-Kommunikationstest; neue Firmware noch ungeflasht und hardwareunverifiziert.
 > Ein Docker-Einmaltest mit FC03 an der realen Wallbox wurde
@@ -156,6 +157,10 @@ unverändert; Reader, UART-Brücke und Speichercollector werden nicht ersetzt.
 (`/diagramme`) mit bis zu 15 Minuten **seit Öffnen der Diagrammseite**, kein
 Datenbankarchiv. „Anzeige auswählen“ gilt auf beiden Seiten. Auswahl bleibt
 lokal gespeichert; Neuladen oder Seitenwechsel leert die Messwerthistorie.
+
+Das Theme folgt Entwurf Nr. 8 „Compact / Dense“: kühle Blautöne, feine Rahmen,
+dezente Schatten und kompakte Karten. Hell/Dunkel folgt der Browsereinstellung.
+Die Vorlagen bestimmen nur den Stil, nicht Inhalt oder Anordnung der Website.
 
 ## ESP32-UART-Verbindung testen
 

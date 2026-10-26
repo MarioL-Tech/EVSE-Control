@@ -29,6 +29,60 @@ async function overflow(page, description) {
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth
     && document.body.scrollWidth <= innerWidth), description);
 }
+async function textContrast(page, scheme) {
+  const ratios = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    function rgba(color) {
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = color;
+      context.fillRect(0, 0, 1, 1);
+      return [...context.getImageData(0, 0, 1, 1).data];
+    }
+    function over(foreground, background) {
+      const alpha = foreground[3] / 255;
+      return foreground.slice(0, 3).map((value, i) => value * alpha + background[i] * (1 - alpha));
+    }
+    function luminance(rgb) {
+      const linear = rgb.map(value => {
+        const channel = value / 255;
+        return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+      });
+      return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+    }
+    // Composite transparent surface colors over their ancestors; no fixed palette.
+    return ['body', '.status-panel', '.card', '.metadata', '.subtle',
+      '.nav-link[aria-current="page"]', '#wallbox-warning', 'summary', '#power'].flatMap(selector => {
+      const element = document.querySelector(selector);
+      if (!element) return [];
+      const ancestors = [];
+      for (let node = element; node; node = node.parentElement) ancestors.unshift(node);
+      let background = [255, 255, 255];
+      for (const node of ancestors) background = over(rgba(getComputedStyle(node).backgroundColor), background);
+      const foreground = over(rgba(getComputedStyle(element).color), background);
+      const a = luminance(foreground), b = luminance(background);
+      return { selector, ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) };
+    });
+  });
+  for (const { selector, ratio } of ratios)
+    assert(ratio >= 4.5, `${scheme} ${selector}: normal text contrast ${ratio.toFixed(2)} must be >= 4.5:1`);
+}
+async function systemTheme(page, scheme) {
+  const colors = () => page.evaluate(() => ['body', '#main-content', '.status-panel'].map(selector => {
+    const style = getComputedStyle(document.querySelector(selector));
+    return [style.backgroundColor, style.color];
+  }));
+  assert(await page.evaluate(value => matchMedia(`(prefers-color-scheme: ${value})`).matches, scheme));
+  const initial = await colors();
+  assert.equal(await page.locator('.card').first().evaluate(element => getComputedStyle(element).borderTopLeftRadius), '8px', 'Compact theme uses restrained card rounding');
+  await textContrast(page, scheme);
+  await page.emulateMedia({ colorScheme: scheme === 'light' ? 'dark' : 'light' });
+  assert.notDeepEqual(await colors(), initial, 'System theme changes actual computed page colors');
+  await textContrast(page, scheme === 'light' ? 'dark' : 'light');
+  await page.emulateMedia({ colorScheme: scheme });
+  assert.deepEqual(await colors(), initial, 'System theme restores without a theme control');
+}
 async function setup(browser, options = {}, denied = false) {
   const context = await browser.newContext(options), errors = [], requests = [];
   if (denied) await context.addInitScript(() => {
@@ -102,8 +156,9 @@ function clean(run) {
           await page.waitForFunction(() => document.querySelector('#chart-grid .chart-line'));
         }
         await globals(page);
+        await systemTheme(page, scheme);
         await overflow(page, `${route} ${scheme} ${width}: default`);
-        const size = { 390: 'mobile', 768: 'tablet', 1440: 'desktop' }[width];
+        const size = { 320: 'phone', 390: 'mobile', 768: 'tablet', 1440: 'desktop' }[width];
         if (size) await page.screenshot({ path: `/artifacts/${route === '/' ? 'dashboard' : 'diagrams'}-${scheme}-${size}.png`, fullPage: true });
         await page.locator('.display-options > summary').click();
         await overflow(page, `${route} ${width}: display options`);

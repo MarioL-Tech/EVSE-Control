@@ -10,8 +10,14 @@ Smartphone-WebApp vorgesehen. Umfang, Gestaltung und technische Umsetzung
 sind noch offen. Beides ist noch nicht umgesetzt; die bestehende responsive
 Browseranzeige bleibt unverändert und ist nicht bereits die geplante WebApp.
 Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die jetzt autorisierte
-Backendmigration ist kein visueller Umbau: HTML/CSS/JS, Seiten und Diagramme
-bleiben erhalten. C++-Reader, UART-Brücke und Speichercollector bleiben unverändert.
+Backendmigration war kein visueller Umbau. Separat ist nun das Theme
+„Compact / Dense“ nach Entwurf Nr. 8 umgesetzt: kühle Blau-/Grautöne,
+dezente Verläufe, feine Rahmen, Schatten und kompaktere Abstände in Hell/Dunkel.
+Die Vorlagen dienen nur als Theme-Referenz; Sidebar, vier Übersichtskarten,
+Messwerte und Seitenaufteilung bleiben erhalten. Farbe weiterhin über die
+Browsereinstellung, kein zusätzlicher Schalter oder gespeicherter Theme-Wert.
+JavaScript-/PHP-/MQTT-Verhalten, C++-Reader, UART-Brücke und Speichercollector
+bleiben unverändert. Neue Theme-CI noch ausstehend.
 
 ## Start auf dem Pi
 
