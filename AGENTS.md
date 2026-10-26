@@ -24,10 +24,15 @@ umgebaut werden; danach ist eine Smartphone-WebApp vorgesehen. Funktionsumfang,
 Gestaltung und Zusammenspiel der Oberflächen sind noch festzulegen. Separat
 autorisiert und implementiert ist die PHP-Backendmigration ausschließlich der Website
 `rasppi/weboverlay`; HTML/CSS/JS, Seiten und Diagramme bleiben ohne Neugestaltung.
+Separat beauftragt und umgesetzt ist das Theme „Compact / Dense“ nach Entwurf
+Nr. 8 für Dark- und Light-Mode: kühle Blau-/Grautöne, dezente Kartenverläufe,
+feine Rahmen/Schatten und kompaktere Typografie/Abstände. Die Vorlagen zeigen
+nur das Theme, nicht die zu übernehmende Ansicht: Sidebar, vier Übersichtskarten,
+Messwerte, Auswahl, Navigation und Seitenaufteilung bleiben erhalten.
 Die vorhandene responsive, rein lesende Browseranzeige ist nicht als bereits
 umgesetzte Smartphone-WebApp zu behandeln. Diese Planungsänderung verändert
-weder Laufzeitcode noch Dienste; visueller Umbau und WebApp werden erst mit
-gesondertem Umsetzungsauftrag begonnen. Die PHP-Migration ist separat autorisiert.
+weder Hardwaredienste noch deren Schnittstellen; ein weitergehender inhaltlicher
+Umbau und die WebApp brauchen einen gesonderten Umsetzungsauftrag.
 
 ### Konkretisierte Anforderungen (Umsetzungsstand siehe unten)
 
@@ -404,6 +409,14 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   kein Pi-ARM64-/Produktionsnachweis. Alle nachfolgenden Python-CI-Nachweise sind
   historische Nachweise der früheren Flask-/Paho-Version, nicht der PHP-Migration.
 - Deutsche statische Oberfläche, keine CDN-/Browser-MQTT-Abhängigkeiten.
+  Theme „Compact / Dense“ für Dark/Light nach Entwurf Nr. 8; Farbwahl folgt
+  weiterhin der Systemeinstellung des Browsers. Nur CSS und dekorative Inline-
+  SVG-Symbole geändert, keine Karten umgeordnet oder entfernt. PHP/MQTT/API,
+  Frischelogik, Präferenzen und Diagrammdaten unverändert. Theme-CI 40369056814
+  für ff496f2 erfolgreich: vollständige PHP-/MQTT-/HTTP-/JS-/Chromium-Prüfungen,
+  Systemfarbwechsel und Textkontrast auf geprüften Flächen mindestens 4,5:1.
+  Beide Seiten in Hell/Dunkel bei 320/390/768/1440 px geprüft; simulierte
+  Desktop-/Mobilbilder visuell angesehen, kein Pi-Deploymentnachweis.
   Unterscheidet Anschluss, tatsächliches Laden, Wallbox-Limit und noch nicht
   erfassten Gebäudestrom. Unknown/null bleibt unbekannt, nicht „Nein“.
 - Dashboard `/` und eigene Diagrammseite `/diagramme` mit gemeinsamer echter
@@ -546,7 +559,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   anschließende Pi-Modbus-Steuerung der ABB Terra AC.
 - DTSU666-Messwerterfassung und Berechnung verfügbarer Ladeleistung.
 - UART-MQTT-Gateway und dessen Topic-/Payload-Vertrag. Wallbox-Telemetrie ist definiert.
-- Späterer Websiteumbau und anschließend Smartphone-WebApp; Anforderungen,
+- Weitergehender Websiteumbau und anschließend Smartphone-WebApp; Anforderungen,
   Gestaltung und technische Umsetzung noch offen. Kein Home-Assistant-Modul.
 - Bedienende Website (inklusive modularer Wallbox-Einrichtungsfunktion),
   SQL-Historienabfrage/-Diagrammanbindung und weitere Datenmodelle für

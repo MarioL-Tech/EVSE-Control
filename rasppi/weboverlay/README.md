@@ -10,8 +10,18 @@ Smartphone-WebApp vorgesehen. Umfang, Gestaltung und technische Umsetzung
 sind noch offen. Beides ist noch nicht umgesetzt; die bestehende responsive
 Browseranzeige bleibt unverändert und ist nicht bereits die geplante WebApp.
 Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die jetzt autorisierte
-Backendmigration ist kein visueller Umbau: HTML/CSS/JS, Seiten und Diagramme
-bleiben erhalten. C++-Reader, UART-Brücke und Speichercollector bleiben unverändert.
+Backendmigration war kein visueller Umbau. Separat ist nun das Theme
+„Compact / Dense“ nach Entwurf Nr. 8 umgesetzt: kühle Blau-/Grautöne,
+dezente Verläufe, feine Rahmen, Schatten und kompaktere Abstände in Hell/Dunkel.
+Die Vorlagen dienen nur als Theme-Referenz; Sidebar, vier Übersichtskarten,
+Messwerte und Seitenaufteilung bleiben erhalten. Farbe weiterhin über die
+Browsereinstellung, kein zusätzlicher Schalter oder gespeicherter Theme-Wert.
+JavaScript-/PHP-/MQTT-Verhalten, C++-Reader, UART-Brücke und Speichercollector
+bleiben unverändert. Theme-CI
+[40369056814](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/40369056814)
+für `ff496f2` erfolgreich: beide Seiten in Hell/Dunkel bei 320/390/768/1440 px,
+Farbschemawechsel und Textkontrast auf geprüften Flächen mindestens 4,5:1.
+Simulierte Desktop-/Mobil-Screenshots geprüft; kein Pi-Deploymentnachweis.
 
 ## Start auf dem Pi
 

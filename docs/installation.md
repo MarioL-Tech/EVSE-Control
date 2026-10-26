@@ -894,6 +894,18 @@ einklappbar. Navigation am Desktop links, auf kleinen Bildschirmen oben;
 helles/dunkles Farbschema folgt dem Browser. Datenstatus, Messzeit, Frische und
 aktive Fehlerwarnungen sind nicht in den einklappbaren Bereichen versteckt.
 
+Das Theme entspricht „Compact / Dense“ nach Entwurf Nr. 8 in Hell/Dunkel:
+kühle Blau-/Grautöne, dezente Kartenverläufe, feine Rahmen und kompaktere
+Abstände. Die Entwürfe sind nur Stilvorlagen; keine Änderung von Sidebar,
+vier Übersichtskarten, Messwerten oder Seitenaufteilung. PHP/API/MQTT und
+Frischelogik unverändert, keine neuen Konfigurationsschritte oder Ports.
+Für Hell-/Dunkelansicht die vorhandene Browser-/Systemeinstellung verwenden.
+Update wie unten mit `docker compose up -d --build`, bei altem CSS Strg+F5.
+Theme-CI 40369056814 für ff496f2 erfolgreich: beide Seiten in Hell/Dunkel bei
+320/390/768/1440 px, Systemfarbwechsel, geprüfte Textkontraste und weiterhin
+geschützte Status-/Warnungsanzeige. Desktop-/Mobilbilder mit simulierten Werten
+visuell geprüft; kein tatsächlicher Pi-Nachweis.
+
 **Diagramme** über die Navigation oder direkt **http://127.0.0.1:8080/diagramme**
 öffnen (bei abweichendem Tunnelport entsprechend anpassen). Separate Seite,
 gleicher Container/SSH-Tunnel, keine neue Freigabe. Vier elektrische Diagramme;
