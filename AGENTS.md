@@ -412,7 +412,11 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Theme „Compact / Dense“ für Dark/Light nach Entwurf Nr. 8; Farbwahl folgt
   weiterhin der Systemeinstellung des Browsers. Nur CSS und dekorative Inline-
   SVG-Symbole geändert, keine Karten umgeordnet oder entfernt. PHP/MQTT/API,
-  Frischelogik, Präferenzen und Diagrammdaten unverändert. Neue Theme-CI offen.
+  Frischelogik, Präferenzen und Diagrammdaten unverändert. Theme-CI 40369056814
+  für ff496f2 erfolgreich: vollständige PHP-/MQTT-/HTTP-/JS-/Chromium-Prüfungen,
+  Systemfarbwechsel und Textkontrast auf geprüften Flächen mindestens 4,5:1.
+  Beide Seiten in Hell/Dunkel bei 320/390/768/1440 px geprüft; simulierte
+  Desktop-/Mobilbilder visuell angesehen, kein Pi-Deploymentnachweis.
   Unterscheidet Anschluss, tatsächliches Laden, Wallbox-Limit und noch nicht
   erfassten Gebäudestrom. Unknown/null bleibt unbekannt, nicht „Nein“.
 - Dashboard `/` und eigene Diagrammseite `/diagramme` mit gemeinsamer echter
