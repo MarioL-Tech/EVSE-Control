@@ -31,6 +31,9 @@ config.local.h
 # Local Playwright MCP logs/screenshots (not application source)
 .playwright-mcp/
 
+# PHP dependencies are installed only in the Docker build.
+rasppi/weboverlay/vendor/
+
 # Slidev deck (local experiment)
 slide/node_modules/
 slide/dist/

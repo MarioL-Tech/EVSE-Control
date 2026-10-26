@@ -9,11 +9,14 @@ Geplant sind Ladeautomatisierung und Bedienung über die Website. Ein lesendes
 Weboverlay und MQTT-Wallbox-Zustandsspeicherung für MariaDB sind implementiert.
 Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die Website soll später
 umgebaut werden; anschließend ist eine Smartphone-WebApp geplant. Umfang,
-Gestaltung und technische Umsetzung sind noch offen, derzeit keine Umsetzung.
+Gestaltung und WebApp-Umsetzung sind noch offen. Separat läuft die autorisierte
+Migration nur des Websitebackends auf PHP 8.4/Apache mit einem PHP-MQTT-Worker;
+bestehende HTML-/CSS-/JS-Oberfläche, Seiten und Diagramme bleiben unverändert.
 
 > **Entwicklungsstand:** Der Wallbox-Dienst ist ausschließlich lesend.
 > MQTT-Empfang echter Wallboxdaten am Pi ist bestätigt. Das neue lesende
-> Weboverlay ist implementiert; Pi-Browser-/Deploymenttest steht noch aus.
+> Weboverlay wird auf PHP migriert; neue Docker-CI-Verifikation sowie
+> Pi-Browser-/Deploymenttest stehen noch aus. Frühere Python-CI gilt nicht als PHP-Nachweis.
 > MariaDB-Speicherdienst implementiert und Docker-getestet; Pi-Konfiguration offen.
 > Reale Ladesteuerung und bedienende Webfunktionen fehlen noch.
 > Websiteumbau und Smartphone-WebApp sind noch nicht umgesetzt.
@@ -58,7 +61,7 @@ noch keine Modusauswahl oder Einrichtung; Geräte-/Sicherheitsgrenzen gelten wei
 | UART-Testbrücke | Interaktive Python-Brücke im Docker-Container |
 | Wallbox-Reader | C++17/libmodbus, zyklische FC03-Abfragen, dekodierte Messwerte als JSON |
 | MQTT-Publisher | retained State und Verfügbarkeit mit libmosquitto; vorhandener Broker wird wiederverwendet |
-| Weboverlay | Lesende MQTT-Anzeige mit wählbaren Messwerten und Browser-Zeitverläufen; Frischeprüfung |
+| Weboverlay | Lesende MQTT-Anzeige mit Frischeprüfung und Browser-Zeitverläufen; PHP-Backendmigration in Arbeit, Verifikation offen |
 | Zustandsspeicherung | Separater MQTT-Collector für vorhandene MariaDB; Schema/Migration und typisierte Wallbox-Historie |
 | Fehlerbehandlung | Timeouts, erneute Verbindung, ungültige Messwerte als `null`, sauberer Shutdown |
 | Softwaretests | Decoder-/JSON-Tests und simulierte RTU-Kommunikation einschließlich Fehlerfällen |
@@ -145,6 +148,9 @@ Auf deinem Rechner: `ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.
 dann **http://127.0.0.1:8080** öffnen.
 Pi-Port bleibt nur lokal gebunden. Keine Start-/Stop- oder Limitänderung enthalten.
 [Konfiguration und Diagnose](docs/installation.md#9-lesendes-weboverlay).
+PHP/Composer und Abhängigkeiten werden ausschließlich im Docker-Build verwendet,
+nicht auf dem Host installiert. Netzwerk, Broker, Compose und SSH-Tunnel bleiben
+unverändert; Reader, UART-Brücke und Speichercollector werden nicht ersetzt.
 
 **Übersicht** zeigt aktuelle Werte; **Diagramme** ist eine eigene Seite
 (`/diagramme`) mit bis zu 15 Minuten **seit Öffnen der Diagrammseite**, kein

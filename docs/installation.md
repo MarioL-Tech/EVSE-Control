@@ -6,11 +6,11 @@ werden. Die Betriebsschritte setzen einen vorbereiteten Pi voraus. Hardware-
 und Erstvorbereitungsreferenz stehen in Abschnitt 8; eine vollständige OS-,
 Docker- oder Broker-Neuinstallation ist damit noch nicht beschrieben.
 
-**Stand:** 2026-10-26. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
+**Stand:** 2026-10-26, 17:52 CET (Europe/Vienna). Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
 zyklischer Betrieb wurden vom Projektinhaber bestätigt. Der vorhandene MQTT-Broker ist
 erreichbar; der Empfang der echten Reader-Messwerte wurde ebenfalls bestätigt.
-Das neue rein lesende Weboverlay ist implementiert, der Browser-/Deploymenttest
-auf dem Pi steht noch aus (Abschnitt 9).
+Das rein lesende Weboverlay wird auf PHP migriert; neue Docker-CI-Verifikation
+und Browser-/Deploymenttest auf dem Pi stehen noch aus (Abschnitt 9).
 
 **Planungsänderung:** Kein eigenes Home-Assistant-Modul. Die Website soll später
 umgebaut werden; anschließend ist eine Smartphone-WebApp vorgesehen. Details
@@ -47,7 +47,7 @@ erzeugt es nicht selbst. Danach mit Abschnitt 3 fortfahren. Es wird kein zweiter
 Produktionsbroker benötigt.
 
 **Alles an Projektsoftware bleibt in Docker:** keine Compiler, libmodbus,
-Python-/pip-Pakete, mbpoll oder Mosquitto auf dem Pi-Host installieren.
+Python-/pip-Pakete, PHP/Composer, mbpoll oder Mosquitto auf dem Pi-Host installieren.
 Dockerfiles installieren Pakete nur innerhalb der Images.
 
 **Ein Prozess pro Hardwareport:** Reader und mbpoll dürfen nicht gleichzeitig
@@ -788,14 +788,48 @@ installieren, keinen parallelen Read starten. Mehr [Registerreferenzen](wallbox/
 
 ### Aufbau und Voraussetzungen
 
-`rasppi/weboverlay/` ist ein eigener Docker-Dienst. Sein Python-/Flask-Backend
-abonniert mit Paho die bestehenden MQTT-Topics; Gunicorn liefert API und statische
-Browseroberfläche aus. **Kein zusätzlicher Broker, kein Zugriff auf RS485/UART,
+`rasppi/weboverlay/` ist ein eigener Docker-Dienst. Die laufende Migration ersetzt
+nur sein Websitebackend durch PHP 8.4/Apache und genau einen PHP-CLI-MQTT-
+Subscriber mit `php-mqtt/client` exakt 2.3.2 im selben Container. HTML/CSS/JS,
+Seiten, Diagramme, API-Schema, deutsche Statusgründe, Frische-/Read-only-Semantik,
+CSP und sonstige Sicherheitsheader bleiben erhalten; keine visuelle Neugestaltung.
+**Neue PHP-Docker-CI noch nicht ausgeführt; Pi-Verifikation ebenfalls offen.**
+Die folgenden Befehle beschreiben den vorgesehenen Ablauf nach erfolgreicher
+Verifikation und Merge, nicht einen bestätigten PHP-Deploymenttest.
+**Kein zusätzlicher Broker, kein Zugriff auf RS485/UART,
 keine Schreibbefehle.** Der laufende Wallbox-Reader muss nicht gestoppt werden.
 
 Voraussetzungen: Abschnitt 5 eingerichtet (`evse-mqtt`, `mqtt-broker`), laufender
 Reader und aktueller Repository-Stand nach Merge der Weboverlay-PR. Build und
 Tests benötigen keine Wallbox, Tests verwenden nur einen isolierten Loopback-Broker.
+
+Apache läuft non-root als UID 10001, intern auf Port 8080. Bash überwacht HTTP
+und Worker: stirbt einer unerwartet, beendet der Entrypoint den anderen und den Container
+mit Fehler; SIGTERM stoppt beide. HTTP bleibt bei Brokerausfall erreichbar,
+der Worker versucht Reconnect mit 1–30 s Abstand. Erst beide SUBACKs erlauben
+die Datenfreigabe, Reconnect verwirft Sample und Availability. MQTT-Pakete sind
+auf 32768 Bytes, Statepayloads auf 16384 Bytes begrenzt.
+
+Privater Snapshot unter `/tmp/evse-weboverlay` im vorhandenen tmpfs: stabile
+flock-Datei mit maximal 200 ms Wartezeit, atomarer Austausch bis 64 KiB.
+Workerheartbeat alle 250 ms, niemals durch HTTP erneuert. Bei fehlendem/defektem
+Snapshot oder 3 s Worker-Stillstand liefert die API fail-closed offline/keine Werte.
+Interne Defaults `WEB_STATE_DIR=/tmp/evse-weboverlay` und `EVSE_HTTP_PORT=8080`
+brauchen im unveränderten Compose-Dienst keine Anpassung. Bestehendes externes
+`evse-mqtt`, Broker/Client-ID, Umgebungsvariablen, Passwortoverride, readonly,
+tmpfs, cap-drop und Localhost-Bindung bleiben unverändert. C++-Reader,
+Python-UART-Brücke und Python-Speichercollector werden nicht ersetzt.
+
+**Späterer Haus-Smartmeter, nicht Teil dieser Migration:** Laut Projektinhaber
+liefert ein konfigurierbarer privater HTTP-Host unter `/dev/powerValue.txt`
+whitespace-getrennte Werte, schematisch `U1 U2 U3 Feld4 Feld5 Feld6 1549.40 …`.
+Wert 7 ist Netzaustauschleistung in W: positiv Bezug, negativ Einspeisung;
+die ersten drei Phasenspannungen vorerst ignorieren, übrige Felder unbekannt.
+Nicht unabhängig abgerufen/verifiziert, noch nicht integriert; erst nach PHP-
+Migration. Keine Deployment-IP dokumentieren. Beziehung zur geplanten DTSU666-
+Erfassung offen, daraus keinen verfügbaren Strom in A ableiten. Keine neuen
+Smartmeterabfragen, Modbus-Schreibbefehle, DB-/Historienoberfläche, Home-Assistant-
+Integration oder gemeinsame Compose-Datei in diesem Arbeitsschritt.
 
 ### Auf dem Pi starten
 
@@ -811,8 +845,12 @@ docker compose logs --tail 30 -f weboverlay
 ```
 
 `Ctrl+C` beendet nur die Logansicht. Das Image führt beim Build automatisch
-Python-/HTTP-/MQTT- und JavaScript-Tests aus; ein Testfehler bricht den Build ab.
-Weder Compiler noch Python-/Node-/pip-Pakete auf dem Pi-Host installieren.
+PHP-/Node-Unit-/HTTP-/MQTT- und JavaScript-Tests aus; ein Testfehler bricht den
+Build ab. Abhängigkeiten werden exakt aus `composer.lock` installiert.
+Kein Python in Websitebackend, Runtime, Healthcheck oder Backendtests.
+Weder PHP/Composer noch Compiler oder Node-Pakete auf dem Pi-Host installieren.
+Neue PHP-Verifikation ist noch ausstehend; keine erfolgreichen neuen Testzahlen
+behaupten. Die bestehenden 28 JS-Tests und drei Chromium-Suiten bleiben unverändert.
 
 Der Dienst bindet den Hostport bewusst **nur an `127.0.0.1:8080`**. Es werden
 keine Firewall-, SSH-, WireGuard- oder Routereinstellungen verändert. Kein
@@ -861,8 +899,8 @@ weitere Kurven unter **„Zustands- & Diagnoseverläufe“** öffnen.
 
 Die Oberfläche zeigt Fahrzeuganschluss und tatsächliches Laden getrennt,
 Phasenströme/-spannungen, Wirkleistung, Sessionenergie, Wallbox-Limit, Fehlercode
-und Messzeit. **Verfügbarer Gebäudestrom ist noch nicht erfasst**; dafür fehlt
-die DTSU666-Anbindung. Die Wallbox-Verriegelung ist nicht der ESP32-Servo.
+und Messzeit. **Verfügbarer Gebäudestrom ist noch nicht erfasst**; weder DTSU666
+noch der spätere HTTP-Hauszähler sind angebunden. Die Wallbox-Verriegelung ist nicht der ESP32-Servo.
 Es gibt keine Start-/Stop-, Limit- oder frei eingebbaren Steuerbefehle.
 
 Messwerte erscheinen nur, wenn Brokerverbindung, `availability online`, ein
@@ -946,13 +984,13 @@ wechseln: die Auswahl bleibt, der Diagrammverlauf nicht. Mobilansicht ebenfalls
 prüfen; unbekannte/offline Werte dürfen nicht als Null oder „Nein“ erscheinen.
 Eine echte Pi-/Browserprüfung ist dadurch beschrieben, nicht bereits bestätigt.
 
-Diagramm-CI [37204010318](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37204010318)
+Historische Diagramm-CI der Python-Version [37204010318](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37204010318)
 bestätigt 21 Python-/MQTT-/HTTP-Tests, 27 JavaScript-Tests und beide Chromium-
 Browsersuiten (Auswahl, Persistenz, Phasenspalten, mobile SVGs, Ausfalllücken).
 Desktop-/Mobilbilder verwenden simulierte Werte; echten Pi-Empfang/Browserverlauf
 separat prüfen, nicht aus diesen Screenshots ableiten.
 
-Abschließende Dashboard-CI [37220843434](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37220843434)
+Historische abschließende Dashboard-CI der Python-Version [37220843434](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37220843434)
 bestätigt 21 Python-/MQTT-/HTTP- und 28 JavaScript-Tests plus drei Chromium-Suiten:
 beide Seiten in hell/dunkel bei 320/390/768/1440 px, Navigation/Tastatur, Auswahl,
 geschützte Warnungen/Frische, CSP und blockierter Browserspeicher. Simulierte
@@ -1005,7 +1043,7 @@ Im Verzeichnis `rasppi/weboverlay/`:
 ```bash
 docker compose ps
 docker compose logs --tail 50 weboverlay
-docker compose exec -T weboverlay python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8080/api/state', timeout=3).read().decode())"
+docker compose exec -T weboverlay php -r '$ctx = stream_context_create(["http" => ["timeout" => 3]]); $body = file_get_contents("http://127.0.0.1:8080/api/state", false, $ctx); if ($body === false) { exit(1); } print($body . PHP_EOL);'
 ```
 
 `/healthz` prüft nur die Webserver-Erreichbarkeit, nicht MQTT-/Wallbox-Verfügbarkeit.
@@ -1018,7 +1056,10 @@ Tests unabhängig von Hardware wiederholen, vollständig in Docker:
 
 ```bash
 docker build --target test -t evse-weboverlay-tests .
-docker run --rm evse-weboverlay-tests python -m unittest discover -s tests -v
+docker run --rm --entrypoint php evse-weboverlay-tests tests/unit.php
+docker run --rm --entrypoint php evse-weboverlay-tests tests/shared.php
+docker run --rm --entrypoint php evse-weboverlay-tests tests/transport.php
+docker run --rm --entrypoint node evse-weboverlay-tests tests/integration.cjs
 docker run --rm evse-weboverlay-tests node --test tests/frontend.test.cjs tests/charts.test.cjs
 ```
 
@@ -1026,14 +1067,13 @@ Update nach Git-Aktualisierung: `docker compose up -d --build`.
 Stoppen: `docker compose down`. Das betrifft nur das Weboverlay, nicht Reader
 oder vorhandenen Broker. Der Dienst speichert keinen serverseitigen Verlauf; nach Neustart
 werden neue/retained Nachrichten erneut geprüft. Kein Datenbankdienst enthalten.
-Gunicorn bleibt bei **einem Worker** mit mehreren HTTP-Threads; mehrere Worker
-würden getrennte Snapshots und konkurrierende MQTT-Client-IDs erzeugen.
-Blockierende OS-DNS-Auflösung im MQTT-Thread kann das saubere Beenden verzögern;
-Gunicorn-/Compose-Stopfristen begrenzen dann den Prozess statt eine erfolgreiche
-MQTT-Abmeldung zu garantieren. Das Overlay veröffentlicht selbst nichts und
+HTTP-Anfragen bauen keine MQTT-Verbindung auf; nur der eine PHP-CLI-Worker
+verwendet die MQTT-Client-ID und schreibt Snapshot/Heartbeat. Prozess-/Compose-
+Stopfristen begrenzen das Beenden, nicht eine erfolgreiche MQTT-Abmeldung.
+Das Overlay veröffentlicht selbst nichts und
 besitzt keinen Hardwareport, auch ein erzwungenes Beenden stoppt den Reader nicht.
 
-Docker-CI [37200290345](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37200290345)
+Historische Docker-CI der Python-Version [37200290345](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37200290345)
 bestätigt 21 Python-/MQTT-/HTTP-Tests, 13 JavaScript-Tests und Chromium-Browsertests sowie das
 gehärtete Laufzeit-Image ohne Broker. Desktop-/Mobil-Screenshots mit simulierten
 Messwerten wurden geprüft; das ist kein Nachweis der Browseranzeige am echten Pi.

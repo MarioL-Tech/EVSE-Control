@@ -1,6 +1,6 @@
 # Arbeitskontext für Agents: EVSE-Control
 
-Stand: 2026-10-26. Diese Datei beschreibt den geprüften Repositoryzustand und
+Stand: 2026-10-26, 17:52 CET (Europe/Vienna). Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
@@ -21,11 +21,13 @@ sind noch umzusetzen; diese Umstellung ist ausdrücklich erst später gewünscht
 **Aktualisierte Oberflächenplanung:** Es wird kein eigenes Home-Assistant-Modul
 und keine eigene Home-Assistant-Integration entwickelt. Die Website soll später
 umgebaut werden; danach ist eine Smartphone-WebApp vorgesehen. Funktionsumfang,
-Gestaltung, Technologie und Zusammenspiel der Oberflächen sind noch festzulegen.
+Gestaltung und Zusammenspiel der Oberflächen sind noch festzulegen. Separat
+autorisiert ist die laufende PHP-Backendmigration ausschließlich der Website
+`rasppi/weboverlay`; HTML/CSS/JS, Seiten und Diagramme bleiben ohne Neugestaltung.
 Die vorhandene responsive, rein lesende Browseranzeige ist nicht als bereits
 umgesetzte Smartphone-WebApp zu behandeln. Diese Planungsänderung verändert
-weder Laufzeitcode noch Dienste; Umbau und WebApp werden erst mit gesondertem
-Umsetzungsauftrag begonnen.
+weder Laufzeitcode noch Dienste; visueller Umbau und WebApp werden erst mit
+gesondertem Umsetzungsauftrag begonnen. Die PHP-Migration ist separat autorisiert.
 
 ### Konkretisierte Anforderungen (Umsetzungsstand siehe unten)
 
@@ -86,8 +88,11 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
   mit Python/pyserial ausschließlich im Container, Hardwaregerät durchgereicht.
 - `rasppi/wallbox/`: rein lesender C++17-libmodbus-Dienst, Decoder-/JSON-Tests,
   simulierte RTU-Tests, CMake sowie Dockerfile/Compose und Pi-Startanleitung.
-- `rasppi/weboverlay/`: lesendes Flask-/Paho-Backend, Browseroberfläche, isolierte
-  MQTT-/HTTP- und Frontendtests, Docker/Compose; kein direkter Hardwarezugriff.
+- `rasppi/weboverlay/`: laufende Migration auf PHP 8.4/Apache und einen PHP-CLI-
+  MQTT-Subscriber; `php/` enthält Config, StrictJson, StateStore, SharedState,
+  MqttTransport und `worker.php`, `public/` den HTTP-Einstieg, `docker/` Apache-
+  Konfiguration, Bash-Supervision und PHP-Healthcheck. Bestehende Browseroberfläche,
+  PHP-/Node-Tests und Docker/Compose; kein direkter Hardwarezugriff. Neue CI offen.
 - `rasppi/storage/`: MQTT-Collector für vorhandene MariaDB, Schema/Migration,
   typisierte Wallbox-Historie, Docker-only-Tests; keine Steuerung/Hardwareports.
 - `docs/pin-connection.md`, `docs/uart-protocol.md`: Pinreferenz und UART-Protokoll.
@@ -149,6 +154,22 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
   UART ist kein MQTT-/TCP/IP-Transport ohne
   zusätzliche Protokollschichten. Ob der Lehrer MQTT auch auf der direkten
   Geräteverbindung verlangt, muss noch geklärt werden.
+- Nur das Websitebackend wird durch PHP ersetzt; C++-Reader, Python-UART-Brücke
+  und Python-Speichercollector bleiben unverändert. Keine Compose-Zusammenführung,
+  Home-Assistant-Integration, Modbus-Schreibbefehle, DB-/Historienoberfläche oder
+  Smartmeterabfrage als Teil dieser Migration.
+
+### Haus-Smartmeter: Kontext für später, noch nicht integriert
+
+- Laut Projektinhaber liefert ein konfigurierbarer privater HTTP-Host unter
+  `/dev/powerValue.txt` whitespace-getrennte Werte (schematisch
+  `U1 U2 U3 Feld4 Feld5 Feld6 1549.40 …`). Wert 7 ist Netzaustauschleistung in W:
+  positiv Netzbezug, negativ Einspeisung; Beispiel 1549.40 bedeutet 1549,40 W Bezug.
+- Die ersten drei Werte sind Phasenspannungen und für die geplante Auswertung
+  vorerst zu ignorieren; andere Felder sind unbekannt. Keine Deployment-IP
+  dokumentieren. Nicht unabhängig abgerufen oder verifiziert.
+- Integration erst nach PHP-Migration; Beziehung zur geplanten DTSU666-Erfassung
+  ungeklärt. Nicht als DTSU666-Quelle oder als verfügbaren Strom in A behandeln.
 
 ## Betrieb und Remote-Zugriff
 
@@ -356,9 +377,28 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 
 ### Rein lesendes Weboverlay
 
-- `rasppi/weboverlay/overlay/`: Flask-API mit Paho-Subscribe-only-Client,
-  Gunicorn mit genau einem Worker/vier Threads und mutexgeschütztem Snapshot.
-  Kein MQTT-Publish, keine seriellen Geräte oder Start-/Stop-/Limitbefehle.
+- PHP-Migration in Arbeit, neue Verifikation ausstehend: PHP 8.4/Apache (non-root
+  UID 10001, intern Port 8080) plus genau ein PHP-CLI-Subscribe-only-Worker im
+  selben Websitecontainer. `php-mqtt/client` exakt 2.3.2; Docker-Builds verwenden
+  die exakt gesperrten Abhängigkeiten aus `composer.lock`, keine Hostinstallation
+  von PHP/Composer. Kein Python in Websitebackend, Runtime, Healthcheck oder
+  Backendtests; UART und Storage behalten Python.
+- Bash-Entrypoint überwacht HTTP und Worker: unerwartetes Ende eines Prozesses
+  beendet den anderen und den Container mit Fehler; SIGTERM stoppt beide.
+  Bei Brokerausfall läuft HTTP weiter, der Worker versucht Reconnect mit 1–30 s
+  Abstand. Beide SUBACKs sind Voraussetzung; Reconnect löscht Sample/Availability.
+  MQTT-Pakete maximal 32768 Bytes, Statepayload maximal 16384 Bytes.
+- Privater Interprozess-Snapshot unter `/tmp/evse-weboverlay` im tmpfs:
+  stabile flock-Datei, höchstens 200 ms Lockwartezeit, atomarer Austausch,
+  maximal 64 KiB. Workerheartbeat alle 250 ms, HTTP erneuert ihn niemals.
+  Nach 3 s Worker-Stillstand oder bei fehlendem/beschädigtem Snapshot liefert
+  die API fail-closed offline/keine Werte. Kein MQTT-Publish, keine seriellen
+  Geräte oder Start-/Stop-/Limitbefehle.
+- PHP-/Node-Unit-/Integrationstests ersetzen die bisherigen 21 Python-Tests;
+  die bestehenden 28 JS-Tests und drei Chromium-Suiten bleiben unverändert.
+  Neue PHP-Docker-CI noch nicht ausgeführt; keine neuen Testzahlen oder Erfolge
+  behaupten. Alle nachfolgenden Python-CI-Nachweise sind historische Nachweise
+  der früheren Flask-/Paho-Version, nicht der PHP-Migration.
 - Deutsche statische Oberfläche, keine CDN-/Browser-MQTT-Abhängigkeiten.
   Unterscheidet Anschluss, tatsächliches Laden, Wallbox-Limit und noch nicht
   erfassten Gebäudestrom. Unknown/null bleibt unbekannt, nicht „Nein“.
@@ -379,7 +419,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   SSH-Tunnel über WireGuard, keine Firewall-/SSH-/Netzwerkänderungen.
 - Kein HTTP-Login/TLS; nicht öffentlich freigeben. MQTT-Credentials nur Backend,
   optional Passwortdatei mit `compose.auth.yaml`, für UID 10001 lesbar.
-- Build/Tests ausschließlich in Docker. CI `37200290345` für `cf7184f` erfolgreich:
+- Build/Tests ausschließlich in Docker. Historische Python-CI `37200290345` für `cf7184f` erfolgreich:
   21 Python-/MQTT-/HTTP-Tests, 13 Frontend-Unit- und Chromium-Browsertests,
   gehärtetes Runtime-Image ohne Broker. Desktop-/Mobil-Screenshots mit simulierten
   Werten geprüft; tatsächlicher Pi-Browser-/Deploymenttest bleibt offen.
