@@ -37,6 +37,18 @@ Gestaltung und technische Umsetzung sind noch offen, derzeit keine Umsetzung.
 - Pi-Dienste modular und ausschließlich über Docker Compose betreiben;
   später ein gemeinsamer Start-/Stop-Befehl für mehrere spezialisierte Container.
 
+### Geplante Lademodi
+
+Die spätere Ladesteuerung soll drei Modi anbieten (**noch nicht implementiert**):
+
+1. **Laden wenn Solarstrom** – abhängig von verfügbarem Solarstrom.
+2. **Laden ohne Solarstrom** – Laden auch ohne verfügbaren Solarstrom ermöglichen.
+3. **Benutzerdefiniert** – Laden nach noch festzulegenden eigenen Vorgaben.
+
+Solar-Messquelle, mögliche Beschränkung auf PV-Überschuss, Schwellwerte,
+Ausfallverhalten und benutzerdefinierte Regeln sind noch offen. Es gibt dafür
+noch keine Modusauswahl oder Einrichtung; Geräte-/Sicherheitsgrenzen gelten weiter.
+
 ## Was bereits implementiert ist
 
 | Komponente | Aktueller Umfang |

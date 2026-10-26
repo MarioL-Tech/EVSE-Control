@@ -1,6 +1,6 @@
 # Arbeitskontext für Agents: EVSE-Control
 
-Stand: 2026-10-09. Diese Datei beschreibt den geprüften Repositoryzustand und
+Stand: 2026-10-26. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
@@ -53,6 +53,21 @@ Für die bedienende Website sind folgende Funktionen vorgesehen; die genaue
 - **Automationen:** Laden abhängig vom verfügbaren Strom sowie von einer
   festgelegten Dringlichkeit. Messpunkt/Einheiten des verfügbaren Stroms und
   Definition der Dringlichkeit sind noch zu präzisieren.
+
+### Geplante Lademodi (noch nicht implementiert)
+
+Für die spätere Ladesteuerung sind drei Modi vorgesehen:
+
+1. **Laden wenn Solarstrom**: Laden abhängig von verfügbarem Solarstrom.
+2. **Laden ohne Solarstrom**: Laden soll auch ohne verfügbaren Solarstrom möglich sein.
+3. **Benutzerdefiniert**: Laden nach benutzerdefinierten Vorgaben; deren Umfang ist noch offen.
+
+Noch zu klären sind Datenquelle und Messpunkt für Solarstrom, ob Modus 1 nur
+PV-Überschuss nutzen soll, Schwellwerte und Verhalten bei fehlenden/veralteten
+Messwerten sowie die konfigurierbaren Regeln des benutzerdefinierten Modus.
+Standardmodus, Moduswechsel und Zusammenspiel mit Ladefreigabe, verfügbarem
+Strom und Dringlichkeit sind ebenfalls noch festzulegen. Die Modi ändern keine
+Geräte-/Sicherheitsgrenzen und sind keine bereits verfügbaren Bedienfunktionen.
 
 Zusätzlich soll das Weboverlay eine **modulare Einrichtungsfunktion mit
 Befehlseingabe für Wallboxbefehle** anbieten. Befehlsformat, Validierung und
@@ -492,7 +507,9 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - Bedienende Website (inklusive modularer Wallbox-Einrichtungsfunktion),
   SQL-Historienabfrage/-Diagrammanbindung und weitere Datenmodelle für
   Ladesessions, UART/RFID und Zählerdaten.
-- Ladeautomatisierung nach verfügbarer Leistung und Dringlichkeit.
+- Ladeautomatisierung nach verfügbarer Leistung und Dringlichkeit mit den drei
+  geplanten Modi „Laden wenn Solarstrom“, „Laden ohne Solarstrom“ und
+  „Benutzerdefiniert“; Detailregeln siehe Anforderungen oben.
 - Gemeinsamer Compose-Einstieg für getrennte modulare Pi-Projektdienste,
   erst später umzusetzen. Konkrete Dienste/Startabhängigkeiten und kontrollierte
   Migration der bisherigen Einzel-Stacks noch offen; bestehende Infrastruktur
@@ -561,6 +578,16 @@ berichtete frühere Tests nicht mit aktuell durchgeführten Hardwaretests gleich
 3. Änderungen auf einem Feature-Branch, nicht direkt auf `main`, durchführen.
 4. Nur beabsichtigte Dateien committen; keine Secrets, generierten Dateien
    oder fremden Änderungen aufnehmen.
+   Neue Commits immer mit dem GitHub-Benutzernamen des Projektinhabers als
+   Autor- und Committername erstellen, nicht mit dessen Klar- oder Kurznamen;
+   die bereits zugeordnete Commit-E-Mail beibehalten. Dies gilt auch bei
+   Agent-Unterstützung und Bereinigungen.
+   Keine Ersatzautoren wie `EVSE-Control-AGENT`, `EVSE-Control Agent` oder
+   `EVSE-Control` und keine erfundenen Automationsadressen verwenden.
+   Vor jedem Commit `git var GIT_AUTHOR_IDENT` und `git var GIT_COMMITTER_IDENT`
+   prüfen; bei fehlender oder unklarer Identität nachfragen statt raten.
+   Einstellungen nur repositorylokal setzen, globale Git-Konfiguration nicht
+   ändern. Abweichende Autor-/Committer-Overrides nicht verwenden.
 5. Relevante Tests/Builds und Dokumentation prüfen; nicht ausgeführte oder
    hardwareabhängige Prüfungen ausdrücklich benennen.
 6. Bei jeder Code-, Dokumentations- oder Infrastrukturänderung `CHANGELOG.md`
@@ -589,8 +616,10 @@ verfügbare Toolchain jeweils prüfen; ohne Buildlauf keinen Build-Erfolg behaup
   Referenzen sind nicht durch eine Bereinigung des aktuellen Dateistands entfernt.
   Keine Historienumschreibung, Änderung bestehender Commitidentitäten,
   Secretrotation oder Anpassung von Deployment-/Zugangsdaten ohne gesonderten
-  Auftrag. Neue Bereinigungscommits ohne persönliche Autorenfelder erstellen,
-  ohne globale Git-Konfiguration zu ändern. RFID-UID-Ausgabe erfolgt nur zur
+  Auftrag. Neue Bereinigungscommits ebenfalls unter der persönlichen
+  Git-Identität des Projektinhabers erstellen (siehe Entwicklungsablauf);
+  die frühere Vorgabe anonymisierter Autoren gilt nicht mehr.
+  RFID-UID-Ausgabe erfolgt nur zur
   bewussten Aufnahme am Pi-UART, USB redigiert. Keine echte UID in Code, Chat,
   CI oder Repository hinterlegen; nur private lokale Notiz für Widerruf.
 - Herstellerreferenzen/Urheberhinweise nicht mit privaten Projektdaten verwechseln.

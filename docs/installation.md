@@ -6,7 +6,7 @@ werden. Die Betriebsschritte setzen einen vorbereiteten Pi voraus. Hardware-
 und Erstvorbereitungsreferenz stehen in Abschnitt 8; eine vollständige OS-,
 Docker- oder Broker-Neuinstallation ist damit noch nicht beschrieben.
 
-**Stand:** 2026-10-09. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
+**Stand:** 2026-10-26. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
 zyklischer Betrieb wurden vom Projektinhaber bestätigt. Der vorhandene MQTT-Broker ist
 erreichbar; der Empfang der echten Reader-Messwerte wurde ebenfalls bestätigt.
 Das neue rein lesende Weboverlay ist implementiert, der Browser-/Deploymenttest
@@ -79,6 +79,16 @@ Vorhandener Broker, MariaDB und andere fremde Dienste bleiben außerhalb des
 Projektstacks; gemeinsames Stoppen darf diese Infrastruktur nicht beenden.
 Kontrollierte Übernahme der bisherigen Stacks, Hardwareport-Eigentum, externe
 Netzwerke, Secrets und Startabhängigkeiten werden erst bei Umsetzung dokumentiert.
+
+### Spätere Lademodi (noch nicht einrichtbar)
+
+Geplant sind **Laden wenn Solarstrom**, **Laden ohne Solarstrom** und
+**Benutzerdefiniert**. Die Modi sind noch nicht implementiert; aktuell gibt es
+weder Modusauswahl noch zugehörige Konfigurationsschritte oder Steuerbefehle.
+Solar-Messquelle/-Messpunkt, PV-Überschussregel, Schwellwerte, Ausfallverhalten,
+benutzerdefinierte Vorgaben und Moduswechsel sind noch zu klären.
+Die heutigen lesenden Dienste und Startbefehle bleiben unverändert. Sobald die
+Modi umgesetzt werden, ihre Einrichtung und Bedienung hier dokumentieren.
 
 ## 2. Repository bereitstellen und Stand notieren
 
@@ -735,7 +745,15 @@ Klemmen/Verdrahtung mit dem Terra-AC-Installationshandbuch abgleichen. In
 57600 Baud, Even-Parität, 8 Datenbits, 1 Stoppbit, Slave-ID 9.
 
 `/dev/ttyUSBEVSEcontrol` ist der bestehende udev-Symlink; Rohgerät häufig
-`/dev/ttyUSB0`. Konkrete udev-Regel ist noch nicht als Neuinstallation dokumentiert.
+`/dev/ttyUSB0`. Ein Symlink kann über eine udev-Regel erzeugt werden. Die 
+USB-Ports sind am RP physisch eindeutig mit einer USB-ID zuordenbar:
+
+```bash
+cat << EOF >> /etc/udev/rules.d/99-setUSBNames.rules
+ACTION=="add", SUBSYSTEMS=="usb", KERNELS=="1-1", SYMLINK+="ttyUSBEVSEcontrol"
+EOF
+```
+
 Docker-Test und Betrieb stehen einmalig in [Abschnitt 3](#3-wallbox-reader-bauen-und-einmal-testen).
 
 ### Optionale Einzelabfrage mit mbpoll im Diagnosecontainer
