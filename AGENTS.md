@@ -93,7 +93,7 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
   MqttTransport und `worker.php`, `public/` den HTTP-Einstieg, `docker/` Apache-
   Konfiguration, Bash-Supervision und PHP-Healthcheck. Bestehende Browseroberfläche,
   PHP-/Node-Tests und Docker/Compose; kein direkter Hardwarezugriff. Docker-CI
-  40364677345 für 3b40302 erfolgreich; echtes Pi-Deployment weiterhin offen.
+  40365837026 für 06a3626 erfolgreich; echtes Pi-Deployment weiterhin offen.
 - `rasppi/storage/`: MQTT-Collector für vorhandene MariaDB, Schema/Migration,
   typisierte Wallbox-Historie, Docker-only-Tests; keine Steuerung/Hardwareports.
 - `docs/pin-connection.md`, `docs/uart-protocol.md`: Pinreferenz und UART-Protokoll.
@@ -395,11 +395,12 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Nach 3 s Worker-Stillstand oder bei fehlendem/beschädigtem Snapshot liefert
   die API fail-closed offline/keine Werte. Kein MQTT-Publish, keine seriellen
   Geräte oder Start-/Stop-/Limitbefehle.
-- Docker-CI 40364677345 für 3b40302 erfolgreich: 16 PHP-Zustands-/Config-Fälle,
+- Docker-CI 40365837026 für 06a3626 erfolgreich: 16 PHP-Zustands-/Config-Fälle,
   IPC-Suite, 21 isolierte Transportfälle, vier echte MQTT-/HTTP-/Auth-/ACL-Szenarien,
   28 JS-Tests und drei Chromium-Suiten sowie gehärteter Runtime-Smoke ohne Broker
-  und ohne Python. Composer-Lock aus diesem Build unverändert übernommen;
-  abschließender Build mit committed Lockfile folgt. Prüfsystem Linux-amd64,
+  und ohne Python. Composer-Lock unverändert aus CI 40364677345 übernommen;
+  Installation aus committed Lockfile und Bytevergleich ebenfalls bestätigt.
+  Simulierte Desktop-/Mobilansichten geprüft. Prüfsystem Linux-amd64,
   kein Pi-ARM64-/Produktionsnachweis. Alle nachfolgenden Python-CI-Nachweise sind
   historische Nachweise der früheren Flask-/Paho-Version, nicht der PHP-Migration.
 - Deutsche statische Oberfläche, keine CDN-/Browser-MQTT-Abhängigkeiten.

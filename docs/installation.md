@@ -793,7 +793,7 @@ nur sein Websitebackend durch PHP 8.4/Apache und genau einen PHP-CLI-MQTT-
 Subscriber mit `php-mqtt/client` exakt 2.3.2 im selben Container. HTML/CSS/JS,
 Seiten, Diagramme, API-Schema, deutsche Statusgründe, Frische-/Read-only-Semantik,
 CSP und sonstige Sicherheitsheader bleiben erhalten; keine visuelle Neugestaltung.
-**PHP-Docker-CI 40364677345 für 3b40302 erfolgreich; Pi-Verifikation offen.**
+**PHP-Docker-CI 40365837026 für 06a3626 erfolgreich; Pi-Verifikation offen.**
 Die folgenden Befehle beschreiben den Ablauf nach Merge, nicht einen bestätigten
 PHP-Deploymenttest. Geprüft auf Linux-amd64, nicht auf dem Pi/ARM64.
 **Kein zusätzlicher Broker, kein Zugriff auf RS485/UART,
@@ -849,10 +849,10 @@ PHP-/Node-Unit-/HTTP-/MQTT- und JavaScript-Tests aus; ein Testfehler bricht den
 Build ab. Abhängigkeiten werden exakt aus `composer.lock` installiert.
 Kein Python in Websitebackend, Runtime, Healthcheck oder Backendtests.
 Weder PHP/Composer noch Compiler oder Node-Pakete auf dem Pi-Host installieren.
-PHP-CI 40364677345 bestätigt 16 Zustands-/Config-Fälle, IPC-Suite,
+PHP-CI 40365837026 bestätigt 16 Zustands-/Config-Fälle, IPC-Suite,
 21 Transportfälle, vier MQTT-/HTTP-/Auth-/ACL-Szenarien, 28 JS-Tests und drei
-Chromium-Suiten sowie non-root/readonly Runtime ohne Broker/Python. Der
-abschließende Build mit dem daraus übernommenen committed Lockfile folgt.
+Chromium-Suiten sowie non-root/readonly Runtime ohne Broker/Python. Installation
+aus committed Lockfile und Bytevergleich des extrahierten Locks sind bestätigt.
 
 Der Dienst bindet den Hostport bewusst **nur an `127.0.0.1:8080`**. Es werden
 keine Firewall-, SSH-, WireGuard- oder Routereinstellungen verändert. Kein

@@ -99,11 +99,11 @@ Sessionenergie kann bei neuer Session zurückgesetzt werden, kein Gesamtsummenz�
 - Kein HTTP-Login/TLS: nur vertrauenswürdiger Zugang über den vorhandenen SSH-Tunnel.
 - MQTT-Vertrag: [Topics, Einheiten und Verfügbarkeit](../../docs/mqtt-protocol.md).
 
-Docker-CI [40364677345](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/40364677345)
-für `3b40302` erfolgreich: 16 PHP-Zustands-/Config-Fälle, IPC-Suite,
+Docker-CI [40365837026](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/40365837026)
+für `06a3626` erfolgreich: 16 PHP-Zustands-/Config-Fälle, IPC-Suite,
 21 Transportfälle, vier echte MQTT-/HTTP-/Auth-/ACL-Szenarien, 28 JS-Tests und
 drei Chromium-Suiten sowie non-root/readonly Runtime ohne Broker/Python.
-Abschließender Build mit dem daraus übernommenen committed Composer-Lock folgt.
+Installation aus committed Composer-Lock und Bytevergleich ebenfalls bestätigt.
 Prüfsystem Linux-amd64, kein Pi-ARM64-/Produktionsnachweis; alte Python-CI historisch.
 Testbroker nur im Build-Container; Produktivbroker/Hardware werden nicht berührt.
 Pi-Browser-/Deploymentprüfung ist separat durch den Projektinhaber zu bestätigen.
