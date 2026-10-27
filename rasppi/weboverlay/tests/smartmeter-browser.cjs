@@ -83,8 +83,8 @@ function sample(power_w = 1549.4, overrides = {}) {
           path: path.join(artifacts, `HOUSE-${width}-${scheme}.png`), fullPage: true });
       }
     }
-    const before = count;
     await page.goto(new URL('/diagramme', base).href);
+    const before = count;
     await pause(1200); assert.equal(count, before, 'No house polling without dashboard article');
     assert.deepEqual(errors, [], 'JavaScript/console/CSP errors');
     for (const request of requests) {

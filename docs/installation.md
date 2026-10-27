@@ -800,7 +800,10 @@ Die Software-CI läuft auf Linux-amd64, nicht auf dem Pi/ARM64. Den tatsächlich
 Pi-Start und die Live-Übersicht bestätigt der Projektinhaber (Details unten).
 Websitezugriff und bisheriger großer Theme-Selektor wurden danach erneut
 bestätigt. Neue Symbolschalter und Haus-Smartmeter müssen nach Merge/Update
-noch auf dem Pi geprüft werden; ihre neue Docker-CI ist ebenfalls noch offen.
+noch auf dem Pi geprüft werden. Docker-CI 40486476429 für 3c92398 erfolgreich:
+80 neue PHP-Prüfungen, 17 isolierte HTTP-Szenarien, insgesamt 49 JS-Tests und
+fünf Chromium-Suiten einschließlich 30 Theme-/Einstellungsfällen sowie bisherige
+Backend-/Runtime-Prüfungen. Simulierte Desktop-/Mobilbilder in Hell/Dunkel angesehen.
 **Kein zusätzlicher Broker, kein Zugriff auf RS485/UART,
 keine Schreibbefehle.** Der laufende Wallbox-Reader muss nicht gestoppt werden.
 
@@ -957,7 +960,7 @@ Supervisor erzwingt nach etwa 2 s das Ende verbliebener Kinder, Compose 10 s.
 
 Kein Hauswert-Publish, keine SQL-/Diagrammaufzeichnung, DTSU666-Integration oder
 Ladeautomation. Die bestehenden 16 Wallbox-Präferenzen ändern den Hausbereich
-nicht. Neue Docker-/Browserprüfungen sowie echter Pi-/Smartmeternachweis offen.
+nicht. Docker-/Browsernachweis siehe oben; echter Pi-/Smartmeternachweis offen.
 
 ### Erwartete Anzeige und Frische
 
@@ -983,7 +986,8 @@ späterer OS-Änderungen. Auswahl gilt beim Seitenwechsel/Neuladen browserlokal 
 Zugangsdaten oder neuen Servereinstellungen. Bei blockiertem Speicher gilt die Wahl
 für die aktuelle Seite und bleibt bei Pageshow erhalten, wenn Speichern scheiterte.
 Ohne JavaScript bleiben Theme-Schalter/Reset deaktiviert; Systemfarben wirken.
-Neue Symbolschalter-/Smartmeter-CI noch offen. Historische Auswahlfeld-
+Symbolschalter-/Smartmeter-CI 40486476429 für 3c92398 erfolgreich (oben).
+Historische Auswahlfeld-
 CI 40375388768 für 53ce565 erfolgreich: 37 JS-Tests, vier Chromium-
 Suiten einschließlich 22 Theme-Browserfällen sowie Backend-/Runtime-Prüfungen.
 Erzwungene Hell-/Dunkelansicht mit simulierten Werten visuell geprüft;

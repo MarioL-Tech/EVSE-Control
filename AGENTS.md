@@ -94,10 +94,11 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
 - `rasppi/wallbox/`: rein lesender C++17-libmodbus-Dienst, Decoder-/JSON-Tests,
   simulierte RTU-Tests, CMake sowie Dockerfile/Compose und Pi-Startanleitung.
 - `rasppi/weboverlay/`: PHP 8.4/Apache und ein PHP-CLI-
-  MQTT-Subscriber; `php/` enthält Config, StrictJson, StateStore, SharedState,
-  MqttTransport und `worker.php`, `public/` den HTTP-Einstieg, `docker/` Apache-
+  MQTT-Subscriber und unabhängigem HTTP-Haus-Smartmeter-Worker; `php/` enthält
+  Config, StrictJson, StateStore, SharedState, MqttTransport, `worker.php` sowie
+  SmartmeterConfig/-Client/-Cache und `smartmeter-worker.php`, `public/` den HTTP-Einstieg, `docker/` Apache-
   Konfiguration, Bash-Supervision und PHP-Healthcheck. Bestehende Browseroberfläche,
-  PHP-/Node-Tests und Docker/Compose; kein direkter Hardwarezugriff. Docker-CI
+  PHP-/Node-Tests und Docker/Compose; keine seriellen Ports/Schreibbefehle. Docker-CI
   40365837026 für 06a3626 erfolgreich; Pi-Start und Live-Übersicht am 2026-10-26
   durch Projektinhaber/Screenshot bestätigt, gezielte Fehlerfallprüfung offen.
 - `rasppi/storage/`: MQTT-Collector für vorhandene MariaDB, Schema/Migration,
@@ -198,7 +199,11 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
   letztem HTTP-Abruf und Abrufalter. Keine Hauswerte in MQTT/DB/Diagrammverlauf;
   Wallbox-API, Reader/UART/Collector und 16 Wallbox-Präferenzen unverändert.
   Beziehung zur geplanten DTSU666-Erfassung ungeklärt; kein verfügbarer Strom in A.
-  Neue Docker-/Browser-Prüfung offen, kein Produktionsabruf/Pi-Nachweis.
+  Docker-CI 40486476429 für 3c92398 erfolgreich: 80 PHP-Smartmeterprüfungen,
+  17 isolierte HTTP-/Cache-/Shutdown-Szenarien, insgesamt 49 JS-Tests und fünf
+  Chromium-Suiten (darunter 30 Theme-/Einstellungsfälle) sowie alle bestehenden
+  PHP-/IPC-/MQTT-/HTTP-/Auth-/ACL-/Runtime-Prüfungen. Desktop-/Mobilbilder mit
+  simulierten Werten in Hell/Dunkel angesehen; kein Produktionsabruf/Pi-Nachweis.
 
 ## Betrieb und Remote-Zugriff
 
@@ -445,7 +450,8 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   erhalten. Lesbare gespeicherte Wahl wird bei Pageshow/Storage-Ereignissen
   neu geladen. `theme.js` setzt sie vor dem Stylesheet, ohne Inline-JS oder
   Steuerbefehle; bei deaktiviertem JS bleiben Schalter/Reset deaktiviert.
-  Neue Symbolschalter-CI noch offen. Historische Auswahlfeld-CI 40375388768
+  Symbolschalter-/Smartmeter-CI 40486476429 für 3c92398 erfolgreich (oben);
+  historische Auswahlfeld-CI 40375388768
   für 53ce565 erfolgreich: 37 JS-Tests (neun neue Theme-
   Unitfälle), alle vier Chromium-Suiten einschließlich 22 Theme-Browserfällen
   sowie vollständige PHP-/IPC-/MQTT-/HTTP-/Auth-/ACL-/Runtime-Prüfungen bestanden.

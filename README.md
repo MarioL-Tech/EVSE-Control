@@ -19,7 +19,7 @@ kompakte Theme-/Einstellungszugriffe und die optionale Haus-Smartmeter-Anzeige.
 > PHP-Weboverlay ist implementiert und Docker-getestet;
 > Pi-Start und Live-Übersicht am 26.10.2026 vom Projektinhaber bestätigt;
 > Websitezugriff danach erneut bestätigt. Neue Symbolschalter und Haus-Smartmeter
-> sind implementiert, ihre Docker-CI und Pi-Prüfung noch offen.
+> sind implementiert und Docker-getestet; deren Pi-Prüfung bleibt offen.
 > MariaDB-Speicherdienst implementiert und Docker-getestet; Pi-Konfiguration offen.
 > Reale Ladesteuerung und bedienende Webfunktionen fehlen noch.
 > Theme „Compact / Dense“ in Hell/Dunkel umgesetzt; weitergehender Websiteumbau
@@ -66,7 +66,7 @@ noch keine Modusauswahl oder Einrichtung; Geräte-/Sicherheitsgrenzen gelten wei
 | Wallbox-Reader | C++17/libmodbus, zyklische FC03-Abfragen, dekodierte Messwerte als JSON |
 | MQTT-Publisher | retained State und Verfügbarkeit mit libmosquitto; vorhandener Broker wird wiederverwendet |
 | Weboverlay | PHP-/Apache-Backend mit MQTT-Worker; lesende Anzeige, Frischeprüfung und Browser-Zeitverläufe; Docker-getestet |
-| Haus-Smartmeter | Optionaler separater PHP-HTTP-Worker: Wert 7 als Netzleistung mit Vorzeichen und eigenem Datenstatus; neue CI/Pi-Prüfung offen |
+| Haus-Smartmeter | Optionaler separater PHP-HTTP-Worker: Wert 7 als Netzleistung mit Vorzeichen und eigenem Datenstatus; Docker-getestet, Pi-Prüfung offen |
 | Zustandsspeicherung | Separater MQTT-Collector für vorhandene MariaDB; Schema/Migration und typisierte Wallbox-Historie |
 | Fehlerbehandlung | Timeouts, erneute Verbindung, ungültige Messwerte als `null`, sauberer Shutdown |
 | Softwaretests | Decoder-/JSON-Tests und simulierte RTU-Kommunikation einschließlich Fehlerfällen |

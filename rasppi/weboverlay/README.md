@@ -28,7 +28,11 @@ nicht speicherbare Wahl erhalten. Gespeicherte Wahl wird bei Pageshow/Storage-
 Ereignissen neu geladen. Ohne JS bleiben Schalter/Reset deaktiviert, Systemfarben wirken
 weiter. Selbst gehostetes `theme.js` vor CSS, keine CSP-Ausnahme oder API-Steuerung.
 Wallbox-API, MQTT, C++-Reader, UART-Brücke und Speichercollector bleiben
-unverändert. **Neue Symbolschalter-/Haus-Smartmeter-CI noch offen.** Historische Auswahlfeld-CI
+unverändert. **Symbolschalter-/Haus-Smartmeter-CI 40486476429 für 3c92398 erfolgreich:**
+80 neue PHP-Prüfungen, 17 isolierte HTTP-Szenarien, insgesamt 49 JS-Tests und
+fünf Chromium-Suiten (30 Theme-/Einstellungsfälle), alle bisherigen Backend-/
+Runtime-Prüfungen. Simulierte Desktop-/Mobilbilder in Hell/Dunkel angesehen.
+Kein echter Smartmeterabruf/Pi-Nachweis. Historische Auswahlfeld-CI
 [40375388768](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/40375388768)
 für `53ce565` erfolgreich: 37 JS-Tests (neun neue Theme-Unitfälle), vier Chromium-
 Suiten mit 22 Theme-Browserfällen sowie vollständige Backend-/Runtime-Prüfungen.
@@ -158,7 +162,7 @@ Zeitkorrekturen oder defekter Snapshot blenden Leistung aus; echte 0 bleibt
 erlaubt. Browser-Timeout/Lifecycle/Frische laufen unabhängig von Wallboxwerten.
 Blockierendes OS-DNS kann Prozessfristen beeinflussen; der Supervisor erzwingt
 nach etwa 2 s das Stoppen verbliebener Kinder, Compose bleibt bei 10 s.
-Neue Docker-/Browserprüfungen noch offen; kein echter Smartmeterabruf bestätigt.
+Docker-/Browsernachweis siehe oben; kein echter Smartmeterabruf bestätigt.
 
 Docker-CI [40365837026](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/40365837026)
 für `06a3626` erfolgreich: 16 PHP-Zustands-/Config-Fälle, IPC-Suite,
