@@ -4,6 +4,76 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const base = process.env.WEB_TEST_URL || 'http://127.0.0.1:8080';
 const routes = ['/', '/diagramme'];
+const palettes = {
+  dark: { bg: '#0c151a', surface: '#111b22', 'surface-top': '#18242d', border: '#2b3c47',
+    text: '#edf4f8', muted: '#acc0cb', accent: '#55dab6', 'on-accent': '#072b23',
+    blue: '#8bbaff', 'blue-soft': '#172b3a', 'power-top': '#14364c',
+    'power-bg': '#10212b', 'power-text': '#c7f4ff' },
+  light: { bg: '#f2f5f6', surface: '#f8fafb', 'surface-top': '#ffffff', border: '#cbd6de',
+    text: '#172630', muted: '#4f6472', accent: '#006b51', 'on-accent': '#ffffff',
+    blue: '#2e638f', 'blue-soft': '#e8eef3', 'power-top': '#deedf6',
+    'power-bg': '#edf4f8', 'power-text': '#123b54' }
+};
+
+async function compactTheme(page, scheme) {
+  const signature = await page.evaluate(tokens => {
+    const root = getComputedStyle(document.documentElement);
+    const probe = document.createElement('canvas').getContext('2d');
+    const normalize = color => { probe.fillStyle = color; return probe.fillStyle; };
+    return {
+      tokens: Object.fromEntries(Object.keys(tokens).map(name =>
+        [name, root.getPropertyValue(`--${name}`).trim().toLowerCase()])),
+      badges: ['#status', '#grid-status'].flatMap(selector => {
+        const element = document.querySelector(selector);
+        if (!element || !element.getClientRects().length || element.textContent.trim() !== 'Live') return [];
+        const style = getComputedStyle(element);
+        return [{ selector, background: normalize(style.backgroundColor), color: normalize(style.color) }];
+      }),
+      weights: [...document.querySelectorAll('h1, h2, #power')].map(element =>
+        ({ selector: element.id || element.tagName, weight: getComputedStyle(element).fontWeight,
+          expected: element.matches('.summary-card .card-top h2') ? '650' : '700' }))
+    };
+  }, palettes[scheme]);
+  assert.deepEqual(signature.tokens, palettes[scheme], `${scheme}: effective Compact / Dense palette`);
+  assert(signature.badges.some(badge => badge.selector === '#status'), 'Live wallbox badge is checked');
+  for (const badge of signature.badges) {
+    assert.equal(badge.background, palettes[scheme].accent, `${scheme} ${badge.selector}: filled live badge`);
+    assert.equal(badge.color, palettes[scheme]['on-accent'], `${scheme} ${badge.selector}: live foreground`);
+  }
+  for (const { selector, weight, expected } of signature.weights)
+    assert.equal(weight, expected, `${selector}: restrained bold weight`);
+}
+
+async function layoutFreeze(page, width, route) {
+  const layout = await page.evaluate(() => {
+    const properties = (selector, names) => {
+      const element = document.querySelector(selector);
+      if (!element) return null;
+      const style = getComputedStyle(element);
+      return Object.fromEntries(names.map(name => [name, style[name]]));
+    };
+    return {
+      shell: properties('.app-shell', ['display']),
+      sidebar: properties('.sidebar', ['position', 'width']),
+      main: properties('#main-content', ['paddingTop']),
+      overview: properties('.overview', ['gridTemplateColumns', 'gap']),
+      summary: properties('.summary-card', ['minHeight']),
+      measurements: properties('.details-grid.measurements', ['gridTemplateColumns', 'gap'])
+    };
+  });
+  assert.equal(layout.shell.display, width > 900 ? 'grid' : 'block', 'Unchanged shell breakpoint');
+  assert.equal(layout.sidebar.position, width > 900 ? 'sticky' : 'static', 'Unchanged sidebar positioning');
+  if (width > 900) assert.equal(layout.sidebar.width, '224px');
+  assert.equal(layout.main.paddingTop, width > 900 ? '36px' : width > 480 ? '28px' : '24px');
+  if (route === '/') {
+    const columns = grid => grid.gridTemplateColumns.trim().split(/\s+/).length;
+    assert.equal(columns(layout.overview), width > 1200 ? 4 : width > 480 ? 2 : 1, 'Four/two/one summary columns');
+    assert.equal(layout.overview.gap, '16px');
+    assert.equal(layout.summary.minHeight, width > 480 ? '134px' : '140px');
+    assert.equal(columns(layout.measurements), width >= 704 ? 2 : 1, 'Phase/house measurements retain auto-fit layout');
+    assert.equal(layout.measurements.gap, '16px');
+  }
+}
 
 function sample() {
   const timestamp = new Date().toISOString();
@@ -52,36 +122,66 @@ async function textContrast(page, scheme) {
       return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
     }
     // Composite transparent surface colors over their ancestors; no fixed palette.
-    return ['body', '.status-panel', '.card', '.metadata', '.subtle',
-      '.nav-link[aria-current="page"]', '#wallbox-warning', 'summary', '#power'].flatMap(selector => {
+    const root = getComputedStyle(document.documentElement);
+    function contrast(element, background) {
+      const foreground = over(rgba(getComputedStyle(element).color), background);
+      const a = luminance(foreground), b = luminance(background);
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    }
+    const ratios = ['body', '.status-panel', '.card', '.metadata', '.subtle',
+      '.nav-link[aria-current="page"]', '#status', '#grid-status', '#wallbox-warning', 'summary', '#power'].flatMap(selector => {
       const element = document.querySelector(selector);
-      if (!element) return [];
+      if (!element || !element.getClientRects().length || getComputedStyle(element).visibility === 'hidden') return [];
       const ancestors = [];
       for (let node = element; node; node = node.parentElement) ancestors.unshift(node);
       let background = [255, 255, 255];
       for (const node of ancestors) background = over(rgba(getComputedStyle(node).backgroundColor), background);
-      const foreground = over(rgba(getComputedStyle(element).color), background);
-      const a = luminance(foreground), b = luminance(background);
-      return { selector, ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) };
+      return { selector, ratio: contrast(element, background) };
     });
+    // Computed backgroundColor alone misses the brighter end of a card gradient.
+    for (const selector of ['.status-panel', '.card', '.metadata', '.subtle', '#power']) {
+      for (const element of document.querySelectorAll(selector)) {
+        if (!element.getClientRects().length || getComputedStyle(element).visibility === 'hidden') continue;
+        const endpoints = element.id === 'power' ? ['power-top', 'power-bg'] : ['surface-top', 'surface'];
+        for (const token of endpoints)
+          ratios.push({ selector: `${selector} against --${token}`,
+            ratio: contrast(element, rgba(root.getPropertyValue(`--${token}`).trim())) });
+      }
+    }
+    return ratios;
   });
   for (const { selector, ratio } of ratios)
     assert(ratio >= 4.5, `${scheme} ${selector}: normal text contrast ${ratio.toFixed(2)} must be >= 4.5:1`);
 }
 async function systemTheme(page, scheme) {
+  async function settle(expected) {
+    await page.waitForFunction(value => getComputedStyle(document.documentElement).colorScheme === value
+      && document.documentElement.dataset.effectiveTheme === value, expected);
+    await page.evaluate(async () => {
+      const finite = document.getAnimations().filter(animation =>
+        Number.isFinite(animation.effect?.getComputedTiming().endTime));
+      await Promise.all(finite.map(animation => animation.finished.catch(() => {})));
+    });
+  }
   const colors = () => page.evaluate(() => ['body', '#main-content', '.status-panel'].map(selector => {
     const style = getComputedStyle(document.querySelector(selector));
     return [style.backgroundColor, style.color];
   }));
   assert(await page.evaluate(value => matchMedia(`(prefers-color-scheme: ${value})`).matches, scheme));
+  await settle(scheme);
   const initial = await colors();
-  assert.equal(await page.locator('.card').first().evaluate(element => getComputedStyle(element).borderTopLeftRadius), '8px', 'Compact theme uses restrained card rounding');
+  assert.equal(await page.locator('.card').first().evaluate(element => getComputedStyle(element).borderTopLeftRadius), '6px', 'Compact theme uses restrained card rounding');
+  await compactTheme(page, scheme);
   await textContrast(page, scheme);
   await page.emulateMedia({ colorScheme: scheme === 'light' ? 'dark' : 'light' });
+  await settle(scheme === 'light' ? 'dark' : 'light');
   assert.notDeepEqual(await colors(), initial, 'System theme changes actual computed page colors');
+  await compactTheme(page, scheme === 'light' ? 'dark' : 'light');
   await textContrast(page, scheme === 'light' ? 'dark' : 'light');
   await page.emulateMedia({ colorScheme: scheme });
+  await settle(scheme);
   assert.deepEqual(await colors(), initial, 'System theme restores without a theme control');
+  await compactTheme(page, scheme);
 }
 async function setup(browser, options = {}, denied = false) {
   const context = await browser.newContext(options), errors = [], requests = [];
@@ -183,6 +283,7 @@ function clean(run) {
           await page.waitForFunction(() => document.querySelector('#chart-grid .chart-line'));
         }
         await globals(page);
+        await layoutFreeze(page, width, route);
         await systemTheme(page, scheme);
         await overflow(page, `${route} ${scheme} ${width}: default`);
         const size = { 320: 'phone', 390: 'mobile', 768: 'tablet', 1440: 'desktop' }[width];

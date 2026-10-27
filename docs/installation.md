@@ -974,8 +974,12 @@ helles/dunkles Farbschema folgt dem Browser. Datenstatus, Messzeit, Frische und
 aktive Fehlerwarnungen sind nicht in den einklappbaren Bereichen versteckt.
 
 Das Theme entspricht „Compact / Dense“ nach Entwurf Nr. 8 in Hell/Dunkel:
-kühle Blau-/Grautöne, dezente Kartenverläufe, feine Rahmen und kompaktere
-Abstände. Die Entwürfe sind nur Stilvorlagen; keine Änderung von Sidebar,
+kühle Graphitflächen, feine blau-graue Rahmen, 6-px-Kartenecken, zurückhaltende Verläufe/
+Schatten, cyanfarbene Leistung, gefüllte mintfarbene Live-Badges und kräftigere
+Schriftgewichte. Hell neutral-kühl. Die aktuelle Präzisierung ändert nur CSS-
+Designwerte, keine Abstände/Größen/Grids/Breakpoints, HTML/JS oder Funktionen.
+Neue Design-CI/Sichtprüfung noch offen. Die Entwürfe sind nur Stilvorlagen;
+keine Änderung von Sidebar,
 vier Übersichtskarten, Messwerten oder Seitenaufteilung. PHP/API/MQTT und
 Wallbox-Frischelogik unverändert, keine neuen Ports. Die Smartmeterkonfiguration
 ist ein separat beauftragter Schritt (oben). Ein nativer **Schiebeschalter links

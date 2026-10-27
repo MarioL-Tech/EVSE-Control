@@ -12,8 +12,11 @@ sind noch offen. Beides ist noch nicht umgesetzt; die bestehende responsive
 Browseranzeige bleibt lesend und ist nicht bereits die geplante WebApp.
 Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die jetzt autorisierte
 Backendmigration war kein visueller Umbau. Separat ist nun das Theme
-„Compact / Dense“ nach Entwurf Nr. 8 umgesetzt: kühle Blau-/Grautöne,
-dezente Verläufe, feine Rahmen, Schatten und kompaktere Abstände in Hell/Dunkel.
+„Compact / Dense“ nach Entwurf Nr. 8 nochmals präzisiert: dunkle Graphitflächen,
+feine blau-graue Rahmen, 6-px-Kartenecken, ruhige Verläufe/Schatten, cyanfarbene Leistung,
+gefüllte mintfarbene Live-Badges und kräftigere Schriftgewichte. Heller Modus
+neutral-kühl. Nur CSS-Designwerte geändert; keine neuen Abstände, Größen, Grids,
+Breakpoints, HTML-/JS- oder Funktionsänderungen. Neue Design-CI/Sichtprüfung offen.
 Die Vorlagen dienen nur als Theme-Referenz; Sidebar, vier Übersichtskarten,
 Messwerte bleiben erhalten. **Links unten** wechselt ein nativer
 **Schiebeschalter** mit beweglichem Sonne-/Mond-Schieber und LIGHT/DARK MODE
