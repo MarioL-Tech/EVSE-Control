@@ -1226,113 +1226,96 @@ ersetzen diese Bedien-/Fehlerfallprüfung nicht.
 
 **Erster Datenbankabschnitt:** Wallbox-Samples (auch Lesefehler) und Availability-
 Beobachtungen speichern. Keine Ladesteuerung, SQL-Diagrammabfrage, RFID-/UART-
-oder Zählerdaten. Weboverlay bleibt unverändert: Live-MQTT und Browser-RAM-Verlauf.
+oder Zählerdaten. Weboverlay einschließlich Haus-HTTP-Anzeige und Browser-RAM-
+Verlauf bleibt unverändert; die Website fragt diese SQL-Historie noch nicht ab.
 Die Produktions-Compose startet **keinen DB-Server und keinen Broker**.
 
 ### Bestehende Datenbank prüfen, nicht ersetzen
 
-Der Projektinhaber hat am 2026-10-04 per Containerübersicht bestätigt: **`maria_uno`**, Image
-**`mariadb:lts`**, Hostport 3306 an allen IPv4/IPv6-Schnittstellen. Das ist kein
-Nachweis öffentlicher Erreichbarkeit (Firewall/Netz unbekannt) oder konkreter
-Serverversion. Ein weiterer Screenshot bestätigt ausschließlich Standardnetz
-`bridge`, ohne Alias. Ein dritter Screenshot bestätigt die installierte Server-
-Binary **11.8.8-MariaDB-ubu2404 auf aarch64** und ein lokales Docker-Volume RW
-nach `/var/lib/mysql`. Volume ist kein Backup; dessen lange automatisch wirkende
-Namenskennung und Mount erhalten, nicht neu initialisieren/löschen. Accounts,
-TLS und Backupverfahren bleiben unbekannt. Vor Einrichtung lokal auf dem Pi
-prüfen (keine Passwörter posten):
+**Bestätigter Stand vom 2026-10-27, anhand der vom Projektinhaber ausgeführten SQL-Abfragen:**
+
+- Vorhandener Container **`maria_uno`**, Image `mariadb:lts`; SQL-Serverversion
+  **11.8.8-MariaDB-ubu2404**, authentifizierter Account **`smart@%`**.
+- Ziel ist ausdrücklich die vorhandene Datenbank **`energyControl`**. Der
+  Projektinhaber hat eigene EVSE-Tabellen darin freigegeben. Die bisherigen
+  Tabellen **`T_ELECTRICITYPRICE`** und **`T_ELECTRICITYPROVIDER`** samt Daten
+  bleiben unverändert; keine Preis-/Providerintegration im Collector.
+- `smart` besitzt `CREATE`, `SELECT`, `INSERT` und weitere Schema-Rechte in
+  `energyControl`, aber global nur `USAGE`; keine weitergebbaren Rechte
+  (`IS_GRANTABLE=NO`). Damit ist er für die freigegebene Initialmigration geeignet,
+  nicht für die Benutzerprovisionierung und nicht als dauerhafter Collector-Login.
+- Zugriff auf `mysql.global_priv` wurde abgewiesen; passwortloser Root-Socket-
+  Zugang ebenfalls. Es gibt keinen bestätigten Adminzugang. `evse_control` war
+  für `smart` nicht sichtbar, seine Nichtexistenz ist damit **nicht** bewiesen.
+- Migration, EVSE-Tabellen und Collector-Empfang wurden noch nicht ausgeführt/
+  bestätigt. Offen: Backup/Restore, Schema-Zeichensatz, tatsächliches DB-Netz/
+  Alias, TCP-Zugang/TLS und ein eingeschränkter Collector-Account.
+
+**Für eine Wiederinstallation sind Container-, Account- und Schemanamen lokal
+zu verifizieren.** `energyControl`/`smart` sind die bestätigte aktuelle Zuordnung,
+keine fest eingebauten Namen: Compose/Code bleiben konfigurierbar. Der
+unveränderte `.env.example`-Default `DB_NAME=evse_control` muss für diesen Ablauf
+lokal auf **`energyControl`** geändert werden; Groß-/Kleinschreibung beibehalten.
+
+Historisch wurde ein persistentes Volume nach `/var/lib/mysql` und das Standard-
+netz `bridge` ohne Alias beobachtet. **Volume ist kein Backup.** Ursprüngliche
+Startdefinition/Volumes erhalten, nicht ersetzen, neu initialisieren oder löschen.
+Port 3306 war am Host gebunden; das belegt weder öffentliche Erreichbarkeit noch
+Absicherung. Keine Änderung an Ports, Firewall oder WireGuard als Nebenwirkung.
+Vor Einrichtung lokal auf dem Pi prüfen (keine vollständigen Inspect-/Env-Dumps):
 
 ```bash
-docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}'
-# <mariadb-container> durch den tatsächlich gefundenen Namen ersetzen:
-docker inspect --format '{{.Config.Image}}' <mariadb-container>
-docker inspect --format '{{json .NetworkSettings.Networks}}' <mariadb-container>
-docker inspect --format '{{json .Mounts}}' <mariadb-container>
+docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+docker inspect --format '{{.Config.Image}}' maria_uno
+docker inspect --format '{{range $name, $network := .NetworkSettings.Networks}}{{printf "%s " $name}}{{json $network.Aliases}}{{println}}{{end}}' maria_uno
+docker inspect --format '{{range .Mounts}}{{println .Type "->" .Destination}}{{end}}' maria_uno
 ```
 
-Für den bestätigten aktuellen Container sind die nächsten reinen Diagnosebefehle:
+Mit dem **berechtigt übergebenen** Passwort anmelden; `-p` fragt verdeckt ab.
+Kein Passwort im Befehl, Chat, Repository oder Log; kein SSH-Passwort annehmen:
 
 ```bash
-docker inspect --format '{{json .NetworkSettings.Networks}}' maria_uno
-docker inspect --format '{{json .Mounts}}' maria_uno
-docker exec -it maria_uno mariadb -u root -p -e 'SELECT VERSION();'
+docker exec -e MYSQL_HISTFILE=/dev/null -it maria_uno \
+  mariadb --no-defaults --protocol=socket -u smart -p
 ```
 
-Adminpasswort nur lokal am Prompt eingeben. Bei anderer vorhandener Admin-
-Authentifizierung das bestehende Verfahren nutzen; keine Root-Freigabe anlegen.
-`mariadb:lts` kann bei Neuerstellung eine andere Version bezeichnen. Nicht neu
-erstellen/upgraden, nur um die Version herauszufinden. Portbindung ist ein
-separater Sicherheitspunkt: nicht als abgesichert behaupten und nicht ohne
-Auftrag ändern. Collector selbst veröffentlicht keinen Hostport.
+In dieser Konsole zunächst nur lesen:
 
-Der berichtete Versuch mit `root -p` wurde mit **1045 / Access denied** abgewiesen.
-Das beweist weder eine defekte DB noch eindeutig ein falsches Passwort; Account,
-Authentifizierungsart und ursprünglicher Adminzugang müssen geklärt werden.
-DB-Adminpasswort ist nicht automatisch das SSH-Passwort. Keine Passwörter teilen,
-keinen Container/Volume löschen und keinen Passwortreset ohne gesonderten Auftrag.
-Version der installierten Server-Binary und Mounts sind unabhängig vom Login lesbar:
-
-```bash
-docker exec maria_uno mariadbd --version
-docker inspect --format '{{json .Mounts}}' maria_uno
+```sql
+SELECT CURRENT_USER() AS account, VERSION() AS version;
+SELECT SCHEMA_NAME, DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME
+FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = 'energyControl';
+SHOW TABLES FROM energyControl;
+SELECT GRANTEE, PRIVILEGE_TYPE, IS_GRANTABLE
+FROM information_schema.USER_PRIVILEGES;
+SELECT GRANTEE, TABLE_SCHEMA, PRIVILEGE_TYPE, IS_GRANTABLE
+FROM information_schema.SCHEMA_PRIVILEGES;
 ```
 
-Binary-Version ist nicht dieselbe Bestätigung wie `SELECT VERSION()` am laufenden
-Server. Die Mount-Ausgabe liegt nun vor, der sichere Adminzugang weiterhin nicht.
-Früher wurde ein lesender Socket-Login als Diagnose vorgeschlagen; ein Erfolg
-ist nicht bestätigt. **Der Projektinhaber hat keinen autorisierten DB-Adminzugang und hat
-MariaDB nicht eingerichtet: jetzt keine weiteren Loginversuche durchführen.**
-Nur der berechtigte Betreiber kann bei Bedarf und mit gesondertem Auftrag prüfen,
-ob Root per lokalem Unix-Socket authentifiziert ist:
+**Vor Migration stoppen, wenn** Backup/Restore nicht geklärt ist, Ziel-/Rechte-
+zuordnung abweicht, unerwartete `evse_*`-Tabellen existieren oder der Default-
+Zeichensatz nicht **`utf8mb4`** ist. Die aktuelle SQL-Migration übernimmt für
+Enums/Fehlertext den Datenbankdefault, die Verifikation verlangt UTF-8.
+In einem geteilten Schema deshalb **kein pauschales `ALTER DATABASE` und kein
+Ändern fremder Tabellen**; passende Einrichtung der neuen EVSE-Tabellen bzw.
+ein eigenes UTF-8-Schema erst gesondert abstimmen. Ein bloßes `SET NAMES` löst
+eine abweichende Tabellencodierung nicht.
 
-```bash
-docker exec -it maria_uno mariadb --protocol=socket -u root -e 'SELECT VERSION();'
-```
+`smart` braucht für diese Migration keinen Zugriff auf `mysql.global_priv`,
+kein `CREATE USER` und kein `GRANT`. Die Benutzerprovisionierung bleibt Aufgabe
+eines berechtigten Betreibers. Weder `SHOW CREATE USER` noch ungefilterte Grants/
+Inspect-/Env-/Secret-Ausgaben in Chat oder Repository übernehmen; sie können
+Passwort-Hashes oder andere Secrets enthalten. Keine weiteren Root-Passwort-
+versuche, neue Root-Freigabe oder Recovery/Reset ohne separaten Auftrag.
 
-Das ändert keine Passwörter oder Accounts. Erneutes 1045 heißt nicht, dass die DB
-neu aufgebaut werden muss: vorhandenen Adminzugang/ursprüngliche geschützte
-Einrichtung klären, nicht Passwörter raten oder Env-/Secretwerte teilen.
-Bis sicherer Adminzugang geklärt ist, keine Accounts/Migration oder Server-/
-Netzänderung vornehmen.
-
-**Aktueller Blocker:** Der Projektinhaber hat keinen DB-Adminzugang. Zuerst klären, wer MariaDB
-eingerichtet/verwaltet hat. Dieser berechtigte Betreiber kann das eigene EVSE-
-Schema sowie Runtime-/Migrationsaccount wie unten bereitstellen, ohne Root-
-Passwort weiterzugeben. App-Secrets ausschließlich lokal/sicher übergeben.
-Falls der Projektinhaber die ursprüngliche Einrichtung selbst verwaltet, deren geschützte
-Compose-/Env-/Secret-Dateien nur lokal prüfen, keine Inhalte in Chat/Git/logs teilen.
-Keine weitere Passwortsuche durch Raten, kein Ersatzserver, keine Neuinitialisierung
-des Volumes. Passwort-Recovery/Reset erfordert gesonderten Auftrag, geprüftes Backup,
-Ausfallplanung und Rücksicht auf bestehende DB-Nutzer; ist hier nicht durchgeführt.
-
-Der Projektinhaber hat MariaDB nicht selbst eingerichtet. Daher den bestehenden berechtigten
-Betreiber kontaktieren, statt fremde Einrichtungs-Secrets zu suchen. Root ist
-**kein Pflichtaccount**: ein anderer DB-Login mit den nötigen Account-/Grant-
-Rechten kann provisionieren. SSH-/Dockerrechte geben nicht automatisch SQL-Rechte.
-Dem Betreiber folgende Anforderung weitergeben (SQL-Beispiele siehe unten):
-
-- Eigenes, noch unbenutztes Schema `evse_control`, UTF-8; keine Grafana-/Fremdtabellen nutzen.
-- `evse_storage`: ausschließlich SELECT/INSERT in diesem Schema für Dauerbetrieb.
-- Separater `evse_migrator`: SELECT/INSERT/CREATE in diesem Schema, nur für explizite
-  Initialisierung. Alternativ führt der Betreiber die initiale Migration selbst aus.
-- Nur App-Accounts/-Secrets sicher lokal bereitstellen, kein Root-Passwort an Agent/Chat.
-- Bestehendes Datenvolume/Backup sichern und den zulässigen lokalen Docker-Zugangsweg klären.
-
-Ohne passenden DB-Zugang bleibt nur das Pi-Deployment blockiert; Entwicklung und
-die isolierten Docker-Tests benötigen keine Produktionsrechte.
-
-Keine komplette `docker inspect`-/Env-Ausgabe teilen: sie kann Credentials enthalten.
-Falls MariaDB nicht als Container läuft, zunächst deren tatsächlichen sicheren
-Zugangsweg klären; keine Container-Aliasbefehle blind auf einen Hostdienst anwenden
-oder dafür dessen Bindadresse/Firewall ohne Auftrag öffnen.
-Serverversion zusätzlich mit `SELECT VERSION();` im bestehenden DB-Client prüfen.
+Der `lts`-Tag ist keine feste Versionsangabe: bestehenden Server nicht zum Prüfen
+neu erstellen/upgraden. SQL-Version ist jetzt authentifiziert bestätigt.
 CI [37212624186](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37212624186)
 bestätigt je 39 Tests + Runtime unter 10.11.19, exakt **11.8.8** und 11.8.9.
 Der rollende `11.8`-Tag bezeichnet nicht zwingend die bestätigte installierte 11.8.8;
-CI ist amd64 und kein echter Pi-ARM64-/Zugriffstest. Andere Versionen erst prüfen, niemals
-den bestehenden Server/Volumes zum Erfüllen dieser Versionsangabe ersetzen.
-Vor Änderungen bestehende Backup-/Restorefähigkeit klären. Keine globalen
-SQL-Settings, WireGuard/SSH, Portfreigaben oder fremden Schemas ändern.
+CI ist amd64 und kein echter Pi-ARM64-/Migrationsnachweis. Andere Versionen erst
+prüfen, niemals bestehenden Server/Volumes zum Erfüllen der Versionsangabe ersetzen.
+Keine globalen SQL-Settings, WireGuard/SSH, Portfreigaben oder fremden Tabellen ändern.
 Dieser Schritt bietet kein DB-/MQTT-TLS; falls vorhandene DB TLS verlangt,
 Unterstützung vor Deployment ergänzen, nicht die Serverpflicht deaktivieren.
 
@@ -1349,7 +1332,7 @@ docker network inspect evse-data
 # Nur wenn es noch nicht existiert und dieses Netzwerk gewünscht ist:
 docker network create evse-data
 # Nur wenn MariaDB noch nicht dort mit passendem Alias verbunden ist:
-docker network connect --alias evse-database evse-data <mariadb-container>
+docker network connect --alias evse-database evse-data maria_uno
 ```
 
 `DB_HOST=evse-database` gilt nur nach dieser tatsächlichen Aliaszuordnung;
@@ -1358,72 +1341,113 @@ ist nicht MariaDB/Pi-Localhost. Kein neues Host-Portmapping erforderlich.
 Manuelle Netzwerkzuordnung überlebt Containerneustart, nicht dessen Neuerstellung.
 Die ursprüngliche MariaDB-Compose muss später dasselbe externe Netz/Alias pflegen;
 deren bisher unbekannte Definition/Volumes keinesfalls durch Beispiel-Compose ersetzen.
+Netzwerk und Alias sind für diesen Pi noch nicht aktuell bestätigt. Diese
+Vorbereitung erst nach Prüfung und Freigabe ausführen; ein Socket-Login bestätigt
+keinen SQL-Zugang aus dem Migrations-/Collector-Netzwerk.
 
-### Eigene Datenbank und zwei Accounts
+### Aufbau innerhalb von energyControl
 
-Einen **eigenen**, bisher unbenutzten Schemanamen (Default `evse_control`) verwenden.
-Wenn Schema/Accounts bereits existieren, zuerst Zweck/Grants klären; nichts löschen,
-keine Passwörter vorhandener Grafana-/Root-Accounts ändern. Namen in SQL und `.env`
-müssen übereinstimmen. Datenbankname: ASCII-Buchstaben, Ziffern, Unterstrich.
+Die vorhandenen Preis-/Providertabellen werden **weder umgebaut noch gelöscht**.
+Schema-Version 1 ergänzt genau drei unabhängig benannte Tabellen:
 
-Mit bestehendem Adminzugang im vorhandenen Container interaktiv arbeiten:
+| Tabelle | Zweck und wesentliche Struktur |
+|---|---|
+| `energyControl.evse_schema_versions` | `version INT` als Primärschlüssel und `applied_at DATETIME(6)` in UTC; nach erfolgreicher Initialmigration genau Version `1`. |
+| `energyControl.evse_wallbox_samples` | Wallbox-Sample, `id BIGINT UNSIGNED AUTO_INCREMENT`, Quellpräfix `VARBINARY(240)`, normalisierter Payload-Hash `BINARY(32)`; UNIQUE auf `(source, payload_sha256)`. |
+| `energyControl.evse_ingest_events` | Collector-/Broker-/Availability-/Lückenereignisse mit UUID `BINARY(16)` als Primärschlüssel, Quelle, UTC-Empfangszeit, Typ, nullable Availability, Retained-Flag und bereinigtem JSON. |
 
-```bash
-docker exec -e MYSQL_HISTFILE=/dev/null -it <mariadb-container> mariadb -u root -p
-```
+Die Sample-Tabelle enthält getrennte `measured_at`, `received_at` und nullable
+`last_success_at` (`DATETIME(6)`, UTC), Retained-Flag, `status=ok|error` und nullable
+`communication_error`. Die 16 Wallbox-Messwerte bleiben typisiert und nullable:
 
-`-p` ohne Passwortwert, Eingabe am Prompt. Wenn Root anders authentifiziert ist,
-das bestehende sichere Adminverfahren verwenden, keine neue Root-Freigabe anlegen.
-**Beispiel-SQL: Platzhalter nur lokal durch zwei unterschiedliche Passwörter ersetzen.**
-Keine echten Passwörter als Shell-Argument, Chatinhalt oder Git-Datei:
+- Stromlimit und drei Phasenströme: `DECIMAL(14,3)` in **A**.
+- Drei Phasenspannungen: `DECIMAL(14,1)` in **V**.
+- Wirkleistung und Sessionenergie: `INT UNSIGNED` in **W / Wh**.
+- Anschluss, tatsächliches Laden und Unter-Sollstrom-Flag: nullable Booleans.
+- Fehler-/Ladezustands-/Roh-/Buchsenverriegelungscodes: nullable `INT UNSIGNED`.
+- `payload_json` bzw. `details_json`: `LONGTEXT utf8mb4_bin` mit `JSON_VALID`-
+  Prüfung. Quelle/Hashes bleiben binär; keine sprachabhängige Deduplizierung.
 
-```sql
-CREATE DATABASE evse_control CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
-CREATE USER 'evse_storage'@'%' IDENTIFIED BY 'LOKAL_GEWAHLTES_WRITER_PASSWORT';
-CREATE USER 'evse_migrator'@'%' IDENTIFIED BY 'LOKAL_GEWAHLTES_MIGRATIONS_PASSWORT';
-GRANT SELECT, INSERT ON evse_control.* TO 'evse_storage'@'%';
-GRANT SELECT, INSERT, CREATE ON evse_control.* TO 'evse_migrator'@'%';
-```
+Alle drei Tabellen sind **InnoDB**. Indizes unterstützen Quell-/Messzeit- und
+Empfangszeitabfragen. Keine Fremdschlüssel zu den Preis-/Providertabellen,
+keine Ladefreigabe-/RFID-/Ladesessiontabellen und keine HTTP-Haus-Smartmeterdaten.
+Die kanonischen Definitionen liegen in `rasppi/storage/migrations/001_initial.sql`
+und `storage/database.py` (Versionstabelle/Verifikation); nicht per Hand eine
+abweichende zweite SQL-Definition pflegen oder nur eine Versionszeile eintragen.
 
-`%` ist ein Beispiel für variable Container-IP-Adressen, keine Empfehlung für
-öffentlichen DB-Zugang. Account-Hostbereich soweit möglich auf das geprüfte lokale
-Docker-Netz begrenzen; bestehende Server-Erreichbarkeit unabhängig prüfen.
-Runtime darf **nicht** UPDATE, DELETE, DDL, globale Rechte oder Adminrechte erhalten.
-Migration nutzt CREATE nur im eigenen Schema; spätere Schema-Versionen können
-andere ausdrücklich freizugebende Rechte benötigen. Kein `GRANT ALL` für Runtime.
+### Einrichtungskonto und späterer Collector-Account
+
+Für die aktuelle Initialmigration **`DB_MIGRATION_USERNAME=smart`** und
+**`DB_NAME=energyControl`** setzen. Sein berechtigtes Passwort bleibt lokal.
+Die Migration nutzt ausschließlich `CREATE`, `SELECT`, `INSERT` an den eigenen
+`evse_*`-Tabellen; sie erteilt keine Rechte und erstellt keine Datenbank/Accounts.
+`smart` ist wegen seiner zusätzlichen ALTER-/DROP-/DELETE-Rechte **nicht** als
+dauerhafter `DB_USERNAME` vorgesehen. Der vorhandene reine Lesebenutzer reicht
+ebenfalls nicht zum Speichern von Samples.
+
+Ein berechtigter Betreiber muss für den Collector einen separaten Account
+bereitstellen (Beispielname `evse_storage`). Dafür reichen nach der Migration
+SELECT auf `evse_schema_versions` und SELECT/INSERT auf den beiden Datentabellen;
+keine Rechte auf `T_ELECTRICITYPRICE`/`T_ELECTRICITYPROVIDER` oder andere Daten.
+Die SQL-Beispiele stehen nach dem Migrationsschritt. `smart` hat kein GRANT-Recht
+und darf diesen Schritt nicht stellvertretend durch Passwort-/Root-Versuche lösen.
+
+Für eine andere Installation bleibt ein eigenes Schema `evse_control` möglich:
+ein berechtigter Betreiber legt es in `utf8mb4` an und provisioniert einen
+Migrationsaccount mit SELECT/INSERT/CREATE sowie den eingeschränkten Collector-
+Account. Diese alternative Admin-Einrichtung ist **kein** erforderlicher oder
+bereits erfolgreicher Schritt für den aktuell freigegebenen `energyControl`-Weg.
 
 ### Konfiguration und Passwortdateien
 
-Auf dem Pi nach Merge:
+Auf dem Pi nach Merge im Repository-Hauptverzeichnis; vorhandene `.env` erhalten:
 
 ```bash
-cd ~/EVSE-Control
 git switch main
 git pull --ff-only
 cd rasppi/storage
-cp .env.example .env
+test -e .env || cp .env.example .env
+umask 077
 mkdir -p secrets
 chmod 700 secrets
 ```
 
 `.env` lokal editieren: verifizierte `DB_HOST`, `DB_NETWORK`, `DB_PORT`, `DB_NAME`,
-Accounts und ggf. MQTT-Benutzer. Keine Passwörter in `.env` erforderlich.
+Accounts und ggf. MQTT-Benutzer. Für den aktuellen Zielaufbau (Host/Alias erst
+nach tatsächlicher Netzwerkprüfung übernehmen):
+
+```dotenv
+DB_HOST=evse-database
+DB_NETWORK=evse-data
+DB_PORT=3306
+DB_NAME=energyControl
+DB_MIGRATION_USERNAME=smart
+DB_USERNAME=evse_storage
+```
+
+`evse_storage` ist ein **erst bereitzustellender** eingeschränkter Account, kein
+bestätigter vorhandener Login. Der unveränderte Compose-/Code-Default bleibt
+`evse_control`/`evse_migrator`; nur lokale Konfiguration wird angepasst.
+Keine Passwörter in `.env` erforderlich, keine bestehenden MQTT-Werte überschreiben.
 `MQTT_CLIENT_ID=evse-storage` muss sich vom Reader/Overlay und jedem anderen
 laufenden Client unterscheiden. Präfix muss dem Reader entsprechen; keine Wildcards.
 
-Zwei Passwortdateien mit den zuvor lokal vergebenen Accountpasswörtern anlegen.
-Beispiel für interaktive Bash ohne Geheimnis im Shell-History-Befehl:
+**Für die reine Migration zunächst nur** die eigene Migrations-Passwortdatei
+mit dem berechtigt übergebenen Passwort für `smart` anlegen. Noch keine Runtime-
+Datei mit demselben Passwort erzeugen und `storage` noch nicht starten.
+Vor den `chown`-Beispielen die Host-UID-Zuordnung prüfen: `10001:10001` gilt für
+den unveränderten Dockerbetrieb ohne abweichendes Rootless-/Usernamespace-Mapping.
+Interaktive Bash, ohne Passwort in Shell-Argumenten/History oder Debug-Ausgabe:
 
 ```bash
+set +x
 umask 077
-IFS= read -r -s -p 'DB-Writer-Passwort: ' SECRET; printf '\n'
-printf '%s\n' "$SECRET" > secrets/db-password.txt
+IFS= read -r -s -p 'Passwort des Einrichtungskontos: ' SECRET; printf '\n'
+printf '%s\n' "$SECRET" > secrets/migration-password.new
 unset SECRET
-IFS= read -r -s -p 'DB-Migrations-Passwort: ' SECRET; printf '\n'
-printf '%s\n' "$SECRET" > secrets/migration-password.txt
-unset SECRET
-sudo chown 10001:10001 secrets/db-password.txt secrets/migration-password.txt
-sudo chmod 0400 secrets/db-password.txt secrets/migration-password.txt
+sudo chown 10001:10001 secrets/migration-password.new
+sudo chmod 0400 secrets/migration-password.new
+mv -f secrets/migration-password.new secrets/migration-password.txt
 ```
 
 Bei Rootless-/Usernamespace-Docker die entsprechende Host-UID-Zuordnung prüfen.
@@ -1433,6 +1457,9 @@ weltlesbar machen. Zum späteren Ersetzen ggf. eine neue Datei im geschützten
 Verzeichnis schreiben, berechtigen und austauschen, nicht fremde Dateien verändern.
 Leere/zu große Dateien, mehrzeilige Passwörter und parallele ENV-/FILE-Angabe
 werden abgelehnt. `secrets/`, `.env`, `backups/` sind ausgeschlossen aus Git/Build.
+Wurde eine Secretdatei durch Umbenennen ausgetauscht, den betroffenen **EVSE-
+Clientcontainer** neu erstellen, damit sein Bind-Mount die neue Datei verwendet;
+kein Neustart/Neuanlegen von MariaDB nötig. Keine Dateiinhalte zur Diagnose ausgeben.
 
 Bei MQTT-Passwort ebenfalls eine **eigene** `secrets/mqtt-password.txt` mit diesen
 Berechtigungen vorbereiten und `MQTT_USERNAME` setzen. Ab dann alle Runtime-
@@ -1440,11 +1467,11 @@ Aufrufe mit `docker compose -f compose.yaml -f compose.auth.yaml …` ausführen
 Ohne Passwortdatei Basis-Compose verwenden; anonymous Brokerzugang bleibt nur
 eine bestehende Konfiguration, kein Sicherheitsnachweis.
 
-### Explizite Migration und Start
+### Explizite Migration, anschließend SQL-Prüfung
 
 ```bash
-docker compose build storage
-docker compose --profile tools run --rm --no-deps -T --interactive=false migrate
+docker compose -f compose.yaml build storage
+docker compose -f compose.yaml --profile tools run --rm --no-deps -T --interactive=false migrate
 ```
 
 Migration muss erfolgreich `schema version 1 ready` melden (stderr), Exitcode 0.
@@ -1458,15 +1485,72 @@ Engine, Spaltentypen, Nullability und Unique-Identitäten werden vor Bestätigun
 geprüft; bereits bestehende inkompatible Tabellen führen zum Abbruch. Nicht einfach
 die Versionszeile manuell eintragen. Während Schemaänderungen Collector stoppen,
 Reader/Broker können weiterlaufen; spätere Versionen verlangen eigene Migrationen.
-Migrationsdatei kann nach erfolgreicher Einrichtung geschützt/offline verwahrt
-werden; laufender Collector mountet sie nicht.
+Die **Migrations-Passwortdatei** kann danach geschützt/offline verwahrt werden;
+der laufende Collector mountet sie nicht. Die SQL-Migrationsdatei bleibt im Image.
 
-Danach (ggf. mit Auth-Overlay wie oben):
+Mit dem Einrichtungskonto in der vorhandenen MariaDB prüfen:
+
+```sql
+SHOW TABLES FROM energyControl;
+SELECT version, applied_at FROM energyControl.evse_schema_versions;
+SELECT COUNT(*) AS samples FROM energyControl.evse_wallbox_samples;
+SELECT COUNT(*) AS events FROM energyControl.evse_ingest_events;
+```
+
+Erwartet nach erster erfolgreicher Einrichtung: die beiden alten Tabellen plus
+die drei `evse_*`-Tabellen, Schema-Version 1. Leere Sample-/Eventtabellen vor dem
+ersten Collector-Start sind normal. Die alten Tabellen bleiben bestehen; ihre
+Daten werden nicht als Nachweis einer erfolgreichen EVSE-Aufzeichnung verwendet.
+**Dieser Erfolg ist derzeit noch nicht auf dem Pi bestätigt.**
+
+### Eingeschränkten Writer bereitstellen, dann Collector starten
+
+**Nur ein dazu berechtigter Betreiber**, nicht `smart`, legt den separaten
+Collector-Account über sein geschütztes Adminverfahren an. Vorhandene gleichnamige
+Accounts zuerst prüfen, keine fremden Passwörter ändern. Beispiel-SQL erst nach
+erfolgreicher Migration; Hostbereich und Passwortplatzhalter nur lokal ersetzen:
+
+Langes, eigenes Passwort wählen, keine öffentlichen Beispielpasswörter übernehmen.
+Bei Fehlern (insbesondere bereits vorhandenem Account) stoppen und nicht blind
+mit den nachfolgenden GRANTs fortfahren. SQL-History/Debug-Ausgaben wie beim
+geschützten Adminverfahren deaktivieren; keine Authentifizierungsdaten teilen.
+
+```sql
+CREATE USER 'evse_storage'@'ERLAUBTER_CLIENTHOST' IDENTIFIED BY 'LOKAL_GEWAHLTES_WRITER_PASSWORT';
+GRANT SELECT ON energyControl.evse_schema_versions TO 'evse_storage'@'ERLAUBTER_CLIENTHOST';
+GRANT SELECT, INSERT ON energyControl.evse_wallbox_samples TO 'evse_storage'@'ERLAUBTER_CLIENTHOST';
+GRANT SELECT, INSERT ON energyControl.evse_ingest_events TO 'evse_storage'@'ERLAUBTER_CLIENTHOST';
+```
+
+Für `ERLAUBTER_CLIENTHOST` die geprüfte Herkunft im DB-Docker-Netz wählen;
+`%` nicht blind als öffentliche Freigabe übernehmen. Keine zusätzlichen globalen/
+Schema-/Rollenrechte, UPDATE, DELETE, DDL oder GRANT OPTION für Runtime. Der
+bereitgestellte Account muss über den **Container-Netzwerkweg** funktionieren;
+ein erfolgreicher lokaler Socket-Login allein beweist diesen TCP-Zugang nicht.
+Keine Root-/Account-/Grant-Ausgaben mit Authentifizierungsdaten weitergeben.
+
+Erst mit dem neuen berechtigt übergebenen Writer-Passwort die eigene Runtime-
+Datei anlegen (vorhandene fremde Secretdateien nicht verändern):
 
 ```bash
-docker compose up -d storage
-docker compose ps
-docker compose logs --tail 100 storage
+set +x
+umask 077
+IFS= read -r -s -p 'DB-Writer-Passwort: ' SECRET; printf '\n'
+printf '%s\n' "$SECRET" > secrets/db-password.new
+unset SECRET
+sudo chown 10001:10001 secrets/db-password.new
+sudo chmod 0400 secrets/db-password.new
+mv -f secrets/db-password.new secrets/db-password.txt
+```
+
+**Ohne eingeschränkten Writer hier stoppen**, nicht ersatzweise `smart`, einen
+reinen Lesebenutzer oder Root im Dauerbetrieb verwenden. Danach (ggf. mit
+bereits eingerichteter eigener MQTT-Passwortdatei und Auth-Overlay wie oben):
+
+```bash
+docker compose -f compose.yaml up -d storage
+docker compose -f compose.yaml ps
+docker compose -f compose.yaml logs --tail 100 storage
 ```
 
 Ohne Schema/DB-Zugang bleibt MQTT-Intake pausiert und der Container unready;
@@ -1513,8 +1597,8 @@ keine kompletten Samples oder Zugangsdaten; volle Logpipes dürfen nicht blockie
 ### Backup und unabhängiger Empfangsnachweis
 
 Bestehendes Backupverfahren bevorzugen. Falls ein eigenes logisches Backup für
-Schema 1 nötig ist: geschützte `secrets/backup.cnf` mit lokalem Host/User/Passwort
-für dieses Schema anlegen (`[client]`, `host`, `user`, `password`; Client-Options-
+der drei EVSE-Tabellen nötig ist: geschützte `secrets/backup.cnf` mit lokalem
+Host/User/Passwort für deren leseberechtigten Account anlegen (`[client]`, `host`, `user`, `password`; Client-Options-
 Escaping bei Sonderzeichen beachten), UID 10001 lesbar, nicht committen. Schema 1
 hat keine Trigger/Views/Routinen; der folgende Dump überspringt Trigger ausdrücklich.
 Bei späteren Schemaerweiterungen Backupoptionen anpassen, nicht unbemerkt ausschließen.
@@ -1524,11 +1608,18 @@ umask 077
 mkdir -p backups
 docker run --rm --network evse-data --user 10001:10001 \
   --mount type=bind,src="$PWD/secrets/backup.cnf",dst=/run/secrets/client.cnf,readonly \
-  mariadb:11.8 mariadb-dump --defaults-extra-file=/run/secrets/client.cnf \
-  --single-transaction --skip-triggers --no-tablespaces --databases evse_control \
+  mariadb:11.8.8 mariadb-dump --defaults-extra-file=/run/secrets/client.cnf \
+  --single-transaction --skip-lock-tables --skip-triggers --no-tablespaces \
+  --skip-add-drop-table --skip-add-locks \
+  energyControl evse_schema_versions evse_wallbox_samples evse_ingest_events \
   > "backups/evse-$(date -u +%Y%m%dT%H%M%SZ).sql"
 ```
 
+Dies ist **kein Vollbackup von `energyControl` oder des DB-Servers**: Preis-/
+Providertabellen, Accounts/Grants und sonstige Betreiberobjekte sind nicht enthalten.
+Das erforderliche Betreiberbackup **vor** der Initialmigration ist davon getrennt;
+dieser EVSE-Dump ist erst nach erfolgreicher Tabellenanlage möglich. Keine fremden
+Tabellen durch eine ungeprüfte Vollschema-Dump-/Restore-Anleitung gefährden.
 Netz/Schema/Clientversion an bestätigte Einrichtung anpassen. Exitcode/Dumpgröße
 prüfen, Backup außerhalb dieses Pi geschützt kopieren und Restore nur in isolierter
 Testdatenbank prüfen. Nie blind einen Dump auf vorhandene Produktivschemas anwenden.
@@ -1536,6 +1627,7 @@ Testdatenbank prüfen. Nie blind einen Dump auf vorhandene Produktivschemas anwe
 Im lokalen DB-Client mit SELECT-Rechten unabhängig prüfen:
 
 ```sql
+USE energyControl;
 SELECT COUNT(*) FROM evse_wallbox_samples;
 SELECT CONVERT(source USING utf8mb4) AS source, measured_at, received_at, status,
        plugged_in, charging, current_limit_a, active_power_w

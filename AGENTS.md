@@ -581,6 +581,34 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 
 ### MQTT-Speichercollector / MariaDB
 
+- **Aktueller bestätigter Zugangsstand (2026-10-27):** Projektinhaber hat sich
+  erfolgreich per Container-Socket als `smart@%` angemeldet; `SELECT VERSION()`
+  bestätigt 11.8.8-MariaDB-ubu2404. Global nur USAGE, umfangreiche nicht
+  weitergebbare Rechte inkl. CREATE/SELECT/INSERT auf `energyControl`.
+  `mysql.global_priv` ist nicht lesbar; passwortloser Root-Socketzugang wurde
+  mit 1045 abgewiesen. Kein bestätigter Account-/Grant-Adminzugang.
+- `SHOW TABLES FROM energyControl` zeigt `T_ELECTRICITYPRICE` und
+  `T_ELECTRICITYPROVIDER`. Projektinhaber hat eigene `evse_*`-Tabellen dort
+  ausdrücklich erlaubt; vorhandene Tabellen/Daten nicht ändern. Aktuelles Ziel
+  lokal `DB_NAME=energyControl`, `DB_MIGRATION_USERNAME=smart`; Code-/Compose-
+  Defaults `evse_control`/`evse_migrator` bleiben unverändert. Frühere fehlende
+  Sichtbarkeit von `evse_control` beweist nicht seine Nichtexistenz.
+- Migration darf nach Backup-/UTF8-/Netzwerk-/TLS-Prüfung mit dem berechtigten
+  `smart`-Konto erfolgen; globaler Adminzugang ist dafür nicht erforderlich.
+  CREATE-/INSERT-/SELECT-Nutzung nur an eigenen EVSE-Tabellen. `smart` nicht im
+  Dauercollector verwenden; eingeschränkter Runtime-Account durch berechtigten
+  Betreiber weiterhin offen. Im geteilten Schema vorzugsweise SELECT auf
+  `evse_schema_versions`, SELECT/INSERT auf Samples/Events, keine Fremdtabellen-,
+  globalen, DDL- oder weitergebbaren Rechte. Kein GRANT durch `smart`.
+- Schema-default `utf8mb4` vor Migration prüfen: Text-/Enum-Spalten erben ihn,
+  `verify_shape` verlangt utf8mb4; keine pauschale Schema-/Fremdtabellenkonvertierung
+  ohne gesonderten Auftrag. Backup/Restore, DB-Netz/Alias/TCP/TLS und Runtime-
+  Account noch nicht bestätigt. Keine EVSE-Migration/Tabellenanlage oder
+  Collector-Aufzeichnung tatsächlich ausgeführt/bestätigt, kein Agent-SSH/DB-Zugriff.
+- Installationsguide beschreibt vorhandenes Schema, die drei EVSE-Tabellen,
+  getrennte Einrichtung/Runtime, lokale Secrets, explizite Migration/SQL-Prüfung
+  und einen auf EVSE-Tabellen begrenzten Dump. Frühere Zugangsnotizen unten sind
+  historische Nachweise, nicht der aktuelle pauschale Migrationsblocker.
 - `rasppi/storage/`: Subscribe-only Paho + PyMySQL, eigener Client `evse-storage`,
   bestehendes `evse-mqtt`. Produktions-Compose enthält nur Collector und expliziten
   Migrations-Client; vorhandene MariaDB extern über konfigurierbares `DB_NETWORK`
@@ -635,18 +663,21 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   CI ist amd64, kein Pi-ARM64-/Adminzugangs-/Deploymentnachweis;
   keine Änderung am Produktionsserver. Loginfreie Version nicht mit `SELECT VERSION()`
   oder bestätigter Admin-Authentifizierung gleichsetzen.
-- Der Projektinhaber meldet am 2026-10-04 **keinen DB-Adminzugang**. Pi-Provisionierung/Migration
-  bleibt blockiert; vorhandenen berechtigten Betreiber bzw. ursprüngliche lokale
-  Compose-/Env-/Secret-Einrichtung klären. Root-Passwort muss nicht an Projektinhaber/Agent
+- Historischer Stand am 2026-10-04: Projektinhaber meldete **keinen DB-Adminzugang**.
+  Damals war die Pi-Provisionierung/Migration blockiert; berechtigten Betreiber
+  bzw. ursprüngliche lokale Compose-/Env-/Secret-Einrichtung klären.
+  Root-Passwort muss nicht an Projektinhaber/Agent
   gegeben werden: Betreiber kann eigenes EVSE-Schema/least-privilege Accounts
   bereitstellen. Keine weiteren Passwortversuche, Secret-Ausgaben, neue Produktions-
   DB oder Reset ohne separaten Auftrag; gesichertes Recovery wäre eigener Abschnitt.
 - Der Projektinhaber hat MariaDB **nicht selbst eingerichtet**. Bestehenden Einrichter/
-  berechtigten Betreiber um eigenes EVSE-Schema und passende Accounts bitten,
-  nicht selbst fremde Credentials auslesen oder Server-Authentifizierung ändern.
+  berechtigten Betreiber um eingeschränkten Collector-Account bitten; separates
+  EVSE-Schema nur als alternative Einrichtung, aktuell freigegeben ist `energyControl`.
+  Weiterhin keine fremden Credentials auslesen oder Server-Authentifizierung ändern.
   Root ist kein Pflichtaccount: Provisionierung braucht einen DB-Login mit
   CREATE USER/entsprechendem GRANT-Recht, Migration CREATE/SELECT/INSERT nur im
-  eigenen Schema, laufender Collector SELECT/INSERT. SSH-/Dockerzugang allein
+  freigegebenen Tabellenbereich, laufender Collector SELECT/INSERT an eigenen Tabellen.
+  SSH-/Dockerzugang allein
   ersetzt SQL-Rechte nicht. Entwicklung/isolierte Tests können unabhängig weitergehen.
 
 ## Geplant / noch nicht implementiert
