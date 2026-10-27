@@ -587,24 +587,49 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   weitergebbare Rechte inkl. CREATE/SELECT/INSERT auf `energyControl`.
   `mysql.global_priv` ist nicht lesbar; passwortloser Root-Socketzugang wurde
   mit 1045 abgewiesen. Kein bestätigter Account-/Grant-Adminzugang.
-- `SHOW TABLES FROM energyControl` zeigt `T_ELECTRICITYPRICE` und
-  `T_ELECTRICITYPROVIDER`. Projektinhaber hat eigene `evse_*`-Tabellen dort
-  ausdrücklich erlaubt; vorhandene Tabellen/Daten nicht ändern. Aktuelles Ziel
-  lokal `DB_NAME=energyControl`, `DB_MIGRATION_USERNAME=smart`; Code-/Compose-
+- Projektinhaber hat die Arbeit im bestehenden `energyControl` einschließlich
+  Erhalt der Strompreise entschieden. Schema 1 ist produktiv angelegt: drei
+  `evse_*`-Tabellen zusätzlich zu `T_ELECTRICITYPRICE`/`T_ELECTRICITYPROVIDER`,
+  `applied_at=2026-10-27 17:13:09.298160` UTC. Nach Migration weiterhin
+  274.804 Preise und 2 Anbieter, keine Löschung/Änderung dieser Tabellen beauftragt.
+  Aktuell lokal `DB_NAME=energyControl`, `DB_USERNAME=smart` und
+  `DB_MIGRATION_USERNAME=smart`; Code-/Compose-
   Defaults `evse_control`/`evse_migrator` bleiben unverändert. Frühere fehlende
   Sichtbarkeit von `evse_control` beweist nicht seine Nichtexistenz.
-- Migration darf nach Backup-/UTF8-/Netzwerk-/TLS-Prüfung mit dem berechtigten
-  `smart`-Konto erfolgen; globaler Adminzugang ist dafür nicht erforderlich.
-  CREATE-/INSERT-/SELECT-Nutzung nur an eigenen EVSE-Tabellen. `smart` nicht im
-  Dauercollector verwenden; eingeschränkter Runtime-Account durch berechtigten
-  Betreiber weiterhin offen. Im geteilten Schema vorzugsweise SELECT auf
+- Projektinhaber bestätigt `smart` als dafür eingerichtetes Schreibkonto und
+  `smartReader` als Lesekonto und hat Nutzung der Bestandskonten gewählt; separater
+  `evse_storage`-Account ist keine technische Voraussetzung. Runtime mit `smart`
+  funktioniert, dessen zusätzliche ALTER-/DROP-/DELETE-Rechte bleiben unverändert
+  und sind ein bekanntes Risiko, keine minimalen Runtime-Rechte. Kein ungefragtes
+  Einschränken/Ändern bestehender Accounts. `smartReader`-Login/Grants sind nicht
+  unabhängig bestätigt; die gezeigten Kontrollabfragen verwendeten `smart`.
+  Minimalrechte bleiben Empfehlung: Im geteilten Schema vorzugsweise SELECT auf
   `evse_schema_versions`, SELECT/INSERT auf Samples/Events, keine Fremdtabellen-,
   globalen, DDL- oder weitergebbaren Rechte. Kein GRANT durch `smart`.
-- Schema-default `utf8mb4` vor Migration prüfen: Text-/Enum-Spalten erben ihn,
-  `verify_shape` verlangt utf8mb4; keine pauschale Schema-/Fremdtabellenkonvertierung
-  ohne gesonderten Auftrag. Backup/Restore, DB-Netz/Alias/TCP/TLS und Runtime-
-  Account noch nicht bestätigt. Keine EVSE-Migration/Tabellenanlage oder
-  Collector-Aufzeichnung tatsächlich ausgeführt/bestätigt, kein Agent-SSH/DB-Zugriff.
+- SQL bestätigt Default `utf8mb4`/`utf8mb4_uca1400_ai_ci`. Text-/Enum-Spalten erben
+  ihn; `verify_shape` verlangt utf8mb4. Keine pauschale Schema-/Tabellenkonvertierung.
+  Projektinhaber hat `evse-data` angelegt, MariaDB zusätzlich mit Alias
+  `evse-database` verbunden, ohne bisheriges `bridge` zu entfernen. TCP-Zugang
+  durch Migration und Collector belegt; TLS nicht unabhängig nachgewiesen.
+- Bestandssicherung vor Migration: schemaweiter Docker-`mariadb-dump` mit
+  verdeckter Passwortabfrage und `--result-file`, private Kopien auf Pi und PC
+  mit übereinstimmender SHA256. Restore im separaten Testcontainer desselben Images
+  ohne Netzwerk/Ports/Produktivvolume erfolgreich: 274.804 Preise, 2 Anbieter;
+  Testcontainer danach gestoppt. Kein Server-/Accountbackup und kein Backup der
+  erst später angelegten EVSE-Tabellen; regelmäßige aktuelle Sicherung bleibt offen.
+- Produktive Collector-Aufzeichnung am 2026-10-27 per SQL bestätigt: 207 Samples,
+  letzter Messzeitpunkt 17:44:23 UTC, 0 W, Limit 6,000 A und 233,7/233,2/234,8 V.
+  Belegt gespeicherte Wallbox-Telemetrie, keine Langzeit-/Ausfall-/Messkalibrierung
+  oder abschließende Healthcheck-Bestätigung. Ursache erster pausierter Aufnahme:
+  lokales `DB_NAME=energy_control` statt `energyControl`; `.env` korrigiert und nur
+  Storage-Container neu erstellt. Migration nicht wiederholt, keine fremden Daten
+  gelöscht. Haus-Smartmeter/SQL-Websitehistorie bleiben nicht integriert.
+- Pi meldet fehlende Docker-Speicherlimitfähigkeit; angeforderte RAM-Limits werden
+  verworfen (Test und Storage). Kein wirksames 256-/512-MiB-Limit behaupten;
+  keine Host-/Kernel-/cgroup-Änderung ohne separaten Auftrag. Migration ohne `--rm`
+  auf Wunsch behalten; Orphan-Warnung beim Start kein Grund für `--remove-orphans`.
+  Keine Agent-SSH-/Produktionszugriffe: alle Betriebsnachweise stammen vom
+  Projektinhaber. Private Ziele, Backup-/Secretpfade und Passwörter nicht dokumentieren.
 - Installationsguide beschreibt vorhandenes Schema, die drei EVSE-Tabellen,
   getrennte Einrichtung/Runtime, lokale Secrets, explizite Migration/SQL-Prüfung
   und einen auf EVSE-Tabellen begrenzten Dump. Frühere Zugangsnotizen unten sind
@@ -637,9 +662,9 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Prüft auch defekte bereits registrierte Schemas, eingeschränkte Runtime-Grants,
   Retained/Restart-Deduplizierung, DB-Recovery, ACK-MID-Eigentum und fail-closed
   Secretdateien. Gap-`dropped` zählt Records inklusive Collectorereignisse, nicht
-  die Zahl fehlender Hardwaremessungen. Echte Pi-Einrichtung/DB-Empfang offen.
-  Vor Deployment konkrete DB-Version, Netzwerke, Accounts/Grants, TLS-Anforderungen
-  und vorhandene Backups klären.
+  die Zahl fehlender Hardwaremessungen. Pi-Empfang inzwischen wie oben bestätigt;
+  diese CI selbst bleibt ein isolierter Nachweis. Bei Wiederinstallation konkrete
+  DB-Version, Netzwerke, Accounts/Grants, TLS-Anforderungen und Backups prüfen.
 - Der Projektinhaber bestätigt am 2026-10-04 per `docker ps`-Screenshot den laufenden MariaDB-
   Container `maria_uno`, Image `mariadb:lts`, Hostport 3306 an IPv4/IPv6 allen
   Schnittstellen. `lts` ist keine konkrete Serverversion; Volume,
@@ -671,8 +696,9 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   bereitstellen. Keine weiteren Passwortversuche, Secret-Ausgaben, neue Produktions-
   DB oder Reset ohne separaten Auftrag; gesichertes Recovery wäre eigener Abschnitt.
 - Der Projektinhaber hat MariaDB **nicht selbst eingerichtet**. Bestehenden Einrichter/
-  berechtigten Betreiber um eingeschränkten Collector-Account bitten; separates
-  EVSE-Schema nur als alternative Einrichtung, aktuell freigegeben ist `energyControl`.
+  berechtigten Betreiber nur bei gewünschter Rechtehärtung um eingeschränkten
+  Collector-Account bitten; aktuell wird bewusst das Bestandskonto `smart` genutzt.
+  Separates EVSE-Schema nur als Alternative; aktuell freigegeben ist `energyControl`.
   Weiterhin keine fremden Credentials auslesen oder Server-Authentifizierung ändern.
   Root ist kein Pflichtaccount: Provisionierung braucht einen DB-Login mit
   CREATE USER/entsprechendem GRANT-Recht, Migration CREATE/SELECT/INSERT nur im

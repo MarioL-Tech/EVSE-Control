@@ -8,8 +8,13 @@ Einrichtung, Accounts, Passwortdateien, externe Netzwerke, Migration, Backup
 und Prüfung: [Installationsguide, Abschnitt 10](../../docs/installation.md#10-mqtt-zustandsspeicherung-in-der-vorhandenen-mariadb).
 **Vor dem ersten Start** bestehende DB-Version/Netzwerke prüfen, freigegebenes
 Zielschema und passende Accounts vorbereiten und explizit migrieren. Der Guide
-beschreibt jetzt auch eigene EVSE-Tabellen im vorhandenen `energyControl`;
-Migration und Collector-Empfang am Pi sind weiterhin nicht bestätigt.
+beschreibt eigene EVSE-Tabellen im vorhandenen `energyControl`.
+**Pi-Bestätigung vom 2026-10-27:** Schema 1 migriert und 207 Wallbox-Samples
+per SQL nachgewiesen (0 W, Limit 6 A, drei Phasenspannungen). Bestehende Preis-
+Datensatzanzahlen nach Migration unverändert; Bestandssicherung auf Pi/PC mit
+SHA256 und isoliertem Restore geprüft. Kein Langzeit-/Ausfallnachweis.
+Aktuell bewusstes Bestandskonto `smart` mit mehr Rechten als technisch nötig;
+Rechtehärtung nur abgestimmt. Pi-Kernel setzt angeforderte RAM-Limits nicht durch.
 
 Danach aus diesem Verzeichnis:
 
@@ -48,7 +53,8 @@ docker compose logs --tail 50 storage
   oder Verbindung der Browserdiagramme mit SQL. Das folgt separat. Speicherplatz
   und Backups überwachen; default 2 s ergeben etwa 43.200 Samples **plus** wiederholte
   Availability-Beobachtungen pro Tag. Daten wachsen ohne vereinbarte Aufbewahrungsfrist.
-- Explizites `--migrate` mit separatem DDL-Account, Runtime nur SELECT/INSERT.
+- Explizites `--migrate` mit CREATE/SELECT/INSERT-Berechtigung; getrennte
+  Minimalrechte-Accounts sind empfohlen. Runtime führt nur SELECT/INSERT aus.
   Schema-Version 1; keine automatische Änderung fremder Tabellen/Accounts.
   Vor Bestätigung werden Engine, Spaltentypen/Nullability und UNIQUE-Identitäten
   geprüft; gleichnamige inkompatible Tabellen werden nicht als Version 1 übernommen.

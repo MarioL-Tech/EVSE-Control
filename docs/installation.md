@@ -1243,13 +1243,30 @@ Die Produktions-Compose startet **keinen DB-Server und keinen Broker**.
 - `smart` besitzt `CREATE`, `SELECT`, `INSERT` und weitere Schema-Rechte in
   `energyControl`, aber global nur `USAGE`; keine weitergebbaren Rechte
   (`IS_GRANTABLE=NO`). Damit ist er für die freigegebene Initialmigration geeignet,
-  nicht für die Benutzerprovisionierung und nicht als dauerhafter Collector-Login.
+  nicht für die Benutzerprovisionierung. Als Collector-Login ist er stärker
+  privilegiert als nötig; siehe bewusste Bestandskonto-Nutzung unten.
 - Zugriff auf `mysql.global_priv` wurde abgewiesen; passwortloser Root-Socket-
   Zugang ebenfalls. Es gibt keinen bestätigten Adminzugang. `evse_control` war
   für `smart` nicht sichtbar, seine Nichtexistenz ist damit **nicht** bewiesen.
-- Migration, EVSE-Tabellen und Collector-Empfang wurden noch nicht ausgeführt/
-  bestätigt. Offen: Backup/Restore, Schema-Zeichensatz, tatsächliches DB-Netz/
-  Alias, TCP-Zugang/TLS und ein eingeschränkter Collector-Account.
+- Schema-default `utf8mb4` / `utf8mb4_uca1400_ai_ci` bestätigt. Bestand umfasst
+  274.804 Preise für Hofer Strom/Awattar und 2 Anbieter; nicht als leere DB behandeln.
+  Zeitformat/Preisskalierung und laufende Aktualisierung sind noch nicht geklärt.
+- Bestandssicherung vor Migration auf Pi und PC mit SHA256 geprüft, isolierter
+  Restore desselben MariaDB-Images ohne Netzwerk/Ports/Produktivvolume erfolgreich:
+  274.804 Preise, 2 Anbieter. Testcontainer danach gestoppt. Dieser Snapshot enthält
+  noch keine erst danach angelegten EVSE-Tabellen, keine Serveraccounts/-konfiguration.
+- `evse-data` angelegt und vorhandene MariaDB zusätzlich mit Alias `evse-database`
+  verbunden; bisheriges `bridge` beibehalten. Schema 1 angelegt, SQL zeigt alle fünf
+  Tabellen und `applied_at=2026-10-27 17:13:09.298160` UTC. Preis-/Anbieterzahlen
+  nach Migration unverändert.
+- Collector mit bewusst gewähltem Bestandskonto `smart` produktiv: SQL zeigt
+  207 Samples, Messzeit 17:44:23 UTC, 0 W, Limit 6,000 A und Phasenspannungen
+  233,7/233,2/234,8 V. Das ist ein Empfangs-/Speichernachweis, kein Langzeit-,
+  Ausfall-, unabhängiger Messvergleichs- oder abschließender Healthchecknachweis.
+  `smartReader` ist laut Projektinhaber das Lesekonto; dessen Login/Grants wurden
+  hier nicht geprüft, die gezeigten Kontrollen verwendeten `smart`.
+- Offen: regelmäßige aktuelle Backups, ggf. Rechtehärtung und TLS-Nachweis.
+  Alle genannten Pi-Schritte wurden vom Projektinhaber ausgeführt, nicht vom Agent.
 
 **Für eine Wiederinstallation sind Container-, Account- und Schemanamen lokal
 zu verifizieren.** `energyControl`/`smart` sind die bestätigte aktuelle Zuordnung,
@@ -1292,7 +1309,8 @@ SELECT GRANTEE, TABLE_SCHEMA, PRIVILEGE_TYPE, IS_GRANTABLE
 FROM information_schema.SCHEMA_PRIVILEGES;
 ```
 
-**Vor Migration stoppen, wenn** Backup/Restore nicht geklärt ist, Ziel-/Rechte-
+**Vor Migration stoppen, wenn** Sicherung/Restore bzw. ausdrückliche Risikoakzeptanz
+nicht geklärt ist, Ziel-/Rechte-
 zuordnung abweicht, unerwartete `evse_*`-Tabellen existieren oder der Default-
 Zeichensatz nicht **`utf8mb4`** ist. Die aktuelle SQL-Migration übernimmt für
 Enums/Fehlertext den Datenbankdefault, die Verifikation verlangt UTF-8.
@@ -1341,9 +1359,9 @@ ist nicht MariaDB/Pi-Localhost. Kein neues Host-Portmapping erforderlich.
 Manuelle Netzwerkzuordnung überlebt Containerneustart, nicht dessen Neuerstellung.
 Die ursprüngliche MariaDB-Compose muss später dasselbe externe Netz/Alias pflegen;
 deren bisher unbekannte Definition/Volumes keinesfalls durch Beispiel-Compose ersetzen.
-Netzwerk und Alias sind für diesen Pi noch nicht aktuell bestätigt. Diese
-Vorbereitung erst nach Prüfung und Freigabe ausführen; ein Socket-Login bestätigt
-keinen SQL-Zugang aus dem Migrations-/Collector-Netzwerk.
+Netzwerk und Alias wurden auf diesem Pi inzwischen wie oben eingerichtet.
+Bei Wiederinstallation zuerst aktuellen Stand prüfen, nicht doppelt verbinden;
+ein Socket-Login allein bestätigt keinen SQL-Zugang aus dem Clientnetzwerk.
 
 ### Aufbau innerhalb von energyControl
 
@@ -1381,12 +1399,18 @@ Für die aktuelle Initialmigration **`DB_MIGRATION_USERNAME=smart`** und
 **`DB_NAME=energyControl`** setzen. Sein berechtigtes Passwort bleibt lokal.
 Die Migration nutzt ausschließlich `CREATE`, `SELECT`, `INSERT` an den eigenen
 `evse_*`-Tabellen; sie erteilt keine Rechte und erstellt keine Datenbank/Accounts.
-`smart` ist wegen seiner zusätzlichen ALTER-/DROP-/DELETE-Rechte **nicht** als
-dauerhafter `DB_USERNAME` vorgesehen. Der vorhandene reine Lesebenutzer reicht
-ebenfalls nicht zum Speichern von Samples.
+`smart` besitzt zusätzliche ALTER-/DROP-/DELETE-Rechte. **Empfohlen** sind nur
+die unten genannten Minimalrechte. Der Projektinhaber hat klargestellt, dass
+`smart`/`smartReader` für dieses Projekt eingerichtet wurden und bewusst die
+vorhandenen Konten gewählt: aktuell `DB_USERNAME=smart`, Lesen vorgesehen über
+`smartReader`. Ein neuer Account ist keine technische Voraussetzung. Bestehende
+Rechte nicht ungefragt ändern, da andere Dienste/Migration sie benötigen können.
+Der Collector führt zur Laufzeit nur SELECT/INSERT aus, verhindert mit diesem
+überprivilegierten Account aber nicht jeden denkbaren Lösch-/DDL-Missbrauch.
+Ein reiner Leseaccount reicht zum Speichern nicht.
 
-Ein berechtigter Betreiber muss für den Collector einen separaten Account
-bereitstellen (Beispielname `evse_storage`). Dafür reichen nach der Migration
+Für einen separaten minimal berechtigten Collector-Account kann ein berechtigter
+Betreiber beispielsweise `evse_storage` bereitstellen. Dafür reichen nach Migration
 SELECT auf `evse_schema_versions` und SELECT/INSERT auf den beiden Datentabellen;
 keine Rechte auf `T_ELECTRICITYPRICE`/`T_ELECTRICITYPROVIDER` oder andere Daten.
 Die SQL-Beispiele stehen nach dem Migrationsschritt. `smart` hat kein GRANT-Recht
@@ -1422,12 +1446,13 @@ DB_NETWORK=evse-data
 DB_PORT=3306
 DB_NAME=energyControl
 DB_MIGRATION_USERNAME=smart
-DB_USERNAME=evse_storage
+DB_USERNAME=smart
 ```
 
-`evse_storage` ist ein **erst bereitzustellender** eingeschränkter Account, kein
-bestätigter vorhandener Login. Der unveränderte Compose-/Code-Default bleibt
-`evse_control`/`evse_migrator`; nur lokale Konfiguration wird angepasst.
+Das Beispiel folgt der bewussten Nutzung des Bestandskontos. Für Minimalrechte
+stattdessen den tatsächlich bereitgestellten eigenen Writer eintragen;
+`evse_storage` ist bisher kein bestätigter Login. Compose-/Code-Defaults bleiben
+`evse_control`/`evse_storage`/`evse_migrator`; nur lokale Konfiguration anpassen.
 Keine Passwörter in `.env` erforderlich, keine bestehenden MQTT-Werte überschreiben.
 `MQTT_CLIENT_ID=evse-storage` muss sich vom Reader/Overlay und jedem anderen
 laufenden Client unterscheiden. Präfix muss dem Reader entsprechen; keine Wildcards.
@@ -1471,7 +1496,8 @@ eine bestehende Konfiguration, kein Sicherheitsnachweis.
 
 ```bash
 docker compose -f compose.yaml build storage
-docker compose -f compose.yaml --profile tools run --rm --no-deps -T --interactive=false migrate
+docker compose -f compose.yaml --profile tools run \
+  --no-deps -T --interactive=false migrate
 ```
 
 Migration muss erfolgreich `schema version 1 ready` melden (stderr), Exitcode 0.
@@ -1501,9 +1527,36 @@ Erwartet nach erster erfolgreicher Einrichtung: die beiden alten Tabellen plus
 die drei `evse_*`-Tabellen, Schema-Version 1. Leere Sample-/Eventtabellen vor dem
 ersten Collector-Start sind normal. Die alten Tabellen bleiben bestehen; ihre
 Daten werden nicht als Nachweis einer erfolgreichen EVSE-Aufzeichnung verwendet.
-**Dieser Erfolg ist derzeit noch nicht auf dem Pi bestätigt.**
+Dieser Aufbau wurde auf dem Pi wie oben bestätigt. Der einmalige
+Migrationscontainer bleibt absichtlich zur Kontrolle erhalten: kein `--rm`.
+Spätere Orphan-Warnung bezeichnet diesen behaltenen Einmalcontainer; nicht
+ungefragt `--remove-orphans`/`down --volumes` zur Bereinigung verwenden.
 
-### Eingeschränkten Writer bereitstellen, dann Collector starten
+### Writer wählen, dann Collector starten
+
+Für den **aktuell gewählten Bestandsaccount `smart`** kann dessen bereits
+funktionierende Migrations-Passwortdatei in eine eigene Runtime-Datei kopiert
+werden. Das ist kein Lesen/Übernehmen fremder Einrichtungs-Secrets. Nur im
+Standard-Docker ohne abweichendes UID-Mapping, mit den oben geprüften Rechten:
+
+```bash
+(
+  set -e
+  if [ -e secrets/db-password.txt ]; then
+    echo 'Datei existiert bereits; nicht überschreiben, zuerst Zuordnung prüfen.'
+    exit 1
+  fi
+  sudo install -o 10001 -g 10001 -m 0400 \
+    secrets/migration-password.txt secrets/db-password.txt
+)
+```
+
+Wenn diese Bestandskonto-Option gewählt wurde, **keinen neuen Account anlegen**
+und direkt zum Startblock unten gehen. Die nächste Option samt neuer
+Passworteingabe gilt nur für einen gesondert beauftragten Minimalrechte-Account:
+
+<details>
+<summary>Optional: eigener Writer mit minimalen Tabellenrechten</summary>
 
 **Nur ein dazu berechtigter Betreiber**, nicht `smart`, legt den separaten
 Collector-Account über sein geschütztes Adminverfahren an. Vorhandene gleichnamige
@@ -1543,15 +1596,37 @@ sudo chmod 0400 secrets/db-password.new
 mv -f secrets/db-password.new secrets/db-password.txt
 ```
 
-**Ohne eingeschränkten Writer hier stoppen**, nicht ersatzweise `smart`, einen
-reinen Lesebenutzer oder Root im Dauerbetrieb verwenden. Danach (ggf. mit
-bereits eingerichteter eigener MQTT-Passwortdatei und Auth-Overlay wie oben):
+</details>
+
+**Nur mit dem ausdrücklich gewählten, geprüften Writer starten**; weder einen
+reinen Lesebenutzer noch Root verwenden. Bei Bestandskonto-Nutzung dessen
+zusätzliche Rechte als Risiko behalten, nicht als Least Privilege ausgeben.
+Danach (ggf. mit eigener MQTT-Passwortdatei und Auth-Overlay wie oben):
 
 ```bash
 docker compose -f compose.yaml up -d storage
 docker compose -f compose.yaml ps
 docker compose -f compose.yaml logs --tail 100 storage
 ```
+
+**Bekannter Pi-Konfigurationsfehler:** `energy_control` ist nicht `energyControl`.
+Ein falsches `DB_NAME` führte zu `database unavailable or schema not initialized;
+intake paused`. Die Migration war bereits erfolgreich; keine Neumigration oder
+neue Datenbank nötig. Nur lokale `.env` korrigieren, ggf. gleichnamige alte Shell-
+Exports mit `unset DB_NAME` entfernen und **nur Storage** mit obigem `up -d`
+neu erstellen. Kein MariaDB-Neustart und kein Eingriff in Preis-/Backupdaten.
+Die wirksamen nicht geheimen Zielwerte lassen sich ohne kompletten Env-Dump prüfen:
+
+```bash
+docker compose -f compose.yaml exec -T storage \
+  printenv DB_HOST DB_PORT DB_NAME DB_USERNAME
+```
+
+Auf dem geprüften Pi meldet Docker fehlende Speicherlimitfähigkeit und verwirft
+RAM-Limits. `mem_limit` in Compose bedeutet dort **kein durchgesetztes Limit**.
+Keine Kernel-/cgroup-/Bootänderung ohne eigenen Auftrag. `health: starting`
+direkt nach Start und fehlende erste Logs sind noch kein Fehler-/Erfolgsnachweis;
+SQL-Empfang separat prüfen.
 
 Ohne Schema/DB-Zugang bleibt MQTT-Intake pausiert und der Container unready;
 Runtime führt nie automatische DDL aus. Healthcheck prüft DB/MQTT-Readiness,
@@ -1596,8 +1671,36 @@ keine kompletten Samples oder Zugangsdaten; volle Logpipes dürfen nicht blockie
 
 ### Backup und unabhängiger Empfangsnachweis
 
-Bestehendes Backupverfahren bevorzugen. Falls ein eigenes logisches Backup für
-der drei EVSE-Tabellen nötig ist: geschützte `secrets/backup.cnf` mit lokalem
+Bestehendes Backupverfahren bevorzugen. Die oben bestätigte erste Sicherung war
+ein schemaweiter Dump **vor** der EVSE-Migration; neue Samples brauchen neue
+Sicherungen. Ein kompatibler, im vorhandenen MariaDB-Container enthaltener
+`mariadb-dump` kann mit `--no-defaults --protocol=socket -u smart -p`,
+`--single-transaction --quick --skip-lock-tables`, `--routines --events --triggers`,
+`--hex-blob --no-tablespaces --skip-add-drop-table --skip-add-locks`,
+`--default-character-set=utf8mb4 --databases energyControl` sichern. **Mit
+`--result-file` in eine neue Datei in einem privaten Container-Tempordner schreiben**,
+nicht `docker exec -it ... > dump.sql`: TTY/Passwortprompt dürfen den Dump nicht
+verunreinigen. Vorher freien Platz prüfen; `umask 077` und `mktemp -d` verwenden,
+Passwort nur verdeckt am nativen Prompt, kein Passwortargument/-Env-Dump.
+Nur InnoDB und keine parallelen Schemaänderungen erlauben diesen konsistenten
+Datendump ohne explizite Tabellensperren. Bei Fehler stoppen, kein `--force`.
+
+Exitcode und Abschlussmarker `-- Dump completed on` prüfen, SHA256 im Quellordner
+erzeugen, SQL/Prüfsumme mit `docker cp` in ein neues privates Verzeichnis außerhalb
+Git kopieren und mit `sha256sum -c SHA256SUMS` vergleichen. Eine zweite Kopie auf
+anderem Gerät ebenfalls per SHA256 prüfen; Pi-/Containerkopie allein liegen auf
+demselben Medium. Dumpinhalte nicht in Chat/Git/öffentliche Logs übernehmen.
+Restore nur im isolierten Testcontainer desselben Images, ohne Netzwerk/Ports/
+Produktivvolumes, mit eigenem privatem Testpasswort, separatem Datenverzeichnis
+(beim bestätigten Test tmpfs) und `event_scheduler=DISABLED`. Root dort ist nur
+Testadministrator, kein Produktionszugang. Größen/RAM prüfen; gegebenenfalls
+fehlende Kernel-Limitdurchsetzung beachten. Import per `docker exec -i` ohne TTY,
+danach Tabellen/Zahlen vergleichen. Nur den verifizierten Testcontainer stoppen,
+niemals den Produktionsserver als Restore-Ziel verwenden. Dies prüft Restore/
+Datensatzanzahlen, nicht jede fachliche Bedeutung oder zukünftige Restorefähigkeit.
+
+Falls ein eigenes logisches Backup **nur der drei EVSE-Tabellen** nötig ist:
+geschützte `secrets/backup.cnf` mit lokalem
 Host/User/Passwort für deren leseberechtigten Account anlegen (`[client]`, `host`, `user`, `password`; Client-Options-
 Escaping bei Sonderzeichen beachten), UID 10001 lesbar, nicht committen. Schema 1
 hat keine Trigger/Views/Routinen; der folgende Dump überspringt Trigger ausdrücklich.
@@ -1661,5 +1764,6 @@ Default 10.11, weitere Matrixversionen exakt 11.8.8 und rollend 11.8. Lokal für
 CI [37209898185](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/37209898185)
 für `50794db` bestanden: **32 Unit- und 7 SQL/MQTT-Integrationstests**, eingeschränkte
 Grants/Schemaverifikation, Retained-/Restart-Deduplizierung, DB-Recovery und
-gehärteter Runtime-Smoke. Keine Produktionsverbindung. **Echtes Pi-Deployment/
-DB-Empfang weiterhin offen**; vorhandene MariaDB-Konfiguration erst bestätigen.
+gehärteter Runtime-Smoke. Keine Produktionsverbindung durch CI. Pi-Migration/
+SQL-Empfang wurden inzwischen separat durch den Projektinhaber wie oben bestätigt;
+Langzeit-/Fehlerfallprüfung, Rechtehärtung und regelmäßige Backups bleiben offen.
