@@ -167,6 +167,31 @@ function clean(run) {
       } finally { await run.context.close(); }
     }
 
+    // The gear opens a genuine read-only placeholder; settings do not poll hardware or MQTT.
+    for (const width of [320, 390, 768, 1440]) for (const scheme of ['light', 'dark']) {
+      const run = await setup(browser, { colorScheme: scheme, viewport: { width, height: 900 } });
+      try {
+        const { page } = run;
+        await page.goto(new URL('/einstellungen', base).href);
+        await page.waitForFunction(() => !document.getElementById('theme-toggle').disabled);
+        assert.equal(await page.title(), 'Einstellungen · EVSE Control');
+        assert.match(await page.locator('main').innerText(), /Platzhalter/);
+        assert.equal(await page.locator('form, input, textarea').count(), 0);
+        assert.equal(await page.getByRole('link', { name: 'Einstellungen', exact: true }).getAttribute('aria-current'), 'page');
+        assert.equal(await page.locator('.quick-controls').evaluate(el => getComputedStyle(el).position), 'fixed');
+        await page.locator('#theme-toggle').focus(); await page.keyboard.press('Enter');
+        await mode(page, scheme === 'dark' ? 'light' : 'dark');
+        await page.locator('#theme-system').click(); await mode(page, 'system');
+        assert.equal(await page.evaluate(key => localStorage.getItem(key), key), null);
+        assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+        assert(!run.requests.some(request => new URL(request.url).pathname.startsWith('/api/')));
+        if (width === 320 || width === 1440) await page.screenshot({
+          path: `/artifacts/settings-${scheme}-${width}.png`, fullPage: true
+        });
+        clean(run);
+      } finally { await run.context.close(); }
+    }
+
     // Real keyboard selection plus same-context navigation/reload and independent display preferences.
     const persisted = await setup(browser, { colorScheme: 'dark' });
     try {

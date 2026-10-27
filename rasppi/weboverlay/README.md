@@ -9,7 +9,7 @@ Bestehender Broker im Netzwerk `evse-mqtt` bleibt unverändert.
 **Spätere Planung:** Die Website soll umgebaut werden; anschließend ist eine
 Smartphone-WebApp vorgesehen. Umfang, Gestaltung und technische Umsetzung
 sind noch offen. Beides ist noch nicht umgesetzt; die bestehende responsive
-Browseranzeige bleibt unverändert und ist nicht bereits die geplante WebApp.
+Browseranzeige bleibt lesend und ist nicht bereits die geplante WebApp.
 Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die jetzt autorisierte
 Backendmigration war kein visueller Umbau. Separat ist nun das Theme
 „Compact / Dense“ nach Entwurf Nr. 8 umgesetzt: kühle Blau-/Grautöne,

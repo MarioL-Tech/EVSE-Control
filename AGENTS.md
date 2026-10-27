@@ -137,6 +137,7 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
                          |                   -> weitere Dienste (geplant)
                          +-- UART-MQTT-Gateway (geplant)
                          +-- DTSU666-Messwerterfassung (geplant)
+                         +-- HTTP-Haus-Smartmeter -> PHP-Worker -> Website (optional)
 ```
 
 - Der Pi ist die zentrale Steuerungsplattform und Modbus-Master.

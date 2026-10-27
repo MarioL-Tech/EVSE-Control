@@ -127,7 +127,8 @@ function clean(run) {
         assert.equal(await page.locator('h1').innerText(), route === '/' ? 'Übersicht' : 'Diagramme');
         assert(await page.locator('h2').count() > 0);
         assert.equal(await page.locator('nav[aria-label="Hauptnavigation"]').count(), 1);
-        assert.deepEqual(await page.locator('nav a').evaluateAll(links => links.map(a => a.getAttribute('href'))), routes);
+        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').evaluateAll(links => links.map(a => a.getAttribute('href'))), routes);
+        assert.equal(await page.getByRole('link', { name: 'Einstellungen', exact: true }).getAttribute('href'), '/einstellungen');
         assert.equal(await page.locator('nav [aria-current="page"]').count(), 1);
         assert.equal(await page.locator('nav [aria-current="page"]').getAttribute('href'), route);
         assert(await page.evaluate(() => {
