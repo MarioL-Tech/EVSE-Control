@@ -16,7 +16,8 @@ bestehende HTML-/CSS-/JS-Oberfläche, Seiten und Diagramme bleiben unverändert.
 > **Entwicklungsstand:** Der Wallbox-Dienst ist ausschließlich lesend.
 > MQTT-Empfang echter Wallboxdaten am Pi ist bestätigt. Das neue lesende
 > PHP-Weboverlay ist implementiert und Docker-getestet;
-> Pi-Browser-/Deploymenttest steht noch aus.
+> Pi-Start und Live-Übersicht am 26.10.2026 vom Projektinhaber bestätigt;
+> gezielte Ausfalltests und der neue manuelle Farbumschalter am Pi noch offen.
 > MariaDB-Speicherdienst implementiert und Docker-getestet; Pi-Konfiguration offen.
 > Reale Ladesteuerung und bedienende Webfunktionen fehlen noch.
 > Theme „Compact / Dense“ in Hell/Dunkel umgesetzt; weitergehender Websiteumbau
@@ -159,7 +160,9 @@ Datenbankarchiv. „Anzeige auswählen“ gilt auf beiden Seiten. Auswahl bleibt
 lokal gespeichert; Neuladen oder Seitenwechsel leert die Messwerthistorie.
 
 Das Theme folgt Entwurf Nr. 8 „Compact / Dense“: kühle Blautöne, feine Rahmen,
-dezente Schatten und kompakte Karten. Hell/Dunkel folgt der Browsereinstellung.
+dezente Schatten und kompakte Karten. Oben unter **Darstellung** zwischen
+**System / Hell / Dunkel** wählen. System folgt der Browsereinstellung;
+manuelle Wahl wird lokal im Browser gespeichert, ohne Messwerte oder Zugangsdaten.
 Die Vorlagen bestimmen nur den Stil, nicht Inhalt oder Anordnung der Website.
 
 ## ESP32-UART-Verbindung testen
@@ -206,7 +209,7 @@ CHANGELOG.md             Änderungsverlauf
 - [DTSU666-Handbuch](docs/smartmeter/)
 - [Projektkontext für Agents](AGENTS.md) und [Changelog](CHANGELOG.md)
 
-Nächster Meilenstein ist die Pi-Browserprüfung des Weboverlays sowie weitere
+Nächster Meilenstein sind weitere Pi-Browser-/Ausfallprüfungen sowie
 Dauerbetriebs-/Zustands- und Messwertvergleiche. Danach folgen UART-MQTT-Gateway,
 abgesicherte Ladesteuerung, Energiezähler, SQL-Historienabfragen und Automationen.
 

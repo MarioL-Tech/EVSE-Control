@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="dark light">
   <title>Übersicht · EVSE Control</title>
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <script src="/static/theme.js"></script>
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/charts.js" defer></script>
   <script src="/static/app.js" defer></script>
@@ -23,7 +24,7 @@
       <div class="sidebar-context"><span class="context-label">Datenquelle</span><strong>ABB Terra AC</strong><span>Modbus → MQTT</span><p>Monitoring ohne Steuerzugriff</p></div>
     </aside>
     <main id="main-content" tabindex="-1">
-      <header class="page-header"><div><p class="eyebrow">Wallbox-Monitoring</p><h1>Übersicht</h1><p class="page-subtitle">Ladezustand, Leistung und Messwerte auf einen Blick.</p></div><span class="readonly"><span aria-hidden="true">◈</span> Nur lesen</span></header>
+      <header class="page-header"><div><p class="eyebrow">Wallbox-Monitoring</p><h1>Übersicht</h1><p class="page-subtitle">Ladezustand, Leistung und Messwerte auf einen Blick.</p></div><div class="page-header-actions"><div class="theme-control"><label for="theme-mode">Darstellung</label><select id="theme-mode" disabled><option value="system">System</option><option value="light">Hell</option><option value="dark">Dunkel</option></select></div><span class="readonly"><span aria-hidden="true">◈</span> Nur lesen</span></div></header>
       <section class="status-panel" aria-label="Datenstatus">
         <div class="status-line" role="status"><span id="status" class="badge" data-tone="muted">Warten auf Daten</span><span id="reason">Verbindung zur Anzeige wird hergestellt.</span></div>
         <div class="metadata"><span>MQTT-Broker <strong id="broker">Unbekannt</strong></span><span>Telemetrie <strong id="availability">Unbekannt</strong></span><span>Restgültigkeit <strong id="freshness">—</strong></span><span>Letzte Messung <strong id="timestamp">—</strong></span><span>Messwertalter <strong id="age">—</strong></span></div>
