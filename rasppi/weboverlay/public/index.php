@@ -7,6 +7,8 @@ use EvseOverlay\SharedState;
 use EvseOverlay\StateStore;
 use EvseOverlay\SmartmeterCache;
 use EvseOverlay\SmartmeterConfig;
+use EvseOverlay\HistoryConfig;
+use EvseOverlay\HistoryStore;
 
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -15,11 +17,11 @@ header('X-Frame-Options: DENY');
 header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$assets = ['app.js' => 'text/javascript', 'charts.js' => 'text/javascript', 'theme.js' => 'text/javascript', 'smartmeter.js' => 'text/javascript',
+$assets = ['app.js' => 'text/javascript', 'charts.js' => 'text/javascript', 'history.js' => 'text/javascript', 'theme.js' => 'text/javascript', 'smartmeter.js' => 'text/javascript',
     'style.css' => 'text/css', 'icon.svg' => 'image/svg+xml'];
 $pages = ['/' => 'index.html', '/diagramme' => 'diagrams.html', '/einstellungen' => 'settings.html'];
 $asset = is_string($path) && str_starts_with($path, '/static/') ? substr($path, 8) : null;
-$known = isset($pages[$path ?? '']) || in_array($path, ['/api/state', '/api/smartmeter', '/healthz'], true)
+$known = isset($pages[$path ?? '']) || in_array($path, ['/api/state', '/api/smartmeter', '/api/history', '/healthz'], true)
     || ($asset !== null && isset($assets[$asset]));
 
 if (!$known) {
@@ -46,6 +48,22 @@ if (isset($pages[$path])) {
     header('Content-Type: application/json; charset=utf-8');
     if ($path === '/healthz') {
         $result = ['status' => 'ok', 'read_only' => true];
+    } elseif ($path === '/api/history') {
+        try {
+            $minutes = HistoryStore::parseMinutes($_SERVER['QUERY_STRING'] ?? '');
+        } catch (InvalidArgumentException) {
+            http_response_code(400);
+            echo '{"error":"Invalid history query"}';
+            exit;
+        }
+        try {
+            $result = (new HistoryStore(HistoryConfig::fromEnvironment()))->snapshot($minutes);
+        } catch (Throwable) {
+            $result = HistoryStore::failure($minutes);
+        }
+        if ($result['status'] === 'unavailable') {
+            http_response_code(503);
+        }
     } elseif ($path === '/api/smartmeter') {
         try {
             $result = (new SmartmeterCache(getenv('WEB_STATE_DIR') ?: '/tmp/evse-weboverlay',

@@ -1,0 +1,47 @@
+name: evse-history-test
+
+# Disposable integration fixtures ONLY; never point this stack at production.
+services:
+  history-db:
+    image: mariadb:11.8.8
+    environment:
+      MARIADB_DATABASE: evse_history_test
+      MARIADB_ROOT_PASSWORD: dummy-only-history-root
+      MARIADB_ROOT_HOST: "%"
+    tmpfs:
+      - /var/lib/mysql:rw,size=512m
+    volumes:
+      - ../storage/migrations/001_initial.sql:/docker-entrypoint-initdb.d/010_wallbox.sql:ro
+      - ./tests/history-init.sql:/docker-entrypoint-initdb.d/020_history.sql:ro
+    healthcheck:
+      test: [CMD, healthcheck.sh, --connect, --innodb_initialized]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    networks: [history-test]
+
+  history-tests:
+    build:
+      context: .
+      target: test
+    entrypoint: [node, /app/tests/history-integration.cjs]
+    command: []
+    user: "10001:10001"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m,mode=1777
+    environment:
+      HISTORY_TEST_DB_HOST: history-db
+      HISTORY_TEST_ROOT_PASSWORD: dummy-only-history-root
+    depends_on:
+      history-db:
+        condition: service_healthy
+    networks: [history-test]
+
+networks:
+  history-test:
+    internal: true

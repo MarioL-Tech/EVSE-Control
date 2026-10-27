@@ -7,4 +7,5 @@ COPY tests/charts-browser.cjs ./
 COPY tests/layout-browser.cjs ./
 COPY tests/theme-browser.cjs ./
 COPY tests/smartmeter-browser.cjs ./
-CMD ["sh", "-c", "node browser.cjs && node charts-browser.cjs && node layout-browser.cjs && node theme-browser.cjs && node smartmeter-browser.cjs"]
+COPY tests/history-browser.cjs ./
+CMD ["sh", "-c", "node browser.cjs && node charts-browser.cjs && node layout-browser.cjs && node theme-browser.cjs && node smartmeter-browser.cjs && node history-browser.cjs"]

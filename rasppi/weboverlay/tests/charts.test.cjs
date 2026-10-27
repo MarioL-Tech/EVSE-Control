@@ -140,3 +140,160 @@ test('disabled/unavailable storage degrades without losing current-page preferen
   assert.deepEqual(loadPreferences(denied), defaults()); assert.equal(savePreferences(denied, defaults()), false);
   assert.deepEqual(loadPreferences(null), defaults());
 });
+
+const iso = t => new Date(t).toISOString();
+const row = (t, id = '18446744073709551615', overrides = {}) => ({ id, timestamp: iso(t), received_at: iso(t),
+  status: 'ok', values: { ...values }, break_before: true, ...overrides });
+const batch = (samples, overrides = {}) => ({ schema_version: 1, read_only: true, status: 'ok', reason: 'Archiv',
+  generated_at: iso(epoch), minutes: 15, range: { from: iso(epoch - RETENTION_MS), to: iso(epoch) },
+  complete: true, samples, ...overrides });
+
+test('archive import is independent, bounded and idempotent; string uint64 IDs stay exact', () => {
+  const h = createHistory(), data = batch([row(epoch - 2000), row(epoch, '2', { break_before: false })]);
+  assert.equal(h.importHistory(data, epoch), true);
+  assert.equal(h.size, 2);
+  assert.equal(h.window(epoch, 15)[0].id, '18446744073709551615');
+  assert.equal(h.window(epoch, 15)[0].values.charging, 0);
+  assert(plot(h, 'power', epoch).paths[0].path.includes('L'));
+  const revision = h.revision;
+  assert.equal(h.importHistory(data, epoch), true); assert.equal(h.revision, revision);
+  assert.equal(h.importHistory(batch([], { status: 'disabled' }), epoch), true);
+  assert.equal(h.size, 2);
+});
+test('archive validation is whole-batch atomic and rejects type, shape, time and uint64 errors', () => {
+  const invalids = [
+    b => { b.schema_version = 2; }, b => { b.read_only = false; }, b => { b.complete = null; },
+    b => { b.extra = 'secret'; }, b => { b.samples[1].id = 9007199254740992; },
+    b => { b.samples[1].id = '18446744073709551616'; }, b => { b.samples[1].id = '01'; },
+    b => { b.samples[1].values.charging = 0; }, b => { b.samples[1].values.plugged_in = 'false'; },
+    b => { b.samples[1].values.current_a = [0, 0]; }, b => { b.samples[1].values.active_power_w = Infinity; },
+    b => { b.samples[1].values.error_code = -1; }, b => { b.samples[1].values.charging_state_raw = 4294967296; },
+    b => { b.samples[1].timestamp = iso(epoch + 6000); }, b => { b.generated_at = iso(epoch + 6000); },
+    b => { b.samples[1].received_at = iso(epoch + 6000); },
+    b => { b.samples[1].received_at = '2026-02-30T00:00:00Z'; },
+    b => { b.samples[1].timestamp = iso(epoch - RETENTION_MS - 1); },
+    b => { b.samples.reverse(); }, b => { b.samples[0].break_before = false; },
+    b => { b.range.from = iso(epoch - 60000); }, b => { b.status = 'disabled'; },
+    b => { b.samples[1].status = 'error'; }, b => { b.samples[1].values = null; }
+  ];
+  for (const corrupt of invalids) {
+    const h = createHistory(); h.observe(live(epoch - 1000), epoch);
+    const before = h.window(epoch, 15), revision = h.revision;
+    const data = batch([row(epoch - 2000, '1'), row(epoch, '2', { break_before: false })]); corrupt(data);
+    assert.equal(h.importHistory(data, epoch), false);
+    assert.deepEqual(h.window(epoch, 15), before); assert.equal(h.revision, revision);
+  }
+});
+test('same-time SQL null/error transitions protect both neighbours, including receipt/ID ties', () => {
+  for (const error of [false, true]) {
+    const h = createHistory();
+    const middle = error ? { status: 'error', values: null } : { values: { ...values, plugged_in: null } };
+    const data = batch([
+      row(epoch - 4000, '1'),
+      row(epoch - 2000, '9007199254740992', { break_before: false }),
+      row(epoch - 2000, '9007199254740993', { break_before: false, ...middle }),
+      row(epoch - 2000, '9007199254740994', { break_before: false }),
+      row(epoch, '5', { break_before: false })
+    ]);
+    assert(h.importHistory(data, epoch)); assert.equal(h.size, 3);
+    const path = plot(h, 'flags', epoch).paths.find(p => p.metric.id === 'plugged').path;
+    assert.equal((path.match(/M/g) || []).length, 3);
+    if (error) assert.equal((plot(h, 'power', epoch).paths[0].path.match(/M/g) || []).length, 3);
+    const rev = h.revision; h.importHistory(data, epoch); assert.equal(h.revision, rev);
+  }
+});
+test('receipt timestamps normalize Z/+00:00 and retain submillisecond ordering', () => {
+  const h = createHistory();
+  assert(h.importHistory(batch([
+    row(epoch, '9', { received_at: '2026-10-04T12:00:00.000001+00:00' }),
+    row(epoch, '1', { received_at: '2026-10-04T12:00:00.000002Z', values: { ...values, active_power_w: 8000 } })
+  ]), epoch));
+  assert.equal(h.window(epoch, 15)[0].values.power, 8);
+});
+test('six-fraction live and SQL timestamps share precise keys, live priority and the normal live edge', () => {
+  for (const sqlFirst of [false, true]) {
+    const h = createHistory();
+    const stamps = [iso(epoch - 2000), iso(epoch - 1000)].map(s => s.replace('.000Z', '.123456Z'));
+    const data = batch(stamps.map((timestamp, i) => row(epoch - 2000 + i * 1000, String(i + 1), {
+      timestamp: timestamp.replace('Z', '+00:00'), break_before: i === 0,
+      values: { ...values, active_power_w: 99000 }
+    })));
+    if (sqlFirst) assert(h.importHistory(data, epoch));
+    stamps.forEach((timestamp, i) => h.observe({ ...live(epoch), envelope: { timestamp },
+      values: { ...values, active_power_w: 7000 + i * 1000 } }, epoch));
+    if (!sqlFirst) assert(h.importHistory(data, epoch));
+    assert.equal(h.size, 2);
+    const points = h.window(epoch, 15);
+    assert(points.every(p => p.source === 'live'));
+    assert.deepEqual(points.map(p => p.values.power), [7, 8]);
+    assert(points.every(p => p.t !== Math.trunc(p.t)), 'Keys retain the fractional milliseconds');
+    const path = plot(h, 'power', epoch).paths[0].path;
+    assert.equal((path.match(/M/g) || []).length, 1); assert(path.includes('L'));
+  }
+});
+test('distinct SQL microsecond timestamps within one millisecond retain null barriers and separate points', () => {
+  const h = createHistory();
+  const stamps = ['123455', '123456', '123457'].map(fraction => iso(epoch - 1000).replace('.000Z', `.${fraction}Z`));
+  assert(h.importHistory(batch(stamps.map((timestamp, i) => row(epoch - 1000, String(i + 1), {
+    timestamp, break_before: i === 0, values: { ...values, plugged_in: i === 1 ? null : true }
+  }))), epoch));
+  const points = h.window(epoch, 15);
+  assert.equal(h.size, 3); assert(points[0].t < points[1].t && points[1].t < points[2].t);
+  assert.equal(Math.trunc(points[0].t), Math.trunc(points[2].t));
+  assert.deepEqual(points.map(p => p.values.plugged), [1, null, 1]);
+  const flags = plot(h, 'flags', epoch).paths.find(p => p.metric.id === 'plugged').path;
+  assert.equal((flags.match(/M/g) || []).length, 2); assert(!flags.includes('H'));
+  assert(plot(h, 'power', epoch).paths[0].path.includes('L'));
+});
+test('receipt/ID metadata-only changes do not redraw; newer SQL values win independently of import order', () => {
+  for (const reverse of [false, true]) {
+    const h = createHistory();
+    const a = batch([row(epoch, '9007199254740992')]);
+    const b = batch([row(epoch, '9007199254740993', { values: { ...values, active_power_w: 8000 } })]);
+    for (const data of reverse ? [b, a] : [a, b]) assert(h.importHistory(data, epoch));
+    assert.equal(h.window(epoch, 15)[0].values.power, 8);
+    const rev = h.revision;
+    assert(h.importHistory(batch([row(epoch, '9007199254740994', { values: { ...values, active_power_w: 8000 } })]), epoch));
+    assert.equal(h.revision, rev);
+  }
+});
+test('SQL cannot overwrite live or heal an offline same-timestamp gap; seams disconnect', () => {
+  const h = createHistory(); h.observe(live(epoch - 4000), epoch - 4000);
+  h.observe({ status: 'offline' }, epoch - 3000);
+  const data = batch([row(epoch - 4000, '1', { values: { ...values, active_power_w: 99000 } }),
+    row(epoch - 2000, '2', { break_before: false }), row(epoch, '3', { break_before: false })]);
+  assert(h.importHistory(data, epoch));
+  h.observe(live(epoch - 4000, { active_power_w: 12000 }), epoch - 1000);
+  assert.equal(h.window(epoch, 15)[0].values.power, 7.4);
+  h.observe(live(epoch), epoch);
+  const path = plot(h, 'power', epoch).paths[0].path;
+  assert.equal((path.match(/M/g) || []).length, 3);
+  assert.equal(h.window(epoch, 15).at(-1).source, 'live');
+});
+test('newer SQL points never steal live timestamp anchors or clock anchors', () => {
+  const h = createHistory(); h.observe(live(epoch - 4000), epoch - 4000);
+  assert(h.importHistory(batch([row(epoch - 2000), row(epoch, '2', { break_before: false })]), epoch));
+  h.observe(live(epoch - 4000, { active_power_w: 8000 }), epoch - 3000);
+  assert.equal(h.window(epoch, 15)[0].values.power, 8);
+  assert.equal(h.window(epoch, 15).at(-1).values.power, 7.4);
+  h.observe(live(epoch - 1000), epoch - 1000);
+  assert.equal(h.size, 4);
+  assert.equal((plot(h, 'power', epoch).paths[0].path.match(/M/g) || []).length, 4);
+});
+test('shared SQL/live retained allocation never exceeds 1200; rollback and clear remove both', () => {
+  const h = createHistory();
+  for (let i = 0; i < MAX_POINTS; i++) h.observe(live(epoch - 5000 + i), epoch - 5000 + i);
+  const rows = Array.from({ length: MAX_POINTS }, (_, i) => row(epoch - 2400 + i, String(i + 1), { break_before: i === 0 }));
+  assert(h.importHistory(batch(rows), epoch)); assert.equal(h.size, MAX_POINTS);
+  h.observe(live(epoch), epoch); assert.equal(h.size, MAX_POINTS);
+  h.observe({ status: 'offline' }, epoch - 1); assert.equal(h.size, 0);
+  h.importHistory(batch(rows), epoch); h.clear(); assert.equal(h.size, 0);
+  assert.equal(h.importHistory(batch([...rows, row(epoch)]), epoch), false);
+});
+test('partial archives disconnect every sample, error rows are gaps not zeros', () => {
+  const h = createHistory();
+  assert(h.importHistory(batch([row(epoch - 4000), row(epoch - 2000, '2', { status: 'error', values: null }),
+    row(epoch, '3', { break_before: false })], { complete: false }), epoch));
+  assert.equal(h.window(epoch, 15)[1].values.power, null);
+  assert(!plot(h, 'power', epoch).paths[0].path.includes('L'));
+});

@@ -3,7 +3,8 @@ FROM composer:2.8 AS composer
 FROM php:8.4-apache-bookworm AS base
 ENV EVSE_HTTP_PORT=8080
 WORKDIR /app
-RUN docker-php-ext-install pcntl && php -r 'exit(extension_loaded("curl") ? 0 : 1);'
+RUN docker-php-ext-install pcntl pdo_mysql \
+    && php -r 'exit(extension_loaded("curl") && extension_loaded("pdo_mysql") ? 0 : 1);'
 COPY docker/apache.conf /etc/apache2/apache2.conf
 COPY docker/php.ini /usr/local/etc/php/conf.d/evse.ini
 
@@ -16,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends unzip \
     && composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
 
 FROM base AS test
-RUN apt-get update && apt-get install -y --no-install-recommends mosquitto mosquitto-clients nodejs \
+RUN apt-get update && apt-get install -y --no-install-recommends mosquitto mosquitto-clients mariadb-client nodejs \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=dependencies /app/vendor ./vendor
 COPY --from=dependencies /app/composer.lock ./composer.lock
@@ -29,9 +30,9 @@ RUN chmod +x docker/entrypoint.sh
 USER 10001:10001
 RUN find php public docker tests -name '*.php' -print0 | xargs -0 -n1 php -l \
     && apache2 -t \
-    && php tests/unit.php && php tests/shared.php && php tests/transport.php && php tests/smartmeter.php \
+    && php tests/unit.php && php tests/shared.php && php tests/transport.php && php tests/smartmeter.php && php tests/history.php \
     && node tests/integration.cjs && node tests/smartmeter-integration.cjs \
-    && node --test tests/frontend.test.cjs tests/charts.test.cjs tests/theme.test.cjs tests/smartmeter.test.cjs \
+    && node --test tests/frontend.test.cjs tests/charts.test.cjs tests/theme.test.cjs tests/smartmeter.test.cjs tests/history.test.cjs \
     && touch /tmp/tests-passed
 
 FROM base AS runtime

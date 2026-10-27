@@ -3,10 +3,12 @@ on:
   push:
     paths:
       - 'rasppi/weboverlay/**'
+      - 'rasppi/storage/migrations/**'
       - '.github/workflows/weboverlay-docker.yml'
   pull_request:
     paths:
       - 'rasppi/weboverlay/**'
+      - 'rasppi/storage/migrations/**'
       - '.github/workflows/weboverlay-docker.yml'
 permissions:
   contents: read
@@ -17,11 +19,23 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Validate Compose
-        run: docker compose -f rasppi/weboverlay/compose.yaml config --quiet
+        env:
+          HISTORY_DB_PASSWORD_HOST_FILE: /tmp/isolated-history-reader-password
+          MQTT_PASSWORD_HOST_FILE: /tmp/isolated-mqtt-password
+        run: |
+          docker compose -f rasppi/weboverlay/compose.yaml config --quiet
+          docker compose -f rasppi/weboverlay/compose.yaml -f rasppi/weboverlay/compose.history.yaml config --quiet
+          docker compose -f rasppi/weboverlay/compose.yaml -f rasppi/weboverlay/compose.auth.yaml -f rasppi/weboverlay/compose.history.yaml config --quiet
       - name: Build and test in Docker with isolated broker
         run: docker build --progress=plain -t evse-weboverlay:test rasppi/weboverlay
       - name: Build disposable browser test image
         run: docker build -f rasppi/weboverlay/Dockerfile.browser -t evse-web-browser:test rasppi/weboverlay
+      - name: Read-only SQL history with isolated MariaDB 11.8.8
+        working-directory: rasppi/weboverlay
+        run: |
+          trap 'docker compose -f compose.history-test.yaml logs --tail 60; docker compose -f compose.history-test.yaml down --volumes' EXIT
+          docker compose -f compose.history-test.yaml build history-tests
+          docker compose -f compose.history-test.yaml up --abort-on-container-exit --exit-code-from history-tests
       - name: Extract resolved Composer lock for verification
         run: |
           docker create --name web-dependencies evse-weboverlay:test
