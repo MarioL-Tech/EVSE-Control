@@ -235,7 +235,8 @@ Nächster Meilenstein sind weitere Pi-Browser-/Ausfallprüfungen sowie
 Dauerbetriebs-/Zustands- und Messwertvergleiche. Danach folgen UART-MQTT-Gateway,
 abgesicherte Ladesteuerung, Energiezähler und Automationen. Die separat beauftragte
 lesende SQL-Historie ist als opt-in für die bestehenden Diagramme implementiert;
-Pi-Aktivierung bleibt wegen ungeklärtem `smartReader`-Login offen. Live-MQTT bleibt
+Pi-Aktivierung ist noch offen; vorübergehend ist `smart` ausdrücklich freigegeben,
+weil der `smartReader`-Login ungeklärt ist. Live-MQTT bleibt
 unabhängig; [Einrichtung und Grenzen](docs/installation.md#sql-verlauf-optional-einrichten).
 
 **Sicherheit:** Widersprüchliche Register-/Steuernotizen nicht ungeprüft

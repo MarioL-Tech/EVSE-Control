@@ -611,7 +611,11 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   1045 abgewiesen; kein SELECT-Rechtenachweis möglich. Exakten Benutzernamen,
   Passwortzuordnung/Hostfreigabe nur durch berechtigten Einrichter klären, nicht
   raten/resetten oder fremde Credentials auslesen. Implementierung/isolierte
-  Tests können unabhängig erfolgen; Pi-Aktivierung/Browsernachweis bleibt blockiert.
+  Tests können unabhängig erfolgen. Später ausdrücklich autorisierte Zwischenlösung:
+  `HISTORY_DB_USERNAME=smart`, eigene geschützte Website-Passwortkopie, kein
+  automatischer Writer-Fallback. Code bleibt SELECT-only/Read-only-Transaktion;
+  Account selbst hat mehr Rechte. Keine ungefragte Rechteänderung; funktionierender
+  SELECT-only-Zugang bleibt Empfehlung. Pi-Aktivierung/Browsernachweis noch offen.
 - PHP-/JS-/Chromium-Regressionen sowie eigene isolierte MariaDB-11.8.8-/MQTT-/HTTP-
   Integration mit tabellenspezifischen SELECT-Grants ergänzt. Neue Docker-CI noch
   offen; keine Hosttests oder Produktionszugriffe. Vertrag `docs/history-api.md`,

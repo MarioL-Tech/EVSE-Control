@@ -9,3 +9,7 @@ CREATE USER 'history_reader'@'%' IDENTIFIED BY 'dummy-only-reader';
 GRANT SELECT ON evse_history_test.evse_schema_versions TO 'history_reader'@'%';
 GRANT SELECT ON evse_history_test.evse_wallbox_samples TO 'history_reader'@'%';
 GRANT SELECT ON evse_history_test.evse_ingest_events TO 'history_reader'@'%';
+-- Explicit opt-in compatibility only: production may temporarily choose its writer.
+CREATE USER 'history_writer'@'%' IDENTIFIED BY 'dummy-only-writer';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP
+  ON evse_history_test.* TO 'history_writer'@'%';

@@ -135,7 +135,10 @@ Sessionenergie kann bei neuer Session zurückgesetzt werden, kein Gesamtsummenz�
 Default deaktiviert; nur `compose.yaml` benötigt weiterhin keinen DB-Zugang.
 `compose.history.yaml` ergänzt das vorhandene externe `evse-data` und eine eigene
 readonly Passwortdatei für den Website-Leseaccount. Kein neuer DB-Server/Hostport,
-keine Schema-/Grantänderung und keine Wiederverwendung des Collector-Schreibkontos.
+keine Schema-/Grantänderung und kein automatischer Writer-Fallback. Der
+Projektinhaber hat vorübergehend `smart` ausdrücklich auch für diese SELECT-
+Anbindung freigegeben: eigene Passwortkopie, unveränderte zusätzliche Accountrechte
+als bekanntes Risiko; ein funktionierender SELECT-only-Account bleibt empfohlen.
 PDO/mysqlnd wird ausschließlich im Docker-Build installiert, keine neue
 Composer-Abhängigkeit. Apache/MQTT-/Haus-Smartmeter-Worker bleiben genau die
 vorhandenen drei Prozesse; SQL wird begrenzt durch HTTP bedient.
@@ -147,10 +150,11 @@ Deaktiviert/DB-Ausfall verändert weder Live-Status noch bereits vorhandene Kurv
 Schema, Grenzen und Lifecycle: [Historien-API](../../docs/history-api.md).
 Konfiguration nur im [Installationsguide](../../docs/installation.md#sql-verlauf-optional-einrichten).
 
-**Produktiver Blocker:** `smartReader`-Anmeldung über Socket und Docker-TCP mit
-1045 abgewiesen. Nicht durch Passwortversuche, Root-Reset oder Writer-Fallback
-umgehen; der berechtigte Einrichter muss den Lesezugang klären. Implementierung/
-isolierte Tests sind kein bestätigtes Pi-Deployment dieser neuen Funktion.
+**Reader-Status:** `smartReader`-Anmeldung über Socket und Docker-TCP mit 1045
+abgewiesen. Keine Passwortversuche/Resets oder automatischer Writer-Fallback;
+Einrichter muss den Lesezugang klären. Die danach autorisierte Zwischenlösung
+verwendet lokal `HISTORY_DB_USERNAME=smart`, ohne Rechteänderung. Implementierung/
+isolierte Tests sind weiterhin kein Pi-Deploymentnachweis dieser neuen Funktion.
 
 ## Datenmodell und Grenzen
 

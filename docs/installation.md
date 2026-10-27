@@ -1229,17 +1229,22 @@ Telemetrie für die vorhandenen Diagramme lesen. Zeitfenster 1/5/15 Minuten,
 Layout, Theme und Live-MQTT bleiben unverändert. Default deaktiviert; keine
 Preise/Hausdaten, SQL-Schreibbefehle, Migration, neuen Worker oder Hostports.
 
-**Aktueller produktiver Blocker:** `smartReader` wurde über Socket und Docker-TCP
+**Reader-Status:** `smartReader` wurde über Socket und Docker-TCP
 mit 1045 abgewiesen. Das ist ein Anmeldefehler vor der Tabellenabfrage, kein
 Nachweis fehlender SELECT-Rechte. Einrichter muss exakten Namen, Passwortzuordnung
 und Hostfreigabe klären. Keine Passwortversuche/Resets, Grantänderung durch `smart`
-oder automatischer Writer-Fallback. Erst danach produktiv aktivieren.
+oder automatischer Writer-Fallback. **Danach ausdrücklich freigegebene Zwischenlösung:**
+Der Projektinhaber erlaubt für den Anfang `smart` auch für die Historie. Das Konto
+selbst bleibt überprivilegiert; nur die Websiteabfragen sind lesend und zusätzlich
+durch eine Read-only-Transaktion begrenzt. Kein Least-Privilege-Nachweis behaupten.
 
 Benötigt: vorhandene MariaDB/Schema 1 mit allen drei `evse_*`-Tabellen und den
 Indizes `source_measurement`/`source_receipt`, laufender Collector für neue Daten,
-bestehendes externes `evse-data` mit DB-Alias und ein freigegebenes Lesekonto mit
-**SELECT auf diesen drei Tabellen**. Keine Preis-/Provider-, Schreib-, DDL-,
-globalen oder weitergebbaren Rechte für die Website nötig. Keine zweite DB,
+bestehendes externes `evse-data` mit DB-Alias und ein freigegebenes Konto.
+Empfohlen sind nur **SELECT auf diesen drei Tabellen**; Preis-/Provider-,
+Schreib-, DDL-, globale oder weitergebbare Rechte sind nicht nötig. Die
+Zwischenlösung mit `smart` hat mehr Rechte, die nicht ungefragt geändert werden.
+Keine zweite DB,
 Port-/Firewalländerung oder neue Hostabhängigkeit; PDO/mysqlnd nur im Docker-Build.
 
 In `rasppi/weboverlay` vorhandene `.env` erhalten und nur lokal ergänzen:
@@ -1248,15 +1253,17 @@ In `rasppi/weboverlay` vorhandene `.env` erhalten und nur lokal ergänzen:
 HISTORY_DB_HOST=evse-database
 HISTORY_DB_PORT=3306
 HISTORY_DB_NAME=energyControl
-HISTORY_DB_USERNAME=smartReader
+HISTORY_DB_USERNAME=smart
 DB_NETWORK=evse-data
 HISTORY_DB_PASSWORD_HOST_FILE=/ABSOLUTER/PRIVATER/PFAD/history-reader-password.txt
 ```
 
-`smartReader` nur nach erfolgreichem Login verwenden, sonst den tatsächlich
-bereitgestellten Leseaccount eintragen. Name exakt `energyControl`, nicht
-`energy_control`. Eigene Passwortdatei für Website-UID 10001 neu anlegen, keine
-Writer-Datei wiederverwenden oder vorhandene fremde Secrets überschreiben.
+Das Beispiel nutzt die bewusst gewählte Zwischenlösung. Zur späteren Härtung
+den tatsächlich funktionierenden Leseaccount eintragen; `smartReader` bleibt
+generischer Default, kein automatisch bestätigter Login. Name exakt
+`energyControl`, nicht `energy_control`. Eigene Passwortdatei für Website-UID
+10001 neu anlegen: Writer-Datei nicht direkt in die Website mounten, keine
+vorhandenen fremden Secrets überschreiben.
 Interaktive Bash; bei Rootless/Usernamespace vorher Host-UID-Mapping abgleichen:
 
 ```bash
@@ -1268,7 +1275,7 @@ Interaktive Bash; bei Rootless/Usernamespace vorher Host-UID-Mapping abgleichen:
   chmod 700 secrets
   test ! -e secrets/history-reader-password.txt
   unset SECRET
-  IFS= read -r -s -p 'Passwort des bestätigten Leseaccounts: ' SECRET
+  IFS= read -r -s -p 'Passwort des bewusst gewählten DB-Kontos: ' SECRET
   printf '\n'
   test -n "$SECRET"
   temporary="$(mktemp secrets/.history-reader.XXXXXXXX)"
@@ -1280,7 +1287,26 @@ Interaktive Bash; bei Rootless/Usernamespace vorher Host-UID-Mapping abgleichen:
 )
 ```
 
-Absoluten lokalen Pfad dieser Datei in `.env` eintragen, nicht posten. Dann
+Alternativ darf für die ausdrücklich gewählte `smart`-Zwischenlösung eine eigene
+geschützte Kopie der schon berechtigt eingerichteten Projektdatei erzeugt werden
+(statt des obigen Eingabeblocks, nur ohne abweichendes UID-Mapping):
+
+```bash
+(
+  set -e
+  umask 077
+  mkdir -p secrets
+  chmod 700 secrets
+  test ! -e secrets/history-reader-password.txt
+  sudo install -o 10001 -g 10001 -m 0400 \
+    ../storage/secrets/migration-password.txt \
+    secrets/history-reader-password.txt
+)
+```
+
+Dateiname bezeichnet den Lesezweck, nicht eingeschränkte Accountrechte. Kein
+Auslesen anderer Infrastruktur-Secrets. Den absoluten lokalen Dateipfad in
+`.env` eintragen, nicht posten. Dann
 explizit mit zusätzlichem Overlay bauen/starten:
 
 ```bash

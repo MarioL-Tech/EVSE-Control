@@ -98,8 +98,8 @@ function request(target = '/api/history?minutes=15', method = 'GET') {
   });
 }
 function safeResponse(response) {
-  for (const forbidden of [MARKER, READER, process.env.HISTORY_TEST_ROOT_PASSWORD,
-    'history-db', DB, 'history_reader', 'payload_json', 'communication_error']) {
+  for (const forbidden of [MARKER, READER, 'dummy-only-writer', process.env.HISTORY_TEST_ROOT_PASSWORD,
+    'history-db', DB, 'history_reader', 'history_writer', 'payload_json', 'communication_error']) {
     assert.ok(!response.body.includes(forbidden), 'Private data leaked');
   }
   assert.match(response.headers['cache-control'] || '', /no-store/);
@@ -198,6 +198,7 @@ async function liveIndependent() {
   }
   await fs.writeFile(path.join(directory, 'reader-password'), READER + '\n', { mode: 0o600 });
   await fs.writeFile(path.join(directory, 'wrong-password'), 'dummy-only-wrong\n', { mode: 0o600 });
+  await fs.writeFile(path.join(directory, 'writer-password'), 'dummy-only-writer\n', { mode: 0o600 });
   port = await freePort(); do { mqttPort = await freePort(); } while (port === mqttPort);
   const brokerConfig = path.join(directory, 'mosquitto.conf');
   await fs.writeFile(brokerConfig, `listener ${mqttPort} 127.0.0.1\nallow_anonymous true\npersistence false\n`, { mode: 0o600 });
@@ -306,6 +307,17 @@ async function liveIndependent() {
   await run('GET cannot mutate fixture tables', async () => {
     const count = () => sql('SELECT COUNT(*) FROM evse_wallbox_samples; SELECT COUNT(*) FROM evse_ingest_events; SELECT version,applied_at FROM evse_schema_versions;');
     const before = await count(); await history(); await history(); assert.equal(await count(), before);
+  });
+  await run('explicit writer login does not change the read-only HTTP contract', async () => {
+    const count = () => sql('SELECT COUNT(*) FROM evse_wallbox_samples; SELECT COUNT(*) FROM evse_ingest_events; SELECT version,applied_at FROM evse_schema_versions;');
+    const before = await count();
+    await launchWeb({ HISTORY_DB_USERNAME: 'history_writer',
+      HISTORY_DB_PASSWORD_FILE: path.join(directory, 'writer-password') });
+    await history();
+    assert.equal((await request('/api/history', 'POST')).code, 405);
+    assert.equal(await count(), before);
+    await liveIndependent();
+    await launchWeb();
   });
   await run('wrong reader password leaves HTTP and live MQTT available', async () => {
     await launchWeb({ HISTORY_DB_PASSWORD_FILE: path.join(directory, 'wrong-password') });

@@ -84,5 +84,8 @@ Automatische Tests verwenden ausschließlich isolierte Dummy-Accounts und einen
 eigenen MariaDB-Testserver. Das ist kein Produktionslogin-/Pi-Deploymentnachweis.
 Der tatsächliche Account `smartReader` wurde beim Projektinhaber über Socket und
 Docker-TCP mit 1045 abgewiesen; Name, Passwortzuordnung und Hostfreigabe müssen
-berechtigt geklärt werden. Kein Rückfall auf das Schreibkonto `smart`, keine
-automatische Benutzer-/Grant-/Schemaänderung und kein Passwortreset.
+berechtigt geklärt werden. **Später ausdrücklich autorisierte Zwischenlösung:**
+`HISTORY_DB_USERNAME=smart` mit eigener geschützter Website-Passwortkopie.
+Der Code bleibt SELECT-only/Read-only-Transaktion, das Konto selbst besitzt aber
+weitere Schreib-/DDL-/Löschrechte. Kein automatischer Rückfall, keine Benutzer-/
+Grant-/Schemaänderung und kein Passwortreset; Least Privilege bleibt Empfehlung.

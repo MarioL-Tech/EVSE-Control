@@ -56,6 +56,7 @@ jobs:
             sleep 1
           done
           test "$ready" = 1
+          docker exec web-smoke php -r '$d=json_decode(file_get_contents("http://127.0.0.1:8080/api/history"), true, 64, JSON_THROW_ON_ERROR); exit($d["read_only"] === true && $d["status"] === "disabled" && $d["samples"] === [] ? 0 : 1);'
           ! docker exec web-smoke sh -c 'command -v python || command -v python3'
           docker run --rm --network container:web-smoke -v "$PWD/artifacts:/artifacts" evse-web-browser:test
       - uses: actions/upload-artifact@v4

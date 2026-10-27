@@ -12,7 +12,7 @@ services:
     networks:
       - database
     volumes:
-      - ${HISTORY_DB_PASSWORD_HOST_FILE:?Set an existing reader password file readable by container UID 10001}:/run/secrets/history-password:ro
+      - ${HISTORY_DB_PASSWORD_HOST_FILE:?Set an existing history DB password file readable by container UID 10001}:/run/secrets/history-password:ro
 networks:
   database:
     external: true
