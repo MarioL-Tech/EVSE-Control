@@ -24,6 +24,8 @@ stop_children() {
 trap 'stop_children; exit 0' TERM INT
 php php/worker.php &
 pids+=("$!")
+php php/smartmeter-worker.php &
+pids+=("$!")
 apache2 -DFOREGROUND &
 pids+=("$!")
 wait -n "${pids[@]}" || true

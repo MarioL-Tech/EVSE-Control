@@ -270,13 +270,13 @@ function security(response) {
 
 async function httpContract(scope) {
   await command(scope, 'php', ['/app/docker/healthcheck.php'], { EVSE_HTTP_PORT: String(scope.webPort) });
-  for (const [url, title] of [['/', 'Übersicht · EVSE Control'], ['/diagramme', 'Diagramme · EVSE Control']]) {
+  for (const [url, title] of [['/', 'Übersicht · EVSE Control'], ['/diagramme', 'Diagramme · EVSE Control'], ['/einstellungen', 'Einstellungen · EVSE Control']]) {
     const response = await request(scope.webPort, url);
     assert.equal(response.code, 200);
     assert.ok(response.body.includes(`<title>${title}</title>`));
     security(response);
   }
-  for (const asset of ['app.js', 'charts.js', 'theme.js', 'style.css', 'icon.svg']) {
+  for (const asset of ['app.js', 'charts.js', 'theme.js', 'smartmeter.js', 'style.css', 'icon.svg']) {
     const response = await request(scope.webPort, `/static/${asset}`);
     assert.equal(response.code, 200);
     assert.ok(response.body.length > 0);
@@ -295,7 +295,7 @@ async function httpContract(scope) {
   }
   assert.equal((await request(scope.webPort, '/missing')).code, 404);
   for (const method of ['POST', 'PUT']) {
-    for (const url of ['/api/state', '/healthz', '/', '/diagramme']) {
+    for (const url of ['/api/state', '/api/smartmeter', '/healthz', '/', '/diagramme', '/einstellungen']) {
       const response = await request(scope.webPort, url, method);
       assert.equal(response.code, 405);
       security(response);

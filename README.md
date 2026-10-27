@@ -11,13 +11,15 @@ Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die Website soll später
 umgebaut werden; anschließend ist eine Smartphone-WebApp geplant. Umfang,
 Gestaltung und WebApp-Umsetzung sind noch offen. Das Websitebackend ist separat
 auf PHP 8.4/Apache mit einem PHP-MQTT-Worker umgestellt;
-bestehende HTML-/CSS-/JS-Oberfläche, Seiten und Diagramme bleiben unverändert.
+bestehende Wallbox-Anzeigen und Diagramme bleiben erhalten. Separat ergänzt sind
+kompakte Theme-/Einstellungszugriffe und die optionale Haus-Smartmeter-Anzeige.
 
 > **Entwicklungsstand:** Der Wallbox-Dienst ist ausschließlich lesend.
 > MQTT-Empfang echter Wallboxdaten am Pi ist bestätigt. Das neue lesende
 > PHP-Weboverlay ist implementiert und Docker-getestet;
 > Pi-Start und Live-Übersicht am 26.10.2026 vom Projektinhaber bestätigt;
-> gezielte Ausfalltests und der neue manuelle Farbumschalter am Pi noch offen.
+> Websitezugriff danach erneut bestätigt. Neue Symbolschalter und Haus-Smartmeter
+> sind implementiert, ihre Docker-CI und Pi-Prüfung noch offen.
 > MariaDB-Speicherdienst implementiert und Docker-getestet; Pi-Konfiguration offen.
 > Reale Ladesteuerung und bedienende Webfunktionen fehlen noch.
 > Theme „Compact / Dense“ in Hell/Dunkel umgesetzt; weitergehender Websiteumbau
@@ -64,6 +66,7 @@ noch keine Modusauswahl oder Einrichtung; Geräte-/Sicherheitsgrenzen gelten wei
 | Wallbox-Reader | C++17/libmodbus, zyklische FC03-Abfragen, dekodierte Messwerte als JSON |
 | MQTT-Publisher | retained State und Verfügbarkeit mit libmosquitto; vorhandener Broker wird wiederverwendet |
 | Weboverlay | PHP-/Apache-Backend mit MQTT-Worker; lesende Anzeige, Frischeprüfung und Browser-Zeitverläufe; Docker-getestet |
+| Haus-Smartmeter | Optionaler separater PHP-HTTP-Worker: Wert 7 als Netzleistung mit Vorzeichen und eigenem Datenstatus; neue CI/Pi-Prüfung offen |
 | Zustandsspeicherung | Separater MQTT-Collector für vorhandene MariaDB; Schema/Migration und typisierte Wallbox-Historie |
 | Fehlerbehandlung | Timeouts, erneute Verbindung, ungültige Messwerte als `null`, sauberer Shutdown |
 | Softwaretests | Decoder-/JSON-Tests und simulierte RTU-Kommunikation einschließlich Fehlerfällen |
@@ -83,7 +86,8 @@ Das ersetzt keinen Test mit der tatsächlichen Wallbox-Firmware.
   oder zugesicherter Schutz bei Stromausfall. SG90 ist keine zertifizierte
   physische Diebstahlsicherung. Details: [ESP32](esp32/README.md).
 - Das ausgelesene Wallbox-Stromlimit ist nicht der im Gebäude verfügbare Strom.
-  Die DTSU666-Erfassung und Berechnung sind noch geplant.
+  Die HTTP-Hausmessung zeigt Netzbezug/Einspeisung in W, keinen verfügbaren
+  Ladestrom in A. DTSU666-Erfassung und Ladeleistungsberechnung bleiben geplant.
 
 ## Architektur
 
@@ -98,6 +102,7 @@ Raspberry Pi — lokale Hardwareanbindung, Dienste in Docker
         |   57600 Baud, 8E1, Slave-ID 9
         |
         +-- DTSU666-Messwerterfassung                    [geplant]
+        +-- Haus-Smartmeter HTTP(S) --> Weboverlay      [optional, lesend]
         |
         +-- Wallbox-MQTT --> vorhandener gemeinsamer Message Broker
                               |-- Weboverlay          [lesend]
@@ -160,10 +165,17 @@ Datenbankarchiv. „Anzeige auswählen“ gilt auf beiden Seiten. Auswahl bleibt
 lokal gespeichert; Neuladen oder Seitenwechsel leert die Messwerthistorie.
 
 Das Theme folgt Entwurf Nr. 8 „Compact / Dense“: kühle Blautöne, feine Rahmen,
-dezente Schatten und kompakte Karten. Oben unter **Darstellung** zwischen
-**System / Hell / Dunkel** wählen. System folgt der Browsereinstellung;
-manuelle Wahl wird lokal im Browser gespeichert, ohne Messwerte oder Zugangsdaten.
+dezente Schatten und kompakte Karten. **Sonne/Mond rechts unten** wechselt
+Hell/Dunkel; das Zahnrad öffnet die Platzhalterseite **Einstellungen**.
+Dort stellt „Systemdarstellung verwenden“ die automatische Browserpräferenz wieder her.
+Die Theme-Wahl bleibt browserlokal, ohne Messwerte oder Zugangsdaten.
 Die Vorlagen bestimmen nur den Stil, nicht Inhalt oder Anordnung der Website.
+
+Optional zeigt **Netzleistung Haus** den siebten HTTP-Smartmeterwert:
+positiv Netzbezug, negativ Einspeisung. Die private Quelle nur lokal über
+`SMARTMETER_URL` konfigurieren; ohne URL bleibt sie deaktiviert.
+[Einrichtung und Ausfallverhalten](docs/installation.md#haus-smartmeter-optional-einrichten).
+Kein verfügbarer Ladestrom, keine Ladeautomation und kein Hauszählerverlauf.
 
 ## ESP32-UART-Verbindung testen
 

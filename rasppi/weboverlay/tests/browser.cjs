@@ -46,7 +46,8 @@ const fs = require('node:fs');
     assert.equal(await page.locator('#limit').innerText(), '6,0 A');
     assert.equal(await page.locator('#voltage-0').innerText(), '235,7 V');
     assert.equal(await page.locator('input:not([type="checkbox"]), form').count(), 0);
-    assert.equal(await page.locator('button').count(), 1); // Display reset, not a wallbox command.
+    assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()),
+      ['reset-display', 'theme-toggle']); // Local view controls, not wallbox commands.
     fs.mkdirSync('/artifacts', { recursive: true });
     await page.screenshot({ path: '/artifacts/weboverlay-desktop.png', fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });

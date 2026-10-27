@@ -1,7 +1,15 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { STORAGE_KEY, MODES, normalize, createController } = require('../static/theme.js');
+const { STORAGE_KEY, MODES, normalize, effectiveMode, createController } = require('../static/theme.js');
+
+test('effective mode follows system only without a manual choice', () => {
+  assert.equal(effectiveMode('system', true), 'dark');
+  assert.equal(effectiveMode('system', false), 'light');
+  assert.equal(effectiveMode('light', true), 'light');
+  assert.equal(effectiveMode('dark', false), 'dark');
+  assert.equal(effectiveMode('invalid', true), 'dark');
+});
 
 function storage(initial = null) {
   let value = initial;

@@ -798,7 +798,9 @@ CSP und sonstige Sicherheitsheader bleiben erhalten; keine visuelle Neugestaltun
 **PHP-Docker-CI 40365837026 für 06a3626 erfolgreich; Pi-Übersicht bestätigt.**
 Die Software-CI läuft auf Linux-amd64, nicht auf dem Pi/ARM64. Den tatsächlichen
 Pi-Start und die Live-Übersicht bestätigt der Projektinhaber (Details unten).
-Der neue manuelle Farbumschalter muss nach Merge/Update dort noch geprüft werden.
+Websitezugriff und bisheriger großer Theme-Selektor wurden danach erneut
+bestätigt. Neue Symbolschalter und Haus-Smartmeter müssen nach Merge/Update
+noch auf dem Pi geprüft werden; ihre neue Docker-CI ist ebenfalls noch offen.
 **Kein zusätzlicher Broker, kein Zugriff auf RS485/UART,
 keine Schreibbefehle.** Der laufende Wallbox-Reader muss nicht gestoppt werden.
 
@@ -806,9 +808,10 @@ Voraussetzungen: Abschnitt 5 eingerichtet (`evse-mqtt`, `mqtt-broker`), laufende
 Reader und aktueller Repository-Stand nach Merge der Weboverlay-PR. Build und
 Tests benötigen keine Wallbox, Tests verwenden nur einen isolierten Loopback-Broker.
 
-Apache läuft non-root als UID 10001, intern auf Port 8080. Bash überwacht HTTP
-und Worker: stirbt einer unerwartet, beendet der Entrypoint den anderen und den Container
-mit Fehler; SIGTERM stoppt beide. HTTP bleibt bei Brokerausfall erreichbar,
+Apache läuft non-root als UID 10001, intern auf Port 8080. Bash überwacht HTTP,
+MQTT-Worker und den unabhängigen Haus-Smartmeter-Worker: stirbt ein Prozess
+unerwartet, beendet der Entrypoint die übrigen und den Container mit Fehler;
+SIGTERM stoppt alle drei. HTTP bleibt bei Brokerausfall erreichbar,
 der Worker versucht Reconnect mit 1–30 s Abstand. Erst beide SUBACKs erlauben
 die Datenfreigabe, Reconnect verwirft Sample und Availability. Die MQTT-Restlänge
 ist auf 32768 Bytes (ohne Festheader), Statepayloads auf 16384 Bytes begrenzt.
@@ -823,16 +826,17 @@ brauchen im unveränderten Compose-Dienst keine Anpassung. Bestehendes externes
 tmpfs, cap-drop und Localhost-Bindung bleiben unverändert. C++-Reader,
 Python-UART-Brücke und Python-Speichercollector werden nicht ersetzt.
 
-**Späterer Haus-Smartmeter, nicht Teil dieser Migration:** Laut Projektinhaber
+**Separat ergänzter HTTP-Haus-Smartmeter:** Laut Projektinhaber
 liefert ein konfigurierbarer privater HTTP-Host unter `/dev/powerValue.txt`
 whitespace-getrennte Werte, schematisch `U1 U2 U3 Feld4 Feld5 Feld6 1549.40 …`.
 Wert 7 ist Netzaustauschleistung in W: positiv Bezug, negativ Einspeisung;
 die ersten drei Phasenspannungen vorerst ignorieren, übrige Felder unbekannt.
-Nicht unabhängig abgerufen/verifiziert, noch nicht integriert; erst nach PHP-
-Migration. Keine Deployment-IP dokumentieren. Beziehung zur geplanten DTSU666-
-Erfassung offen, daraus keinen verfügbaren Strom in A ableiten. Keine neuen
-Smartmeterabfragen, Modbus-Schreibbefehle, DB-/Historienoberfläche, Home-Assistant-
-Integration oder gemeinsame Compose-Datei in diesem Arbeitsschritt.
+Nach der PHP-Migration separat autorisiert und implementiert; echte Quelle
+nicht unabhängig abgerufen/verifiziert. Einrichtung optional über lokale URL
+(siehe unten), keine Deployment-IP dokumentieren. Beziehung zur geplanten
+DTSU666-Erfassung offen, daraus keinen verfügbaren Strom in A ableiten.
+Keine Modbus-Schreibbefehle, DB-/Historienoberfläche, Home-Assistant-Integration
+oder gemeinsame Compose-Datei in diesem Arbeitsschritt.
 
 ### Auf dem Pi starten
 
@@ -888,6 +892,73 @@ Dann http://127.0.0.1:8081 öffnen. Ist Port 8080 hingegen **auf dem Pi** belegt
 und auch das rechte Tunnelziel auf `127.0.0.1:8081` ändern. Vorhandene Dienste
 nicht stoppen/ersetzen, um den Port frei zu machen.
 
+### Haus-Smartmeter optional einrichten
+
+Die Quelle muss vom vorhandenen Websitecontainer aus über das bestehende Netz
+erreichbar sein. Keine neue Portfreigabe, kein Hostnetworking, keine Änderung an
+WireGuard/Firewall oder dem MQTT-Broker. Ohne konfigurierte URL erfolgt keine
+Smartmeterabfrage; die Übersicht zeigt **Nicht eingerichtet**, keine 0 W.
+
+Im Verzeichnis `rasppi/weboverlay` eine vorhandene `.env` **beibehalten**;
+falls noch keine existiert: `test -e .env || cp .env.example .env`.
+Nur diese Zeilen lokal ergänzen/anpassen, MQTT-Credentials nicht überschreiben:
+
+```dotenv
+SMARTMETER_URL=http://SMARTMETER-ADRESSE/dev/powerValue.txt
+SMARTMETER_POLL_SECONDS=2
+SMARTMETER_TIMEOUT_SECONDS=2
+SMARTMETER_STALE_SECONDS=10
+```
+
+`SMARTMETER-ADRESSE` durch die eigene bekannte Quelle ersetzen. Die tatsächliche
+URL nur in der lokalen `.env` aufbewahren, nicht committen oder in Screenshots
+der Konfiguration veröffentlichen. HTTP/HTTPS sind erlaubt; keine eingebetteten
+Zugangsdaten, Fragmente oder Redirects. HTTPS-Zertifikatsprüfung bleibt aktiv.
+Abfrageintervall 1–60 s, gesamter HTTP-Timeout 1–5 s, Frische 3–120 s;
+Defaults 2/2/10 s. Frische sinnvoll größer als Intervall plus Timeout wählen.
+
+Nach Merge/Pull mit vorhandenen Docker-Voraussetzungen neu bauen/starten:
+
+```bash
+docker compose -f compose.yaml up -d --build weboverlay
+docker compose -f compose.yaml ps
+docker compose -f compose.yaml exec -T weboverlay php -r 'echo file_get_contents("http://127.0.0.1:8080/api/smartmeter"), PHP_EOL;'
+```
+
+Der letzte Befehl liest nur den bereinigten API-Cache, keine Secrets oder
+Deployment-URL. Ein eventuell bereits korrekt eingerichtetes Auth-Override wie
+bisher beibehalten; ohne echte Passwortdatei nicht neu hinzufügen. `.env`
+allein wird ohne Compose-Neuerstellung nicht an laufende Prozesse übernommen.
+
+**Datenvertrag:** ASCII-Whitespace-Zahlenliste, mindestens sieben endliche
+Zahlen, höchstens 4 KiB Body und 8 KiB Header. Genau **Index 6 / Wert 7** ist
+Netzaustauschleistung in W: positiv Netzbezug, negativ Einspeisung; die ersten
+drei Spannungen und weitere Felder werden nicht als Messgrößen übernommen.
+Kein HTML-/Komma-/NaN-/Inf-Fallback, keine Ersatznull. Die Übersicht zeigt kW
+und Richtung, getrennt von Wallboxleistung und verfügbarem Ladestrom.
+
+`GET /api/smartmeter` liefert `schema_version`, `read_only`, `status`, `reason`,
+`power_w`, `fetched_at`, `age_seconds`, `fresh_for_seconds` — nie die URL,
+Rohantwort oder Credentials. Nur `live` enthält Leistung; `disabled`, `waiting`,
+`stale`, `offline`, `read_error`, `clock_error` liefern `power_w=null`.
+**Letzter Abruf/Abrufalter** beschreiben die HTTP-Empfangszeit, nicht eine
+Gerätemesszeit. Wiederholte gültige Antworten belegen Abruffrische, nicht
+zwingend einen neuen Messwert im Gerät.
+
+Der zweite PHP-Worker liest die Quelle unabhängig von MQTT und HTTP-Anfragen.
+Privater Cache bis 8 KiB, separate stabile Lockdatei (max. 200 ms), atomarer
+Austausch. Heartbeat alle 250 ms zwischen Abfragen, Auslauf nach max(3 s,
+Timeout+1 s). Browser pollt nur auf der Übersicht jede Sekunde und lässt Werte
+auch ohne weitere API-Antworten auslaufen. Störungen blenden nur Hausleistung
+aus; MQTT-/Wallboxanzeige bleibt unabhängig. Quelle nicht erreichbar: lokale
+URL und bestehende Erreichbarkeit durch berechtigten Betreiber prüfen lassen,
+keine ungefragten Netzwerkänderungen. DNS kann OS-bedingt verzögern; der
+Supervisor erzwingt nach etwa 2 s das Ende verbliebener Kinder, Compose 10 s.
+
+Kein Hauswert-Publish, keine SQL-/Diagrammaufzeichnung, DTSU666-Integration oder
+Ladeautomation. Die bestehenden 16 Wallbox-Präferenzen ändern den Hausbereich
+nicht. Neue Docker-/Browserprüfungen sowie echter Pi-/Smartmeternachweis offen.
+
 ### Erwartete Anzeige und Frische
 
 Startseite **Übersicht** (`/`): kompakte Karten für Wirkleistung, Fahrzeug,
@@ -901,19 +972,22 @@ Das Theme entspricht „Compact / Dense“ nach Entwurf Nr. 8 in Hell/Dunkel:
 kühle Blau-/Grautöne, dezente Kartenverläufe, feine Rahmen und kompaktere
 Abstände. Die Entwürfe sind nur Stilvorlagen; keine Änderung von Sidebar,
 vier Übersichtskarten, Messwerten oder Seitenaufteilung. PHP/API/MQTT und
-Frischelogik unverändert, keine neuen Konfigurationsschritte oder Ports.
-Unter **Darstellung** oben auf beiden Seiten **System / Hell / Dunkel** wählen.
-**Hell** zeigt White Mode auch bei dunkler Systemeinstellung; **Dunkel** erzwingt
-Dark Mode. **System** (Default) folgt weiterhin `prefers-color-scheme` einschließlich
+Wallbox-Frischelogik unverändert, keine neuen Ports. Die Smartmeterkonfiguration
+ist ein separat beauftragter Schritt (oben). **Sonne/Mond rechts unten** schaltet
+Hell/Dunkel auf Übersicht, Diagrammen und Einstellungen. Das **Zahnrad** führt
+zu `/einstellungen`, ausdrücklich ein Platzhalter ohne Hardware-/Ladefunktionen.
+Dort stellt **Systemdarstellung verwenden** den Standard wieder her.
+**System** (Default) folgt weiterhin `prefers-color-scheme` einschließlich
 späterer OS-Änderungen. Auswahl gilt beim Seitenwechsel/Neuladen browserlokal über
 `evse-theme-v1` (nur light/dark, System entfernt den Schlüssel); keine Messwerte,
 Zugangsdaten oder neuen Servereinstellungen. Bei blockiertem Speicher gilt die Wahl
 für die aktuelle Seite und bleibt bei Pageshow erhalten, wenn Speichern scheiterte.
-Ohne JavaScript bleibt das Feld deaktiviert; automatische Systemfarben funktionieren.
-Umschalter-CI 40375388768 für 53ce565 erfolgreich: 37 JS-Tests, vier Chromium-
+Ohne JavaScript bleiben Theme-Schalter/Reset deaktiviert; Systemfarben wirken.
+Neue Symbolschalter-/Smartmeter-CI noch offen. Historische Auswahlfeld-
+CI 40375388768 für 53ce565 erfolgreich: 37 JS-Tests, vier Chromium-
 Suiten einschließlich 22 Theme-Browserfällen sowie Backend-/Runtime-Prüfungen.
 Erzwungene Hell-/Dunkelansicht mit simulierten Werten visuell geprüft;
-noch kein Pi-Nachweis für diesen neuen Schalter.
+kein Pi-Nachweis für die jetzigen Symbolschalter.
 Update wie unten mit `docker compose up -d --build`, bei altem CSS Strg+F5.
 Theme-CI 40369056814 für ff496f2 erfolgreich: beide Seiten in Hell/Dunkel bei
 320/390/768/1440 px, Systemfarbwechsel, geprüfte Textkontraste und weiterhin
@@ -927,8 +1001,10 @@ weitere Kurven unter **„Zustands- & Diagnoseverläufe“** öffnen.
 
 Die Oberfläche zeigt Fahrzeuganschluss und tatsächliches Laden getrennt,
 Phasenströme/-spannungen, Wirkleistung, Sessionenergie, Wallbox-Limit, Fehlercode
-und Messzeit. **Verfügbarer Gebäudestrom ist noch nicht erfasst**; weder DTSU666
-noch der spätere HTTP-Hauszähler sind angebunden. Die Wallbox-Verriegelung ist nicht der ESP32-Servo.
+und Messzeit. Zusätzlich eigene **Netzleistung Haus** bei eingerichteter URL.
+**Verfügbarer Gebäudestrom ist noch nicht berechnet**; die neue HTTP-Netzleistung
+in W ist kein Ladestrom in A und keine DTSU666-Anbindung.
+Die Wallbox-Verriegelung ist nicht der ESP32-Servo.
 Es gibt keine Start-/Stop-, Limit- oder frei eingebbaren Steuerbefehle.
 
 Messwerte erscheinen nur, wenn Brokerverbindung, `availability online`, ein
@@ -1116,8 +1192,9 @@ vollständiger Nachweis aller Bfcache-/Suspend-Varianten jedes Browsers.
 im Browser; Screenshot der Live-Übersicht im Dark-Theme mit Messzeit 18:52:39,
 MQTT online, Alter 1 s, 0 kW, Limit 6 A, angeschlossen/nicht ladend und
 234,8/235,0/235,2 V. Bestätigte Momentaufnahme, keine unabhängige Messvalidierung.
-**Weiter offen:** Diagrammseite, Hellansicht/neuer Umschalter und gezielte
-Ausfall-/Frischeprüfungen am Pi. Kein Agent-Deployment; automatische Tests
+Websitezugriff und bisheriges großes Auswahlfeld am 2026-10-27 erneut bestätigt.
+**Weiter offen:** neue Symbolschalter/Haus-Smartmeter, weitere Diagramm-/Hellansicht-
+und gezielte Ausfall-/Frischeprüfungen am Pi. Kein Agent-Deployment; automatische Tests
 ersetzen diese Bedien-/Fehlerfallprüfung nicht.
 
 ## 10. MQTT-Zustandsspeicherung in der vorhandenen MariaDB

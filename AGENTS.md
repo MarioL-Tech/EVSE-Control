@@ -166,7 +166,7 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
   Home-Assistant-Integration, Modbus-Schreibbefehle, DB-/Historienoberfläche oder
   Smartmeterabfrage als Teil dieser Migration.
 
-### Haus-Smartmeter: Kontext für später, noch nicht integriert
+### Haus-Smartmeter: optionale lesende Websiteintegration
 
 - Laut Projektinhaber liefert ein konfigurierbarer privater HTTP-Host unter
   `/dev/powerValue.txt` whitespace-getrennte Werte (schematisch
@@ -175,8 +175,29 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
 - Die ersten drei Werte sind Phasenspannungen und für die geplante Auswertung
   vorerst zu ignorieren; andere Felder sind unbekannt. Keine Deployment-IP
   dokumentieren. Nicht unabhängig abgerufen oder verifiziert.
-- Integration erst nach PHP-Migration; Beziehung zur geplanten DTSU666-Erfassung
-  ungeklärt. Nicht als DTSU666-Quelle oder als verfügbaren Strom in A behandeln.
+- Nach abgeschlossener PHP-Migration separat beauftragt und implementiert:
+  eigener PHP-CLI-HTTP-Worker im Websitecontainer. Nur lokal konfiguriertes
+  `SMARTMETER_URL`, leer = deaktiviert; keine Deployment-IP im Repository.
+  `SMARTMETER_POLL_SECONDS=2` (1–60), `SMARTMETER_TIMEOUT_SECONDS=2` (1–5),
+  `SMARTMETER_STALE_SECONDS=10` (3–120). cURL aus dem vorhandenen PHP-Image,
+  GET/HTTP 200, kein Redirect/Proxy, maximal 8 KiB Header und 4 KiB Body.
+  ASCII-Zahlenliste mit mindestens sieben endlichen Zahlen; nur Index 6 auswerten.
+- Unabhängiger privater 8-KiB-Cache mit atomarem Austausch/stabilem flock
+  (maximal 200 ms), Heartbeat alle 250 ms zwischen Abfragen. Bei fehlendem/
+  defektem Snapshot, Zeitfehler, Ausfall oder Veraltung keine Leistung; echte 0
+  bleibt erlaubt. Heartbeatgrenze max(3 s, HTTP-Timeout + 1 s). HTTP-Lesezugriffe
+  erneuern weder Heartbeat noch Abrufzeit. DNS/Shutdown können durch OS-Limits
+  verzögert werden; Supervisor erzwingt das Prozessende nach seiner Frist.
+- `GET /api/smartmeter`: schema_version/read_only/status/reason/power_w/fetched_at/
+  age_seconds/fresh_for_seconds. Nur `live` gibt signed `power_w`, sonst null.
+  Keine URL/Host-/Rohdaten oder Credentials in API/Diagnosen. Browser pollt nur
+  auf der Übersicht, separat von MQTT, und verwirft abgelaufene/späte Daten.
+  Empfangs-/Abruffrische ist kein Nachweis einer neuen Messung im Gerät.
+- Anzeige „Netzleistung Haus“ mit Netzbezug (+)/Einspeisung (−), eigenem Status,
+  letztem HTTP-Abruf und Abrufalter. Keine Hauswerte in MQTT/DB/Diagrammverlauf;
+  Wallbox-API, Reader/UART/Collector und 16 Wallbox-Präferenzen unverändert.
+  Beziehung zur geplanten DTSU666-Erfassung ungeklärt; kein verfügbarer Strom in A.
+  Neue Docker-/Browser-Prüfung offen, kein Produktionsabruf/Pi-Nachweis.
 
 ## Betrieb und Remote-Zugriff
 
@@ -385,13 +406,14 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 ### Rein lesendes Weboverlay
 
 - PHP-Migration implementiert: PHP 8.4/Apache (non-root
-  UID 10001, intern Port 8080) plus genau ein PHP-CLI-Subscribe-only-Worker im
+  UID 10001, intern Port 8080) plus genau ein PHP-CLI-Subscribe-only-Worker und
+  ein unabhängiger PHP-CLI-Haus-Smartmeter-Worker im
   selben Websitecontainer. `php-mqtt/client` exakt 2.3.2; Docker-Builds verwenden
   die exakt gesperrten Abhängigkeiten aus `composer.lock`, keine Hostinstallation
   von PHP/Composer. Kein Python in Websitebackend, Runtime, Healthcheck oder
   Backendtests; UART und Storage behalten Python.
-- Bash-Entrypoint überwacht HTTP und Worker: unerwartetes Ende eines Prozesses
-  beendet den anderen und den Container mit Fehler; SIGTERM stoppt beide.
+- Bash-Entrypoint überwacht HTTP und beide Worker: unerwartetes Prozessende
+  beendet die übrigen und den Container mit Fehler; SIGTERM stoppt alle drei.
   Bei Brokerausfall läuft HTTP weiter, der Worker versucht Reconnect mit 1–30 s
   Abstand. Beide SUBACKs sind Voraussetzung; Reconnect löscht Sample/Availability.
   MQTT-Restlänge maximal 32768 Bytes (ohne Festheader), Statepayload maximal 16384 Bytes.
@@ -411,20 +433,24 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   historische Nachweise der früheren Flask-/Paho-Version, nicht der PHP-Migration;
   deren damalige Offenvermerke zum Pi ersetzen nicht die aktuelle Bestätigung unten.
 - Deutsche statische Oberfläche, keine CDN-/Browser-MQTT-Abhängigkeiten.
-  Theme „Compact / Dense“ für Dark/Light nach Entwurf Nr. 8; „Darstellung“ auf
-  beiden Seiten bietet System/Hell/Dunkel. Default System folgt weiterhin
+  Theme „Compact / Dense“ für Dark/Light nach Entwurf Nr. 8; kompakter
+  Sonne-/Mondschalter rechts unten auf allen drei Seiten (44-px-Touchfläche).
+  Zahnrad führt nach `/einstellungen`: Platzhalter ohne Hardware-/Ladefunktionen,
+  nur „Systemdarstellung verwenden“ setzt die lokale Theme-Wahl zurück.
+  Default System folgt weiterhin
   `prefers-color-scheme`; manuelle Wahl gilt browserlokal über `evse-theme-v1`
   (nur light/dark, System entfernt den Schlüssel). Blockierter Speicher fällt
   auf die aktuelle Seite zurück; nicht speicherbare Wahl bleibt bei Pageshow
   erhalten. Lesbare gespeicherte Wahl wird bei Pageshow/Storage-Ereignissen
   neu geladen. `theme.js` setzt sie vor dem Stylesheet, ohne Inline-JS oder
-  neue Netzwerk-/Steuerrouten; bei deaktiviertem JS bleibt die Auswahl deaktiviert.
-  Docker-CI 40375388768 für 53ce565 erfolgreich: 37 JS-Tests (neun neue Theme-
+  Steuerbefehle; bei deaktiviertem JS bleiben Schalter/Reset deaktiviert.
+  Neue Symbolschalter-CI noch offen. Historische Auswahlfeld-CI 40375388768
+  für 53ce565 erfolgreich: 37 JS-Tests (neun neue Theme-
   Unitfälle), alle vier Chromium-Suiten einschließlich 22 Theme-Browserfällen
   sowie vollständige PHP-/IPC-/MQTT-/HTTP-/Auth-/ACL-/Runtime-Prüfungen bestanden.
   Manuelle Wahl gegen die OS-Präferenz, Persistenz, Systemmodus und Storage-
   Fehler geprüft; simulierte Desktop-/Mobilbilder in Hell/Dunkel angesehen.
-  Noch kein Pi-Nachweis für den neuen Umschalter.
+  Noch kein Pi-Nachweis für die neuen Symbolschalter.
   Die ursprüngliche Theme-Änderung betraf nur CSS und dekorative Inline-
   SVG-Symbole; keine Karten umgeordnet oder entfernt. PHP/MQTT/API,
   Frischelogik, Präferenzen und Diagrammdaten unverändert. Theme-CI 40369056814
@@ -439,8 +465,10 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Alter 1 s, 0 kW, 0 kWh, Limit 6 A, angeschlossen/nicht ladend sowie
   234,8/235,0/235,2 V bei 0 A je Phase. Neues Dark-Theme sichtbar. Nur bestätigte
   Momentaufnahme, kein Langzeit-/Ausfall-/Messwertvergleichsnachweis und kein
-  Agent-Deployment. Echte Diagramm-/Hellansicht und neuer manueller Umschalter
-  auf dem Pi noch nicht bestätigt. Kein bestätigtes produktives Passwortfile:
+  Agent-Deployment. Projektinhaber bestätigt am 2026-10-27 erneut Websitezugriff
+  und sieht den bisherigen großen Theme-Selektor. Neue Symbolschalter und
+  Haus-Smartmeter sowie gezielte Diagramm-/Ausfallprüfung auf dem Pi offen.
+  Kein bestätigtes produktives Passwortfile:
   optionales Auth-Override scheiterte an fehlendem `MQTT_PASSWORD_HOST_FILE`,
   danach wurde der Betrieb bestätigt. Daraus keine Broker-Authkonfiguration ableiten.
 - Dashboard `/` und eigene Diagrammseite `/diagramme` mit gemeinsamer echter
