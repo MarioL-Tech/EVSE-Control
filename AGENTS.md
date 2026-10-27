@@ -460,7 +460,13 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   erhalten. Lesbare gespeicherte Wahl wird bei Pageshow/Storage-Ereignissen
   neu geladen. `theme.js` setzt sie vor dem Stylesheet, ohne Inline-JS oder
   Steuerbefehle; bei deaktiviertem JS bleiben Schalter/Reset deaktiviert.
-  Neue Schiebeschalter-/Textbereinigungs-CI noch offen. Historische
+  Schiebeschalter-/Textbereinigungs-CI 40491901055 für 13b8a20 erfolgreich:
+  49 JS-Tests und alle fünf Chromium-Suiten einschließlich 30 Theme-/Settings-
+  Fällen, nativer Checkbox/Schieberbewegung/Leertaste, Sidebar-Reihenfolge und
+  Links-unten-Position bei 320/390/768/1440 px; alle Backend-/Runtime-Prüfungen
+  ebenfalls bestanden. Simulierte Hell-/Dunkelbilder am Desktop und mobil
+  visuell angesehen; neue Pi-/Browserprüfung und Hauszähler-Konfiguration offen.
+  Historische
   Symbolschalter-/Smartmeter-CI 40486476429 für 3c92398 erfolgreich (oben);
   historische Auswahlfeld-CI 40375388768
   für 53ce565 erfolgreich: 37 JS-Tests (neun neue Theme-

@@ -84,7 +84,7 @@ function sample(power_w = 1549.4, overrides = {}) {
           && document.body.scrollWidth <= innerWidth), `${width}/${scheme} overflow`);
         // Four representative captures; all eight combinations are checked above.
         if ((width === 320 || width === 1440)) await page.screenshot({
-          path: path.join(artifacts, `HOUSE-${width}-${scheme}.png`), fullPage: true });
+          path: path.join(artifacts, `HOUSE-${width}-${scheme}.png`), fullPage: true, animations: 'disabled' });
       }
     }
     await page.goto(new URL('/diagramme', base).href);

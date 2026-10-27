@@ -174,7 +174,8 @@ Die Vorlagen bestimmen nur den Stil, nicht Inhalt oder Anordnung der Website.
 
 Wiederholte Hilfstexte sind reduziert; die reine Infokarte „Leistungsrahmen“
 entfällt. „Unter Sollstrom“ bleibt in der Diagnose, alle Messwerte/Frischewarnungen
-bleiben erhalten. Neue Schiebeschalter-/Textbereinigungs-CI noch offen.
+bleiben erhalten. Schiebeschalter-/Textbereinigungs-CI 40491901055 für 13b8a20
+erfolgreich; Desktop-/Mobilbilder mit simulierten Daten geprüft, neuer Pi-Test offen.
 
 Optional zeigt **Netzleistung Haus** den siebten HTTP-Smartmeterwert:
 positiv Netzbezug, negativ Einspeisung. Die private Quelle nur lokal über

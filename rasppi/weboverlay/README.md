@@ -30,7 +30,12 @@ nicht speicherbare Wahl erhalten. Gespeicherte Wahl wird bei Pageshow/Storage-
 Ereignissen neu geladen. Ohne JS bleiben Schalter/Reset deaktiviert, Systemfarben wirken
 weiter. Selbst gehostetes `theme.js` vor CSS, keine CSP-Ausnahme oder API-Steuerung.
 Wallbox-API, MQTT, C++-Reader, UART-Brücke und Speichercollector bleiben
-unverändert. Neue Schiebeschalter-/Textbereinigungs-CI noch offen.
+unverändert. Schiebeschalter-/Textbereinigungs-CI **40491901055 für 13b8a20**
+erfolgreich: 49 JS-Tests und alle fünf Chromium-Suiten mit 30 Theme-/Settings-
+Fällen, nativer Checkbox, sichtbarer Schieberbewegung, Leertaste, Sidebar-
+Reihenfolge/Links-unten-Position und allen bisherigen Backend-/Runtime-Prüfungen.
+320/390/768/1440 px in Hell/Dunkel geprüft; Desktop-/Mobilbilder mit simulierten
+Werten angesehen. Neue Pi-Prüfung und Hauszählerkonfiguration offen.
 **Historische Symbolschalter-/Haus-Smartmeter-CI 40486476429 für 3c92398 erfolgreich:**
 80 neue PHP-Prüfungen, 17 isolierte HTTP-Szenarien, insgesamt 49 JS-Tests und
 fünf Chromium-Suiten (30 Theme-/Einstellungsfälle), alle bisherigen Backend-/

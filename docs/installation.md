@@ -992,7 +992,12 @@ späterer OS-Änderungen. Auswahl gilt beim Seitenwechsel/Neuladen browserlokal 
 Zugangsdaten oder neuen Servereinstellungen. Bei blockiertem Speicher gilt die Wahl
 für die aktuelle Seite und bleibt bei Pageshow erhalten, wenn Speichern scheiterte.
 Ohne JavaScript bleiben Theme-Schalter/Reset deaktiviert; Systemfarben wirken.
-Neue Schiebeschalter-/Textbereinigungs-CI noch offen. Historische
+Schiebeschalter-/Textbereinigungs-CI 40491901055 für 13b8a20 erfolgreich:
+49 JS-Tests und alle fünf Chromium-Suiten mit 30 Theme-/Settings-Fällen,
+nativer Checkbox, Schieberbewegung, Tastatur, Sidebar-Reihenfolge/Links-unten-
+Position und geschützten Messwerten/Warnungen; Backend-/Runtime-Prüfungen ebenfalls
+bestanden. 320/390/768/1440 px in Hell/Dunkel geprüft, simulierte Desktop-/Mobilbilder
+angesehen; neue Pi-/Browserprüfung und Hauszählerkonfiguration offen. Historische
 Symbolschalter-/Smartmeter-CI 40486476429 für 3c92398 erfolgreich (oben).
 Historische Auswahlfeld-
 CI 40375388768 für 53ce565 erfolgreich: 37 JS-Tests, vier Chromium-
