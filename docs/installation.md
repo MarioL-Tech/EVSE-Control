@@ -1327,6 +1327,10 @@ bestehenden DB-Netz und den eigenen readonly Secretmount. Nur den Flag
 `WEB_HISTORY_ENABLED` umzuschalten ersetzt Netzwerk/Mount nicht. Bei späteren
 Aufrufen dieselbe Overlay-Auswahl verwenden. Apache/MQTT-/Haus-Worker bleiben
 drei Prozesse; DB-Ausfall ist kein Livenessfehler und ändert `/api/state` nicht.
+Bei späterem atomarem Austausch der Passwortdatei den Websitecontainer mit
+derselben Overlay-Auswahl und `up -d --force-recreate weboverlay` neu erstellen:
+Ein bestehender Einzeldatei-Bind-Mount kann sonst noch die alte Datei verwenden.
+Dies betrifft nur die Website, nicht MariaDB/Collector oder deren gespeicherte Daten.
 
 Unter `/diagramme` unterscheidet der vorhandene Hinweis geladene, unvollständige,
 nicht verfügbare oder rein lokale Historie. Neuladen kann gespeicherte Punkte

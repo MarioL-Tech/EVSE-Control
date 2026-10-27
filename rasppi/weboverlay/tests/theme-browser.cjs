@@ -150,7 +150,8 @@ function clean(run) {
   for (const request of run.requests) {
     assert.equal(request.method, 'GET', 'Theme controls must not send commands');
     const url = new URL(request.url); assert.equal(url.origin, origin, 'No foreign resources');
-    assert(routes.includes(url.pathname) || ['/einstellungen', '/api/state', '/api/smartmeter'].includes(url.pathname) || url.pathname.startsWith('/static/')
+    if (url.pathname === '/api/history') assert.equal(url.search, '?minutes=15');
+    assert(routes.includes(url.pathname) || ['/einstellungen', '/api/state', '/api/smartmeter', '/api/history'].includes(url.pathname) || url.pathname.startsWith('/static/')
       || url.pathname === '/favicon.ico', request.url);
   }
   cases++;

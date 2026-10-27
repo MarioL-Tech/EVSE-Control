@@ -218,6 +218,14 @@ try {
         historyCheck($failure['status'] === 'unavailable' && $failure['samples'] === [] && $failure['minutes'] === 5);
     });
     $rows = [historyRow('1', 2), historyRow('2', 4), historyRow('3', 6)];
+    $test(static function (): void {
+        $row = historyRow();
+        $row['received_at'] = '1960-01-01 00:00:00.123456';
+        $result = historyProject([$row]);
+        historyCheck(!$result['complete']);
+        historyCheck($result['samples'][0]['break_before']);
+        historyCheck($result['samples'][0]['received_at'] === '1960-01-01T00:00:00.123456Z');
+    });
     $test(static function () use ($rows): void {
         $result = historyProject($rows, [historyEvent(1)]);
         historyCheck($result['complete'] && historyBreaks($result) === [true, false, false]);

@@ -40,7 +40,13 @@ final class HistoryStore
 
     private static function iso(int $micros): string
     {
-        return gmdate('Y-m-d\TH:i:s', intdiv($micros, 1000000)) . sprintf('.%06dZ', $micros % 1000000);
+        $seconds = intdiv($micros, 1000000);
+        $fraction = $micros % 1000000;
+        if ($fraction < 0) {
+            --$seconds;
+            $fraction += 1000000;
+        }
+        return gmdate('Y-m-d\TH:i:s', $seconds) . sprintf('.%06dZ', $fraction);
     }
 
     private static function envelope(int $minutes, string $status, int $now): array

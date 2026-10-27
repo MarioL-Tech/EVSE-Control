@@ -1,6 +1,7 @@
 'use strict';
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -38,6 +39,7 @@ const assert = require('node:assert/strict');
   const path = () => page.locator('[data-series="power"]').getAttribute('d');
   const base = process.env.WEB_TEST_URL || 'http://127.0.0.1:8080';
   try {
+    fs.mkdirSync('/artifacts', { recursive: true });
     await page.goto(base);
     await page.waitForFunction(() => document.getElementById('status').textContent === 'Offline');
     assert.equal(historyRequests, 0, 'Dashboard never starts history requests');
@@ -53,6 +55,8 @@ const assert = require('node:assert/strict');
     assert.equal(await page.locator('#chart-range').inputValue(), '5');
     assert.equal(await page.locator('#metric-options input').count(), 16);
     assert.equal(await page.locator('img').count(), 0, 'API reason is not inserted into HTML');
+    await page.screenshot({ path: '/artifacts/history-sql-desktop.png',
+      fullPage: true, animations: 'disabled' });
     await page.reload();
     await page.waitForFunction(() => document.getElementById('history-source').textContent.includes('Archiv und'));
     await page.waitForFunction(() => document.querySelector('[data-series="power"]')?.getAttribute('d')?.includes('L'));
@@ -70,6 +74,8 @@ const assert = require('node:assert/strict');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ colorScheme: 'light' });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.screenshot({ path: '/artifacts/history-sql-mobile.png',
+      fullPage: true, animations: 'disabled' });
     const stored = await page.evaluate(() => Object.fromEntries(Object.entries(localStorage)));
     assert(Object.keys(stored).every(key => ['evse-display-v1', 'evse-theme-v1'].includes(key)));
     assert(!JSON.stringify(stored).includes('received_at'));
