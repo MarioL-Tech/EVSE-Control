@@ -34,11 +34,62 @@ async function mode(page, expected) {
   assert.equal(await page.locator('#theme-toggle').getAttribute('aria-checked'), String(effective === 'dark'));
   assert.equal(await page.locator('.theme-moon').isVisible(), effective === 'dark');
   assert.equal(await page.locator('.theme-sun').isVisible(), effective === 'light');
+  const toggle = page.getByRole('switch', { name: 'Dunkles Design', exact: true });
+  assert.equal(await toggle.evaluate(el => el.tagName), 'INPUT');
+  assert.equal(await toggle.getAttribute('type'), 'checkbox');
+  assert.equal(await toggle.isChecked(), effective === 'dark');
+  assert.equal((await page.locator('#theme-caption').innerText()).replace(/\s+/g, ' ').trim(), effective === 'dark' ? 'DARK MODE' : 'LIGHT MODE');
+  assert(await page.locator('#theme-caption').isVisible());
+  await page.waitForFunction(dark => {
+    const track = document.querySelector('.theme-track').getBoundingClientRect();
+    const thumb = document.querySelector('.theme-thumb').getBoundingClientRect();
+    const center = thumb.x + thumb.width / 2;
+    return dark ? center > track.x + track.width * 0.7 : center < track.x + track.width * 0.3;
+  }, effective === 'dark');
+}
+async function switchLayout(page) {
+  assert.equal(await page.locator('.quick-controls').count(), 0);
+  assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').evaluateAll(links => links.map(a => [a.getAttribute('href'), a.textContent.trim()])),
+    [['/', 'Übersicht'], ['/diagramme', 'Diagramme'], ['/einstellungen', 'Settings']]);
+  const settings = page.getByRole('link', { name: 'Settings', exact: true });
+  assert.equal(await settings.locator('svg').count(), 1);
+  const label = page.locator('label.theme-switch');
+  assert.equal(await label.locator('#theme-toggle').count(), 1);
+  assert.equal(await page.locator('.sidebar .sidebar-footer .theme-switch').count(), 1);
+  const [control, track, thumb, input] = await Promise.all([
+    label.boundingBox(), page.locator('.theme-track').boundingBox(),
+    page.locator('.theme-thumb').boundingBox(), page.locator('#theme-toggle').boundingBox()
+  ]);
+  assert(control && track && thumb && input);
+  assert(Math.abs(track.width - 160) <= 1 && Math.abs(track.height - 52) <= 1, '160×52 native switch pill');
+  assert(Math.abs(thumb.width - 42) <= 1 && Math.abs(thumb.height - 42) <= 1, '42px sliding thumb');
+  for (const axis of ['x', 'y', 'width', 'height']) assert(Math.abs(input[axis] - control[axis]) <= 1, 'Input covers the entire clickable label');
+  assert.equal(await page.locator('#theme-toggle').evaluate(el => getComputedStyle(el).opacity), '0');
+  assert.equal(await page.locator('#theme-toggle').evaluate(el => getComputedStyle(el).position), 'absolute');
+  const viewport = page.viewportSize(), bottom = viewport.height - control.y - control.height;
+  if (viewport.width > 900) {
+    const sidebar = await page.locator('.sidebar').boundingBox();
+    assert(control.x >= sidebar.x && control.x + control.width <= sidebar.x + sidebar.width);
+    assert(Math.abs(control.x - 18) <= 2 && Math.abs(bottom - 30) <= 3, 'Desktop switch at sidebar bottom left');
+    assert.equal(await page.locator('.sidebar-footer').evaluate(el => getComputedStyle(el).position === 'fixed'), false);
+    const diagrams = await page.getByRole('link', { name: 'Diagramme', exact: true }).boundingBox();
+    const gear = await settings.boundingBox();
+    assert(gear.y >= diagrams.y + diagrams.height, 'Settings follows Diagramme vertically');
+  } else {
+    assert.equal(await page.locator('.sidebar-footer').evaluate(el => getComputedStyle(el).position), 'fixed');
+    assert(Math.abs(control.x - 12) <= 2 && Math.abs(bottom - 12) <= 2, 'Mobile switch fixed bottom left');
+    const previousScroll = await page.evaluate(() => scrollY);
+    await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
+    const scrolled = await label.boundingBox();
+    assert(Math.abs(scrolled.x - 12) <= 2 && Math.abs(viewport.height - scrolled.y - scrolled.height - 12) <= 2,
+      'Mobile switch remains reachable after scrolling');
+    await page.evaluate(y => scrollTo(0, y), previousScroll);
+  }
 }
 async function choose(page, selected) {
   if (selected === 'system') {
     const route = new URL(page.url()).pathname;
-    await page.getByRole('link', { name: 'Einstellungen', exact: true }).click();
+    await page.getByRole('link', { name: 'Settings', exact: true }).click();
     await page.waitForURL(new URL('/einstellungen', base).href);
     assert.match(await page.locator('main').innerText(), /Platzhalter/);
     await page.locator('#theme-system').click();
@@ -61,15 +112,11 @@ async function protectedUI(page, route) {
   assert.notEqual(await page.locator('#timestamp').innerText(), '—');
   assert.notEqual(await page.locator('#freshness').innerText(), '—');
   assert.equal(await page.locator('.sidebar').count(), 1);
-  assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()), ['reset-display', 'theme-toggle']);
+  assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()), ['reset-display']);
   assert.equal(await page.locator('[role="button"], #theme-mode[role]').count(), 0);
   assert.equal(await page.locator('#metric-options input[type="checkbox"]').count(), 16);
   if (route === '/') assert.equal(await page.locator('.summary-card').count(), 4);
-  const control = await page.locator('.quick-controls').boundingBox();
-  const viewport = page.viewportSize();
-  assert(control.width <= 110 && control.height <= 60, 'Compact icon controls, no large selector');
-  assert(viewport.width - control.x - control.width >= 8 && viewport.width - control.x - control.width <= 24);
-  assert(viewport.height - control.y - control.height >= 8 && viewport.height - control.y - control.height <= 24);
+  await switchLayout(page);
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.body.scrollWidth <= innerWidth));
 }
 async function pageshow(page) {
@@ -174,13 +221,20 @@ function clean(run) {
         const { page } = run;
         await page.goto(new URL('/einstellungen', base).href);
         await page.waitForFunction(() => !document.getElementById('theme-toggle').disabled);
-        assert.equal(await page.title(), 'Einstellungen · EVSE Control');
+        assert.equal(await page.title(), 'Settings · EVSE Control');
+        assert.equal(await page.locator('h1').innerText(), 'Settings');
         assert.match(await page.locator('main').innerText(), /Platzhalter/);
-        assert.equal(await page.locator('form, input, textarea').count(), 0);
-        assert.equal(await page.getByRole('link', { name: 'Einstellungen', exact: true }).getAttribute('aria-current'), 'page');
-        assert.equal(await page.locator('.quick-controls').evaluate(el => getComputedStyle(el).position), 'fixed');
+        assert.equal(await page.locator('form, input:not(#theme-toggle), textarea').count(), 0);
+        assert.equal(await page.locator('input[type="checkbox"]').count(), 1);
+        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id)), ['theme-system']);
+        assert.equal(await page.getByRole('link', { name: 'Settings', exact: true }).getAttribute('aria-current'), 'page');
+        await mode(page, 'system'); await switchLayout(page);
         await page.locator('#theme-toggle').focus(); await page.keyboard.press('Enter');
+        await mode(page, 'system'); // Native checkboxes toggle with Space, not Enter.
+        await page.keyboard.press('Space');
         await mode(page, scheme === 'dark' ? 'light' : 'dark');
+        await page.keyboard.press('Space'); await mode(page, scheme);
+        await page.keyboard.press('Space'); await mode(page, scheme === 'dark' ? 'light' : 'dark');
         await page.locator('#theme-system').click(); await mode(page, 'system');
         assert.equal(await page.evaluate(key => localStorage.getItem(key), key), null);
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -258,7 +312,8 @@ function clean(run) {
         await page.goto(new URL('/einstellungen', base).href);
         await page.locator('#theme-system').click(); await mode(page, 'system');
         await pageshow(page); await mode(page, 'system');
-        assert.equal(await page.locator('form, input').count(), 0);
+        assert.equal(await page.locator('form, input:not(#theme-toggle)').count(), 0);
+        assert.equal(await page.locator('input[type="checkbox"]').count(), 1);
         clean(run);
       } finally { await run.context.close(); }
     }
@@ -269,6 +324,8 @@ function clean(run) {
         const response = await noScript.page.goto(new URL(route, base).href);
         assert.equal(response.status(), 200);
         assert(await noScript.page.locator('#theme-toggle').isDisabled());
+        assert.equal(await noScript.page.locator('#theme-toggle').getAttribute('type'), 'checkbox');
+        assert.equal(await noScript.page.locator('#theme-toggle').getAttribute('role'), 'switch');
         if (route === '/einstellungen') assert(await noScript.page.locator('#theme-system').isDisabled());
         const source = await response.text();
         const script = source.match(/<script\b[^>]*src=["'][^"']*\/static\/theme\.js["'][^>]*>/i);

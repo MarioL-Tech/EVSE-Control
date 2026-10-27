@@ -15,9 +15,11 @@ Backendmigration war kein visueller Umbau. Separat ist nun das Theme
 „Compact / Dense“ nach Entwurf Nr. 8 umgesetzt: kühle Blau-/Grautöne,
 dezente Verläufe, feine Rahmen, Schatten und kompaktere Abstände in Hell/Dunkel.
 Die Vorlagen dienen nur als Theme-Referenz; Sidebar, vier Übersichtskarten,
-Messwerte und Seitenaufteilung bleiben erhalten. **Sonne/Mond rechts unten**
-wechselt zwischen Hell/Dunkel (44-px-Touchfläche, Tastatur/Screenreader).
-Das **Zahnrad** öffnet `/einstellungen`, einen ausdrücklich gekennzeichneten
+Messwerte bleiben erhalten. **Links unten** wechselt ein nativer
+**Schiebeschalter** mit beweglichem Sonne-/Mond-Schieber und LIGHT/DARK MODE
+zwischen Hell/Dunkel (160×52 px, Tastatur/Screenreader). Am Desktop im Sidebar-Fuß,
+mobil unten links fixiert. **Settings mit Zahnrad unter Diagramme** öffnet
+`/einstellungen`, einen ausdrücklich gekennzeichneten
 Platzhalter ohne Lade-/Hardwareeinstellungen. Dort setzt **Systemdarstellung
 verwenden** die lokale Wahl zurück. Default System folgt live der
 Browser-/OS-Präferenz; Hell/Dunkel überschreibt sie und wird unter `evse-theme-v1`
@@ -28,7 +30,13 @@ nicht speicherbare Wahl erhalten. Gespeicherte Wahl wird bei Pageshow/Storage-
 Ereignissen neu geladen. Ohne JS bleiben Schalter/Reset deaktiviert, Systemfarben wirken
 weiter. Selbst gehostetes `theme.js` vor CSS, keine CSP-Ausnahme oder API-Steuerung.
 Wallbox-API, MQTT, C++-Reader, UART-Brücke und Speichercollector bleiben
-unverändert. **Symbolschalter-/Haus-Smartmeter-CI 40486476429 für 3c92398 erfolgreich:**
+unverändert. Schiebeschalter-/Textbereinigungs-CI **40491901055 für 13b8a20**
+erfolgreich: 49 JS-Tests und alle fünf Chromium-Suiten mit 30 Theme-/Settings-
+Fällen, nativer Checkbox, sichtbarer Schieberbewegung, Leertaste, Sidebar-
+Reihenfolge/Links-unten-Position und allen bisherigen Backend-/Runtime-Prüfungen.
+320/390/768/1440 px in Hell/Dunkel geprüft; Desktop-/Mobilbilder mit simulierten
+Werten angesehen. Neue Pi-Prüfung und Hauszählerkonfiguration offen.
+**Historische Symbolschalter-/Haus-Smartmeter-CI 40486476429 für 3c92398 erfolgreich:**
 80 neue PHP-Prüfungen, 17 isolierte HTTP-Szenarien, insgesamt 49 JS-Tests und
 fünf Chromium-Suiten (30 Theme-/Einstellungsfälle), alle bisherigen Backend-/
 Runtime-Prüfungen. Simulierte Desktop-/Mobilbilder in Hell/Dunkel angesehen.
@@ -69,8 +77,10 @@ Alle Schritte zu Konfiguration, Passwortdatei, Portkonflikten, Diagnose und Test
 ## Übersicht und eigene Diagrammseite
 
 **Übersicht `/`:** kompakte Karten für Leistung, Fahrzeug, Sessionenergie und
-Wallbox-Limit; Phasenmessung und Leistungsrahmen darunter. Technische Rohwerte
-unter „Diagnose & Datenqualität“. Datenstatus, Messzeit, Frische und aktive
+Wallbox-Limit; darunter Phasen und Haus-Netzleistung nebeneinander (mobil
+untereinander). Repetitive Hinweise gekürzt, Infokarte „Leistungsrahmen“ entfernt;
+„Unter Sollstrom“ bleibt unter „Diagnose“ erhalten. Technische Rohwerte
+ebenfalls dort. Datenstatus, Messzeit, Frische und aktive
 Fehlerwarnungen bleiben außerhalb der einklappbaren Bereiche sichtbar.
 
 **Netzleistung Haus:** eigener, von Wallbox/MQTT unabhängiger Bereich auf der

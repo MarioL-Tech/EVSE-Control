@@ -43,9 +43,12 @@
     document.documentElement.setAttribute('data-effective-theme', dark ? 'dark' : 'light');
     const toggle = document.getElementById('theme-toggle');
     if (toggle) {
+      toggle.checked = dark;
       toggle.setAttribute('aria-checked', String(dark));
       toggle.title = dark ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren';
     }
+    const caption = document.getElementById('theme-caption');
+    if (caption) caption.textContent = dark ? 'DARK\nMODE' : 'LIGHT\nMODE';
   }
   const controller = createController(storage, mode => {
     if (mode === 'system') document.documentElement.removeAttribute('data-theme');
@@ -57,8 +60,7 @@
     const toggle = document.getElementById('theme-toggle');
     if (toggle) {
       toggle.disabled = false;
-      toggle.addEventListener('click', () => controller.setMode(
-        effectiveMode(controller.getMode(), system.matches) === 'dark' ? 'light' : 'dark'));
+      toggle.addEventListener('change', () => controller.setMode(toggle.checked ? 'dark' : 'light'));
     }
     const reset = document.getElementById('theme-system');
     if (reset) {

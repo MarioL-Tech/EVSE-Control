@@ -40,6 +40,10 @@ function sample(power_w = 1549.4, overrides = {}) {
       document.getElementById(id)?.textContent === value, { id, value });
     await text('grid-power', '+1,55 kW'); await text('grid-direction', 'Netzbezug');
     await text('status', 'Offline');
+    assert.equal(await page.locator('.details-grid.measurements #smartmeter').count(), 1);
+    assert.equal(await page.locator('.details-grid.measurements #voltage-0').count(), 1);
+    assert(await page.locator('#smartmeter').isVisible(), 'House measurements remain visible with offline wallbox');
+    assert.equal(await page.locator('.quick-controls').count(), 0);
     assert.equal(await page.locator('#grid-status').getAttribute('data-tone'), 'good');
     assert.match(await page.locator('#smartmeter').innerText(), /Letzter Abruf/);
     assert.match(await page.locator('#smartmeter').innerText(), /Abrufalter/);
@@ -80,7 +84,7 @@ function sample(power_w = 1549.4, overrides = {}) {
           && document.body.scrollWidth <= innerWidth), `${width}/${scheme} overflow`);
         // Four representative captures; all eight combinations are checked above.
         if ((width === 320 || width === 1440)) await page.screenshot({
-          path: path.join(artifacts, `HOUSE-${width}-${scheme}.png`), fullPage: true });
+          path: path.join(artifacts, `HOUSE-${width}-${scheme}.png`), fullPage: true, animations: 'disabled' });
       }
     }
     await page.goto(new URL('/diagramme', base).href);
