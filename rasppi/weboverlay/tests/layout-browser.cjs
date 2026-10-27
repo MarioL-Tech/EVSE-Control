@@ -66,7 +66,9 @@ async function layoutFreeze(page, width, route) {
   if (width > 900) assert.equal(layout.sidebar.width, '224px');
   assert.equal(layout.main.paddingTop, width > 900 ? '36px' : width > 480 ? '28px' : '24px');
   if (route === '/') {
-    const columns = grid => grid.gridTemplateColumns.trim().split(/\s+/).length;
+    // auto-fit reports collapsed empty tracks as 0px; they are not visible columns.
+    const columns = grid => grid.gridTemplateColumns.trim().split(/\s+/)
+      .filter(track => parseFloat(track) > 0).length;
     assert.equal(columns(layout.overview), width > 1200 ? 4 : width > 480 ? 2 : 1, 'Four/two/one summary columns');
     assert.equal(layout.overview.gap, '16px');
     assert.equal(layout.summary.minHeight, width > 480 ? '134px' : '140px');
