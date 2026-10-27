@@ -1,6 +1,6 @@
 # Arbeitskontext für Agents: EVSE-Control
 
-Stand: 2026-10-26. Diese Datei beschreibt den geprüften Repositoryzustand und
+Stand: 2026-10-27. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
@@ -419,9 +419,14 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   erhalten. Lesbare gespeicherte Wahl wird bei Pageshow/Storage-Ereignissen
   neu geladen. `theme.js` setzt sie vor dem Stylesheet, ohne Inline-JS oder
   neue Netzwerk-/Steuerrouten; bei deaktiviertem JS bleibt die Auswahl deaktiviert.
-  Der manuelle Umschalter ist implementiert, dessen neue Docker-CI noch offen.
+  Docker-CI 40375388768 für 53ce565 erfolgreich: 37 JS-Tests (neun neue Theme-
+  Unitfälle), alle vier Chromium-Suiten einschließlich 22 Theme-Browserfällen
+  sowie vollständige PHP-/IPC-/MQTT-/HTTP-/Auth-/ACL-/Runtime-Prüfungen bestanden.
+  Manuelle Wahl gegen die OS-Präferenz, Persistenz, Systemmodus und Storage-
+  Fehler geprüft; simulierte Desktop-/Mobilbilder in Hell/Dunkel angesehen.
+  Noch kein Pi-Nachweis für den neuen Umschalter.
   Die ursprüngliche Theme-Änderung betraf nur CSS und dekorative Inline-
-  SVG-Symbole geändert, keine Karten umgeordnet oder entfernt. PHP/MQTT/API,
+  SVG-Symbole; keine Karten umgeordnet oder entfernt. PHP/MQTT/API,
   Frischelogik, Präferenzen und Diagrammdaten unverändert. Theme-CI 40369056814
   für ff496f2 erfolgreich: vollständige PHP-/MQTT-/HTTP-/JS-/Chromium-Prüfungen,
   Systemfarbwechsel und Textkontrast auf geprüften Flächen mindestens 4,5:1.
@@ -435,8 +440,9 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   234,8/235,0/235,2 V bei 0 A je Phase. Neues Dark-Theme sichtbar. Nur bestätigte
   Momentaufnahme, kein Langzeit-/Ausfall-/Messwertvergleichsnachweis und kein
   Agent-Deployment. Echte Diagramm-/Hellansicht und neuer manueller Umschalter
-  auf dem Pi noch nicht bestätigt. Kein bestätigtes produktives Passwortfile;
-  Start ohne optionales Auth-Override vom Projektinhaber gemeldet.
+  auf dem Pi noch nicht bestätigt. Kein bestätigtes produktives Passwortfile:
+  optionales Auth-Override scheiterte an fehlendem `MQTT_PASSWORD_HOST_FILE`,
+  danach wurde der Betrieb bestätigt. Daraus keine Broker-Authkonfiguration ableiten.
 - Dashboard `/` und eigene Diagrammseite `/diagramme` mit gemeinsamer echter
   Navigation, responsivem Layout und automatischem hell/dunklem Farbschema.
   Vier kompakte Übersichtskarten, Phasen/Leistungsrahmen, einklappbare Diagnose.

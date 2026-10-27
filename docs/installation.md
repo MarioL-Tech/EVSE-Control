@@ -6,7 +6,7 @@ werden. Die Betriebsschritte setzen einen vorbereiteten Pi voraus. Hardware-
 und Erstvorbereitungsreferenz stehen in Abschnitt 8; eine vollständige OS-,
 Docker- oder Broker-Neuinstallation ist damit noch nicht beschrieben.
 
-**Stand:** 2026-10-26. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
+**Stand:** 2026-10-27. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
 zyklischer Betrieb wurden vom Projektinhaber bestätigt. Der vorhandene MQTT-Broker ist
 erreichbar; der Empfang der echten Reader-Messwerte wurde ebenfalls bestätigt.
 Das rein lesende PHP-Weboverlay ist implementiert und Docker-getestet;
@@ -910,7 +910,10 @@ späterer OS-Änderungen. Auswahl gilt beim Seitenwechsel/Neuladen browserlokal 
 Zugangsdaten oder neuen Servereinstellungen. Bei blockiertem Speicher gilt die Wahl
 für die aktuelle Seite und bleibt bei Pageshow erhalten, wenn Speichern scheiterte.
 Ohne JavaScript bleibt das Feld deaktiviert; automatische Systemfarben funktionieren.
-Neue Umschalter-CI noch ausstehend, noch kein Pi-Nachweis für diesen Schalter.
+Umschalter-CI 40375388768 für 53ce565 erfolgreich: 37 JS-Tests, vier Chromium-
+Suiten einschließlich 22 Theme-Browserfällen sowie Backend-/Runtime-Prüfungen.
+Erzwungene Hell-/Dunkelansicht mit simulierten Werten visuell geprüft;
+noch kein Pi-Nachweis für diesen neuen Schalter.
 Update wie unten mit `docker compose up -d --build`, bei altem CSS Strg+F5.
 Theme-CI 40369056814 für ff496f2 erfolgreich: beide Seiten in Hell/Dunkel bei
 320/390/768/1440 px, Systemfarbwechsel, geprüfte Textkontraste und weiterhin

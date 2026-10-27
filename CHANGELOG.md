@@ -4,6 +4,10 @@ All notable changes to the EVSE-Control project. This file is **actively maintai
 
 Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
+## 2026-10-27
+
+- **10:18** — **Test/Docs: Manuellen Hell-/Dunkelumschalter abschließend geprüft** — Docker-CI 40375388768 für 53ce565 erfolgreich: 37 JS-Tests einschließlich neun Theme-Unitfällen, vier Chromium-Suiten mit 22 Theme-Browserfällen sowie vollständige PHP-/IPC-/MQTT-/HTTP-/Auth-/ACL-/Runtime-Prüfungen. Manuelle Wahl gegen OS-Präferenz, Systemmodus, Navigation/Neuladen, Pageshow-/Storage-Ereignisse und blockierter Speicher geprüft. Desktop-/Mobilbilder mit simulierten Werten in erzwungener Hell-/Dunkelansicht visuell angesehen. AGENTS, Dienst-README und Installationsguide auf bestätigten Stand gebracht; keine neue Pi-Ausführung oder Hardwareprüfung. Vorherige Bestätigung der Live-Pi-Übersicht bleibt davon getrennt, tatsächliche Broker-Authentifizierung weiter ungeklärt. PR-Abschluss vorbereitet, Merge durch Projektinhaber.
+
 ## 2026-10-26
 
 - **19:09** — **Test: Storage-Fehlersimulation auf echte HTTP-Dokumente begrenzt** — CI 40374717101 bestätigt Backend-/IPC-/Transport-/HTTP-/MQTT-Prüfungen, 37 JS-Unit-Tests und die drei bestehenden Chromium-Suiten. Neue Themesuite scheitert an ihrem vorab auf about:blank ausgeführten Storage-Setup (opaker Origin), nicht an einem ausgegebenen Theme-Scriptfehler. Simulation nun erst im HTTP(S)-Anwendungsdokument installieren; strenge Prüfung auf JavaScript-/CSP-Fehler beibehalten. Vollständiger neuer Themelauf noch ausstehend; kein Pi-Update ausgeführt.

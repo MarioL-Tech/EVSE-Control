@@ -24,7 +24,12 @@ nicht speicherbare Wahl erhalten. Gespeicherte Wahl wird bei Pageshow/Storage-
 Ereignissen neu geladen. Ohne JS bleibt das Feld deaktiviert, Systemfarben wirken
 weiter. Selbst gehostetes `theme.js` vor CSS, keine CSP-Ausnahme oder API-Steuerung.
 PHP-/MQTT-/Messwertverhalten, C++-Reader, UART-Brücke und Speichercollector bleiben
-unverändert. Neue Umschalter-CI noch offen. Bisherige Theme-CI
+unverändert. Umschalter-CI
+[40375388768](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/40375388768)
+für `53ce565` erfolgreich: 37 JS-Tests (neun neue Theme-Unitfälle), vier Chromium-
+Suiten mit 22 Theme-Browserfällen sowie vollständige Backend-/Runtime-Prüfungen.
+Erzwungene Hell-/Dunkelansicht am Desktop und mobil mit simulierten Werten geprüft;
+noch kein Pi-Nachweis für den neuen Umschalter. Bisherige Theme-CI
 [40369056814](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/40369056814)
 für `ff496f2` erfolgreich: beide Seiten in Hell/Dunkel bei 320/390/768/1440 px,
 Farbschemawechsel und Textkontrast auf geprüften Flächen mindestens 4,5:1.
