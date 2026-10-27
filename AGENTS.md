@@ -615,7 +615,10 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   `HISTORY_DB_USERNAME=smart`, eigene geschützte Website-Passwortkopie, kein
   automatischer Writer-Fallback. Code bleibt SELECT-only/Read-only-Transaktion;
   Account selbst hat mehr Rechte. Keine ungefragte Rechteänderung; funktionierender
-  SELECT-only-Zugang bleibt Empfehlung. Pi-Aktivierung/Browsernachweis noch offen.
+  SELECT-only-Zugang bleibt Empfehlung. Nach Merge von PR #46 und der
+  Aktivierungsanleitung meldet der Projektinhaber am 2026-10-27 „funktioniert“.
+  Bestätigte Bedien-/Betriebsrückmeldung, kein Agent-Deployment. Eigene API-Ausgabe,
+  Reload-Vergleich, produktive Ausfall-/Langzeittests wurden dabei nicht vorgelegt.
 - Docker-CI `40583180183` für `5daff27` erfolgreich: 130 PHP-Historienfälle,
   insgesamt 74 JS-Tests, 18 echte isolierte MariaDB-11.8.8-/MQTT-/HTTP-/Auth-/Grant-
   Szenarien einschließlich explizitem Writer-Zugang bei unverändert lesender API,
@@ -764,7 +767,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - Weitergehender Websiteumbau und anschließend Smartphone-WebApp; Anforderungen,
   Gestaltung und technische Umsetzung noch offen. Kein Home-Assistant-Modul.
 - Bedienende Website (inklusive modularer Wallbox-Einrichtungsfunktion),
-  Pi-Aktivierung/Validierung der optionalen lesenden SQL-Historie und weitere Datenmodelle für
+  Gezielte Pi-/Langzeit-/Fehlerfallvalidierung der optionalen lesenden SQL-Historie und weitere Datenmodelle für
   Ladesessions, UART/RFID und Zählerdaten.
 - Ladeautomatisierung nach verfügbarer Leistung und Dringlichkeit mit den drei
   geplanten Modi „Laden wenn Solarstrom“, „Laden ohne Solarstrom“ und

@@ -96,3 +96,8 @@ berechtigt geklärt werden. **Später ausdrücklich autorisierte Zwischenlösung
 Der Code bleibt SELECT-only/Read-only-Transaktion, das Konto selbst besitzt aber
 weitere Schreib-/DDL-/Löschrechte. Kein automatischer Rückfall, keine Benutzer-/
 Grant-/Schemaänderung und kein Passwortreset; Least Privilege bleibt Empfehlung.
+
+Nach Merge von PR #46 und der Pi-Aktivierungsanleitung meldet der Projektinhaber
+am 2026-10-27 „funktioniert“. Das ist eine Bedien-/Betriebsrückmeldung, keine
+unabhängig geprüfte API-Ausgabe, kein gezielter Reload-/SQL-Ausfall-/Langzeittest
+und kein Agent-Deployment. Diese Nachweisgrenzen bleiben getrennt von der CI.

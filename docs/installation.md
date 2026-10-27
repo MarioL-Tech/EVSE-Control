@@ -1338,7 +1338,10 @@ wieder anzeigen; sie sind historisch, **nicht live**. Leerer Zeitraum bedeutet
 nicht Nullleistung. API im Browser über den bestehenden Tunnel prüfen:
 `/api/history?minutes=15` liefert `ok`/200, `disabled`/200 oder `unavailable`/503.
 Keine Passwort-/Env-Dumps posten. Vertrag, Limits/Timeouts und konservative Lücken:
-[Historien-API](history-api.md). Echter Pi-API-/Browsernachweis bleibt offen.
+[Historien-API](history-api.md). Nach Merge von PR #46 und dieser Anleitung meldet
+der Projektinhaber am 2026-10-27 „funktioniert“. Eine gezielte API-Ausgabe,
+Reload-/Ausfallprüfung und Langzeitvalidierung wurden noch nicht vorgelegt;
+keinen weitergehenden Produktionsnachweis oder Agent-Deployment behaupten.
 
 Isolierte Tests, ausschließlich mit eigener Testdatei/Dummy-Accounts:
 
