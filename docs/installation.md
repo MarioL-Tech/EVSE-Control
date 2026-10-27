@@ -1222,12 +1222,143 @@ Websitezugriff und bisheriges großes Auswahlfeld am 2026-10-27 erneut bestätig
 und gezielte Ausfall-/Frischeprüfungen am Pi. Kein Agent-Deployment; automatische Tests
 ersetzen diese Bedien-/Fehlerfallprüfung nicht.
 
+### SQL-Verlauf optional einrichten
+
+Separat beauftragt: PHP/PDO kann die letzten 15 Minuten gespeicherter Wallbox-
+Telemetrie für die vorhandenen Diagramme lesen. Zeitfenster 1/5/15 Minuten,
+Layout, Theme und Live-MQTT bleiben unverändert. Default deaktiviert; keine
+Preise/Hausdaten, SQL-Schreibbefehle, Migration, neuen Worker oder Hostports.
+
+**Reader-Status:** `smartReader` wurde über Socket und Docker-TCP
+mit 1045 abgewiesen. Das ist ein Anmeldefehler vor der Tabellenabfrage, kein
+Nachweis fehlender SELECT-Rechte. Einrichter muss exakten Namen, Passwortzuordnung
+und Hostfreigabe klären. Keine Passwortversuche/Resets, Grantänderung durch `smart`
+oder automatischer Writer-Fallback. **Danach ausdrücklich freigegebene Zwischenlösung:**
+Der Projektinhaber erlaubt für den Anfang `smart` auch für die Historie. Das Konto
+selbst bleibt überprivilegiert; nur die Websiteabfragen sind lesend und zusätzlich
+durch eine Read-only-Transaktion begrenzt. Kein Least-Privilege-Nachweis behaupten.
+
+Benötigt: vorhandene MariaDB/Schema 1 mit allen drei `evse_*`-Tabellen und den
+Indizes `source_measurement`/`source_receipt`, laufender Collector für neue Daten,
+bestehendes externes `evse-data` mit DB-Alias und ein freigegebenes Konto.
+Empfohlen sind nur **SELECT auf diesen drei Tabellen**; Preis-/Provider-,
+Schreib-, DDL-, globale oder weitergebbare Rechte sind nicht nötig. Die
+Zwischenlösung mit `smart` hat mehr Rechte, die nicht ungefragt geändert werden.
+Keine zweite DB,
+Port-/Firewalländerung oder neue Hostabhängigkeit; PDO/mysqlnd nur im Docker-Build.
+
+In `rasppi/weboverlay` vorhandene `.env` erhalten und nur lokal ergänzen:
+
+```dotenv
+HISTORY_DB_HOST=evse-database
+HISTORY_DB_PORT=3306
+HISTORY_DB_NAME=energyControl
+HISTORY_DB_USERNAME=smart
+DB_NETWORK=evse-data
+HISTORY_DB_PASSWORD_HOST_FILE=/ABSOLUTER/PRIVATER/PFAD/history-reader-password.txt
+```
+
+Das Beispiel nutzt die bewusst gewählte Zwischenlösung. Zur späteren Härtung
+den tatsächlich funktionierenden Leseaccount eintragen; `smartReader` bleibt
+generischer Default, kein automatisch bestätigter Login. Name exakt
+`energyControl`, nicht `energy_control`. Eigene Passwortdatei für Website-UID
+10001 neu anlegen: Writer-Datei nicht direkt in die Website mounten, keine
+vorhandenen fremden Secrets überschreiben.
+Interaktive Bash; bei Rootless/Usernamespace vorher Host-UID-Mapping abgleichen:
+
+```bash
+(
+  set +x
+  set -e
+  umask 077
+  mkdir -p secrets
+  chmod 700 secrets
+  test ! -e secrets/history-reader-password.txt
+  unset SECRET
+  IFS= read -r -s -p 'Passwort des bewusst gewählten DB-Kontos: ' SECRET
+  printf '\n'
+  test -n "$SECRET"
+  temporary="$(mktemp secrets/.history-reader.XXXXXXXX)"
+  printf '%s\n' "$SECRET" > "$temporary"
+  unset SECRET
+  sudo chown 10001:10001 "$temporary"
+  sudo chmod 0400 "$temporary"
+  mv -n "$temporary" secrets/history-reader-password.txt
+)
+```
+
+Alternativ darf für die ausdrücklich gewählte `smart`-Zwischenlösung eine eigene
+geschützte Kopie der schon berechtigt eingerichteten Projektdatei erzeugt werden
+(statt des obigen Eingabeblocks, nur ohne abweichendes UID-Mapping):
+
+```bash
+(
+  set -e
+  umask 077
+  mkdir -p secrets
+  chmod 700 secrets
+  test ! -e secrets/history-reader-password.txt
+  sudo install -o 10001 -g 10001 -m 0400 \
+    ../storage/secrets/migration-password.txt \
+    secrets/history-reader-password.txt
+)
+```
+
+Dateiname bezeichnet den Lesezweck, nicht eingeschränkte Accountrechte. Kein
+Auslesen anderer Infrastruktur-Secrets. Den absoluten lokalen Dateipfad in
+`.env` eintragen, nicht posten. Dann
+explizit mit zusätzlichem Overlay bauen/starten:
+
+```bash
+docker compose -f compose.yaml -f compose.history.yaml up -d --build weboverlay
+docker compose -f compose.yaml -f compose.history.yaml ps
+```
+
+Bei bereits konfigurierter MQTT-Dateiauthentifizierung immer **beide** Overlays
+nutzen und funktionierende MQTT-Secrets erhalten:
+
+```bash
+docker compose -f compose.yaml -f compose.auth.yaml -f compose.history.yaml \
+  up -d --build weboverlay
+```
+
+`compose.history.yaml` aktiviert die Option, ergänzt nur den Websitebeitritt zum
+bestehenden DB-Netz und den eigenen readonly Secretmount. Nur den Flag
+`WEB_HISTORY_ENABLED` umzuschalten ersetzt Netzwerk/Mount nicht. Bei späteren
+Aufrufen dieselbe Overlay-Auswahl verwenden. Apache/MQTT-/Haus-Worker bleiben
+drei Prozesse; DB-Ausfall ist kein Livenessfehler und ändert `/api/state` nicht.
+Bei späterem atomarem Austausch der Passwortdatei den Websitecontainer mit
+derselben Overlay-Auswahl und `up -d --force-recreate weboverlay` neu erstellen:
+Ein bestehender Einzeldatei-Bind-Mount kann sonst noch die alte Datei verwenden.
+Dies betrifft nur die Website, nicht MariaDB/Collector oder deren gespeicherte Daten.
+
+Unter `/diagramme` unterscheidet der vorhandene Hinweis geladene, unvollständige,
+nicht verfügbare oder rein lokale Historie. Neuladen kann gespeicherte Punkte
+wieder anzeigen; sie sind historisch, **nicht live**. Leerer Zeitraum bedeutet
+nicht Nullleistung. API im Browser über den bestehenden Tunnel prüfen:
+`/api/history?minutes=15` liefert `ok`/200, `disabled`/200 oder `unavailable`/503.
+Keine Passwort-/Env-Dumps posten. Vertrag, Limits/Timeouts und konservative Lücken:
+[Historien-API](history-api.md). Echter Pi-API-/Browsernachweis bleibt offen.
+
+Isolierte Tests, ausschließlich mit eigener Testdatei/Dummy-Accounts:
+
+```bash
+docker compose -f compose.history-test.yaml build history-tests
+docker compose -f compose.history-test.yaml up --abort-on-container-exit \
+  --exit-code-from history-tests
+docker compose -f compose.history-test.yaml down --volumes
+```
+
+Nur diese Datei enthält einen flüchtigen MariaDB-11.8.8-Testserver, internes Netz
+und keine Hostports/Produktivnetze. `down --volumes` nie gegen bestehende Infrastruktur
+verwenden. Docker-CI und echte Pi-/Accounttests getrennt berichten.
+
 ## 10. MQTT-Zustandsspeicherung in der vorhandenen MariaDB
 
 **Erster Datenbankabschnitt:** Wallbox-Samples (auch Lesefehler) und Availability-
 Beobachtungen speichern. Keine Ladesteuerung, SQL-Diagrammabfrage, RFID-/UART-
-oder Zählerdaten. Weboverlay einschließlich Haus-HTTP-Anzeige und Browser-RAM-
-Verlauf bleibt unverändert; die Website fragt diese SQL-Historie noch nicht ab.
+oder Zählerdaten. Haus-HTTP-Anzeige und Live-MQTT bleiben unabhängig; die separat
+beauftragte optionale PHP-Historienabfrage der Website schreibt keine SQL-Daten.
 Die Produktions-Compose startet **keinen DB-Server und keinen Broker**.
 
 ### Bestehende Datenbank prüfen, nicht ersetzen
@@ -1647,7 +1778,8 @@ keine kompletten Samples oder Zugangsdaten; volle Logpipes dürfen nicht blockie
   derselben Sekunde nicht; kein impliziter Sequenz-/Ladesessionzähler.
 - Alte und zukünftige formal gültige Samples werden archiviert, nicht live
   ausgegeben. Eine spätere Historien-API muss Geräte-/Empfangszeit, Lücken und
-  Clock-Anomalien unterscheiden. Der aktuelle `/api/state`-Vertrag bleibt unverändert.
+  Clock-Anomalien unterscheiden. Dies übernimmt jetzt optional die oben beschriebene
+  PHP-Historienabfrage; der aktuelle `/api/state`-Vertrag bleibt unverändert.
 - Events: Availability-Beobachtungen mit Empfangszeit, aber ohne Gerätezeit;
   Start-/Stop-/Broker-/Gap-Grenzen. Wiederholtes `online` ist normal, kein Nachweis
   einer neuen Session. State/Availability sind nicht atomar zugestellt.

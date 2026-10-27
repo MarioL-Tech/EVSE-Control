@@ -57,19 +57,53 @@
     }));
   }
   function createHistory() {
-    let points = [], lastStamp = null, lastClock = null, broken = true, revision = 0;
-    function gap() { if (!broken) { broken = true; revision++; } }
+    let points = [], lastStamp = null, lastClock = null, broken = true, revision = 0, gapFloor = Infinity;
+    function prune(now) {
+      const retained = points.filter(p => p.t >= now - RETENTION_MS).slice(-MAX_POINTS);
+      if (retained.length !== points.length) { points = retained; revision++; }
+    }
+    function gap() {
+      // An observed outage is stronger evidence than an archive's continuity.
+      // Conservatively isolate archive points from the earliest local outage.
+      if (lastStamp !== null) gapFloor = Math.min(gapFloor, lastStamp);
+      if (!broken) { broken = true; revision++; }
+    }
+    function clear() { points = []; lastStamp = null; lastClock = null; broken = true; gapFloor = Infinity; revision++; }
     return {
-      gap,
-      clear() { points = []; lastStamp = null; lastClock = null; broken = true; revision++; },
+      gap, clear,
+      importHistory(batch, now = Date.now()) {
+        const incoming = validateHistory(batch, now);
+        if (!incoming) return false;
+        if (batch.status !== 'ok') return true;
+        // Validation finishes before touching any retained state or live anchors.
+        const signature = () => JSON.stringify(points.map(({ t, values, source, seriesBreak, breakBefore }) =>
+          ({ t, values, source, seriesBreak, breakBefore })));
+        const before = signature(), oldRevision = revision;
+        for (const row of incoming) {
+          const old = points.find(p => p.t === row.t);
+          if (!old) {
+            if (row.t < now - RETENTION_MS || (points.length === MAX_POINTS && row.t < points[0].t)) continue;
+            if (points.length === MAX_POINTS) points.shift();
+            points.push(row); points.sort((a, b) => a.t - b.t); continue;
+          }
+          old.breakBefore ||= row.breakBefore;
+          for (const m of METRICS) old.seriesBreak[m.id] ||= row.seriesBreak[m.id];
+          if (old.source === 'sql' && compareReceipt(old, row) < 0) {
+            old.values = row.values; old.received = row.received; old.id = row.id;
+          }
+        }
+        points.sort((a, b) => a.t - b.t);
+        prune(now);
+        revision = oldRevision + (signature() !== before ? 1 : 0);
+        return true;
+      },
       observe(view, now = Date.now()) {
         if (lastClock !== null && now < lastClock) {
-          points = []; lastStamp = null; broken = true; revision++;
+          clear();
         } else if (lastClock !== null && now - lastClock > MAX_GAP_MS) gap();
         lastClock = now;
-        const retained = points.filter(p => p.t >= now - RETENTION_MS);
-        if (retained.length !== points.length) { points = retained; revision++; }
-        const t = Date.parse(view.envelope?.timestamp);
+        prune(now);
+        const t = utc(view.envelope?.timestamp);
         if (view.status !== 'live' || !view.values || !Number.isFinite(t) ||
             t > now + 5000 || t < now - RETENTION_MS) { gap(); return; }
         if (lastStamp !== null && t < lastStamp) { gap(); return; }
@@ -78,8 +112,8 @@
           // Repeated HTTP polls don't create new measurements. At subsecond
           // reader intervals, schema-v1 timestamps only distinguish seconds:
           // keep the last values for that second, never fill an outage with them.
-          if (!broken && points.length && JSON.stringify(points.at(-1).values) !== JSON.stringify(values)) {
-            const last = points.at(-1);
+          const last = points.find(p => p.t === lastStamp && p.source === 'live');
+          if (!broken && last && JSON.stringify(last.values) !== JSON.stringify(values)) {
             for (const m of METRICS) {
               if (last.values[m.id] === null || values[m.id] === null) last.seriesBreak[m.id] = true;
             }
@@ -87,19 +121,86 @@
           }
           return;
         }
-        points.push({ t, values, seriesBreak: Object.fromEntries(METRICS.map(m => [m.id, values[m.id] === null])),
-          breakBefore: broken || (lastStamp !== null && t - lastStamp > MAX_GAP_MS) });
-        if (points.length > MAX_POINTS) points.splice(0, points.length - MAX_POINTS);
+        const old = points.find(p => p.t === t);
+        if (old) points.splice(points.indexOf(old), 1);
+        if (points.length < MAX_POINTS || t >= points[0].t) {
+          if (points.length === MAX_POINTS) points.shift();
+          points.push({ t, values, source: 'live', seriesBreak: Object.fromEntries(METRICS.map(m =>
+            [m.id, values[m.id] === null || !!old?.seriesBreak[m.id]])),
+            breakBefore: !!old?.breakBefore || broken || (lastStamp !== null && t - lastStamp > MAX_GAP_MS) });
+        }
+        points.sort((a, b) => a.t - b.t); prune(now);
         lastStamp = t; broken = false; revision++;
       },
       get revision() { return revision; },
       get size() { return points.length; },
       window(now, minutes) {
         const duration = [1, 5, 15].includes(minutes) ? minutes * 60000 : 300000;
-        return points.filter(p => p.t >= now - duration && p.t <= now).map(p =>
-          ({ ...p, values: { ...p.values }, seriesBreak: { ...p.seriesBreak } }));
+        return points.filter(p => p.t >= now - duration && p.t <= now).map((p, i, list) =>
+          ({ ...p, breakBefore: p.breakBefore || (i > 0 && list[i - 1].source !== p.source) ||
+              (p.source === 'sql' && p.t >= gapFloor),
+            values: { ...p.values }, seriesBreak: { ...p.seriesBreak } }));
       }
     };
+  }
+  function compareReceipt(a, b) {
+    return (a.received < b.received ? -1 : a.received > b.received ? 1 : 0) ||
+      a.id.length - b.id.length || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  }
+  function utc(value) {
+    if (typeof value !== 'string' || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?(?:Z|\+00:00)$/.test(value)) return NaN;
+    const t = Date.parse(value);
+    if (!Number.isFinite(t) || new Date(t).toISOString().slice(0, 19) !== value.slice(0, 19)) return NaN;
+    return t + Number((value.match(/\.(\d+)/)?.[1] || '').slice(3).padEnd(3, '0')) / 1000;
+  }
+  function validateHistory(batch, now) {
+    const object = v => v && typeof v === 'object' && !Array.isArray(v);
+    const keys = (v, names) => object(v) && Object.keys(v).length === names.length && names.every(k => Object.hasOwn(v, k));
+    if (!Number.isFinite(now) || !keys(batch, ['schema_version', 'read_only', 'status', 'reason', 'generated_at', 'minutes', 'range', 'complete', 'samples']) ||
+        batch.schema_version !== 1 || batch.read_only !== true || !['ok', 'disabled', 'unavailable'].includes(batch.status) ||
+        typeof batch.reason !== 'string' || batch.reason.length > 1024 || batch.minutes !== 15 || typeof batch.complete !== 'boolean' ||
+        !Array.isArray(batch.samples) || batch.samples.length > MAX_POINTS || !keys(batch.range, ['from', 'to'])) return null;
+    const generated = utc(batch.generated_at), from = utc(batch.range.from), to = utc(batch.range.to);
+    if (![generated, from, to].every(Number.isFinite) || generated > now + 5000 || generated < now - RETENTION_MS ||
+        to > now + 5000 || to < now - RETENTION_MS || to - from !== RETENTION_MS || from < now - RETENTION_MS - 5000 ||
+        (batch.status !== 'ok' && batch.samples.length)) return null;
+    const result = [];
+    for (const s of batch.samples) {
+      if (!keys(s, ['id', 'timestamp', 'received_at', 'status', 'values', 'break_before']) ||
+          typeof s.id !== 'string' || !/^(?:0|[1-9]\d{0,19})$/.test(s.id) ||
+          (s.id.length === 20 && s.id > '18446744073709551615') || typeof s.break_before !== 'boolean' ||
+          !['ok', 'error'].includes(s.status)) return null;
+      const t = utc(s.timestamp), received = utc(s.received_at);
+      if (![t, received].every(Number.isFinite) || t < from || t > to || t > now + 5000 || received > now + 5000) return null;
+      const v = s.values;
+      if (s.status === 'error') { if (v !== null) return null; }
+      else {
+        const fields = [...new Set(METRICS.map(m => m.field))];
+        if (!keys(v, fields)) return null;
+        for (const m of METRICS) {
+          const value = v[m.field];
+          const valid = n => n === null || (m.boolean ? typeof n === 'boolean' :
+            typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= Number.MAX_SAFE_INTEGER &&
+              (!['error', 'state', 'raw', 'lock'].includes(m.group) || (Number.isInteger(n) && n <= 4294967295)));
+          if (m.index !== null ? !Array.isArray(value) || value.length !== 3 || !value.every(valid) : !valid(value)) return null;
+        }
+      }
+      const values = readings(v || {});
+      const receiptOrder = s.received_at.slice(0, 19) + '.' +
+        (s.received_at.match(/\.(\d+)/)?.[1] || '').padEnd(6, '0') + 'Z';
+      const row = { t, received: receiptOrder, id: s.id, source: 'sql', values,
+        breakBefore: s.break_before || !batch.complete || s.status === 'error',
+        seriesBreak: Object.fromEntries(METRICS.map(m => [m.id, values[m.id] === null])) };
+      const previous = result.at(-1);
+      if (previous && (t < previous.t || (t === previous.t && compareReceipt(previous, row) > 0))) return null;
+      if (!previous && !s.break_before) return null;
+      if (previous && t === previous.t) {
+        row.breakBefore ||= previous.breakBefore;
+        for (const m of METRICS) row.seriesBreak[m.id] ||= previous.seriesBreak[m.id];
+        result[result.length - 1] = row;
+      } else result.push(row);
+    }
+    return result;
   }
   function buildPlot(points, group, selected, start, end) {
     const metrics = METRICS.filter(m => m.group === group.id && selected[m.id]);
@@ -177,10 +278,37 @@
       figure.append(svg, legend, description); (grid || chartGrid).append(figure);
       figures.set(g.id, { figure, svg, legend, description });
     }
+    const source = document.getElementById('history-source'), detail = document.getElementById('history-detail');
+    const browserNote = { source: source?.textContent, detail: detail?.textContent };
+    const loader = figures.size && root.OverlayHistory ? root.OverlayHistory.createHistoryLoader({
+      importHistory: (batch, now) => history.importHistory(batch, now),
+      onReset: () => history.clear(),
+      onState: state => {
+        if (!source || !detail) return;
+        source.dataset.historyStatus = state.status;
+        if (!state.loaded && ['browser', 'disabled'].includes(state.status)) {
+          source.textContent = browserNote.source; detail.textContent = browserNote.detail;
+        } else {
+          source.textContent = state.loaded ? 'Archiv und Seitenverlauf · max. 15 Minuten' : 'Seitenverlauf · max. 15 Minuten';
+          detail.textContent = state.loaded
+            ? `Historisch, nicht live. ${state.status === 'ok'
+              ? state.complete ? 'Archiv geladen.' : 'Archiv unvollständig.'
+              : 'Archiv derzeit nicht verfügbar; geladene Daten bleiben erhalten.'} Ausfälle bleiben Lücken.`
+            : 'Archiv derzeit nicht verfügbar. Verlauf nur im Browser-RAM seit Seitenöffnung; historisch, nicht live. Ausfälle bleiben Lücken.';
+        }
+        lastRevision = -1;
+      }
+    }) : null;
+    if (loader) {
+      loader.setVisible(!document.hidden);
+      document.addEventListener('visibilitychange', () => loader.setVisible(!document.hidden));
+      root.addEventListener('pagehide', () => loader.setVisible(false));
+      root.addEventListener('pageshow', () => loader.setVisible(!document.hidden));
+    }
     const range = document.getElementById('chart-range');
     if (range) {
       range.value = String(prefs.minutes);
-      range.addEventListener('change', () => { prefs.minutes = Number(range.value); apply(); });
+      range.addEventListener('change', () => { prefs.minutes = Number(range.value); loader?.invalidate(); apply(); });
     }
     document.getElementById('reset-display').addEventListener('click', () => {
       prefs = defaults(); if (range) range.value = String(prefs.minutes);
@@ -248,9 +376,10 @@
         }
         if (range) range.value = String(prefs.minutes);
         for (const m of METRICS) document.getElementById(`show-${m.id}`).checked = prefs.selected[m.id];
-        history.clear(); apply();
+        history.clear(); loader?.restore(); apply();
       },
       update(view, now = Date.now()) {
+        loader?.tick();
         if (figures.size) history.observe(view, now);
         if (history.revision !== lastRevision || now - lastDraw >= 1000 || now < lastDraw) draw(now);
       }

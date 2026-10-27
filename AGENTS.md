@@ -96,6 +96,7 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
 - `rasppi/weboverlay/`: PHP 8.4/Apache und ein PHP-CLI-
   MQTT-Subscriber und unabhängigem HTTP-Haus-Smartmeter-Worker; `php/` enthält
   Config, StrictJson, StateStore, SharedState, MqttTransport, `worker.php` sowie
+  die optionale lesende `HistoryConfig`/`HistoryStore`-Anbindung (PDO/mysqlnd) und
   SmartmeterConfig/-Client/-Cache und `smartmeter-worker.php`, `public/` den HTTP-Einstieg, `docker/` Apache-
   Konfiguration, Bash-Supervision und PHP-Healthcheck. Bestehende Browseroberfläche,
   PHP-/Node-Tests und Docker/Compose; keine seriellen Ports/Schreibbefehle. Docker-CI
@@ -523,7 +524,8 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - `/api/state` liefert Messwerte nur bei verbundenem Broker, gültigem Sample,
   `availability online` und Frische (default 10 s). Ungültige/alte/zu weit
   zukünftige Payloads, Readfehler und Offline blenden Werte aus. Browser lässt
-  Werte auch ohne weitere API-Antworten ablaufen. Kein serverseitiger Verlauf/keine Datenbank.
+  Werte auch ohne weitere API-Antworten ablaufen. Dieser Live-Endpunkt nutzt keine
+  Datenbank; die separat beauftragte optionale `/api/history` ist unabhängig.
 - `/healthz` ist HTTP-Liveness, nicht MQTT-Readiness. Brokerausfall startet
   den Webserver nicht neu. Reconnect verwirft alte Availability/Samples.
 - Compose nutzt bestehenden `evse-mqtt`/`mqtt-broker`, Client-ID `evse-weboverlay`
@@ -548,8 +550,9 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - `static/charts.js`: dependency-freie SVG-Zeitverläufe für die 16 Telemetriewerte,
   gruppiert nach Einheit, Bool-/Codewerte als Stufen. Nur auf der Diagrammseite
   erfasste Werte im RAM, maximal 15 Minuten/1200 Messzeitpunkte; Zeitfenster 1/5/15
-  Minuten. Kein DB-/MQTT-Verlauf; Neuladen/Seitenwechsel und Wiederherstellung
-  aus dem Browser-Seitencache verwerfen Daten. Übersicht sammelt keinen Verlauf.
+  Minuten. Default weiter nur Browser-RAM ohne DB-Verlauf. Optionaler SQL-Import
+  lädt nach Neuladen/Seitenwechsel/Seitencache das gespeicherte 15-Minuten-Fenster
+  neu; Übersicht sammelt/lädt keinen Verlauf. Keine künstlichen Live-Samples.
 - Wiederholte API-Samples werden nicht mehrfach gezählt. Bei gleicher Sekunden-
   Zeitmarke werden geänderte Werte nur ohne Ausfall durch den letzten Wert ersetzt.
   Offline/Fehler/Unknown erzeugen Lücken, Pausen >10 s werden nicht verbunden;
@@ -561,7 +564,8 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   und aktive Wallbox-Fehlerwarnung bleiben unabhängig von Auswahl sichtbar.
 - Seitenrendering toleriert fehlende seitenspezifische Felder; Auswahl wird
   auf beiden Seiten unter demselben Schlüssel verwendet. Keine neuen MQTT-
-  Clients, SQL-Abfragen, Hardwarebefehle oder Netzwerk-/Portänderungen.
+  Clients, Hardwarebefehle oder Portänderungen. SQL/zusätzliches DB-Netz nur mit
+  dem separat beauftragten opt-in-Historienoverlay, nicht durch Anzeigepräferenzen.
 - Abschließende Dashboard-CI `37220843434` für `154e7f2` und PR-CI `37221004357`
   erfolgreich: 21 Python-/MQTT-/HTTP-
   und 28 JS-Tests plus drei Chromium-Suiten (beide Seiten, Navigation/Fokus,
@@ -578,6 +582,49 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   27 JS-Tests und beide Chromium-Browsersuiten. Desktop-/Mobil-Diagramme mit
   simulierten Daten geprüft, echte Pi-Anzeige weiterhin offen. Lokale MCP-
   Artefakte bleiben außerhalb Git und werden nicht als Projektdaten behandelt.
+
+### Optionale SQL-Historie der Website
+
+- Separat am 2026-10-27 autorisiert und implementiert: PHP/PDO-SELECTs aus den
+  vorhandenen Schema-1-Tabellen ergänzen die bisherigen Diagramme. Live-MQTT,
+  `/api/state`, Status/Frische, Theme, Sidebar/Karten, 16 Werte und 1/5/15-Minuten-
+  Auswahl bleiben erhalten. Keine Preis-/Haus-Smartmeter-/Hardware-/Steuerintegration.
+- `WEB_HISTORY_ENABLED=0` Default, `compose.history.yaml` opt-in: vorhandenes
+  `evse-data` zusätzlich zum MQTT-Netz, eigener readonly Reader-Passwortmount.
+  `HISTORY_DB_HOST/PORT/NAME/USERNAME/PASSWORD_FILE` nur Backend, kein Writer-
+  Fallback. PDO/mysqlnd ausschließlich Docker, keine Composer-Lockänderung.
+- `GET/HEAD /api/history`, literal `minutes=1|5|15` (Default 15), strikte Query-
+  Whitelist. `HistoryConfig`/`HistoryStore`: Schema 1, binärer Source-Präfix,
+  explizite SELECTs/Read-only-Transaktion, Maxima 1.200 Samples/2.400 Ereignisse
+  plus zwei Baselines/1 MiB. UInt64-ID als String, nullable Zahlen/Bools, keine
+  Roh-JSON-/Fehler-/SQL-/Zugangsdaten. Statementlimit 1 s, Connect/Read 2 s,
+  monotones Gesamtbudget 3 s zwischen Treiberaufrufen; OS-DNS/laufende I/O können
+  darüber hinaus verzögern. Fehler 503/unavailable, disabled 200, live-unabhängig.
+- `history.js` lädt nur Diagrammseite, initial/vordergründig alle 60 s, Timeout
+  4 s, Fehlerbackoff 10/30/60 s, max. ein aktiver Request; Lifecycle-/Clock-
+  Generationen verwerfen Spätantworten. Puffer kombiniert 1.200 Punkte/15 Minuten,
+  SQL importiert keine Live-Frische. Live gewinnt bei gleicher präziser Zeitmarke;
+  Unknown/Same-Stamp-/Retained-/Event-/Rücksprunglücken bleiben konservativ.
+  Gleichzeitige Baseline-Ereignisse beweisen keine Reihenfolge. Nach lokalem
+  Ausfall SQL-Punkte ab dieser Grenze bis Reset isoliert statt falscher Verbindung.
+- Reale `smartReader`-Anmeldung über Socket und Docker-TCP wurde jeweils mit
+  1045 abgewiesen; kein SELECT-Rechtenachweis möglich. Exakten Benutzernamen,
+  Passwortzuordnung/Hostfreigabe nur durch berechtigten Einrichter klären, nicht
+  raten/resetten oder fremde Credentials auslesen. Implementierung/isolierte
+  Tests können unabhängig erfolgen. Später ausdrücklich autorisierte Zwischenlösung:
+  `HISTORY_DB_USERNAME=smart`, eigene geschützte Website-Passwortkopie, kein
+  automatischer Writer-Fallback. Code bleibt SELECT-only/Read-only-Transaktion;
+  Account selbst hat mehr Rechte. Keine ungefragte Rechteänderung; funktionierender
+  SELECT-only-Zugang bleibt Empfehlung. Pi-Aktivierung/Browsernachweis noch offen.
+- Docker-CI `40583180183` für `5daff27` erfolgreich: 130 PHP-Historienfälle,
+  insgesamt 74 JS-Tests, 18 echte isolierte MariaDB-11.8.8-/MQTT-/HTTP-/Auth-/Grant-
+  Szenarien einschließlich explizitem Writer-Zugang bei unverändert lesender API,
+  alle sechs Chromium-Suiten und bestehende Backend-/Runtimeprüfungen. Default-
+  Disabled bleibt auch bei Uhrenrücksprung deaktiviert; erst explizite Rückkehr
+  prüft neu. Finale Desktop-/Mobil-Artefakte mit simulierter Historie visuell
+  geprüft, kein Pi-/Produktionsnachweis. Keine Hosttests oder Produktionszugriffe.
+  Vertrag `docs/history-api.md`,
+  alle Konfigurationsschritte zentral in `docs/installation.md`.
 
 ### MQTT-Speichercollector / MariaDB
 
@@ -623,7 +670,8 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   oder abschließende Healthcheck-Bestätigung. Ursache erster pausierter Aufnahme:
   lokales `DB_NAME=energy_control` statt `energyControl`; `.env` korrigiert und nur
   Storage-Container neu erstellt. Migration nicht wiederholt, keine fremden Daten
-  gelöscht. Haus-Smartmeter/SQL-Websitehistorie bleiben nicht integriert.
+  gelöscht. Haus-Smartmeter bleibt ohne SQL-Archiv; optionale Websitehistorie ist
+  separat implementiert, deren produktiver Lesezugang noch blockiert.
 - Pi meldet fehlende Docker-Speicherlimitfähigkeit; angeforderte RAM-Limits werden
   verworfen (Test und Storage). Kein wirksames 256-/512-MiB-Limit behaupten;
   keine Host-/Kernel-/cgroup-Änderung ohne separaten Auftrag. Migration ohne `--rm`
@@ -655,8 +703,9 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - Alte/zukünftige valide Samples werden als Archiv gespeichert, nicht als live
   angeboten. Keine lückenlose Aufzeichnung: retained ist kein Replay, RAM geht
   bei Crash/Restart verloren. Startup-/Gap-Ereignisse markieren unbekannte Abdeckung.
-  Keine automatische Aufbewahrungs-/Backup-Policy, RFID/UART/DTSU666 oder SQL-
-  Diagrammanbindung. Der Browserverlauf bleibt unverändert im Tab-RAM.
+  Keine automatische Aufbewahrungs-/Backup-Policy und keine RFID-/UART-/DTSU666-
+  Datenerfassung. Die optionale Website-Historie liest separat und verändert den
+  Collector/Vertrag nicht; Browserpuffer selbst bleibt im Tab-RAM.
 - Docker-CI `37209898185` für `50794db` erfolgreich: 32 Unit- und 7 isolierte
   MariaDB-10.11-/MQTT-Integrationstests sowie non-root/readonly Runtime-Smoke ohne DB.
   Prüft auch defekte bereits registrierte Schemas, eingeschränkte Runtime-Grants,
@@ -715,7 +764,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - Weitergehender Websiteumbau und anschließend Smartphone-WebApp; Anforderungen,
   Gestaltung und technische Umsetzung noch offen. Kein Home-Assistant-Modul.
 - Bedienende Website (inklusive modularer Wallbox-Einrichtungsfunktion),
-  SQL-Historienabfrage/-Diagrammanbindung und weitere Datenmodelle für
+  Pi-Aktivierung/Validierung der optionalen lesenden SQL-Historie und weitere Datenmodelle für
   Ladesessions, UART/RFID und Zählerdaten.
 - Ladeautomatisierung nach verfügbarer Leistung und Dringlichkeit mit den drei
   geplanten Modi „Laden wenn Solarstrom“, „Laden ohne Solarstrom“ und

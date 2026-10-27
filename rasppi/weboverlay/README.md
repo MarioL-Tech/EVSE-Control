@@ -3,7 +3,9 @@
 Eigenständiger Docker-Dienst, **PHP-Migration implementiert und Docker-getestet**:
 ein PHP-CLI-MQTT-Subscriber → privater atomarer Snapshot → PHP 8.4/Apache →
 deutsche Browseranzeige. Zusätzlich optional: eigener PHP-CLI-HTTP-Worker für
-die Haus-Netzleistung. Keine seriellen Ports, Publish-/Steuerbefehle oder Datenbank.
+die Haus-Netzleistung. Zusätzlich opt-in: PHP/PDO liest die gespeicherte Wallbox-
+Historie aus der bestehenden MariaDB, ohne Writer-/Migrationsfunktion.
+Keine seriellen Ports oder Publish-/Steuerbefehle.
 Bestehender Broker im Netzwerk `evse-mqtt` bleibt unverändert.
 
 **Spätere Planung:** Die Website soll umgebaut werden; anschließend ist eine
@@ -112,16 +114,47 @@ Sessionenergie (kWh) sowie getrennte Stufenverläufe für Anschluss/Laden und
 Diagnosecodes/Rohwerte. Phasenkurven behalten beim Ausblenden ihre Farbe.
 Zeitfenster: **1, 5 oder 15 Minuten**. Erst ein Messpunkt ist ein Punkt, keine Linie.
 
-**Kein Datenbankarchiv:** maximal 15 Minuten/1200 Messzeitpunkte im RAM dieses
+**Default ohne SQL:** maximal 15 Minuten/1200 Messzeitpunkte im RAM dieses
 Browser-Tabs, nur seit Öffnen der **Diagrammseite** beobachtet. Neuladen oder
 Seitenwechsel leert den Verlauf, auch Rückkehr über den Browser-Seitencache.
-Die Übersicht sammelt keinen verdeckten Diagrammverlauf.
+**Mit optionalem SQL-Verlauf:** nach dem Leeren wird das gespeicherte letzte
+15-Minuten-Fenster nachgeladen. Kein neues Layout oder längeres Zeitfenster;
+Anzeigeauswahl und Live-MQTT bleiben unverändert. Der vorhandene Verlaufshinweis
+unterscheidet lokale, geladene, unvollständige und nicht verfügbare Historie.
+Die Übersicht sammelt/lädt keinen verdeckten Diagrammverlauf.
 Wiederholte API-Polls zählen nicht als neue Messungen; bei gleicher Sekunden-
 Zeitmarke bleibt der letzte beobachtete Wert. Fehler, Offline und unbekannte
 Werte sind Lücken, nicht Nullwerte; Pausen über 10 s bleiben unverbunden.
 Historische Kurven bleiben bei Ausfall sichtbar, während Live-Werte ausgeblendet
-werden. Zwischenwerte während Browser-/Netzausfällen werden nicht nachgeladen.
+werden. Mit SQL können archivierte Zwischenwerte konservativ nachgeladen werden;
+bekannte Unterbrechungen werden dabei nicht zu durchgehenden Linien umgedeutet.
 Sessionenergie kann bei neuer Session zurückgesetzt werden, kein Gesamtsummenzähler.
+
+## Optionale SQL-Historie
+
+Default deaktiviert; nur `compose.yaml` benötigt weiterhin keinen DB-Zugang.
+`compose.history.yaml` ergänzt das vorhandene externe `evse-data` und eine eigene
+readonly Passwortdatei für den Website-Leseaccount. Kein neuer DB-Server/Hostport,
+keine Schema-/Grantänderung und kein automatischer Writer-Fallback. Der
+Projektinhaber hat vorübergehend `smart` ausdrücklich auch für diese SELECT-
+Anbindung freigegeben: eigene Passwortkopie, unveränderte zusätzliche Accountrechte
+als bekanntes Risiko; ein funktionierender SELECT-only-Account bleibt empfohlen.
+PDO/mysqlnd wird ausschließlich im Docker-Build installiert, keine neue
+Composer-Abhängigkeit. Apache/MQTT-/Haus-Smartmeter-Worker bleiben genau die
+vorhandenen drei Prozesse; SQL wird begrenzt durch HTTP bedient.
+
+`GET /api/history?minutes=15`: maximal 1.200 Samples/1 MiB, exakte Quelle,
+versionierter Read-only-Vertrag und konservative Ereignis-/Fehlerlücken. Initialer
+Abruf, sichtbare Aktualisierung nach 60 s; Zeitfenster weiterhin 1/5/15 Minuten.
+Deaktiviert/DB-Ausfall verändert weder Live-Status noch bereits vorhandene Kurven.
+Schema, Grenzen und Lifecycle: [Historien-API](../../docs/history-api.md).
+Konfiguration nur im [Installationsguide](../../docs/installation.md#sql-verlauf-optional-einrichten).
+
+**Reader-Status:** `smartReader`-Anmeldung über Socket und Docker-TCP mit 1045
+abgewiesen. Keine Passwortversuche/Resets oder automatischer Writer-Fallback;
+Einrichter muss den Lesezugang klären. Die danach autorisierte Zwischenlösung
+verwendet lokal `HISTORY_DB_USERNAME=smart`, ohne Rechteänderung. Implementierung/
+isolierte Tests sind weiterhin kein Pi-Deploymentnachweis dieser neuen Funktion.
 
 ## Datenmodell und Grenzen
 

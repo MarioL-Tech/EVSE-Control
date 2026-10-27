@@ -1,0 +1,19 @@
+# Opt-in only: retain the existing MQTT/live configuration and add read-only SQL.
+# No new DB server, host port, production migration or shared infrastructure owner.
+services:
+  weboverlay:
+    environment:
+      WEB_HISTORY_ENABLED: "1"
+      HISTORY_DB_HOST: "${HISTORY_DB_HOST:-evse-database}"
+      HISTORY_DB_PORT: "${HISTORY_DB_PORT:-3306}"
+      HISTORY_DB_NAME: "${HISTORY_DB_NAME:-energyControl}"
+      HISTORY_DB_USERNAME: "${HISTORY_DB_USERNAME:-smartReader}"
+      HISTORY_DB_PASSWORD_FILE: /run/secrets/history-password
+    networks:
+      - database
+    volumes:
+      - ${HISTORY_DB_PASSWORD_HOST_FILE:?Set an existing history DB password file readable by container UID 10001}:/run/secrets/history-password:ro
+networks:
+  database:
+    external: true
+    name: "${DB_NETWORK:-evse-data}"
