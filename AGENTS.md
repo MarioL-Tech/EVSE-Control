@@ -424,8 +424,10 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   `static/icon.svg` in Sidebar/Mobilkopf aller drei Seiten und als Favicon;
   unveränderte Blau-/Grünfarben, helle Trägerfläche auch für dunkle Browser-Tabs.
   Bestehende Wortmarke, Seiten-/Navigationsstruktur und Markengrößen bleiben.
-  Originale unter `docs/` nicht verändert/aufgenommen. Neue Docker-CI und
-  visuelle Prüfung dieser Logo-Einbindung noch offen; kein Pi-Deployment.
+  Originale unter `docs/` nicht verändert/aufgenommen. Docker-CI 40590551938 und
+  40590543291 für e839bb2 erfolgreich (bestehende Backend-/SQL-/JS-/sechs
+  Chromium-/Runtimeprüfungen). Simulierte Dark-Desktop-/Light-Mobil-Artefakte
+  visuell geprüft; SVG-Laden auf allen drei Seiten geprüft, kein Pi-Deployment.
 - PHP-Migration implementiert: PHP 8.4/Apache (non-root
   UID 10001, intern Port 8080) plus genau ein PHP-CLI-Subscribe-only-Worker und
   ein unabhängiger PHP-CLI-Haus-Smartmeter-Worker im
@@ -766,6 +768,14 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 
 ## Geplant / noch nicht implementiert
 
+- Neu am 2026-10-27 autorisiert und in Arbeit: Kalenderhistorie bis zu einem
+  Jahr mit Auswahl für Stunde/Tag/ISO-Woche/Monat/Jahr/eigenen Zeitraum sowie
+  Korrektur überlagerter Einzelpunktmarker. Additive Speicherverdichtung und
+  begrenzte lesende Archiv-API vorgesehen; bestehende Rohwerte, Preis-/Provider-
+  tabellen, Live-Frische, Theme und übrige Seitenaufteilung bleiben erhalten.
+  Ein Jahr ist Anzeigespanne, keine Lösch-/Aufbewahrungsfrist. Noch keine
+  Aktivierung/Migration auf dem Pi; laufende Implementierung, nicht Teil des
+  bestätigten Betriebsstands.
 - Dauerbetriebs-/Fehlerfallprüfung und weitere Hardwarevalidierung der ABB-Abfragen sowie
   anschließende Pi-Modbus-Steuerung der ABB Terra AC.
 - DTSU666-Messwerterfassung und Berechnung verfügbarer Ladeleistung.
