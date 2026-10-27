@@ -157,28 +157,26 @@ async function systemTheme(page, scheme) {
   async function settle(expected) {
     await page.waitForFunction(value => getComputedStyle(document.documentElement).colorScheme === value
       && document.documentElement.dataset.effectiveTheme === value, expected);
-    await page.evaluate(async () => {
-      const finite = document.getAnimations().filter(animation =>
-        Number.isFinite(animation.effect?.getComputedTiming().endTime));
-      await Promise.all(finite.map(animation => animation.finished.catch(() => {})));
-    });
   }
   const colors = () => page.evaluate(() => ['body', '#main-content', '.status-panel'].map(selector => {
     const style = getComputedStyle(document.querySelector(selector));
     return [style.backgroundColor, style.color];
   }));
+  // Palette/contrast checks compare stable end states; the independent theme suite
+  // still exercises the actual sliding motion with the normal motion preference.
+  await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
   assert(await page.evaluate(value => matchMedia(`(prefers-color-scheme: ${value})`).matches, scheme));
   await settle(scheme);
   const initial = await colors();
   assert.equal(await page.locator('.card').first().evaluate(element => getComputedStyle(element).borderTopLeftRadius), '6px', 'Compact theme uses restrained card rounding');
   await compactTheme(page, scheme);
   await textContrast(page, scheme);
-  await page.emulateMedia({ colorScheme: scheme === 'light' ? 'dark' : 'light' });
+  await page.emulateMedia({ colorScheme: scheme === 'light' ? 'dark' : 'light', reducedMotion: 'reduce' });
   await settle(scheme === 'light' ? 'dark' : 'light');
   assert.notDeepEqual(await colors(), initial, 'System theme changes actual computed page colors');
   await compactTheme(page, scheme === 'light' ? 'dark' : 'light');
   await textContrast(page, scheme === 'light' ? 'dark' : 'light');
-  await page.emulateMedia({ colorScheme: scheme });
+  await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
   await settle(scheme);
   assert.deepEqual(await colors(), initial, 'System theme restores without a theme control');
   await compactTheme(page, scheme);
