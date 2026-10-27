@@ -978,7 +978,12 @@ kühle Graphitflächen, feine blau-graue Rahmen, 6-px-Kartenecken, zurückhalten
 Schatten, cyanfarbene Leistung, gefüllte mintfarbene Live-Badges und kräftigere
 Schriftgewichte. Hell neutral-kühl. Die aktuelle Präzisierung ändert nur CSS-
 Designwerte, keine Abstände/Größen/Grids/Breakpoints, HTML/JS oder Funktionen.
-Neue Design-CI/Sichtprüfung noch offen. Die Entwürfe sind nur Stilvorlagen;
+Design-CI 40499228102 für acce554 erfolgreich: 49 JS-Tests, alle fünf Chromium-
+Suiten mit 30 Theme-/Settings-Fällen und vollständige Backend-/Runtime-Prüfungen.
+Palette, unveränderte Layoutgeometrie und mindestens 4,5:1 Textkontrast auf
+geprüften Flächen/Verlauf-Endpunkten bei 320/390/768/1440 px in Hell/Dunkel geprüft;
+simulierte Bilder von Übersicht, Diagrammen und Settings angesehen. Kein neues
+Pi-Deployment. Die Entwürfe sind nur Stilvorlagen;
 keine Änderung von Sidebar,
 vier Übersichtskarten, Messwerten oder Seitenaufteilung. PHP/API/MQTT und
 Wallbox-Frischelogik unverändert, keine neuen Ports. Die Smartmeterkonfiguration

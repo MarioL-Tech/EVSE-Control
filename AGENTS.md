@@ -453,7 +453,14 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Überschriften/Zahlen. Heller Modus als neutral-kühle Entsprechung. Ausschließlich
   CSS-Designwerte; HTML/JS, Texte, Grid/Abstände/Größen/Breakpoints, Navigation,
   native Schaltergeometrie und sämtliche Messwert-/Backendfunktionen unverändert.
-  Neue Palette-/Kontrast-/Layoutfreeze-Prüfungen ergänzt; neue CI/Sichtprüfung offen.
+  Palette-/Kontrast-/Layoutfreeze-CI 40499228102 für acce554 erfolgreich:
+  49 JS-Tests und alle fünf Chromium-Suiten mit 30 Theme-/Settings-Fällen sowie
+  vollständige Backend-/Runtime-Prüfungen. Hell/Dunkel bei 320/390/768/1440 px,
+  Kontraste auf geprüften Flächen/Verlauf-Endpunkten mindestens 4,5:1 und
+  unveränderte Sidebar-/Grid-/Abstands-/Karten-/Schaltergeometrie geprüft.
+  Simulierte Desktop-/Mobilbilder von Übersicht, Diagrammen und Settings angesehen;
+  keine neue Pi-Ausführung. Separater älterer Diagrammtest wird beim Sammeln von
+  Samples auf geänderte angezeigte Zeitmarken synchronisiert statt nur „Live“.
   Theme „Compact / Dense“ für Dark/Light nach Entwurf Nr. 8; kompakter
   nativer Checkbox-Schiebeschalter links unten auf allen drei Seiten (160×52 px,
   beweglicher 42-px-Schieber, Sonne/Mond, LIGHT MODE/DARK MODE, Tastatur/Screenreader).

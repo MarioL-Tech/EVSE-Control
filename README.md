@@ -166,7 +166,8 @@ lokal gespeichert; Neuladen oder Seitenwechsel leert die Messwerthistorie.
 
 Das Theme folgt Entwurf Nr. 8 „Compact / Dense“: dunkle Graphitflächen, feine
 blau-graue Rahmen, dezente Verläufe/Schatten, cyanfarbene Leistung und gefüllte
-mintfarbene Live-Badges. Hell entsprechend neutral-kühl; neue Design-CI noch offen.
+mintfarbene Live-Badges. Hell entsprechend neutral-kühl; Design-CI 40499228102
+für acce554 erfolgreich, simulierte Desktop-/Mobilansichten geprüft.
 Das bestehende Layout bleibt unverändert. **Schiebeschalter links unten** mit
 Sonne/Mond wechselt Hell/Dunkel. **Settings mit Zahnrad** steht links unter
 „Diagramme“ und öffnet die Platzhalterseite `/einstellungen`.

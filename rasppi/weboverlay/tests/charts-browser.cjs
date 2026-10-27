@@ -73,8 +73,10 @@ const fs = require('node:fs');
     // Fast-forward browser timers, not host time: collect multiple real HTTP
     // responses through the chart integration without a long wall-clock test.
     for (let i = 0; i < 25; i++) {
+      const previous = await page.locator('#timestamp').innerText();
       await page.clock.runFor(1100);
-      await page.waitForFunction(() => document.getElementById('status').textContent === 'Live');
+      await page.waitForFunction(before => document.getElementById('status')?.textContent === 'Live'
+        && document.getElementById('timestamp')?.textContent !== before, previous);
     }
     const line = await page.locator('[data-series="power"]').getAttribute('d');
     assert(line.includes('L'), 'Distinct sample timestamps should form a line');
