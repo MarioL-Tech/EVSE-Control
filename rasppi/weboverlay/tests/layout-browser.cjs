@@ -127,8 +127,21 @@ function clean(run) {
         assert.equal(await page.locator('h1').innerText(), route === '/' ? 'Übersicht' : 'Diagramme');
         assert(await page.locator('h2').count() > 0);
         assert.equal(await page.locator('nav[aria-label="Hauptnavigation"]').count(), 1);
-        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').evaluateAll(links => links.map(a => a.getAttribute('href'))), routes);
-        assert.equal(await page.getByRole('link', { name: 'Einstellungen', exact: true }).getAttribute('href'), '/einstellungen');
+        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').evaluateAll(links => links.map(a => a.getAttribute('href'))), [...routes, '/einstellungen']);
+        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').allTextContents().then(labels => labels.map(label => label.trim())), ['Übersicht', 'Diagramme', 'Settings']);
+        const settings = page.getByRole('link', { name: 'Settings', exact: true });
+        assert.equal(await settings.getAttribute('href'), '/einstellungen');
+        assert.equal(await settings.locator('svg').count(), 1);
+        assert.equal(await page.locator('.quick-controls').count(), 0);
+        const navBoxes = await page.locator('nav[aria-label="Hauptnavigation"] a').evaluateAll(links => links.map(link => {
+          const { x, y, width, height } = link.getBoundingClientRect(); return { x, y, width, height };
+        }));
+        if (width > 900) {
+          assert(navBoxes[2].y >= navBoxes[1].y + navBoxes[1].height, 'Settings below Diagramme');
+        } else {
+          assert(navBoxes.every(box => Math.abs(box.y - navBoxes[0].y) <= 1), 'Three compact navigation tabs in one row');
+          assert(navBoxes.every(box => box.x >= 0 && box.x + box.width <= width), 'Tabs fit viewport');
+        }
         assert.equal(await page.locator('nav [aria-current="page"]').count(), 1);
         assert.equal(await page.locator('nav [aria-current="page"]').getAttribute('href'), route);
         assert(await page.evaluate(() => {
@@ -136,9 +149,10 @@ function clean(run) {
           return new Set(ids).size === ids.length;
         }), 'Unique DOM IDs');
         assert.equal(await page.locator('form, input:not([type="checkbox"]), [role="button"], [role="checkbox"]').count(), 0);
-        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()), ['reset-display', 'theme-toggle']);
+        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()), ['reset-display']);
         assert.equal(await page.locator('#reset-display').getAttribute('type'), 'button');
         assert.equal(await page.locator('#theme-toggle').getAttribute('role'), 'switch');
+        assert.equal(await page.locator('#theme-toggle').getAttribute('type'), 'checkbox');
         const boxes = page.locator('#metric-options input[type="checkbox"]');
         assert.equal(await boxes.count(), 16);
         assert(await boxes.evaluateAll(inputs => inputs.every(input => input.checked && !input.disabled
@@ -146,10 +160,22 @@ function clean(run) {
         assert.equal(await page.locator('details[open]').count(), 0);
         if (route === '/') {
           assert.equal(await page.locator('.summary-card').count(), 4);
+          for (const id of ['power', 'energy', 'limit', 'current-0', 'current-1', 'current-2',
+            'voltage-0', 'voltage-1', 'voltage-2', 'plugged', 'charging', 'below',
+            'wallbox-error', 'charging-state', 'charging-raw', 'lock']) {
+            assert.equal(await page.locator(`#${id}`).count(), 1, `Preserved wallbox metric ${id}`);
+            assert.equal(await page.locator(`#show-${id}`).count(), 1, `Preserved preference ${id}`);
+          }
           assert.equal(await page.locator('#chart-grid, .chart-card, .chart-line').count(), 0);
           assert.equal(await page.locator('#power').innerText(), '0,00 kW');
           assert.equal(await page.locator('#plugged').innerText(), 'Ja');
           assert.equal(await page.locator('#charging').innerText(), 'Nein');
+          assert.equal(await page.getByRole('heading', { name: 'Leistungsrahmen', exact: true }).count(), 0);
+          assert.equal(await page.locator('.source-info').count(), 0);
+          assert.equal(await page.locator('.details-grid.measurements #smartmeter').count(), 1);
+          assert.equal(await page.locator('.details-grid.measurements #voltage-0').count(), 1);
+          assert(await page.locator('#smartmeter').isVisible(), 'House data always visible');
+          assert(!await page.locator('#below').isVisible(), 'Below-limit row starts in collapsed diagnostics');
         } else {
           assert.equal(await page.locator('#chart-grid > figure').count(), 4);
           assert.equal(await page.locator('.history-diagnostics figure').count(), 5);
@@ -162,8 +188,23 @@ function clean(run) {
         const size = { 320: 'phone', 390: 'mobile', 768: 'tablet', 1440: 'desktop' }[width];
         if (size) await page.screenshot({ path: `/artifacts/${route === '/' ? 'dashboard' : 'diagrams'}-${scheme}-${size}.png`, fullPage: true });
         await page.locator('.display-options > summary').click();
+        assert.equal(await page.locator('.display-options legend').innerText(), 'Wallbox-Werte');
+        assert.equal(await page.locator('#reset-display').innerText(), 'Alle anzeigen');
         await overflow(page, `${route} ${width}: display options`);
         await page.locator('.technical-details > summary').click();
+        if (route === '/') {
+          assert(await page.locator('.technical-details #below').isVisible());
+          assert((await page.locator('.technical-details article[data-metrics]').getAttribute('data-metrics')).split(/\s+/).includes('below'));
+          const below = page.locator('#metric-options #show-below');
+          // Resolve by the stable metric ID rather than its order.
+          assert.equal(await below.count(), 1);
+          await below.uncheck();
+          assert(!await page.locator('#below').isVisible(), 'Below preference still hides diagnostic row');
+          await globals(page);
+          assert(await page.locator('#smartmeter').isVisible());
+          await below.check();
+          assert(await page.locator('#below').isVisible());
+        }
         await overflow(page, `${route} ${width}: technical details`);
         await page.locator('.technical-details > summary').click();
         for (let i = 0; i < 16; i++) await boxes.nth(i).uncheck();
@@ -171,6 +212,7 @@ function clean(run) {
         await globals(page);
         assert(await page.locator('#display-empty').isVisible());
         assert.equal(await page.locator('.summary-card:visible, .chart-card:visible').count(), 0);
+        if (route === '/') assert(await page.locator('#smartmeter').isVisible(), 'Wallbox preferences never hide house measurements');
         await overflow(page, `${route} ${width}: all off`);
         await page.locator('#reset-display').click();
         assert(await boxes.evaluateAll(inputs => inputs.every(input => input.checked)));

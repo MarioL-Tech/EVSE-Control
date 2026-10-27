@@ -965,8 +965,10 @@ nicht. Docker-/Browsernachweis siehe oben; echter Pi-/Smartmeternachweis offen.
 ### Erwartete Anzeige und Frische
 
 Startseite **Übersicht** (`/`): kompakte Karten für Wirkleistung, Fahrzeug,
-Sessionenergie und Wallbox-Limit, darunter Phasenmessung/Leistungsrahmen.
-Technische Rohwerte und Detailprotokoll sind unter **„Diagnose & Datenqualität“**
+Sessionenergie und Wallbox-Limit, darunter Phasen und Haus-Netzleistung
+nebeneinander (mobil untereinander). Die Infokarte „Leistungsrahmen“ entfällt;
+„Unter Sollstrom“ bleibt als Messwert in der Diagnose verfügbar. Technische
+Rohwerte und Detailprotokoll sind unter **„Diagnose“**
 einklappbar. Navigation am Desktop links, auf kleinen Bildschirmen oben;
 helles/dunkles Farbschema folgt dem Browser. Datenstatus, Messzeit, Frische und
 aktive Fehlerwarnungen sind nicht in den einklappbaren Bereichen versteckt.
@@ -976,9 +978,13 @@ kühle Blau-/Grautöne, dezente Kartenverläufe, feine Rahmen und kompaktere
 Abstände. Die Entwürfe sind nur Stilvorlagen; keine Änderung von Sidebar,
 vier Übersichtskarten, Messwerten oder Seitenaufteilung. PHP/API/MQTT und
 Wallbox-Frischelogik unverändert, keine neuen Ports. Die Smartmeterkonfiguration
-ist ein separat beauftragter Schritt (oben). **Sonne/Mond rechts unten** schaltet
-Hell/Dunkel auf Übersicht, Diagrammen und Einstellungen. Das **Zahnrad** führt
-zu `/einstellungen`, ausdrücklich ein Platzhalter ohne Hardware-/Ladefunktionen.
+ist ein separat beauftragter Schritt (oben). Ein nativer **Schiebeschalter links
+unten** wechselt Hell/Dunkel auf allen drei Seiten: beweglicher Sonne-/Mond-
+Schieber mit LIGHT/DARK MODE (160×52 px, 42-px-Schieber). Am Desktop im Sidebar-
+Fuß, mobil unten links fixiert; Leertaste schaltet, Fokusrahmen bleibt sichtbar.
+**Settings mit Zahnrad unter Diagramme** führt zu `/einstellungen`, weiterhin
+ein Platzhalter ohne Hardware-/Ladefunktionen. Wiederholte Untertitel und
+Erklärblöcke sind reduziert, Messwerte/Status/Frische/aktive Warnungen bleiben.
 Dort stellt **Systemdarstellung verwenden** den Standard wieder her.
 **System** (Default) folgt weiterhin `prefers-color-scheme` einschließlich
 späterer OS-Änderungen. Auswahl gilt beim Seitenwechsel/Neuladen browserlokal über
@@ -986,6 +992,7 @@ späterer OS-Änderungen. Auswahl gilt beim Seitenwechsel/Neuladen browserlokal 
 Zugangsdaten oder neuen Servereinstellungen. Bei blockiertem Speicher gilt die Wahl
 für die aktuelle Seite und bleibt bei Pageshow erhalten, wenn Speichern scheiterte.
 Ohne JavaScript bleiben Theme-Schalter/Reset deaktiviert; Systemfarben wirken.
+Neue Schiebeschalter-/Textbereinigungs-CI noch offen. Historische
 Symbolschalter-/Smartmeter-CI 40486476429 für 3c92398 erfolgreich (oben).
 Historische Auswahlfeld-
 CI 40375388768 für 53ce565 erfolgreich: 37 JS-Tests, vier Chromium-

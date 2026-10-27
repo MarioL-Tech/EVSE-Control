@@ -165,11 +165,16 @@ Datenbankarchiv. „Anzeige auswählen“ gilt auf beiden Seiten. Auswahl bleibt
 lokal gespeichert; Neuladen oder Seitenwechsel leert die Messwerthistorie.
 
 Das Theme folgt Entwurf Nr. 8 „Compact / Dense“: kühle Blautöne, feine Rahmen,
-dezente Schatten und kompakte Karten. **Sonne/Mond rechts unten** wechselt
-Hell/Dunkel; das Zahnrad öffnet die Platzhalterseite **Einstellungen**.
+dezente Schatten und kompakte Karten. **Schiebeschalter links unten** mit
+Sonne/Mond wechselt Hell/Dunkel. **Settings mit Zahnrad** steht links unter
+„Diagramme“ und öffnet die Platzhalterseite `/einstellungen`.
 Dort stellt „Systemdarstellung verwenden“ die automatische Browserpräferenz wieder her.
 Die Theme-Wahl bleibt browserlokal, ohne Messwerte oder Zugangsdaten.
 Die Vorlagen bestimmen nur den Stil, nicht Inhalt oder Anordnung der Website.
+
+Wiederholte Hilfstexte sind reduziert; die reine Infokarte „Leistungsrahmen“
+entfällt. „Unter Sollstrom“ bleibt in der Diagnose, alle Messwerte/Frischewarnungen
+bleiben erhalten. Neue Schiebeschalter-/Textbereinigungs-CI noch offen.
 
 Optional zeigt **Netzleistung Haus** den siebten HTTP-Smartmeterwert:
 positiv Netzbezug, negativ Einspeisung. Die private Quelle nur lokal über

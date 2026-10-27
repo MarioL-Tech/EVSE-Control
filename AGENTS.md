@@ -204,6 +204,13 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
   Chromium-Suiten (darunter 30 Theme-/Einstellungsfälle) sowie alle bestehenden
   PHP-/IPC-/MQTT-/HTTP-/Auth-/ACL-/Runtime-Prüfungen. Desktop-/Mobilbilder mit
   simulierten Werten in Hell/Dunkel angesehen; kein Produktionsabruf/Pi-Nachweis.
+- Projektinhaber meldet am 2026-10-27 noch keine funktionierende Hausanzeige.
+  Tatsächlicher `/api/smartmeter`-Status und lokale URL-Konfiguration unbekannt;
+  keine bestätigte Ursache. `SMARTMETER_URL` nur in vorhandener lokaler `.env`
+  ergänzen, Container danach neu erstellen (Neubau für reine Env-Änderung nicht
+  erforderlich). Quelle muss vom Pi-Container aus erreichbar sein. Bereinigte
+  API-Ausgabe zur Diagnose erbeten; keine SSH-/Netzwerkänderung oder echte
+  Quelle durch Agent abgerufen, keine privaten `.env`-Inhalte gesucht.
 
 ## Betrieb und Remote-Zugriff
 
@@ -440,8 +447,11 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   deren damalige Offenvermerke zum Pi ersetzen nicht die aktuelle Bestätigung unten.
 - Deutsche statische Oberfläche, keine CDN-/Browser-MQTT-Abhängigkeiten.
   Theme „Compact / Dense“ für Dark/Light nach Entwurf Nr. 8; kompakter
-  Sonne-/Mondschalter rechts unten auf allen drei Seiten (44-px-Touchfläche).
-  Zahnrad führt nach `/einstellungen`: Platzhalter ohne Hardware-/Ladefunktionen,
+  nativer Checkbox-Schiebeschalter links unten auf allen drei Seiten (160×52 px,
+  beweglicher 42-px-Schieber, Sonne/Mond, LIGHT MODE/DARK MODE, Tastatur/Screenreader).
+  Am Desktop im Sidebar-Fuß, mobil unten links fixiert. „Settings“ mit Zahnrad
+  steht in der Hauptnavigation unter „Diagramme“ und führt nach `/einstellungen`:
+  Platzhalter ohne Hardware-/Ladefunktionen,
   nur „Systemdarstellung verwenden“ setzt die lokale Theme-Wahl zurück.
   Default System folgt weiterhin
   `prefers-color-scheme`; manuelle Wahl gilt browserlokal über `evse-theme-v1`
@@ -450,6 +460,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   erhalten. Lesbare gespeicherte Wahl wird bei Pageshow/Storage-Ereignissen
   neu geladen. `theme.js` setzt sie vor dem Stylesheet, ohne Inline-JS oder
   Steuerbefehle; bei deaktiviertem JS bleiben Schalter/Reset deaktiviert.
+  Neue Schiebeschalter-/Textbereinigungs-CI noch offen. Historische
   Symbolschalter-/Smartmeter-CI 40486476429 für 3c92398 erfolgreich (oben);
   historische Auswahlfeld-CI 40375388768
   für 53ce565 erfolgreich: 37 JS-Tests (neun neue Theme-
@@ -480,7 +491,12 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   danach wurde der Betrieb bestätigt. Daraus keine Broker-Authkonfiguration ableiten.
 - Dashboard `/` und eigene Diagrammseite `/diagramme` mit gemeinsamer echter
   Navigation, responsivem Layout und automatischem hell/dunklem Farbschema.
-  Vier kompakte Übersichtskarten, Phasen/Leistungsrahmen, einklappbare Diagnose.
+  Vier kompakte Übersichtskarten, Phasen/Haus-Netzleistung nebeneinander
+  (mobil untereinander), einklappbare Diagnose. Repetitive Untertitel/Hinweistexte
+  gekürzt; Infokarte „Leistungsrahmen“ entfernt. Deren Messwert „Unter Sollstrom“
+  bleibt unter „Diagnose“ und über dieselbe der 16 Wallbox-Präferenzen verfügbar.
+  Status/Frische/Messzeit/aktive Fehlerwarnung unverändert sichtbar; HTTP-Abrufzeit
+  bleibt von Geräte-Messzeit und Netzleistung von verfügbarem Ladestrom abgegrenzt.
   Diagramme: vier elektrische Gruppen plus fünf einklappbare Zustands-/Rohwert-
   Gruppen. Status, Frische, Messzeit und aktive Fehlerwarnung bleiben sichtbar.
 - `/api/state` liefert Messwerte nur bei verbundenem Broker, gültigem Sample,

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
-  <title>Einstellungen · EVSE Control</title>
+  <title>Settings · EVSE Control</title>
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <script src="/static/theme.js"></script>
   <link rel="stylesheet" href="/static/style.css">
@@ -14,26 +14,27 @@
   <div class="app-shell">
     <aside class="sidebar" aria-label="Arbeitsbereich">
       <a class="brand" href="/" aria-label="EVSE Control – Übersicht"><span class="brand-mark" aria-hidden="true">E<span>↗</span></span><span>EVSE<span class="brand-subtitle">CONTROL</span></span></a>
-      <p class="nav-label">Arbeitsbereich</p>
       <nav aria-label="Hauptnavigation">
         <a class="nav-link" href="/"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Übersicht</a>
         <a class="nav-link" href="/diagramme"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4v16h16M7 15l4-5 4 3 5-7"/></svg>Diagramme</a>
+        <a class="nav-link" href="/einstellungen" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 3-.6 2.4-2 .9-2.2-.7-2 3.4 1.7 1.7v2.6L2.2 15l2 3.4 2.2-.7 2 .9L9 21h4l.6-2.4 2-.9 2.2.7 2-3.4-1.7-1.7v-2.6L19.8 9l-2-3.4-2.2.7-2-.9L13 3Z"/><circle cx="11" cy="12" r="3"/></svg>Settings</a>
       </nav>
-      <div class="sidebar-context"><span class="context-label">EVSE Control</span><strong>Einstellungen</strong><span>Platzhalter</span><p>Keine Wallbox-Steuerung</p></div>
+      <div class="sidebar-footer">
+        <label class="theme-switch" for="theme-toggle">
+          <input id="theme-toggle" type="checkbox" role="switch" aria-label="Dunkles Design" aria-checked="false" disabled>
+          <span class="theme-track" aria-hidden="true"><span class="theme-thumb"><svg class="theme-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg><svg class="theme-moon" viewBox="0 0 24 24"><path d="M20.5 14A9 9 0 0 1 10 3.5 9 9 0 1 0 20.5 14Z"/></svg></span><span class="theme-mode-label" id="theme-caption">System</span></span>
+        </label>
+      </div>
     </aside>
     <main id="main-content" tabindex="-1">
-      <header class="page-header"><div><p class="eyebrow">EVSE Control</p><h1>Einstellungen</h1><p class="page-subtitle">Platz für die spätere Einrichtung.</p></div><span class="readonly">Nur lesen</span></header>
+      <header class="page-header"><h1>Settings</h1><span class="readonly">Nur lesen</span></header>
       <div class="settings-placeholder">
-        <section class="card"><h2>Noch in Vorbereitung</h2><p class="subtle">Diese Seite ist ein Platzhalter. Wallbox-, Lade- und Hardwareeinstellungen sind noch nicht verfügbar. Hier werden keine Befehle gesendet und keine Servereinstellungen verändert.</p></section>
-        <section class="card"><h2>Darstellung auf diesem Gerät</h2><p class="subtle">Sonne und Mond rechts unten wechseln zwischen Hell und Dunkel. Die Auswahl gilt nur in diesem Browser. Mit „Systemdarstellung verwenden“ folgt die Anzeige wieder automatisch dem Betriebssystem.</p><button id="theme-system" type="button" disabled>Systemdarstellung verwenden</button></section>
+        <section class="card"><h2>In Vorbereitung</h2><p class="subtle">Platzhalter – noch keine Lade- oder Hardwareeinstellungen.</p></section>
+        <section class="card"><h2>Darstellung</h2><p class="subtle">Die Auswahl gilt nur in diesem Browser.</p><button id="theme-system" type="button" disabled>Systemdarstellung verwenden</button></section>
         <p class="subtle"><a class="text-link" href="/">Zur Übersicht</a></p>
       </div>
       <noscript><p class="notice">Ohne JavaScript folgt die Darstellung der Systemeinstellung.</p></noscript>
     </main>
   </div>
-  <nav class="quick-controls" aria-label="Schnellzugriff">
-    <button id="theme-toggle" class="icon-control" type="button" role="switch" aria-label="Dunkles Design" aria-checked="false" title="Design wechseln" disabled><svg class="theme-sun" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg><svg class="theme-moon" aria-hidden="true" viewBox="0 0 24 24"><path d="M20.5 14A9 9 0 0 1 10 3.5 9 9 0 1 0 20.5 14Z"/></svg></button>
-    <a class="icon-control" href="/einstellungen" aria-label="Einstellungen" aria-current="page" title="Einstellungen (Platzhalter)"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 3-.6 2.4-2 .9-2.2-.7-2 3.4 1.7 1.7v2.6L2.2 15l2 3.4 2.2-.7 2 .9L9 21h4l.6-2.4 2-.9 2.2.7 2-3.4-1.7-1.7v-2.6L19.8 9l-2-3.4-2.2.7-2-.9L13 3Z"/><circle cx="11" cy="12" r="3"/></svg></a>
-  </nav>
 </body>
 </html>

@@ -47,7 +47,9 @@ const fs = require('node:fs');
     assert.equal(await page.locator('#voltage-0').innerText(), '235,7 V');
     assert.equal(await page.locator('input:not([type="checkbox"]), form').count(), 0);
     assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()),
-      ['reset-display', 'theme-toggle']); // Local view controls, not wallbox commands.
+      ['reset-display']); // Local view controls, not wallbox commands.
+    assert.equal(await page.locator('#theme-toggle').getAttribute('type'), 'checkbox');
+    assert.equal(await page.locator('.quick-controls').count(), 0);
     fs.mkdirSync('/artifacts', { recursive: true });
     await page.screenshot({ path: '/artifacts/weboverlay-desktop.png', fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
