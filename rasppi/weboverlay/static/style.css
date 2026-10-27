@@ -42,8 +42,8 @@ a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible
 .theme-switch input:checked + .theme-track .theme-sun { display: none; }
 .sidebar { position: sticky; top: 0; height: 100vh; background: var(--sidebar); border-right: 1px solid var(--border); padding: 30px 18px; display: flex; flex-direction: column; }
 .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; font-size: 1.25rem; font-weight: 750; letter-spacing: .015em; padding: 0 8px; }
-.brand-mark { display: flex; position: relative; align-items: center; justify-content: center; width: 40px; height: 42px; border-radius: 8px; background: var(--blue); color: var(--brand-text); font-size: 1.45rem; font-weight: 800; }
-.brand-mark span { position: absolute; right: 3px; top: 2px; font-size: .7rem; }
+.brand-mark { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 40px; height: 42px; border-radius: 8px; background: #f8fbff; box-shadow: inset 0 0 0 1px #062b721f; }
+.brand-logo { display: block; width: 100%; height: 100%; object-fit: contain; }
 .brand-subtitle { display: block; font-size: .58rem; font-weight: 600; letter-spacing: .28em; color: var(--muted); }
 .sidebar nav { display: grid; gap: 6px; margin-top: 32px; }
 .nav-link { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 12px; border-radius: 6px; text-decoration: none; color: var(--muted); font-weight: 550; }

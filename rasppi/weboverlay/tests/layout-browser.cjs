@@ -367,7 +367,8 @@ function clean(run) {
       await failure.page.waitForFunction(() => document.getElementById('status').textContent === 'Lesefehler');
       assert.equal(await failure.page.locator('#freshness').innerText(), '—');
       assert.equal(await failure.page.locator('#reason').innerText(), '<img src=x onerror=alert(1)>');
-      assert.equal(await failure.page.locator('img').count(), 0);
+      assert.equal(await failure.page.locator('img').count(), 1);
+      assert.equal(await failure.page.locator('.brand-mark img[src="/static/icon.svg"]').count(), 1);
       assert(!await failure.page.locator('#wallbox-warning').isVisible(), 'Stale hardware warning not kept as current');
       clean(failure);
     } finally { await failure.context.close(); }

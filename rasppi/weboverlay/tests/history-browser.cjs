@@ -54,7 +54,8 @@ const fs = require('node:fs');
     assert.equal(await page.locator('#theme-toggle').getAttribute('role'), 'switch');
     assert.equal(await page.locator('#chart-range').inputValue(), '5');
     assert.equal(await page.locator('#metric-options input').count(), 16);
-    assert.equal(await page.locator('img').count(), 0, 'API reason is not inserted into HTML');
+    assert.equal(await page.locator('img').count(), 1, 'Only the static brand logo may be an image');
+    assert.equal(await page.locator('.brand-mark img[src="/static/icon.svg"]').count(), 1);
     await page.screenshot({ path: '/artifacts/history-sql-desktop.png',
       fullPage: true, animations: 'disabled' });
     await page.reload();

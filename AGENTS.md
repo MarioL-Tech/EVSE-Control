@@ -420,6 +420,12 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 
 ### Rein lesendes Weboverlay
 
+- Website-Logo separat autorisiert: bereitgestellte sechs SVG-Pfade als
+  `static/icon.svg` in Sidebar/Mobilkopf aller drei Seiten und als Favicon;
+  unveränderte Blau-/Grünfarben, helle Trägerfläche auch für dunkle Browser-Tabs.
+  Bestehende Wortmarke, Seiten-/Navigationsstruktur und Markengrößen bleiben.
+  Originale unter `docs/` nicht verändert/aufgenommen. Neue Docker-CI und
+  visuelle Prüfung dieser Logo-Einbindung noch offen; kein Pi-Deployment.
 - PHP-Migration implementiert: PHP 8.4/Apache (non-root
   UID 10001, intern Port 8080) plus genau ein PHP-CLI-Subscribe-only-Worker und
   ein unabhängiger PHP-CLI-Haus-Smartmeter-Worker im

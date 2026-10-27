@@ -1,5 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <rect width="48" height="48" rx="12" fill="#087c68"/>
-  <path d="M29 12H14v24h15M14 24h12" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
-  <path d="M32 9h7v7M39 9l-9 9" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="228 176 800 800" role="img" aria-labelledby="title desc">
+  <title id="title">EVSE-Control</title>
+  <desc id="desc">Blau-grünes Schild mit Ladestecker, Blitz und RFID-Signal auf heller Trägerfläche.</desc>
+  <rect x="228" y="176" width="800" height="800" rx="128" fill="#f8fbff"/>
+  <g fill="#062B72">
+    <path id="shield-left" d="M616 241 340 339Q296 353 296 400V550C296 677 343 772 463 820L411 726C367 673 348 615 348 550V411Q348 399 361 394L616 299Z"/>
+    <path id="plug-and-shield-base" d="M398 482V424C398 397 438 397 438 424V482H471V424C471 397 512 397 512 424V482H519Q540 482 540 506V543C540 585 519 617 484 632V661C484 751 529 809 628 854C701 830 768 790 830 740L826 802C773 849 703 887 628 911C498 859 425 785 425 661V632C389 618 368 586 368 543V507Q368 482 390 482Z"/>
+  </g>
+  <g fill="#008500">
+    <path id="shield-right" d="M638 241 916 339Q960 353 960 400V550C960 657 924 733 841 790L843 723C888 674 907 614 907 550V412Q907 399 894 394L638 299Z"/>
+    <path id="lightning" d="M712 322 536 605H623L568 810 758 541H658Z"/>
+    <path id="rfid-inner" d="M785 488C836 532 836 594 785 638Q773 649 761 637L755 631Q744 620 756 608C789 579 789 547 756 518Q744 507 755 496L761 490Q773 478 785 488Z"/>
+    <path id="rfid-outer" d="M836 439C909 506 909 622 836 689Q824 701 811 688L803 680Q792 668 804 656C858 605 858 523 804 472Q792 460 803 448L811 440Q823 428 836 439Z"/>
+  </g>
 </svg>
