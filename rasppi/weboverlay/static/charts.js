@@ -285,12 +285,13 @@
       onReset: () => history.clear(),
       onState: state => {
         if (!source || !detail) return;
+        source.dataset.historyStatus = state.status;
         if (!state.loaded && ['browser', 'disabled'].includes(state.status)) {
           source.textContent = browserNote.source; detail.textContent = browserNote.detail;
         } else {
           source.textContent = state.loaded ? 'Archiv und Seitenverlauf · max. 15 Minuten' : 'Seitenverlauf · max. 15 Minuten';
           detail.textContent = state.loaded
-            ? `Historisch, nicht live; nur Browser-RAM. ${state.status === 'ok'
+            ? `Historisch, nicht live. ${state.status === 'ok'
               ? state.complete ? 'Archiv geladen.' : 'Archiv unvollständig.'
               : 'Archiv derzeit nicht verfügbar; geladene Daten bleiben erhalten.'} Ausfälle bleiben Lücken.`
             : 'Archiv derzeit nicht verfügbar. Verlauf nur im Browser-RAM seit Seitenöffnung; historisch, nicht live. Ausfälle bleiben Lücken.';

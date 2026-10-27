@@ -84,7 +84,12 @@ const fs = require('node:fs');
     fail = false; hold = true;
     const heldRequest = new Promise(resolve => { heldReady = resolve; });
     await page.locator('#chart-range').selectOption('1'); await page.clock.runFor(200);
-    await heldRequest;
+    let heldTimer;
+    try {
+      await Promise.race([heldRequest, new Promise((_, reject) => {
+        heldTimer = setTimeout(() => reject(new Error('Archive fixture request deadline')), 5000);
+      })]);
+    } finally { clearTimeout(heldTimer); }
     assert(pending.length > 0);
     await page.evaluate(() => {
       Object.defineProperty(document, 'hidden', { configurable: true, value: true });
@@ -100,7 +105,10 @@ const fs = require('node:fs');
       window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
     });
     await page.clock.runFor(300);
-    await page.waitForFunction(() => document.getElementById('history-detail').textContent.includes('kein Datenbankarchiv'));
+    // restore() immediately shows the RAM-only reset note. Wait for the actual
+    // disabled response acknowledgement before fast-forwarding network timeouts.
+    await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'disabled');
+    assert((await page.locator('#history-detail').innerText()).includes('kein Datenbankarchiv'));
     assert.equal(await page.locator('#chart-range').inputValue(), '1', 'Restoration preserves range preference');
     const disabledRequests = historyRequests;
     await page.clock.runFor(65000);
