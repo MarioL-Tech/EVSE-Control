@@ -96,7 +96,11 @@
         if (stopped) return;
         const now = clock();
         if (lastClock && (now.wall < lastClock.wall || now.mono < lastClock.mono)) {
-          cancel(); onReset(); loaded = false; disabled = false; due = 0; report('browser');
+          // A clock correction invalidates measurements, not the server's
+          // already confirmed disabled configuration. Only visibility/restore
+          // deliberately rechecks that configuration.
+          cancel(); onReset(); loaded = false; due = 0;
+          report(disabled ? 'disabled' : 'browser');
         }
         lastClock = now;
         if (visible && !disabled && !active && now.mono >= due) request(now);

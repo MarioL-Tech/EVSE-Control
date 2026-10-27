@@ -111,8 +111,19 @@ const fs = require('node:fs');
     assert((await page.locator('#history-detail').innerText()).includes('kein Datenbankarchiv'));
     assert.equal(await page.locator('#chart-range').inputValue(), '1', 'Restoration preserves range preference');
     const disabledRequests = historyRequests;
+    await page.evaluate(() => {
+      window.__historyStatusTrace = [];
+      const source = document.getElementById('history-source');
+      new MutationObserver(() => {
+        window.__historyStatusTrace.push({ status: source.dataset.historyStatus,
+          wall: Date.now(), mono: performance.now() });
+        window.__historyStatusTrace.splice(0, Math.max(0, window.__historyStatusTrace.length - 12));
+      }).observe(source, { attributes: true, attributeFilter: ['data-history-status'] });
+    });
     await page.clock.runFor(65000);
-    assert.equal(historyRequests, disabledRequests, 'Disabled history stops automatic refresh');
+    const trace = await page.evaluate(() => window.__historyStatusTrace);
+    assert.equal(historyRequests, disabledRequests,
+      'Disabled history stops automatic refresh: ' + JSON.stringify(trace));
     assert.deepEqual(errors, []);
     console.log('History browser: offline archive/reload, isolated SQL failure, unchanged controls, RAM-only, hidden and BFCache passed');
   } finally { await browser.close(); }

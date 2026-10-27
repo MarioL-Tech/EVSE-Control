@@ -46,6 +46,18 @@ test('disabled preserves browser-only mode and stops automatic refresh until vis
   s.loader.setVisible(true); s.loader.tick(); assert.equal(s.calls.length, 2);
   s.loader.restore(); s.loader.tick(); assert.equal(s.calls.length, 3); assert.equal(s.resets, 1);
 });
+test('clock rollback cannot re-enable a confirmed disabled history', async () => {
+  for (const field of ['wall', 'mono']) {
+    const s = setup(); s.loader.tick();
+    s.pending[0].resolve(response(batch('disabled'))); await flush();
+    s.advance(2000); s.loader.tick();
+    const now = { wall: epoch + 2000, mono: 2000 }; now[field]--;
+    s.setClock(now); s.loader.tick();
+    assert.equal(s.resets, 1); assert.equal(s.calls.length, 1);
+    assert.equal(s.states.at(-1).status, 'disabled');
+    s.advance(120000); s.loader.tick(); assert.equal(s.calls.length, 1);
+  }
+});
 test('failure/authorization/malformed responses do not clear history; retry is bounded 10/30/60 seconds', async () => {
   const s = setup(); s.loader.tick(); s.pending[0].resolve(response(batch())); await flush();
   for (const [i, invalid] of [response({}, 401), response({ ...batch(), complete: 1 }), response(batch('unavailable'), 503)].entries()) {
