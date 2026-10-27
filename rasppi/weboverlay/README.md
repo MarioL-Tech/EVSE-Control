@@ -2,34 +2,42 @@
 
 Eigenständiger Docker-Dienst, **PHP-Migration implementiert und Docker-getestet**:
 ein PHP-CLI-MQTT-Subscriber → privater atomarer Snapshot → PHP 8.4/Apache →
-unveränderte deutsche Browseranzeige. Kein Hardwarezugriff, keine Publish-
-oder Steuerbefehle, keine Datenbank. Bestehender Broker im Netzwerk `evse-mqtt`.
+deutsche Browseranzeige. Zusätzlich optional: eigener PHP-CLI-HTTP-Worker für
+die Haus-Netzleistung. Keine seriellen Ports, Publish-/Steuerbefehle oder Datenbank.
+Bestehender Broker im Netzwerk `evse-mqtt` bleibt unverändert.
 
 **Spätere Planung:** Die Website soll umgebaut werden; anschließend ist eine
 Smartphone-WebApp vorgesehen. Umfang, Gestaltung und technische Umsetzung
 sind noch offen. Beides ist noch nicht umgesetzt; die bestehende responsive
-Browseranzeige bleibt unverändert und ist nicht bereits die geplante WebApp.
+Browseranzeige bleibt lesend und ist nicht bereits die geplante WebApp.
 Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die jetzt autorisierte
 Backendmigration war kein visueller Umbau. Separat ist nun das Theme
 „Compact / Dense“ nach Entwurf Nr. 8 umgesetzt: kühle Blau-/Grautöne,
 dezente Verläufe, feine Rahmen, Schatten und kompaktere Abstände in Hell/Dunkel.
 Die Vorlagen dienen nur als Theme-Referenz; Sidebar, vier Übersichtskarten,
-Messwerte und Seitenaufteilung bleiben erhalten. **Darstellung** oben auf beiden
-Seiten bietet **System / Hell / Dunkel**. Default System folgt live der
+Messwerte und Seitenaufteilung bleiben erhalten. **Sonne/Mond rechts unten**
+wechselt zwischen Hell/Dunkel (44-px-Touchfläche, Tastatur/Screenreader).
+Das **Zahnrad** öffnet `/einstellungen`, einen ausdrücklich gekennzeichneten
+Platzhalter ohne Lade-/Hardwareeinstellungen. Dort setzt **Systemdarstellung
+verwenden** die lokale Wahl zurück. Default System folgt live der
 Browser-/OS-Präferenz; Hell/Dunkel überschreibt sie und wird unter `evse-theme-v1`
 gespeichert. System entfernt den Schlüssel. Nur ein Darstellungswert, keine
 Messwerte oder Credentials; `evse-display-v1` bleibt unabhängig. Bei blockiertem
 Speicher gilt die Auswahl nur für die aktuelle Seite; bei Pageshow bleibt eine
 nicht speicherbare Wahl erhalten. Gespeicherte Wahl wird bei Pageshow/Storage-
-Ereignissen neu geladen. Ohne JS bleibt das Feld deaktiviert, Systemfarben wirken
+Ereignissen neu geladen. Ohne JS bleiben Schalter/Reset deaktiviert, Systemfarben wirken
 weiter. Selbst gehostetes `theme.js` vor CSS, keine CSP-Ausnahme oder API-Steuerung.
-PHP-/MQTT-/Messwertverhalten, C++-Reader, UART-Brücke und Speichercollector bleiben
-unverändert. Umschalter-CI
+Wallbox-API, MQTT, C++-Reader, UART-Brücke und Speichercollector bleiben
+unverändert. **Symbolschalter-/Haus-Smartmeter-CI 40486476429 für 3c92398 erfolgreich:**
+80 neue PHP-Prüfungen, 17 isolierte HTTP-Szenarien, insgesamt 49 JS-Tests und
+fünf Chromium-Suiten (30 Theme-/Einstellungsfälle), alle bisherigen Backend-/
+Runtime-Prüfungen. Simulierte Desktop-/Mobilbilder in Hell/Dunkel angesehen.
+Kein echter Smartmeterabruf/Pi-Nachweis. Historische Auswahlfeld-CI
 [40375388768](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/40375388768)
 für `53ce565` erfolgreich: 37 JS-Tests (neun neue Theme-Unitfälle), vier Chromium-
 Suiten mit 22 Theme-Browserfällen sowie vollständige Backend-/Runtime-Prüfungen.
 Erzwungene Hell-/Dunkelansicht am Desktop und mobil mit simulierten Werten geprüft;
-noch kein Pi-Nachweis für den neuen Umschalter. Bisherige Theme-CI
+kein Nachweis der neuen Symbolschalter oder des Hauszählers am Pi. Bisherige Theme-CI
 [40369056814](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/40369056814)
 für `ff496f2` erfolgreich: beide Seiten in Hell/Dunkel bei 320/390/768/1440 px,
 Farbschemawechsel und Textkontrast auf geprüften Flächen mindestens 4,5:1.
@@ -65,6 +73,11 @@ Wallbox-Limit; Phasenmessung und Leistungsrahmen darunter. Technische Rohwerte
 unter „Diagnose & Datenqualität“. Datenstatus, Messzeit, Frische und aktive
 Fehlerwarnungen bleiben außerhalb der einklappbaren Bereiche sichtbar.
 
+**Netzleistung Haus:** eigener, von Wallbox/MQTT unabhängiger Bereich auf der
+Übersicht mit Bezug (+)/Einspeisung (−), Status, letztem Abruf und Abrufalter.
+Wert 7 wird aus W nach kW umgerechnet. Die 16 Wallbox-Präferenzen blenden ihn
+nicht aus. Keine Hauskurve oder Speicherung in MQTT/MariaDB.
+
 **Diagramme `/diagramme`:** über die gemeinsame Navigation öffnen. Vier
 elektrische Zeitverläufe, weitere Zustands-/Rohwertkurven unter „Zustands- &
 Diagnoseverläufe“. Beide Seiten unterstützen Desktop/Mobil und folgen dem
@@ -73,7 +86,7 @@ hellen/dunklen Farbschema des Browsers. Keine zusätzlichen Pakete/Ports nötig.
 „Anzeige auswählen“ schaltet jeden der 16 Telemetriewerte und seine Diagrammkurve
 einzeln ein/aus. Auswahl und Zeitfenster werden lokal im Browser gespeichert;
 „Alle Messwerte anzeigen“ setzt sie zurück. Status, Messzeit und aktive
-Wallbox-Fehlerwarnung bleiben sichtbar. Bei blockiertem Browserspeicher gilt
+  Wallbox-Fehlerwarnung bleiben sichtbar. Bei blockiertem Browserspeicher gilt
 die Auswahl nur für die geöffnete Seite; Credentials werden nie gespeichert.
 
 SVG-Diagramme zeigen Leistung (kW), Phasenströme/Limit (A), Spannungen (V),
@@ -104,12 +117,13 @@ Sessionenergie kann bei neuer Session zurückgesetzt werden, kein Gesamtsummenz�
 - Browser prüft Frische unabhängig von weiteren HTTP-Antworten und blendet bei
   Netzfehlern/abgelaufenen Daten Messwerte aus. Zeitstempel werden lokal dargestellt.
 - `GET /healthz`: nur Prozess-/HTTP-Liveness; MQTT-Ausfall ist kein Neustartgrund.
-- Apache non-root UID 10001, intern Port 8080, plus genau ein PHP-CLI-Worker;
+- Apache non-root UID 10001, intern Port 8080, ein PHP-CLI-MQTT-Worker und ein
+  unabhängiger PHP-CLI-Haus-Smartmeter-Worker (ohne konfigurierte URL nur Leerlauf);
   `php-mqtt/client` exakt 2.3.2, Abhängigkeiten exakt über `composer.lock` im
   Docker-Build. Kein PHP/Composer auf dem Host installieren; kein Python in
   Websitebackend, Runtime, Healthcheck oder Backendtests.
-- Bash überwacht beide Prozesse: unerwarteter HTTP-/Workertod beendet den anderen
-  und den Container mit Fehler; SIGTERM stoppt beide. Bei Brokerausfall bleibt
+- Bash überwacht alle drei Prozesse: unerwarteter Prozessabbruch beendet die übrigen
+  und den Container mit Fehler; SIGTERM stoppt alle. Bei Brokerausfall bleibt
   HTTP aktiv, Worker-Reconnect nach 1–30 s. Beide SUBACKs erforderlich;
   Reconnect verwirft Sample und Availability. MQTT-Restlänge maximal 32768 Bytes (ohne Festheader),
   Statepayload maximal 16384 Bytes.
@@ -121,6 +135,35 @@ Sessionenergie kann bei neuer Session zurückgesetzt werden, kein Gesamtsummenz�
 - Kein HTTP-Login/TLS: nur vertrauenswürdiger Zugang über den vorhandenen SSH-Tunnel.
 - MQTT-Vertrag: [Topics, Einheiten und Verfügbarkeit](../../docs/mqtt-protocol.md).
 
+## Optionaler HTTP-Haus-Smartmeter
+
+`SMARTMETER_URL` wird nur lokal in `.env` gesetzt, niemals in Git oder im Browser.
+Leer (Default) bedeutet **Nicht eingerichtet**, nicht 0 W. Defaults: Abfrage 2 s,
+HTTP-Timeout 2 s, Frische 10 s; Bereiche 1–60 / 1–5 / 3–120 Sekunden.
+Zentraler Ablauf einschließlich Update/Diagnose:
+[Haus-Smartmeter einrichten](../../docs/installation.md#haus-smartmeter-optional-einrichten).
+
+Nur HTTP(S)-GET/200, keine Redirects oder Proxys; HTTPS-Prüfung bleibt aktiv.
+Maximal 8 KiB Header/4 KiB Body, ASCII-Zahlenliste mit mindestens sieben
+endlichen Zahlen. Nur Index 6 ist Netzleistung: **+ Netzbezug / − Einspeisung**.
+Keine Berechnung verfügbaren Ladestroms oder Zuordnung zum geplanten DTSU666.
+
+`GET /api/smartmeter` liest ausschließlich einen separaten 8-KiB-IPC-Cache:
+`schema_version`, `read_only`, `status`, `reason`, `power_w`, `fetched_at`,
+`age_seconds`, `fresh_for_seconds`. Nur `live` liefert eine Leistung;
+sonst `null`. `fetched_at` ist die erfolgreiche HTTP-Empfangszeit, keine
+Gerätemesszeit. Wiederholte gültige Antworten erneuern die Abruffrische, sind
+aber kein Nachweis neuer Messungen im Gerät. Keine URL/Host-/Rohantwortausgabe.
+
+Eigene stabile Lockdatei, maximal 200 ms Wartezeit, atomarer Austausch.
+Heartbeat alle 250 ms zwischen Abfragen, Auslauf nach max(3 s, Timeout+1 s).
+HTTP-Leser erneuern weder Heartbeat noch Abrufzeit. Fehler, Veraltung,
+Zeitkorrekturen oder defekter Snapshot blenden Leistung aus; echte 0 bleibt
+erlaubt. Browser-Timeout/Lifecycle/Frische laufen unabhängig von Wallboxwerten.
+Blockierendes OS-DNS kann Prozessfristen beeinflussen; der Supervisor erzwingt
+nach etwa 2 s das Stoppen verbliebener Kinder, Compose bleibt bei 10 s.
+Docker-/Browsernachweis siehe oben; kein echter Smartmeterabruf bestätigt.
+
 Docker-CI [40365837026](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/40365837026)
 für `06a3626` erfolgreich: 16 PHP-Zustands-/Config-Fälle, IPC-Suite,
 21 Transportfälle, vier echte MQTT-/HTTP-/Auth-/ACL-Szenarien, 28 JS-Tests und
@@ -130,5 +173,6 @@ Prüfsystem Linux-amd64, kein Pi-ARM64-/Produktionsnachweis; alte Python-CI hist
 Testbroker nur im Build-Container; Produktivbroker/Hardware werden nicht berührt.
 Pi-Start und Live-Übersicht im Dark-Theme am 2026-10-26 vom Projektinhaber per
 Screenshot bestätigt (18:52:39, MQTT online, angeschlossen/nicht ladend, Limit 6 A).
-Keine Bestätigung von Langzeitbetrieb, gezielten Ausfällen, Diagrammen, Hellansicht
-oder des neuen manuellen Umschalters; kein Agent-Deployment.
+Websitezugriff und sichtbares bisheriges Auswahlfeld am 2026-10-27 erneut vom
+Projektinhaber bestätigt. Neue Symbolschalter/Smartmeter, Langzeit-/Ausfalltests
+und weitere Diagramm-/Hellansicht-Prüfungen am Pi offen; kein Agent-Deployment.

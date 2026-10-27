@@ -5,6 +5,8 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 
 use EvseOverlay\SharedState;
 use EvseOverlay\StateStore;
+use EvseOverlay\SmartmeterCache;
+use EvseOverlay\SmartmeterConfig;
 
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -13,11 +15,11 @@ header('X-Frame-Options: DENY');
 header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$assets = ['app.js' => 'text/javascript', 'charts.js' => 'text/javascript', 'theme.js' => 'text/javascript',
+$assets = ['app.js' => 'text/javascript', 'charts.js' => 'text/javascript', 'theme.js' => 'text/javascript', 'smartmeter.js' => 'text/javascript',
     'style.css' => 'text/css', 'icon.svg' => 'image/svg+xml'];
-$pages = ['/' => 'index.html', '/diagramme' => 'diagrams.html'];
+$pages = ['/' => 'index.html', '/diagramme' => 'diagrams.html', '/einstellungen' => 'settings.html'];
 $asset = is_string($path) && str_starts_with($path, '/static/') ? substr($path, 8) : null;
-$known = isset($pages[$path ?? '']) || in_array($path, ['/api/state', '/healthz'], true)
+$known = isset($pages[$path ?? '']) || in_array($path, ['/api/state', '/api/smartmeter', '/healthz'], true)
     || ($asset !== null && isset($assets[$asset]));
 
 if (!$known) {
@@ -44,6 +46,15 @@ if (isset($pages[$path])) {
     header('Content-Type: application/json; charset=utf-8');
     if ($path === '/healthz') {
         $result = ['status' => 'ok', 'read_only' => true];
+    } elseif ($path === '/api/smartmeter') {
+        try {
+            $result = (new SmartmeterCache(getenv('WEB_STATE_DIR') ?: '/tmp/evse-weboverlay',
+                SmartmeterConfig::fromEnvironment()))->snapshot();
+        } catch (Throwable) {
+            $result = ['schema_version' => 1, 'read_only' => true, 'status' => 'offline',
+                'reason' => 'Haus-Smartmeter-Empfänger nicht verfügbar', 'power_w' => null,
+                'fetched_at' => null, 'age_seconds' => null, 'fresh_for_seconds' => 0];
+        }
     } else {
         try {
             $staleText = getenv('WEB_STALE_SECONDS') ?: '10';

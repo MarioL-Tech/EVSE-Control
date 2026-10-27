@@ -3,7 +3,7 @@ FROM composer:2.8 AS composer
 FROM php:8.4-apache-bookworm AS base
 ENV EVSE_HTTP_PORT=8080
 WORKDIR /app
-RUN docker-php-ext-install pcntl
+RUN docker-php-ext-install pcntl && php -r 'exit(extension_loaded("curl") ? 0 : 1);'
 COPY docker/apache.conf /etc/apache2/apache2.conf
 COPY docker/php.ini /usr/local/etc/php/conf.d/evse.ini
 
@@ -29,8 +29,9 @@ RUN chmod +x docker/entrypoint.sh
 USER 10001:10001
 RUN find php public docker tests -name '*.php' -print0 | xargs -0 -n1 php -l \
     && apache2 -t \
-    && php tests/unit.php && php tests/shared.php && php tests/transport.php \
-    && node tests/integration.cjs && node --test tests/frontend.test.cjs tests/charts.test.cjs tests/theme.test.cjs \
+    && php tests/unit.php && php tests/shared.php && php tests/transport.php && php tests/smartmeter.php \
+    && node tests/integration.cjs && node tests/smartmeter-integration.cjs \
+    && node --test tests/frontend.test.cjs tests/charts.test.cjs tests/theme.test.cjs tests/smartmeter.test.cjs \
     && touch /tmp/tests-passed
 
 FROM base AS runtime

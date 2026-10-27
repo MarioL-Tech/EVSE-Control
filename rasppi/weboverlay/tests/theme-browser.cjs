@@ -18,8 +18,8 @@ function sample() {
 }
 async function ready(page) {
   await page.waitForFunction(() => document.querySelector('#status')?.textContent === 'Live');
-  await page.locator('#theme-mode').waitFor();
-  assert(await page.locator('#theme-mode').isEnabled());
+  await page.locator('#theme-toggle').waitFor();
+  assert(await page.locator('#theme-toggle').isEnabled());
 }
 async function colors(page) {
   return page.evaluate(() => {
@@ -28,9 +28,29 @@ async function colors(page) {
   });
 }
 async function mode(page, expected) {
-  assert.equal(await page.locator('#theme-mode').inputValue(), expected);
   assert.equal(await page.locator('html').getAttribute('data-theme'), expected === 'system' ? null : expected);
   if (expected !== 'system') assert.equal(await page.locator('html').evaluate(el => getComputedStyle(el).colorScheme), expected);
+  const effective = await page.locator('html').getAttribute('data-effective-theme');
+  assert.equal(await page.locator('#theme-toggle').getAttribute('aria-checked'), String(effective === 'dark'));
+  assert.equal(await page.locator('.theme-moon').isVisible(), effective === 'dark');
+  assert.equal(await page.locator('.theme-sun').isVisible(), effective === 'light');
+}
+async function choose(page, selected) {
+  if (selected === 'system') {
+    const route = new URL(page.url()).pathname;
+    await page.getByRole('link', { name: 'Einstellungen', exact: true }).click();
+    await page.waitForURL(new URL('/einstellungen', base).href);
+    assert.match(await page.locator('main').innerText(), /Platzhalter/);
+    await page.locator('#theme-system').click();
+    if (route !== '/einstellungen') {
+      await page.locator(`nav a[href="${route}"]`).click();
+      await ready(page);
+    }
+  } else if (await page.locator('html').getAttribute('data-theme') !== selected) {
+    if (await page.locator('html').getAttribute('data-effective-theme') === selected) await page.locator('#theme-toggle').click();
+    await page.locator('#theme-toggle').click();
+  }
+  await mode(page, selected);
 }
 async function protectedUI(page, route) {
   for (const id of ['status', 'reason', 'timestamp', 'freshness', 'wallbox-warning']) {
@@ -41,11 +61,15 @@ async function protectedUI(page, route) {
   assert.notEqual(await page.locator('#timestamp').innerText(), '—');
   assert.notEqual(await page.locator('#freshness').innerText(), '—');
   assert.equal(await page.locator('.sidebar').count(), 1);
-  assert.equal(await page.locator('button').count(), 1);
-  assert.equal(await page.locator('button').getAttribute('id'), 'reset-display');
+  assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()), ['reset-display', 'theme-toggle']);
   assert.equal(await page.locator('[role="button"], #theme-mode[role]').count(), 0);
   assert.equal(await page.locator('#metric-options input[type="checkbox"]').count(), 16);
   if (route === '/') assert.equal(await page.locator('.summary-card').count(), 4);
+  const control = await page.locator('.quick-controls').boundingBox();
+  const viewport = page.viewportSize();
+  assert(control.width <= 110 && control.height <= 60, 'Compact icon controls, no large selector');
+  assert(viewport.width - control.x - control.width >= 8 && viewport.width - control.x - control.width <= 24);
+  assert(viewport.height - control.y - control.height >= 8 && viewport.height - control.y - control.height <= 24);
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.body.scrollWidth <= innerWidth));
 }
 async function pageshow(page) {
@@ -79,7 +103,7 @@ function clean(run) {
   for (const request of run.requests) {
     assert.equal(request.method, 'GET', 'Theme controls must not send commands');
     const url = new URL(request.url); assert.equal(url.origin, origin, 'No foreign resources');
-    assert(routes.includes(url.pathname) || url.pathname === '/api/state' || url.pathname.startsWith('/static/')
+    assert(routes.includes(url.pathname) || ['/einstellungen', '/api/state', '/api/smartmeter'].includes(url.pathname) || url.pathname.startsWith('/static/')
       || url.pathname === '/favicon.ico', request.url);
   }
   cases++;
@@ -99,12 +123,10 @@ function clean(run) {
         const csp = response.headers()['content-security-policy'];
         assert(csp && csp.split(';').some(part => part.trim() === "script-src 'self'"));
         assert(!/unsafe-inline|unsafe-eval/.test(csp));
-        assert.equal(await page.getByLabel('Darstellung', { exact: true }).count(), 1);
-        assert.deepEqual(await page.locator('#theme-mode option').evaluateAll(options => options.map(o => [o.value, o.textContent.trim()])),
-          [['system', 'System'], ['light', 'Hell'], ['dark', 'Dunkel']]);
-        assert.equal(await page.locator('#theme-mode').evaluate(el => el.tagName), 'SELECT');
+        assert.equal(await page.getByRole('switch', { name: 'Dunkles Design' }).count(), 1);
+        assert.equal(await page.locator('#theme-mode').count(), 0);
         const systemColors = await colors(page);
-        await page.locator('#theme-mode').selectOption(selected); await mode(page, selected);
+        await choose(page, selected);
         assert.notDeepEqual(await colors(page), systemColors, 'Manual theme must actually override opposite OS colors');
         const forced = await colors(page);
         const brightness = await page.evaluate(() => {
@@ -136,11 +158,36 @@ function clean(run) {
         if (width === 320 || width === 1440) await page.screenshot({
           path: `/artifacts/theme-${route === '/' ? 'dashboard' : 'diagrams'}-forced-${selected}-${width}.png`, fullPage: true
         });
-        await page.locator('#theme-mode').selectOption('system'); await mode(page, 'system');
+        await choose(page, 'system');
         assert.equal(await page.evaluate(key => localStorage.getItem(key), key), null);
         assert.deepEqual(await colors(page), systemColors);
         await page.emulateMedia({ colorScheme: selected });
         assert.deepEqual(await colors(page), forced, 'System follows live OS preference changes');
+        clean(run);
+      } finally { await run.context.close(); }
+    }
+
+    // The gear opens a genuine read-only placeholder; settings do not poll hardware or MQTT.
+    for (const width of [320, 390, 768, 1440]) for (const scheme of ['light', 'dark']) {
+      const run = await setup(browser, { colorScheme: scheme, viewport: { width, height: 900 } });
+      try {
+        const { page } = run;
+        await page.goto(new URL('/einstellungen', base).href);
+        await page.waitForFunction(() => !document.getElementById('theme-toggle').disabled);
+        assert.equal(await page.title(), 'Einstellungen · EVSE Control');
+        assert.match(await page.locator('main').innerText(), /Platzhalter/);
+        assert.equal(await page.locator('form, input, textarea').count(), 0);
+        assert.equal(await page.getByRole('link', { name: 'Einstellungen', exact: true }).getAttribute('aria-current'), 'page');
+        assert.equal(await page.locator('.quick-controls').evaluate(el => getComputedStyle(el).position), 'fixed');
+        await page.locator('#theme-toggle').focus(); await page.keyboard.press('Enter');
+        await mode(page, scheme === 'dark' ? 'light' : 'dark');
+        await page.locator('#theme-system').click(); await mode(page, 'system');
+        assert.equal(await page.evaluate(key => localStorage.getItem(key), key), null);
+        assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+        assert(!run.requests.some(request => new URL(request.url).pathname.startsWith('/api/')));
+        if (width === 320 || width === 1440) await page.screenshot({
+          path: `/artifacts/settings-${scheme}-${width}.png`, fullPage: true
+        });
         clean(run);
       } finally { await run.context.close(); }
     }
@@ -150,8 +197,7 @@ function clean(run) {
     try {
       const { page } = persisted;
       await page.goto(new URL('/', base).href); await ready(page);
-      await page.locator('#theme-mode').focus(); await page.keyboard.press('Home');
-      await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await mode(page, 'light');
+      await page.locator('#theme-toggle').focus(); await page.keyboard.press('Space'); await mode(page, 'light');
       await page.locator('.display-options > summary').click();
       await page.locator('#metric-options input').first().uncheck();
       const display = await page.evaluate(() => localStorage.getItem('evse-display-v1'));
@@ -161,9 +207,9 @@ function clean(run) {
         await ready(page); await mode(page, 'light');
         await page.reload(); await ready(page); await mode(page, 'light');
         assert.equal(await page.locator('#metric-options input').first().isChecked(), false);
-        await page.locator('#theme-mode').selectOption('dark');
+        await choose(page, 'dark');
         assert.equal(await page.evaluate(() => localStorage.getItem('evse-display-v1')), display);
-        await page.locator('#theme-mode').selectOption('light');
+        await choose(page, 'light');
       }
       // Lifecycle restores from storage, not stale in-memory state.
       await page.evaluate(key => localStorage.setItem(key, 'dark'), key);
@@ -172,10 +218,10 @@ function clean(run) {
       const other = await persisted.context.newPage();
       try {
         await other.goto(new URL('/diagramme', base).href); await ready(other);
-        await other.locator('#theme-mode').selectOption('light');
-        await page.waitForFunction(() => document.querySelector('#theme-mode').value === 'light');
+        await choose(other, 'light');
+        await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
         await mode(page, 'light');
-        await other.locator('#theme-mode').selectOption('system');
+        await choose(other, 'system');
         await page.waitForFunction(() => !document.documentElement.hasAttribute('data-theme'));
         await mode(page, 'system');
       } finally { await other.close(); }
@@ -190,7 +236,7 @@ function clean(run) {
         values: null, error: 'Test-Lesefehler'
       } }));
       await page.waitForFunction(() => document.querySelector('#status').textContent === 'Lesefehler');
-      await page.locator('#theme-mode').selectOption('dark'); await mode(page, 'dark');
+      await choose(page, 'dark');
       assert.equal(await page.locator('#status').innerText(), 'Lesefehler');
       assert.equal(await page.locator('#freshness').innerText(), '—');
       assert(!await page.locator('#wallbox-warning').isVisible(), 'Old error-code warning is not presented as current');
@@ -202,22 +248,28 @@ function clean(run) {
       try {
         const { page } = run;
         await page.goto(new URL(route, base).href); await ready(page);
-        for (const selected of ['light', 'system']) {
-          await page.locator('#theme-mode').selectOption(selected); await mode(page, selected);
+        for (const selected of ['light', 'dark', 'light']) {
+          await choose(page, selected);
           await pageshow(page); await ready(page); await mode(page, selected);
           if (blocked === 'writes') assert.equal(await page.evaluate(key => localStorage.getItem(key), key), 'dark');
           await protectedUI(page, route);
         }
+        // A denied persistence operation is intentionally page-local, including System reset.
+        await page.goto(new URL('/einstellungen', base).href);
+        await page.locator('#theme-system').click(); await mode(page, 'system');
+        await pageshow(page); await mode(page, 'system');
+        assert.equal(await page.locator('form, input').count(), 0);
         clean(run);
       } finally { await run.context.close(); }
     }
     // With JavaScript disabled, the native control must not promise an action it cannot perform.
     const noScript = await setup(browser, { javaScriptEnabled: false });
     try {
-      for (const route of routes) {
+      for (const route of [...routes, '/einstellungen']) {
         const response = await noScript.page.goto(new URL(route, base).href);
         assert.equal(response.status(), 200);
-        assert(await noScript.page.locator('#theme-mode').isDisabled());
+        assert(await noScript.page.locator('#theme-toggle').isDisabled());
+        if (route === '/einstellungen') assert(await noScript.page.locator('#theme-system').isDisabled());
         const source = await response.text();
         const script = source.match(/<script\b[^>]*src=["'][^"']*\/static\/theme\.js["'][^>]*>/i);
         assert(script, 'Self-hosted theme script is present');

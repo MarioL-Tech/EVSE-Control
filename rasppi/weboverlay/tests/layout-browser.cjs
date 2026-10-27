@@ -102,7 +102,7 @@ function clean(run) {
     assert.equal(request.method, 'GET', 'No commands or other write requests');
     const url = new URL(request.url);
     assert.equal(url.origin, new URL(base).origin, 'No external resources');
-    assert(routes.includes(url.pathname) || url.pathname === '/api/state'
+    assert(routes.includes(url.pathname) || ['/api/state', '/api/smartmeter'].includes(url.pathname)
       || url.pathname.startsWith('/static/') || url.pathname === '/favicon.ico', request.url);
   }
 }
@@ -127,7 +127,8 @@ function clean(run) {
         assert.equal(await page.locator('h1').innerText(), route === '/' ? 'Übersicht' : 'Diagramme');
         assert(await page.locator('h2').count() > 0);
         assert.equal(await page.locator('nav[aria-label="Hauptnavigation"]').count(), 1);
-        assert.deepEqual(await page.locator('nav a').evaluateAll(links => links.map(a => a.getAttribute('href'))), routes);
+        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').evaluateAll(links => links.map(a => a.getAttribute('href'))), routes);
+        assert.equal(await page.getByRole('link', { name: 'Einstellungen', exact: true }).getAttribute('href'), '/einstellungen');
         assert.equal(await page.locator('nav [aria-current="page"]').count(), 1);
         assert.equal(await page.locator('nav [aria-current="page"]').getAttribute('href'), route);
         assert(await page.evaluate(() => {
@@ -135,9 +136,9 @@ function clean(run) {
           return new Set(ids).size === ids.length;
         }), 'Unique DOM IDs');
         assert.equal(await page.locator('form, input:not([type="checkbox"]), [role="button"], [role="checkbox"]').count(), 0);
-        assert.equal(await page.locator('button').count(), 1);
-        assert.equal(await page.locator('button').getAttribute('id'), 'reset-display');
-        assert.equal(await page.locator('button').getAttribute('type'), 'button');
+        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()), ['reset-display', 'theme-toggle']);
+        assert.equal(await page.locator('#reset-display').getAttribute('type'), 'button');
+        assert.equal(await page.locator('#theme-toggle').getAttribute('role'), 'switch');
         const boxes = page.locator('#metric-options input[type="checkbox"]');
         assert.equal(await boxes.count(), 16);
         assert(await boxes.evaluateAll(inputs => inputs.every(input => input.checked && !input.disabled
