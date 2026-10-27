@@ -12,8 +12,16 @@ sind noch offen. Beides ist noch nicht umgesetzt; die bestehende responsive
 Browseranzeige bleibt lesend und ist nicht bereits die geplante WebApp.
 Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die jetzt autorisierte
 Backendmigration war kein visueller Umbau. Separat ist nun das Theme
-„Compact / Dense“ nach Entwurf Nr. 8 umgesetzt: kühle Blau-/Grautöne,
-dezente Verläufe, feine Rahmen, Schatten und kompaktere Abstände in Hell/Dunkel.
+„Compact / Dense“ nach Entwurf Nr. 8 nochmals präzisiert: dunkle Graphitflächen,
+feine blau-graue Rahmen, 6-px-Kartenecken, ruhige Verläufe/Schatten, cyanfarbene Leistung,
+gefüllte mintfarbene Live-Badges und kräftigere Schriftgewichte. Heller Modus
+neutral-kühl. Nur CSS-Designwerte geändert; keine neuen Abstände, Größen, Grids,
+Breakpoints, HTML-/JS- oder Funktionsänderungen. Design-CI **40499228102 für acce554**
+erfolgreich: 49 JS-Tests, alle fünf Chromium-Suiten mit 30 Theme-/Settings-Fällen
+und vollständige Backend-/Runtime-Prüfungen. Palettensignatur, Layout-Invarianten
+und Textkontraste auf geprüften Flächen/Verlauf-Endpunkten mindestens 4,5:1;
+320/390/768/1440 px in Hell/Dunkel, simulierte Bilder aller drei Seiten angesehen.
+Kein neues Pi-Deployment.
 Die Vorlagen dienen nur als Theme-Referenz; Sidebar, vier Übersichtskarten,
 Messwerte bleiben erhalten. **Links unten** wechselt ein nativer
 **Schiebeschalter** mit beweglichem Sonne-/Mond-Schieber und LIGHT/DARK MODE
