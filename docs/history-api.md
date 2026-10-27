@@ -80,6 +80,13 @@ Lücken als nachträgliches Überbrücken einer bekannten Unterbrechung.
 
 ## Nachweisgrenze
 
+Docker-CI [40583180183](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/40583180183)
+für `5daff27` erfolgreich: 130 PHP-Historienfälle, insgesamt 74 JS-Tests, 18
+isolierte MariaDB-/HTTP-/MQTT-/Auth-/Grant-Szenarien und alle sechs Chromium-Suiten
+einschließlich bisheriger Theme-/Layout-/Smartmeter-Prüfungen. Default-disabled
+und ausdrücklich gewählter Writer ändern die lesende API nicht. Desktop-/Mobil-
+Artefakte mit simulierten Historienwerten visuell geprüft; Layout/Theme erhalten.
+
 Automatische Tests verwenden ausschließlich isolierte Dummy-Accounts und einen
 eigenen MariaDB-Testserver. Das ist kein Produktionslogin-/Pi-Deploymentnachweis.
 Der tatsächliche Account `smartReader` wurde beim Projektinhaber über Socket und

@@ -616,9 +616,14 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   automatischer Writer-Fallback. Code bleibt SELECT-only/Read-only-Transaktion;
   Account selbst hat mehr Rechte. Keine ungefragte Rechteänderung; funktionierender
   SELECT-only-Zugang bleibt Empfehlung. Pi-Aktivierung/Browsernachweis noch offen.
-- PHP-/JS-/Chromium-Regressionen sowie eigene isolierte MariaDB-11.8.8-/MQTT-/HTTP-
-  Integration mit tabellenspezifischen SELECT-Grants ergänzt. Neue Docker-CI noch
-  offen; keine Hosttests oder Produktionszugriffe. Vertrag `docs/history-api.md`,
+- Docker-CI `40583180183` für `5daff27` erfolgreich: 130 PHP-Historienfälle,
+  insgesamt 74 JS-Tests, 18 echte isolierte MariaDB-11.8.8-/MQTT-/HTTP-/Auth-/Grant-
+  Szenarien einschließlich explizitem Writer-Zugang bei unverändert lesender API,
+  alle sechs Chromium-Suiten und bestehende Backend-/Runtimeprüfungen. Default-
+  Disabled bleibt auch bei Uhrenrücksprung deaktiviert; erst explizite Rückkehr
+  prüft neu. Finale Desktop-/Mobil-Artefakte mit simulierter Historie visuell
+  geprüft, kein Pi-/Produktionsnachweis. Keine Hosttests oder Produktionszugriffe.
+  Vertrag `docs/history-api.md`,
   alle Konfigurationsschritte zentral in `docs/installation.md`.
 
 ### MQTT-Speichercollector / MariaDB
