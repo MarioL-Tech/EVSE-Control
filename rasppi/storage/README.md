@@ -6,8 +6,10 @@ Webserver oder Steuerbefehl; kein neuer Produktionsbroker/DB-Server.
 
 Einrichtung, Accounts, Passwortdateien, externe Netzwerke, Migration, Backup
 und Prüfung: [Installationsguide, Abschnitt 10](../../docs/installation.md#10-mqtt-zustandsspeicherung-in-der-vorhandenen-mariadb).
-**Vor dem ersten Start** bestehende DB-Version/Netzwerke prüfen, eigene Datenbank
-und Accounts vorbereiten und explizit migrieren. Die Pi-Einrichtung ist noch nicht bestätigt.
+**Vor dem ersten Start** bestehende DB-Version/Netzwerke prüfen, freigegebenes
+Zielschema und passende Accounts vorbereiten und explizit migrieren. Der Guide
+beschreibt jetzt auch eigene EVSE-Tabellen im vorhandenen `energyControl`;
+Migration und Collector-Empfang am Pi sind weiterhin nicht bestätigt.
 
 Danach aus diesem Verzeichnis:
 
