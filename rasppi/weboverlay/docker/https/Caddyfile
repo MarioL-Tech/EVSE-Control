@@ -1,0 +1,15 @@
+{
+    admin off
+    skip_install_trust
+    auto_https disable_redirects
+    https_port 8443
+    default_sni {$EVSE_TLS_HOST}
+    servers {
+        protocols h1 h2
+    }
+}
+
+https://{$EVSE_TLS_HOST} {
+    tls internal
+    reverse_proxy weboverlay:8080
+}

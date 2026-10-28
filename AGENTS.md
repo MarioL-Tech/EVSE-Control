@@ -20,8 +20,13 @@ sind noch umzusetzen; diese Umstellung ist ausdrücklich erst später gewünscht
 
 **Aktualisierte Oberflächenplanung:** Es wird kein eigenes Home-Assistant-Modul
 und keine eigene Home-Assistant-Integration entwickelt. Die Website soll später
-umgebaut werden; danach ist eine Smartphone-WebApp vorgesehen. Funktionsumfang,
-Gestaltung und Zusammenspiel der Oberflächen sind noch festzulegen. Separat
+inhaltlich umgebaut werden. Davon separat wird eine Smartphone-PWA umgesetzt. Am 2026-10-28
+konkretisiert: Die Handy-Oberfläche soll eine **installierbare Progressive Web App
+(PWA)** sein, nicht eine native Handy-App. Funktionsumfang, Gestaltung und
+Zusammenspiel weitergehender Bedienoberflächen sind noch festzulegen. Manifest,
+HTTPS-only-Installationscontroller und Offline-Shell sowie optionaler lokaler
+HTTPS-Proxy und Produkticons sind implementiert und Docker-geprüft;
+Pi-/Handyabnahme noch offen. Separat
 autorisiert und implementiert ist die PHP-Backendmigration ausschließlich der Website
 `rasppi/weboverlay`; HTML/CSS/JS, Seiten und Diagramme bleiben ohne Neugestaltung.
 Separat beauftragt und umgesetzt ist das Theme „Compact / Dense“ nach Entwurf
@@ -29,10 +34,9 @@ Nr. 8 für Dark- und Light-Mode: kühle Blau-/Grautöne, dezente Kartenverläufe
 feine Rahmen/Schatten und kompaktere Typografie/Abstände. Die Vorlagen zeigen
 nur das Theme, nicht die zu übernehmende Ansicht: Sidebar, vier Übersichtskarten,
 Messwerte, Auswahl, Navigation und Seitenaufteilung bleiben erhalten.
-Die vorhandene responsive, rein lesende Browseranzeige ist nicht als bereits
-umgesetzte Smartphone-WebApp zu behandeln. Diese Planungsänderung verändert
-weder Hardwaredienste noch deren Schnittstellen; ein weitergehender inhaltlicher
-Umbau und die WebApp brauchen einen gesonderten Umsetzungsauftrag.
+Responsive Darstellung allein gilt nicht als PWA-Nachweis. Der separat beauftragte
+PWA-/HTTPS-Ausbau verändert weder Hardwaredienste noch deren Schnittstellen;
+weitergehender inhaltlicher Umbau und Ladebedienung bleiben gesonderte Aufträge.
 
 ### Konkretisierte Anforderungen (Umsetzungsstand siehe unten)
 
@@ -41,7 +45,7 @@ Umbau und die WebApp brauchen einen gesonderten Umsetzungsauftrag.
   festzulegen; die Modbus-Timeout-Grenzen beachten.
 - System- und Ladezustände in einer Datenbank sichern.
 - Website zur Bedienung bereitstellen; späterer Websiteumbau und anschließend
-  eine Smartphone-WebApp sind geplant, Details noch offen.
+  eine auf dem Handy installierbare PWA sind geplant, Details noch offen.
 - Übergeordnete Softwarekommunikation über MQTT mit **demselben Message Broker**
   für alle beteiligten Dienste; Hardwareanbindungen siehe Architekturabschnitt.
 - Dienste modular mit Docker Compose betreiben.
@@ -60,6 +64,82 @@ Für die bedienende Website sind folgende Funktionen vorgesehen; die genaue
 - **Automationen:** Laden abhängig vom verfügbaren Strom sowie von einer
   festgelegten Dringlichkeit. Messpunkt/Einheiten des verfügbaren Stroms und
   Definition der Dringlichkeit sind noch zu präzisieren.
+
+### Handy-Oberfläche: installierbare PWA und lokales HTTPS
+
+- Verbindliche Konkretisierung vom 2026-10-28: webbasierte Handy-App mit
+  Installation auf dem Homescreen/eigenem App-Symbol und appartigem Start.
+  Keine native Android-/iOS-App als Teil dieser Planung. Die heutige responsive
+  Browseranzeige und ein einfacher Homescreen-Link sind kein Nachweis einer
+  vollständig umgesetzten PWA. Zielgeräte/-browser und jeweiliger Android-/iOS-
+  Installationsablauf bleiben konkret festzulegen und tatsächlich zu testen.
+- PHP/Apache, vorhandene MariaDB und MQTT-/Hardwaredienste bleiben die Basis;
+  keine implizite Migration auf andere Backendsprachen, Frameworks oder SQLite.
+  Kein Home-Assistant-Modul, keine neue Ladesteuerung durch diese Anforderung.
+- Für eine reguläre PWA mit Service Worker ist ein sicherer Kontext nötig:
+  vertrauenswürdiges HTTPS auch im LAN. Der aktuelle HTTP-Zugang zur privaten
+  Pi-Adresse genügt dafür nicht. Am 2026-10-28 zusätzlich festgelegt: zunächst
+  ausschließlich lokal und **ohne nutzbare Domain**, spätere Domainanbindung
+  muss möglich bleiben. Implementierter opt-in-Weg: Docker-HTTPS-Reverse-Proxy Caddy
+  mit eigener lokaler CA und gültigem Zertifikat für die gewählte lokale Adresse.
+  Öffentliches CA-Zertifikat auf jedem Zielhandy explizit installieren/vertrauen;
+  eine weggeklickte Browserwarnung ist kein verlässlicher PWA-Installationsweg.
+  CA-Daten dauerhaft/geschützt speichern, privaten CA-Schlüssel niemals an
+  Handys verteilen oder committen. Zielgeräte/Vertrauensinstallation und konkrete
+  Pi-Aktivierung noch offen; keine öffentliche Freigabe, neuen VPN-/Clouddienste
+  oder tatsächliche Proxy-/Portänderung ohne Umsetzungsauftrag vornehmen.
+- Präzisierung nach Rückfrage: Nicht jede Installation/Homescreen-Verknüpfung
+  setzt HTTPS voraus; Browser können HTTP-Seiten als Shortcut/App-Fenster ablegen.
+  Davon die sicheren Service-Worker-/Offlinefunktionen dieser WebApp unterscheiden.
+  Deren Controller verlangt bewusst HTTPS, auch auf Loopback; `localhost` auf dem
+  Handy ist nicht der entfernte Pi. Lokales HTTPS wird ausdrücklich weitergeführt.
+- Spätere Domainanbindung als konfigurierbare Erweiterung derselben Proxygrenze
+  vorsehen (Zieladresse, Zertifikatsmodus/-bezug), kein PHP-/DB-/MQTT-Neubau und
+  keine fest codierte Deploymentadresse. DNS/Zertifikatsvalidierung und gewünschte
+  Erreichbarkeit dann gesondert festlegen; Domain bedeutet nicht automatisch
+  Internetfreigabe. IP/Hostname-Wechsel ändert Browser-Origin: PWA gegebenenfalls
+  neu installieren, lokale Anzeige-/Themepräferenzen nicht automatisch migriert.
+  Serverseitige Messdaten bleiben unabhängig von diesem Adresswechsel erhalten.
+- Manifest/HTTPS-Controller/Service Worker/Offline-Seite, Settings-Installation
+  und zugehörige Tests implementiert; PNG-Produktion aus freigegebenem SVG erfolgt
+  ausschließlich im gepinnten Docker-Browserimage. Strict-Allowlist-Shellcache,
+  `/api/*` und `/healthz` network-only/no-store, keine Messwert-/Dashboardcaches
+  und keine POST-Queue. Offline-Navigation zeigt explizite Offline-Seite, bestehende
+  Live-Frische/Unknown/NULL bleiben erhalten. Kein ungefragtes `skipWaiting`.
+- Optionaler Dienst `https` im bestehenden Website-Compose, Profil `https`
+  über lokale `.env` (`COMPOSE_PROFILES=https`), keine dritte Betriebsdatei.
+  Gesamten Website-Stack ohne Dienstsuffix starten. Bindung über `WEB_BIND_ADDRESS`,
+  Port `WEB_HTTPS_PORT=443`, Zertifikatsname `WEB_TLS_HOST` leer = Bindungs-IP.
+  UID 10001, readonly/cap-drop, private interne Webnetzverbindung, persistente CA
+  in `https-data`, kein Broker-/DB-Netz/Docker-Socket. Nur interne CA, auch bei
+  zukünftigem DNS-Namen keine automatische öffentliche Ausstellung. HTTP 8080
+  bleibt aus Kompatibilität unverändert, kein Redirect/HSTS/Login ergänzt.
+- Installation ersetzt weder Servererreichbarkeit noch Authentifizierung.
+  Außerhalb des LAN entsteht keine automatische Fernverbindung; Zugriffsschutz,
+  erlaubtes Offlineverhalten und mobile Bedienung bleiben abzustimmen. Bestehende
+  serverseitige Dienste laufen unabhängig davon, ob die Handy-App geöffnet ist.
+- Produkticons aus Docker-Rendererlauf 40725917549 übernommen (dieser erste
+  Bootstraplauf scheiterte danach erwartungsgemäß an noch fehlenden committed
+  PNGs, kein App-/TLS-Nachweis). Statische Prüfung fand einen unbegrenzten
+  Shell-Asset-Fetch bei Netzwerk-Blackholes: jetzt auch für Scripts/CSS 3-s-
+  Abort/Race mit ausschließlich statischem Cachefallback und Regressionstest.
+  Bei späteren Assetänderungen die Shellgeneration bewusst erhöhen.
+- Caddy-Pin `2.11.7-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f`
+  unabhängig als OCI-Index mit Linux-amd64 und arm64/v8 geprüft; keine ARM-Laufzeit-
+  Aussage. TLS-/Rootvertrauen-/IPv4-ohne-SNI-/Persistenzprüfungen bisher bestanden.
+  Erster Browserlauf scheiterte nur an CI-Ausgaberechten; Folgelauf zeigte, dass
+  CDP-`setOffline` Service-Worker-Netzzugriffe nicht zuverlässig unterbricht.
+  Neuer isolierter Harness stoppt/startet den echten Testproxy über den CI-Host,
+  ohne Docker-Socket im Browser; MQTT/Backend laufen für echte Frische weiter.
+- Vollständige Docker-CI 40730086578 für 6c72193 erfolgreich: 108 JS-Fälle
+  (15 neue PWA-Fälle), bestehende PHP-/SQL-/sechs Chromium-Suiten/Lock-/Runtime-
+  Prüfungen plus siebte vertrauenswürdige PWA-Suite mit echtem Proxy-Ausfall und
+  neuer MQTT-Telemetrie nach Wiederkehr. Gleichzeitiger PR-Lauf 40730095578 bestand
+  PWA/TLS/SQL, scheiterte am älteren Charts-Browsertest: „Live“ allein beweist noch
+  keinen neuen plottbaren Zeitstempel. Test wartet jetzt auf denselben weiterhin
+  geforderten getrennten SVG-Pfad; keine Diagramm-/Produktionslogik verändert.
+  Aktuellen Abschluss-/Freigabestand über PR #51 prüfen. Kein Pi-HTTPS-Deployment,
+  produktives CA-Zertifikat oder echter Android-/iOS-Installationsnachweis.
 
 ### Geplante Lademodi (noch nicht implementiert)
 
@@ -853,8 +933,11 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   anschließende Pi-Modbus-Steuerung der ABB Terra AC.
 - DTSU666-Messwerterfassung und Berechnung verfügbarer Ladeleistung.
 - UART-MQTT-Gateway und dessen Topic-/Payload-Vertrag. Wallbox-Telemetrie ist definiert.
-- Weitergehender Websiteumbau und anschließend Smartphone-WebApp; Anforderungen,
-  Gestaltung und technische Umsetzung noch offen. Kein Home-Assistant-Modul.
+- Weitergehender Websiteumbau und echte Handyabnahme der separat implementierten
+  Smartphone-PWA; zunächst lokales HTTPS mit eigener CA ohne Domain, spätere
+  konfigurierbare Domainanbindung vorgesehen. Zielbrowser/Vertrauensinstallation
+  und weitergehende mobile Gestaltung offen. Keine native App/Home-Assistant-
+  Integration als Teil dieser Planung.
 - Bedienende Website (inklusive modularer Wallbox-Einrichtungsfunktion),
   Gezielte Pi-/Langzeit-/Fehlerfallvalidierung der optionalen lesenden SQL-Historie und weitere Datenmodelle für
   Ladesessions, UART/RFID und Zählerdaten.

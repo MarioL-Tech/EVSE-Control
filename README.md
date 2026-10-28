@@ -8,8 +8,12 @@ Der Raspberry Pi liest eine ABB Terra AC über Modbus RTU aus. Der ESP32
 Geplant sind Ladeautomatisierung und Bedienung über die Website. Ein lesendes
 Weboverlay und MQTT-Wallbox-Zustandsspeicherung für MariaDB sind implementiert.
 Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die Website soll später
-umgebaut werden; anschließend ist eine Smartphone-WebApp geplant. Umfang,
-Gestaltung und WebApp-Umsetzung sind noch offen. Das Websitebackend ist separat
+inhaltlich umgebaut werden. Davon separat erhält sie eine **installierbare
+Progressive Web App (PWA)** mit optionalem lokalem HTTPS/eigener CA ohne Domain.
+Manifest, Installations-/Offlinefunktionen und Proxy implementiert und Docker-
+geprüft; Pi-/Handyinstallation noch offen. Spätere Domainanbindung
+über konfigurierbaren Namen, kein Backendwechsel.
+Das Websitebackend ist separat
 auf PHP 8.4/Apache mit einem PHP-MQTT-Worker umgestellt;
 bestehende Wallbox-Anzeigen und Diagramme bleiben erhalten. Separat ergänzt sind
 kompakte Theme-/Einstellungszugriffe und die optionale Haus-Smartmeter-Anzeige.
@@ -24,7 +28,8 @@ kompakte Theme-/Einstellungszugriffe und die optionale Haus-Smartmeter-Anzeige.
 > 207 gespeicherte Wallbox-Samples am 2026-10-27. Kein Langzeit-/Ausfallnachweis.
 > Reale Ladesteuerung und bedienende Webfunktionen fehlen noch.
 > Theme „Compact / Dense“ in Hell/Dunkel umgesetzt; weitergehender Websiteumbau
-> und Smartphone-WebApp bleiben offen.
+> bleibt offen. PWA-/HTTPS-Ausbau implementiert und Docker-geprüft, echte Pi-/
+> Handyabnahme noch offen; responsive Darstellung allein ist kein PWA-Nachweis.
 > ESP32-Whitelist und persistierter Startmodus ersetzen den bisherigen
 > UART-Kommunikationstest; neue Firmware noch ungeflasht und hardwareunverifiziert.
 > Ein Docker-Einmaltest mit FC03 an der realen Wallbox wurde
@@ -38,9 +43,10 @@ kompakte Theme-/Einstellungszugriffe und die optionale Haus-Smartmeter-Anzeige.
 - Website mit AN/AUS, verfügbarem Strom,
   Ladestrom, Fahrzeuganschluss und tatsächlichem Ladestatus bereitstellen.
 - Weboverlay um eine modulare Einrichtung mit Wallbox-Befehlseingabe erweitern.
-- Website später umbauen und anschließend eine Smartphone-WebApp entwickeln;
-  Details noch festzulegen. Die bestehende mobile Browseransicht ist nicht
-  bereits die geplante WebApp.
+- Website später inhaltlich umbauen und die separat ergänzte installierbare
+  Smartphone-PWA auf echten Handys abnehmen (Homescreen/App-Symbol, appartiger
+  Start). Zunächst lokal mit eigener HTTPS-CA, später optional an eine Domain
+  anbinden. PHP/MariaDB/MQTT bleiben bestehen; Handy-/Zertifikatsabnahme noch offen.
 - Übergeordnete Softwarekommunikation über MQTT mit **einem gemeinsamen Broker**.
 - Pi-Dienste modular und ausschließlich über Docker Compose betreiben;
   später ein gemeinsamer Start-/Stop-Befehl für mehrere spezialisierte Container.

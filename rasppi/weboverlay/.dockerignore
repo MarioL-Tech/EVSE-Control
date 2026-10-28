@@ -4,3 +4,5 @@ __pycache__/
 secrets/
 README.md
 vendor/
+pwa-public-ca/
+.pwa-test-public-ca/

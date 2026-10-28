@@ -1,6 +1,8 @@
 # Browser tests run only in this disposable test image, never on the Pi host.
 FROM mcr.microsoft.com/playwright:v1.55.0-noble
 WORKDIR /tests
+RUN apt-get update && apt-get install -y --no-install-recommends libnss3-tools ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 RUN npm install --no-audit --no-fund --save-exact playwright@1.55.0
 COPY tests/browser.cjs ./
 COPY tests/charts-browser.cjs ./
@@ -8,6 +10,10 @@ COPY tests/layout-browser.cjs ./
 COPY tests/theme-browser.cjs ./
 COPY tests/smartmeter-browser.cjs ./
 COPY tests/history-browser.cjs ./
+COPY tests/pwa*.cjs ./
+COPY tests/generate-icons.cjs tests/run-pwa-browser.sh ./
+COPY static/icon.svg /static/icon.svg
+COPY static/service-worker.js /static/service-worker.js
 COPY static/newcalendar.js /static/newcalendar.js
 COPY static/history.js /static/history.js
 CMD ["sh", "-c", "node browser.cjs && node charts-browser.cjs && node layout-browser.cjs && node theme-browser.cjs && node smartmeter-browser.cjs && node history-browser.cjs"]

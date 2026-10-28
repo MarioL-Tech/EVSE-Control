@@ -22,6 +22,7 @@ services:
       SMARTMETER_STALE_SECONDS: "${SMARTMETER_STALE_SECONDS:-10}"
     networks:
       - mqtt
+      - web
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777
@@ -34,7 +35,45 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+  # Opt-in LAN HTTPS with a private CA; HTTP above stays available unchanged.
+  # Start the whole enabled stack (no explicit service) when using this profile.
+  https:
+    profiles: [https]
+    build:
+      context: .
+      dockerfile: docker/https/Dockerfile
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 20s
+    depends_on:
+      weboverlay:
+        condition: service_healthy
+    environment:
+      EVSE_TLS_HOST: "${WEB_TLS_HOST:-${WEB_BIND_ADDRESS:-127.0.0.1}}"
+    ports:
+      - "${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_HTTPS_PORT:-443}:8443/tcp"
+    networks:
+      - web
+    volumes:
+      - https-data:/data
+    read_only: true
+    tmpfs:
+      - /config:uid=10001,gid=10001,mode=0700,size=4m
+      - /tmp:uid=10001,gid=10001,mode=0700,size=4m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 networks:
+  web:
+    internal: true
   mqtt:
     external: true
     name: evse-mqtt
+volumes:
+  # Contains private CA keys. Export ONLY caddy/pki/authorities/local/root.crt.
+  https-data:

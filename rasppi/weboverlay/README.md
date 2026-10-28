@@ -8,10 +8,18 @@ Historie aus der bestehenden MariaDB, ohne Writer-/Migrationsfunktion.
 Keine seriellen Ports oder Publish-/Steuerbefehle.
 Bestehender Broker im Netzwerk `evse-mqtt` bleibt unverändert.
 
-**Spätere Planung:** Die Website soll umgebaut werden; anschließend ist eine
-Smartphone-WebApp vorgesehen. Umfang, Gestaltung und technische Umsetzung
-sind noch offen. Beides ist noch nicht umgesetzt; die bestehende responsive
-Browseranzeige bleibt lesend und ist nicht bereits die geplante WebApp.
+**Installierbare PWA:** Separat ergänzt sind Manifest, App-Icons, HTTPS-Installation
+und eine statische Offline-Shell. Optionaler Caddy-Container im vorhandenen
+Compose-Profil `https`, eigene lokale CA, zunächst ohne Domain; der Name bleibt
+für spätere Domainanbindung konfigurierbar. Keine zusätzlichen Betriebsdateien.
+Docker-CI 40730086578 für 6c72193 vollständig erfolgreich; aktuelle Freigabe
+über PR #51 prüfen, echte Pi-/Handyabnahme noch offen. Die Website bleibt lesend;
+weitergehender inhaltlicher Websiteumbau und Ladebedienung bleiben geplant.
+Einrichtung/CA-Vertrauen ausschließlich im
+[Installationsguide](../../docs/installation.md#installierbare-handy-webapp-lokales-https-und-pwa).
+Nur öffentliche Root-CA zum Handy übertragen, niemals private CA-Schlüssel.
+HTTP bleibt kompatibel erreichbar; PWA nur über vertrauenswürdiges HTTPS,
+keine automatische Internetfreigabe, keine API-/Messwertcaches/Offlinebefehle.
 Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die jetzt autorisierte
 Backendmigration war kein visueller Umbau. Separat ist nun das Theme
 „Compact / Dense“ nach Entwurf Nr. 8 nochmals präzisiert: dunkle Graphitflächen,
@@ -31,7 +39,8 @@ zwischen Hell/Dunkel (160×52 px, Tastatur/Screenreader). Am Desktop im Sidebar-
 mobil unten links fixiert. **Settings mit Zahnrad unter Diagramme** öffnet
 `/einstellungen`, einen ausdrücklich gekennzeichneten
 Platzhalter ohne Lade-/Hardwareeinstellungen. Dort setzt **Systemdarstellung
-verwenden** die lokale Wahl zurück. Default System folgt live der
+verwenden** die lokale Wahl zurück; separat zeigt „Als WebApp verwenden“ die
+Installations-/Updatehilfe. Default System folgt live der
 Browser-/OS-Präferenz; Hell/Dunkel überschreibt sie und wird unter `evse-theme-v1`
 gespeichert. System entfernt den Schlüssel. Nur ein Darstellungswert, keine
 Messwerte oder Credentials; `evse-display-v1` bleibt unabhängig. Bei blockiertem

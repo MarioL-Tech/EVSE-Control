@@ -164,7 +164,7 @@ function clean(run) {
     const url = new URL(request.url); assert.equal(url.origin, origin, 'No foreign resources');
     if (url.pathname === '/api/history') assert.equal(url.search, '?minutes=15');
     assert(routes.includes(url.pathname) || ['/einstellungen', '/api/state', '/api/smartmeter', '/api/history'].includes(url.pathname) || url.pathname.startsWith('/static/')
-      || url.pathname === '/favicon.ico', request.url);
+      || ['/favicon.ico', '/manifest.webmanifest', '/service-worker.js'].includes(url.pathname), request.url);
   }
   cases++;
 }
@@ -240,7 +240,7 @@ function clean(run) {
         assert.match(await page.locator('main').innerText(), /Platzhalter/);
         assert.equal(await page.locator('form, input:not(#theme-toggle), textarea').count(), 0);
         assert.equal(await page.locator('input[type="checkbox"]').count(), 1);
-        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id)), ['theme-system']);
+        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id)), ['theme-system', 'pwa-install', 'pwa-update']);
         assert.equal(await page.getByRole('link', { name: 'Settings', exact: true }).getAttribute('aria-current'), 'page');
         await mode(page, 'system'); await switchLayout(page);
         await page.locator('#theme-toggle').focus(); await page.keyboard.press('Enter');
