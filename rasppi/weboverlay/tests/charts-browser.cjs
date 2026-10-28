@@ -93,7 +93,11 @@ const fs = require('node:fs');
     assert((await page.locator('[data-series="power"]').getAttribute('d')).includes('L'), 'Past history should remain, labelled historical');
     offline = false;
     await page.clock.runFor(1100);
-    await page.waitForFunction(() => document.getElementById('status').textContent === 'Live');
+    // Live can precede the next distinct plottable timestamp (history correctly
+    // ignores duplicate/out-of-order measurements). Wait for the same SVG
+    // evidence asserted below, not merely the transport/status label.
+    await page.waitForFunction(() => document.getElementById('status').textContent === 'Live'
+      && ((document.querySelector('[data-series="power"]').getAttribute('d') || '').match(/M/g) || []).length >= 2);
     assert(((await page.locator('[data-series="power"]').getAttribute('d')).match(/M/g) || []).length >= 2,
       'Recovery must start a disconnected segment');
     await page.locator('.display-options summary').click(); // Close, then reopen consistently.

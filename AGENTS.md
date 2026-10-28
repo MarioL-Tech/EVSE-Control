@@ -25,7 +25,8 @@ konkretisiert: Die Handy-Oberfläche soll eine **installierbare Progressive Web 
 (PWA)** sein, nicht eine native Handy-App. Funktionsumfang, Gestaltung und
 Zusammenspiel weitergehender Bedienoberflächen sind noch festzulegen. Manifest,
 HTTPS-only-Installationscontroller und Offline-Shell sowie optionaler lokaler
-HTTPS-Proxy und Produkticons sind implementiert; CI und Handyabnahme noch in Arbeit. Separat
+HTTPS-Proxy und Produkticons sind implementiert und Docker-geprüft;
+Pi-/Handyabnahme noch offen. Separat
 autorisiert und implementiert ist die PHP-Backendmigration ausschließlich der Website
 `rasppi/weboverlay`; HTML/CSS/JS, Seiten und Diagramme bleiben ohne Neugestaltung.
 Separat beauftragt und umgesetzt ist das Theme „Compact / Dense“ nach Entwurf
@@ -130,7 +131,14 @@ Für die bedienende Website sind folgende Funktionen vorgesehen; die genaue
   CDP-`setOffline` Service-Worker-Netzzugriffe nicht zuverlässig unterbricht.
   Neuer isolierter Harness stoppt/startet den echten Testproxy über den CI-Host,
   ohne Docker-Socket im Browser; MQTT/Backend laufen für echte Frische weiter.
-- CI-Freigabe noch ausstehend; kein Pi-HTTPS-Deployment,
+- Vollständige Docker-CI 40730086578 für 6c72193 erfolgreich: 108 JS-Fälle
+  (15 neue PWA-Fälle), bestehende PHP-/SQL-/sechs Chromium-Suiten/Lock-/Runtime-
+  Prüfungen plus siebte vertrauenswürdige PWA-Suite mit echtem Proxy-Ausfall und
+  neuer MQTT-Telemetrie nach Wiederkehr. Gleichzeitiger PR-Lauf 40730095578 bestand
+  PWA/TLS/SQL, scheiterte am älteren Charts-Browsertest: „Live“ allein beweist noch
+  keinen neuen plottbaren Zeitstempel. Test wartet jetzt auf denselben weiterhin
+  geforderten getrennten SVG-Pfad; keine Diagramm-/Produktionslogik verändert.
+  Aktuellen Abschluss-/Freigabestand über PR #51 prüfen. Kein Pi-HTTPS-Deployment,
   produktives CA-Zertifikat oder echter Android-/iOS-Installationsnachweis.
 
 ### Geplante Lademodi (noch nicht implementiert)

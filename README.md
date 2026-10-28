@@ -10,8 +10,8 @@ Weboverlay und MQTT-Wallbox-Zustandsspeicherung für MariaDB sind implementiert.
 Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die Website soll später
 inhaltlich umgebaut werden. Davon separat erhält sie eine **installierbare
 Progressive Web App (PWA)** mit optionalem lokalem HTTPS/eigener CA ohne Domain.
-Manifest, Installations-/Offlinefunktionen und Proxy implementiert; abschließende
-CI und tatsächliche Handyinstallation noch offen. Spätere Domainanbindung
+Manifest, Installations-/Offlinefunktionen und Proxy implementiert und Docker-
+geprüft; Pi-/Handyinstallation noch offen. Spätere Domainanbindung
 über konfigurierbaren Namen, kein Backendwechsel.
 Das Websitebackend ist separat
 auf PHP 8.4/Apache mit einem PHP-MQTT-Worker umgestellt;
@@ -28,7 +28,7 @@ kompakte Theme-/Einstellungszugriffe und die optionale Haus-Smartmeter-Anzeige.
 > 207 gespeicherte Wallbox-Samples am 2026-10-27. Kein Langzeit-/Ausfallnachweis.
 > Reale Ladesteuerung und bedienende Webfunktionen fehlen noch.
 > Theme „Compact / Dense“ in Hell/Dunkel umgesetzt; weitergehender Websiteumbau
-> bleibt offen. PWA-/HTTPS-Ausbau implementiert, abschließende CI und echte
+> bleibt offen. PWA-/HTTPS-Ausbau implementiert und Docker-geprüft, echte Pi-/
 > Handyabnahme noch offen; responsive Darstellung allein ist kein PWA-Nachweis.
 > ESP32-Whitelist und persistierter Startmodus ersetzen den bisherigen
 > UART-Kommunikationstest; neue Firmware noch ungeflasht und hardwareunverifiziert.

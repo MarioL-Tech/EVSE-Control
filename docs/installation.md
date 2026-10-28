@@ -17,7 +17,7 @@ gezielte Ausfalltests, Diagramme und neuer manueller Theme-Schalter noch offen
 **Planungsänderung:** Kein eigenes Home-Assistant-Modul. Die Website soll später
 inhaltlich umgebaut werden. Separat ergänzt ist die **installierbare PWA** mit
 optionalem lokalem HTTPS (eigene CA, zunächst ohne Domain). Einrichtung und
-Sicherheitsgrenzen stehen im PWA-Abschnitt; CI-Abschluss/Handyabnahme noch offen.
+Sicherheitsgrenzen stehen im PWA-Abschnitt; Docker-geprüft, Pi-/Handyabnahme offen.
 Keine native Handy-App und kein automatisches Pi-/Netzwerkdeployment.
 
 ## Inhalt
@@ -1089,6 +1089,10 @@ Präferenzen neu wählen; gespeicherte Messdaten auf dem Server bleiben erhalten
 Installation macht den Server außerhalb des LAN nicht automatisch erreichbar.
 Kein Agent-Pi-Deployment, produktives Zertifikat oder echte Android-/iOS-Installation
 als bewiesen behandeln; hierfür sind die Rückmeldungen des Betreibers erforderlich.
+Docker-CI 40730086578 für 6c72193 besteht die bestehenden und neuen Prüfungen
+einschließlich echter CA-Verifikation ohne Zertifikatsbypass, IPv4 ohne SNI,
+Root-Persistenz, sicherem Kontext und PWA-Offline-/MQTT-Wiederkehr. Testsystem
+Linux-amd64, kein Pi-ARM-/Handy-Installationsnachweis. Aktuelle Freigabe über PR #51.
 
 ### Haus-Smartmeter optional einrichten
 
@@ -1333,6 +1337,9 @@ Eigene `.env` unter `rasppi/weboverlay/`, unabhängig von `rasppi/wallbox/.env`:
 |---|---|
 | `WEB_PORT` | `8080`, veröffentlichter Hostport |
 | `WEB_BIND_ADDRESS` | `127.0.0.1`; für ausdrücklich gewünschten vertrauenswürdigen LAN-Zugriff lokale Pi-LAN-IPv4-Adresse, ohne zusätzliche Datei |
+| `COMPOSE_PROFILES` | leer = HTTP wie bisher; `https` aktiviert zusätzlich den lokalen TLS-Proxy beim Start des gesamten Website-Stacks |
+| `WEB_HTTPS_PORT` | `443`/TCP, nur bei HTTPS-Profil; kein öffentlicher Router-Port nötig |
+| `WEB_TLS_HOST` | leer = Bindungs-IP; einzelne IPv4/DNS-Identität für interne CA, keine URL/Ports/Wildcards; DNS gegebenenfalls gesondert einrichten |
 | `WEB_STALE_SECONDS` | `10`, zulässig 3–120 s; an Reader-Intervall anpassen |
 | `MQTT_HOST`, `MQTT_PORT` | `mqtt-broker`, `1883` |
 | `MQTT_TOPIC_PREFIX` | `evse/wallbox`, muss zum Reader passen |
