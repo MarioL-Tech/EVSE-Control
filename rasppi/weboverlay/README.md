@@ -39,8 +39,10 @@ zwischen Hell/Dunkel (160×52 px, Tastatur/Screenreader). Am Desktop im Sidebar-
 mobil unten links fixiert. **Settings mit Zahnrad unter Diagramme** öffnet
 `/einstellungen`, einen ausdrücklich gekennzeichneten
 Platzhalter ohne Lade-/Hardwareeinstellungen. Dort setzt **Systemdarstellung
-verwenden** die lokale Wahl zurück; separat zeigt „Als WebApp verwenden“ die
-Installations-/Updatehilfe. Default System folgt live der
+verwenden** die lokale Wahl zurück; die WebApp-Karte wurde auf Wunsch entfernt.
+Die HTTPS-/Handyeinrichtung ist vorerst zurückgestellt, die optionale Infrastruktur
+bleibt erhalten. Der Schalter wird schon vor dem ersten Render passend zur
+gespeicherten Wahl gezeichnet, ohne Seitenwechsel-Sprung. Default System folgt live der
 Browser-/OS-Präferenz; Hell/Dunkel überschreibt sie und wird unter `evse-theme-v1`
 gespeichert. System entfernt den Schlüssel. Nur ein Darstellungswert, keine
 Messwerte oder Credentials; `evse-display-v1` bleibt unabhängig. Bei blockiertem
@@ -111,17 +113,23 @@ Fehlerwarnungen bleiben außerhalb der einklappbaren Bereiche sichtbar.
 **Netzleistung Haus:** eigener, von Wallbox/MQTT unabhängiger Bereich auf der
 Übersicht mit Bezug (+)/Einspeisung (−), Status, letztem Abruf und Abrufalter.
 Wert 7 wird aus W nach kW umgerechnet. Die 16 Wallbox-Präferenzen blenden ihn
-nicht aus. Keine Hauskurve oder Speicherung in MQTT/MariaDB.
+nicht aus. Auf der Diagrammseite gibt es einen eigenen signierten Haus-Liveverlauf
+im Browser-RAM (maximal 15 Minuten/1200 Abrufe), ohne MQTT-/MariaDB-Speicherung.
+Keine Hauswerte für Kalenderarchive: dort wird statt einer erfundenen Kurve ein
+entsprechender Hinweis gezeigt. HTTP-Abrufzeit ist weiterhin keine Gerätemesszeit.
 
 **Diagramme `/diagramme`:** über die gemeinsame Navigation öffnen. Vier
 elektrische Zeitverläufe, weitere Zustands-/Rohwertkurven unter „Zustands- &
 Diagnoseverläufe“. Beide Seiten unterstützen Desktop/Mobil und folgen dem
 hellen/dunklen Farbschema des Browsers. Keine zusätzlichen Pakete/Ports nötig.
 
-„Anzeige auswählen“ schaltet jeden der 16 Telemetriewerte und seine Diagrammkurve
-einzeln ein/aus. Auswahl und Zeitfenster werden lokal im Browser gespeichert;
-„Alle Messwerte anzeigen“ setzt sie zurück. Status, Messzeit und aktive
-  Wallbox-Fehlerwarnung bleiben sichtbar. Bei blockiertem Browserspeicher gilt
+Jedes Diagramm hat seine eigenen Kurvencheckboxen für die unveränderten 16
+Wallbox-Präferenzen. Auch ohne ausgewählte Kurve bleibt die Karte zum erneuten
+Einschalten erreichbar. Die Übersicht zeigt immer alle Werte, ohne Auswahlfenster.
+Auswahl und Zeitfenster werden lokal im Browser gespeichert;
+„Alle Kurven anzeigen“ setzt sie zurück. „Aktuelle Wallbox-Messdaten“ steht auf
+beiden Seiten ganz unten; aktive Wallbox-Fehlerwarnungen bleiben zusätzlich oben.
+Bei blockiertem Browserspeicher gilt
 die Auswahl nur für die geöffnete Seite; Credentials werden nie gespeichert.
 
 SVG-Diagramme zeigen Leistung (kW), Phasenströme/Limit (A), Spannungen (V),
@@ -138,8 +146,12 @@ Seitenwechsel leert den Verlauf, auch Rückkehr über den Browser-Seitencache.
 Zusätzliches Kalenderarchiv bietet Stunde,
 Tag, ISO-Woche, Monat, Jahr und eigenen Zeitraum bis ein Jahr. Es benötigt das
 optionale additive Speicherschema 2 und dessen getrennten Verdichtungsworker.
-Der vorhandene Verlaufshinweis
+Periodentasten und ein passender Datum-/Stunden-/Wochen-/Monats-/Jahreswähler
+ersetzen das sichtbare Modusmenü. Eine kompakte Statuszeile statt Verlaufskarte
 unterscheidet lokale, geladene, unvollständige und nicht verfügbare Historie.
+Archivintervalle zeigen solide Mittelwert-/Lastmarken und dezente Min/Max-Spannen;
+keine Linien über unbewiesene Intervallkanten. SVG-Koordinaten passen sich der
+tatsächlichen Breite an, damit Achsentexte am Handy nicht mitkomprimiert werden.
 Die Übersicht sammelt/lädt keinen verdeckten Diagrammverlauf.
 Wiederholte API-Polls zählen nicht als neue Messungen; bei gleicher Sekunden-
 Zeitmarke bleibt der letzte beobachtete Wert. Fehler, Offline und unbekannte

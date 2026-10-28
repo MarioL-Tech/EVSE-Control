@@ -19,7 +19,7 @@ header('X-Frame-Options: DENY');
 header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$assets = ['app.js' => 'text/javascript', 'charts.js' => 'text/javascript', 'history.js' => 'text/javascript', 'newcalendar.js' => 'text/javascript', 'theme.js' => 'text/javascript', 'smartmeter.js' => 'text/javascript',
+$assets = ['app.js' => 'text/javascript', 'charts.js' => 'text/javascript', 'history.js' => 'text/javascript', 'newcalendar.js' => 'text/javascript', 'theme.js' => 'text/javascript', 'smartmeter.js' => 'text/javascript', 'smartmeter-chart.js' => 'text/javascript',
     'pwa.js' => 'text/javascript', 'style.css' => 'text/css', 'icon.svg' => 'image/svg+xml',
     'app-192.png' => 'image/png', 'app-512.png' => 'image/png',
     'app-maskable-512.png' => 'image/png', 'apple-touch-icon.png' => 'image/png',

@@ -222,7 +222,7 @@
     }
     return result;
   }
-  function buildPlot(points, group, selected, start, end) {
+  function buildPlot(points, group, selected, start, end, geometry = { width: 500, height: 225, left: 62, right: 482, top: 25, bottom: 180 }) {
     const metrics = METRICS.filter(m => m.group === group.id && selected[m.id]);
     const numbers = points.flatMap(p => metrics.map(m => p.values[m.id])).filter(v => v !== null);
     let lo = group.zero || group.boolean ? 0 : numbers.length ? Math.min(...numbers) : 0;
@@ -233,8 +233,8 @@
       if (!group.zero) lo = Math.max(0, lo - padding);
       hi += padding;
     }
-    const x = t => 62 + (t - start) / Math.max(1, end - start) * 420;
-    const y = v => 180 - (v - lo) / (hi - lo) * 155;
+    const x = t => geometry.left + (t - start) / Math.max(1, end - start) * (geometry.right - geometry.left);
+    const y = v => geometry.bottom - (v - lo) / (hi - lo) * (geometry.bottom - geometry.top);
     const paths = metrics.map(m => {
       let path = '', previous = null, last = null, segmentLast = null, segmentLength = 0;
       const markers = [];
@@ -265,7 +265,7 @@
       }
       return { metric: m, path, last, markers: sparse.reverse() };
     });
-    return { lo, hi, paths, metrics, count: points.length };
+    return { lo, hi, paths, metrics, count: points.length, geometry };
   }
   const api = { METRICS, GROUPS, RETENTION_MS, MAX_POINTS, MAX_GAP_MS, STORAGE_KEY,
     defaults, normalizePreferences, loadPreferences, savePreferences, readings, createHistory, buildPlot };
@@ -273,11 +273,15 @@
   else root.OverlayCharts = api;
 
   api.mount = function () {
+    const chartGrid = document.getElementById('chart-grid');
+    // Diagram preferences never hide values on the overview, which has no
+    // selection controls and must remain fully readable.
+    if (!chartGrid) return { update() {}, restore() {} };
     const history = createHistory();
     let storage;
     try { storage = root.localStorage; } catch (_) { storage = null; }
     let prefs = loadPreferences(storage), lastDraw = 0, lastRevision = -1, lastArchiveDraw = null;
-    const controls = document.getElementById('metric-options'), figures = new Map();
+    const controls = new Map(), figures = new Map();
     const svgNS = 'http://www.w3.org/2000/svg';
     const fmt = new Intl.NumberFormat('de-DE', { maximumSignificantDigits: 4, notation: 'compact' });
     const valueFmt = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 3 });
@@ -288,21 +292,23 @@
       for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, String(value));
       return element;
     };
-    for (const m of METRICS) {
-      const label = node('label', null), checkbox = node('input', null, { type: 'checkbox', id: `show-${m.id}` });
-      checkbox.checked = prefs.selected[m.id];
-      checkbox.addEventListener('change', () => { prefs.selected[m.id] = checkbox.checked; apply(); });
-      label.append(checkbox, node('span', m.label)); controls.append(label);
-    }
-    const chartGrid = document.getElementById('chart-grid');
+    const colorClass = (m, g) => `series-${(m.index !== null ? m.index : m.id === 'limit' ? 3
+      : METRICS.filter(item => item.group === g.id).findIndex(item => item.id === m.id)) % 4}`;
     for (const g of chartGrid ? GROUPS : []) {
       const figure = node('figure', null, { class: 'card chart-card', id: `chart-${g.id}` });
       figure.append(node('figcaption', `${g.label} · ${g.unit}`));
       const svg = node('svg', null, { viewBox: '0 0 500 225', role: 'img', 'aria-label': g.label }, true);
-      const legend = node('ul', null, { class: 'chart-legend', 'aria-label': 'Angezeigte Kurven' });
+      const legend = node('ul', null, { class: 'chart-legend chart-options', 'aria-label': `Kurven auswählen · ${g.label}` });
+      for (const m of METRICS.filter(item => item.group === g.id)) {
+        const li = node('li', null), label = node('label', null, { class: colorClass(m, g) });
+        const checkbox = node('input', null, { type: 'checkbox', id: `show-${m.id}` });
+        checkbox.checked = prefs.selected[m.id]; controls.set(m.id, checkbox);
+        checkbox.addEventListener('change', () => { prefs.selected[m.id] = checkbox.checked; apply(); });
+        label.append(checkbox, node('span', m.label)); li.append(label); legend.append(li);
+      }
       const description = node('p', 'Warte auf erste Messwerte.', { class: 'chart-description' });
       const grid = ['power', 'current', 'voltage', 'energy'].includes(g.id) ? chartGrid : document.getElementById('chart-diagnostics-grid');
-      figure.append(svg, legend, description); (grid || chartGrid).append(figure);
+      figure.append(legend, svg, description); (grid || chartGrid).append(figure);
       figures.set(g.id, { figure, svg, legend, description });
     }
     const source = document.getElementById('history-source'), detail = document.getElementById('history-detail');
@@ -330,7 +336,7 @@
         } else if (!state.loaded && ['browser', 'disabled'].includes(state.status)) {
           source.textContent = browserNote.source; detail.textContent = browserNote.detail;
         } else {
-          source.textContent = state.loaded ? 'Archiv und Seitenverlauf · max. 15 Minuten' : 'Seitenverlauf · max. 15 Minuten';
+          source.textContent = state.loaded ? 'Wallbox-Archiv' : 'Live-Verlauf';
           detail.textContent = state.loaded
             ? `Historisch, nicht live. ${state.status === 'ok'
               ? state.complete ? 'Archiv geladen.' : 'Archiv unvollständig.'
@@ -353,7 +359,7 @@
       range.value = String(prefs.minutes);
       range.addEventListener('change', () => { prefs.minutes = Number(range.value); loader?.invalidate(); apply(); });
     }
-    document.getElementById('reset-display').addEventListener('click', () => {
+    document.getElementById('reset-display')?.addEventListener('click', () => {
       prefs = defaults(); if (range) range.value = String(prefs.minutes);
       for (const m of METRICS) document.getElementById(`show-${m.id}`).checked = true;
       apply();
@@ -366,9 +372,9 @@
         const hidden = ![0, 1, 2].some(i => prefs.selected[`${type}-${i}`]);
         for (const element of document.querySelectorAll(`.phase-${type}`)) element.hidden = hidden;
       }
-      document.getElementById('display-empty').hidden = Object.values(prefs.selected).some(Boolean);
-      document.getElementById('display-storage').textContent = savePreferences(storage, prefs)
-        ? 'Auswahl wird in diesem Browser gespeichert.' : 'Auswahl gilt nur hier; Browserspeicher nicht verfügbar.';
+      const empty = document.getElementById('display-empty');
+      if (empty) empty.hidden = Object.values(prefs.selected).some(Boolean);
+      savePreferences(storage, prefs);
       lastRevision = -1; draw(Date.now());
     }
     function draw(now) {
@@ -382,27 +388,34 @@
       const end = archived ? Date.parse(archived.range.to) : now;
       for (const g of GROUPS.filter(g => figures.has(g.id))) {
         const { figure, svg, legend, description } = figures.get(g.id);
-        const plot = archived ? root.OverlayCalendar.buildSummaryPlot(archived, g, prefs.selected, api)
-          : buildPlot(points, g, prefs.selected, start, end);
-        figure.hidden = plot.metrics.length === 0;
-        if (figure.hidden) continue;
-        svg.replaceChildren(); legend.replaceChildren();
+        const width = Math.max(240, Math.round(figure.getBoundingClientRect().width - 40));
+        const height = Math.max(230, Math.min(280, Math.round(width * .5)));
+        const geometry = { width, height, left: 54, right: width - 18, top: 20, bottom: height - 42 };
+        const plot = archived ? root.OverlayCalendar.buildSummaryPlot(archived, g, prefs.selected, api, geometry)
+          : buildPlot(points, g, prefs.selected, start, end, geometry);
+        // Keep the card/checkboxes reachable even if every series is off.
+        svg.hidden = plot.metrics.length === 0;
+        svg.toggleAttribute('hidden', plot.metrics.length === 0);
+        figure.hidden = false;
+        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+        svg.replaceChildren();
         svg.append(node('title', `${g.label}: historischer Verlauf, ${plot.count} Messzeitpunkte`, {}, true));
-        for (const [value, yPos] of [[plot.lo, 180], [plot.hi, 25]]) {
-          svg.append(node('line', null, { x1: 62, x2: 482, y1: yPos, y2: yPos, class: 'chart-gridline' }, true));
+        for (let tick = 0; tick <= 4; tick++) {
+          const value = plot.lo + (plot.hi - plot.lo) * tick / 4;
+          if (g.boolean && tick !== 0 && tick !== 4) continue;
+          const yPos = geometry.bottom - (geometry.bottom - geometry.top) * tick / 4;
+          svg.append(node('line', null, { x1: geometry.left, x2: geometry.right, y1: yPos, y2: yPos, class: 'chart-gridline' }, true));
           svg.append(node('text', g.boolean ? (value === 0 ? 'Nein' : 'Ja') : fmt.format(value),
-            { x: 55, y: yPos + 4, 'text-anchor': 'end', class: 'chart-axis' }, true));
+            { x: geometry.left - 9, y: yPos + 4, 'text-anchor': 'end', class: 'chart-axis' }, true));
         }
-        for (const [t, px, anchor] of [[start, 62, 'start'], [end, 482, 'end']])
+        for (const [t, px, anchor] of [[start, geometry.left, 'start'], [end, geometry.right, 'end']])
           svg.append(node('text', archived ? root.OverlayCalendar.axisLabel(t, archived.selection.period, archived.range.timezone) : timeFmt.format(t),
-            { x: px, y: 211, 'text-anchor': anchor, class: 'chart-axis' }, true));
+            { x: px, y: height - 12, 'text-anchor': anchor, class: 'chart-axis' }, true));
         plot.paths.forEach(series => {
-          const color = series.metric.index !== null ? series.metric.index : series.metric.id === 'limit' ? 3
-            : METRICS.filter(m => m.group === g.id).findIndex(m => m.id === series.metric.id);
-          const css = `series-${color % 4}`;
+          const css = colorClass(series.metric, g);
           svg.append(node('path', null, { d: series.path, class: `chart-line ${css}`, 'data-series': series.metric.id }, true));
           for (const glyph of series.glyphs || []) {
-            const path = node('path', null, { d: glyph.path, class: `summary-glyph ${css}${glyph.gap ? ' summary-gap' : ''}`,
+            const path = node('path', null, { d: glyph.path, class: `summary-glyph summary-${glyph.kind || 'range'} ${css}${glyph.gap ? ' summary-gap' : ''}`,
               'data-summary-series': series.metric.id }, true);
             path.append(node('title', glyph.label, {}, true)); svg.append(path);
           }
@@ -413,10 +426,9 @@
             dot.append(node('title', `${series.metric.label}: ${valueText} · ${timeFmt.format(marker.t)}`, {}, true));
             svg.append(dot);
           }
-          legend.append(node('li', series.metric.label, { class: css, 'data-legend': series.metric.id }));
         });
-        description.textContent = archiveMode ? archived
-          ? `${plot.count} Messwerte · ${archived.buckets.length} Intervalle · ${g.id === 'energy' ? 'Letzter Sessionzähler, kein Zeitraumverbrauch' : g.step ? 'Spanne / letzter Zustand; gemischt bleibt sichtbar' : 'Stichprobenmittel / Min–Max'} · gestrichelt: Lücken / unvollständig.`
+        description.textContent = !plot.metrics.length ? 'Keine Kurve ausgewählt. Oben wieder einschalten.' : archiveMode ? archived
+          ? `${plot.count} Messwerte · ${archived.buckets.length} Intervalle · ${g.id === 'energy' ? 'Letzter Sessionzähler, kein Zeitraumverbrauch' : g.step ? 'Spanne / letzter Zustand; gemischt bleibt sichtbar' : 'Mittelwertmarke / Min–Max-Spanne'} · gestrichelte Spanne: Lücken / unvollständig.`
           : 'Keine Archivmesswerte geladen. Live-Anzeige bleibt unabhängig.'
           : plot.count ? `${plot.count} Messzeitpunkte im Fenster · Lücken bleiben unverbunden.`
             : 'Noch keine Messwerte in diesem Zeitfenster. Verlauf beginnt mit Seitenöffnung.';
@@ -424,6 +436,9 @@
       lastDraw = now; lastRevision = history.revision;
     }
     apply();
+    function resize() { lastRevision = -1; lastArchiveDraw = null; draw(Date.now()); }
+    root.addEventListener('resize', resize);
+    document.querySelector('.history-diagnostics')?.addEventListener('toggle', resize);
     return {
       restore() {
         // Another page may have changed the shared settings while this page

@@ -92,7 +92,9 @@ Für die bedienende Website sind folgende Funktionen vorgesehen; die genaue
   setzt HTTPS voraus; Browser können HTTP-Seiten als Shortcut/App-Fenster ablegen.
   Davon die sicheren Service-Worker-/Offlinefunktionen dieser WebApp unterscheiden.
   Deren Controller verlangt bewusst HTTPS, auch auf Loopback; `localhost` auf dem
-  Handy ist nicht der entfernte Pi. Lokales HTTPS wird ausdrücklich weitergeführt.
+  Handy ist nicht der entfernte Pi. Später hat der Projektinhaber die HTTPS-/
+  Handy-Einrichtung ausdrücklich vorerst zurückgestellt; HTTP bleibt nutzbar.
+  Keine bereits erfolgte Deaktivierung/Aktivierung auf dem Pi daraus ableiten.
 - Spätere Domainanbindung als konfigurierbare Erweiterung derselben Proxygrenze
   vorsehen (Zieladresse, Zertifikatsmodus/-bezug), kein PHP-/DB-/MQTT-Neubau und
   keine fest codierte Deploymentadresse. DNS/Zertifikatsvalidierung und gewünschte
@@ -100,7 +102,7 @@ Für die bedienende Website sind folgende Funktionen vorgesehen; die genaue
   Internetfreigabe. IP/Hostname-Wechsel ändert Browser-Origin: PWA gegebenenfalls
   neu installieren, lokale Anzeige-/Themepräferenzen nicht automatisch migriert.
   Serverseitige Messdaten bleiben unabhängig von diesem Adresswechsel erhalten.
-- Manifest/HTTPS-Controller/Service Worker/Offline-Seite, Settings-Installation
+- Manifest/HTTPS-Controller/Service Worker/Offline-Seite
   und zugehörige Tests implementiert; PNG-Produktion aus freigegebenem SVG erfolgt
   ausschließlich im gepinnten Docker-Browserimage. Strict-Allowlist-Shellcache,
   `/api/*` und `/healthz` network-only/no-store, keine Messwert-/Dashboardcaches
@@ -279,7 +281,9 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
   auf der Übersicht, separat von MQTT, und verwirft abgelaufene/späte Daten.
   Empfangs-/Abruffrische ist kein Nachweis einer neuen Messung im Gerät.
 - Anzeige „Netzleistung Haus“ mit Netzbezug (+)/Einspeisung (−), eigenem Status,
-  letztem HTTP-Abruf und Abrufalter. Keine Hauswerte in MQTT/DB/Diagrammverlauf;
+  letztem HTTP-Abruf und Abrufalter. Keine Hauswerte in MQTT/DB; separat ergänzter
+  signierter Browser-RAM-Liveverlauf auf der Diagrammseite (15 Minuten/1200 Abrufe),
+  kein Haus-Kalenderarchiv, bei Archivmodus ausdrücklicher Hinweis statt Kurve;
   Wallbox-API, Reader/UART/Collector und 16 Wallbox-Präferenzen unverändert.
   Beziehung zur geplanten DTSU666-Erfassung ungeklärt; kein verfügbarer Strom in A.
   Docker-CI 40486476429 für 3c92398 erfolgreich: 80 PHP-Smartmeterprüfungen,
@@ -664,12 +668,23 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Offline/Fehler/Unknown erzeugen Lücken, Pausen >10 s werden nicht verbunden;
   rückwärts springende Browserzeit löscht den Verlauf. Historische Kurven bleiben
   bei Offline sichtbar und sind ausdrücklich nicht als Live-Anzeige bezeichnet.
-- „Anzeige auswählen“ schaltet Werte und zugehörige Kurven einzeln; Einstellungen
+- Aktuell autorisierte UI-Überarbeitung: Übersicht ohne Auswahlfenster und ohne
+  Verstecken von Messwerten durch Diagrammpräferenzen; Datenstatus „Aktuelle
+  Wallbox-Messdaten“ auf Übersicht/Diagrammen ganz unten, aktive Fehlerwarnung
+  weiterhin oben. Diagramme mit eigenen Checkboxen je Kurvengruppe, auch bei
+  all-off bedienbar; unveränderte 16 Wallbox-Präferenzen. Periodentasten und
+  adaptive Datumseingabe statt sichtbarem Modusmenü, kompakte Historienstatuszeile
+  statt Verlaufskarte. Archiv mit getrennten soliden Aggregatmarken/dezenten
+  Min-Max-Spannen, keine erfundenen Intervallverbindungen; SVG-Breite dynamisch
+  für lesbare mobile Achsen. WebApp-Karte in Settings entfernt; Grundfunktion
+  optional erhalten. Theme-Schalter folgt vor erstem Render dem effektiven Modus.
+  Docker-Abschluss/visuelle Abnahme dieser Änderung noch offen, kein Pi-Deployment.
+- Kurvencheckboxen gelten nur auf der Diagrammseite; Einstellungen
   lokal im Browser (`evse-display-v1`), keine Messwerte/Credentials im localStorage.
   Nicht verfügbarer Speicher fällt auf aktuelle Sitzung zurück. Status, Messzeit
   und aktive Wallbox-Fehlerwarnung bleiben unabhängig von Auswahl sichtbar.
-- Seitenrendering toleriert fehlende seitenspezifische Felder; Auswahl wird
-  auf beiden Seiten unter demselben Schlüssel verwendet. Keine neuen MQTT-
+- Seitenrendering toleriert fehlende seitenspezifische Felder; Diagrammauswahl
+  bleibt unter demselben Schlüssel gespeichert, blendet keine Übersichtswerte aus. Keine neuen MQTT-
   Clients, Hardwarebefehle oder Portänderungen. SQL/zusätzliches DB-Netz nur mit
   dem separat beauftragten opt-in-Historienoverlay, nicht durch Anzeigepräferenzen.
 - Abschließende Dashboard-CI `37220843434` für `154e7f2` und PR-CI `37221004357`

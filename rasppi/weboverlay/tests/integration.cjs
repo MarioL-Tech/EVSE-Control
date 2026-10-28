@@ -276,7 +276,7 @@ async function httpContract(scope) {
     assert.ok(response.body.includes(`<title>${title}</title>`));
     security(response);
   }
-  for (const asset of ['app.js', 'charts.js', 'theme.js', 'smartmeter.js', 'style.css', 'icon.svg', 'pwa.js', 'offline.html',
+  for (const asset of ['app.js', 'charts.js', 'theme.js', 'smartmeter.js', 'smartmeter-chart.js', 'style.css', 'icon.svg', 'pwa.js', 'offline.html',
     'app-192.png', 'app-512.png', 'app-maskable-512.png', 'apple-touch-icon.png']) {
     const response = await request(scope.webPort, `/static/${asset}`);
     assert.equal(response.code, 200);

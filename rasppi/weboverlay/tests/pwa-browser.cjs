@@ -106,10 +106,7 @@ async function networkPhase(request, confirmed) {
     try {
       const plain = await plainContext.newPage();
       await plain.goto(new URL('/einstellungen', process.env.PWA_HTTP_URL || 'http://weboverlay:8080').href);
-      await plain.waitForFunction(() => document.getElementById('pwa-status').textContent.includes('HTTPS'));
-      assert(await plain.locator('#pwa-install').isHidden());
-      assert(await plain.locator('#pwa-install').isDisabled());
-      assert(await plain.locator('#pwa-update').isDisabled());
+      assert.equal(await plain.locator('.pwa-card, #pwa-status, #pwa-install, #pwa-update').count(), 0);
       assert.equal(await plain.evaluate(async () => 'serviceWorker' in navigator ? (await navigator.serviceWorker.getRegistrations()).length : 0), 0);
     } finally { await plainContext.close(); }
     context = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark' });
@@ -129,15 +126,13 @@ async function networkPhase(request, confirmed) {
     }, { prefix: CACHE_PREFIX });
     await page.goto(new URL('/einstellungen', base).href);
     await controlled(page);
-    assert(await page.locator('#pwa-update').isEnabled());
-    assert.match(await page.locator('.pwa-card').innerText(), /HTTPS/);
-    assert.match(await page.locator('.pwa-card').innerText(), /Safari/);
-    assert.match(await page.locator('.pwa-card').innerText(), /Stammzertifikat/);
-    // No fake install affordance when Chromium has not offered installation.
-    if (await page.locator('#pwa-install').isVisible()) assert(await page.locator('#pwa-install').isEnabled());
-    else assert(await page.locator('#pwa-install').isDisabled());
-    await page.locator('#pwa-update').click();
-    await page.waitForFunction(() => !document.getElementById('pwa-update').disabled);
+    assert.equal(await page.locator('.pwa-card, #pwa-status, #pwa-install, #pwa-update').count(), 0);
+    // Registration and browser-managed updates remain available without Settings UI.
+    assert.equal(await page.evaluate(async () => {
+      const registration = await navigator.serviceWorker.getRegistration('/');
+      await registration.update();
+      return Boolean(registration.active);
+    }), true);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.screenshot({ path: '/artifacts/pwa-settings-dark-mobile.png', fullPage: true });
 

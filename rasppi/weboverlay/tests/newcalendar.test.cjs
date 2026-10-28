@@ -5,6 +5,77 @@ const calendar = require('../static/newcalendar.js');
 const charts = require('../static/charts.js');
 const { calendarQuery } = require('../static/history.js');
 const now = Date.parse('2026-10-27T12:00:00Z');
+function mountedCalendar(saved = null) {
+  class Element extends EventTarget {
+    constructor() { super(); this.value = ''; this.hidden = false; this.attributes = {}; this.textContent = ''; }
+    setAttribute(key, value) { this.attributes[key] = String(value); }
+    getAttribute(key) { return this.attributes[key] ?? null; }
+    removeAttribute(key) { delete this.attributes[key]; }
+    closest() { return this.wrapper || null; }
+  }
+  const ids = Object.fromEntries(['calendar-mode', 'calendar-date', 'calendar-custom', 'calendar-label',
+    'chart-range', 'calendar-picker-label', 'calendar-picker-caption', 'calendar-from', 'calendar-to',
+    'calendar-prev', 'calendar-next', 'calendar-now'].map(id => [id, new Element()]));
+  ids['chart-range'].wrapper = new Element();
+  const buttons = calendar.PERIODS.map(period => {
+    const button = new Element(); button.setAttribute('data-calendar-period', period); return button;
+  });
+  const calls = [], writes = [];
+  const instance = calendar.mount({
+    document: { hidden: false, getElementById: id => ids[id], querySelectorAll: () => buttons },
+    loader: { select: value => calls.push(value), setVisible() {}, tick() {}, suspend() { calls.push('suspend'); } },
+    archive: { clear() {} }, onChange() {},
+    storage: { getItem: () => JSON.stringify(saved), setItem: (key, value) => writes.push([key, value]) }
+  });
+  const click = period => buttons.find(b => b.getAttribute('data-calendar-period') === period).dispatchEvent(new Event('click'));
+  const pressed = () => buttons.filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.getAttribute('data-calendar-period'));
+  return { ids, buttons, instance, calls, writes, click, pressed };
+}
+test('native period buttons reuse hidden mode change selection and synchronize captions/wrappers', () => {
+  const ui = mountedCalendar(), { ids } = ui;
+  assert.deepEqual(ui.pressed(), ['live']); assert(ids['calendar-picker-label'].hidden);
+  let changes = 0;
+  ids['calendar-mode'].addEventListener('change', () => changes++);
+  for (const [period, caption, type] of [['hour', 'Stunde', 'datetime-local'], ['day', 'Datum', 'date'],
+    ['week', 'Kalenderwoche', 'week'], ['month', 'Monat', 'month'], ['year', 'Jahr', 'number']]) {
+    ui.click(period);
+    assert.equal(ids['calendar-mode'].value, period); assert.deepEqual(ui.pressed(), [period]);
+    assert.deepEqual(ui.instance.selection, { period, date: 'now', tz: calendar.ZONE });
+    assert.equal(ids['calendar-picker-caption'].textContent, caption);
+    assert.equal(ids['calendar-date'].getAttribute('aria-label'), `${caption} wählen · ${calendar.ZONE}`);
+    assert.equal(ids['calendar-date'].type, type);
+    assert(!ids['calendar-picker-label'].hidden); assert(ids['calendar-custom'].hidden);
+    assert(ids['chart-range'].disabled); assert(ids['chart-range'].wrapper.hidden);
+  }
+  ui.click('custom'); assert.deepEqual(ui.pressed(), ['custom']);
+  assert(ids['calendar-picker-label'].hidden); assert(!ids['calendar-custom'].hidden);
+  assert.equal(ui.calls.at(-1), 'suspend');
+  ids['calendar-from'].value = '2026-10-25T01:00'; ids['calendar-to'].value = '2026-10-25T04:00';
+  ids['calendar-custom'].dispatchEvent(new Event('submit', { cancelable: true }));
+  assert.deepEqual(ui.instance.selection, { period: 'custom', date_from: '2026-10-25T01:00', date_to: '2026-10-25T04:00', tz: calendar.ZONE });
+  ui.click('live'); assert.deepEqual(ui.pressed(), ['live']); assert.equal(ui.instance.selection, null);
+  assert(ids['calendar-picker-label'].hidden); assert(ids['calendar-custom'].hidden);
+  assert(!ids['chart-range'].disabled); assert(!ids['chart-range'].wrapper.hidden);
+  assert.equal(changes, 7);
+});
+test('restoration, UTC navigation and existing mode/date change handlers keep period buttons in sync', () => {
+  const ui = mountedCalendar({ period: 'hour', at: '2026-10-25T01:00:00Z', tz: calendar.ZONE });
+  assert.deepEqual(ui.pressed(), ['hour']); assert.equal(ui.writes.length, 0);
+  assert.equal(ui.instance.selection.at, '2026-10-25T01:00:00Z');
+  const b = fixture();
+  b.selection = { period: 'hour', date: '2026-10-25T02:00', timezone: calendar.ZONE };
+  b.navigation.previous = { period: 'hour', at: '2026-10-25T00:00:00Z', tz: calendar.ZONE };
+  ui.instance.loaded(b);
+  ui.ids['calendar-prev'].dispatchEvent(new Event('click'));
+  assert.equal(ui.instance.selection.at, '2026-10-25T00:00:00Z');
+  assert.deepEqual(ui.pressed(), ['hour']);
+  ui.ids['calendar-mode'].value = 'week'; ui.ids['calendar-mode'].dispatchEvent(new Event('change'));
+  assert.deepEqual(ui.pressed(), ['week']);
+  ui.ids['calendar-date'].value = '2026-W44'; ui.ids['calendar-date'].dispatchEvent(new Event('change'));
+  assert.deepEqual(ui.instance.selection, { period: 'week', date: '2026-W44', tz: calendar.ZONE });
+  ui.instance.reset(); assert.deepEqual(ui.pressed(), ['week']);
+  assert(ui.ids['calendar-prev'].disabled); assert(ui.ids['calendar-next'].disabled);
+});
 const metrics = samples => Object.fromEntries(calendar.FIELDS.map((key, i) => {
   const flags = i >= 9 && i <= 11, value = flags ? 0 : i === 2 ? 6 : 0;
   return [key, { count: samples, nulls: 0,
@@ -91,16 +162,21 @@ test('server supplied DST/leap ranges are retained exactly, never fixed-24h civi
 });
 test('summary plots use weighted API mean and interval ranges, no connected line/marker pills', () => {
   const b = fixture();
-  b.buckets[0].metrics.active_power_w = { count: 150, nulls: 0, mean: 2000, min: 0, max: 4000, last: 3000, mixed: true };
+  b.buckets[0].metrics.active_power_w = { count: 150, nulls: 0, mean: 1000, min: 0, max: 4000, last: 3000, mixed: true };
   const p = calendar.buildSummaryPlot(b, charts.GROUPS[0], charts.defaults().selected, charts);
   assert.equal(p.count, 150); assert.equal(p.paths[0].markers.length, 0);
-  assert.equal(p.paths[0].glyphs.length, 1); assert(p.paths[0].glyphs[0].path.includes('V'));
-  assert(p.paths[0].glyphs[0].path.includes('H')); assert.equal(p.paths[0].path, '');
-  assert(!/NaN|Infinity/.test(p.paths[0].glyphs[0].path));
+  const [range, value] = p.paths[0].glyphs;
+  assert.equal(p.paths[0].glyphs.length, 2);
+  assert.equal(range.kind, 'range'); assert(range.path.includes('V')); assert(!range.path.includes('H'));
+  assert.equal(value.kind, 'value'); assert(value.path.includes('H')); assert(!value.path.includes('V'));
+  assert.equal(p.paths[0].path, '');
+  assert.equal(Number(value.path.split(',')[1].split('H')[0]), Number((180 - (1 - p.lo) / (p.hi - p.lo) * 155).toFixed(2)), 'API mean, not last or min/max midpoint reconstruction');
+  assert(p.paths[0].glyphs.every(g => !/NaN|Infinity/.test(g.path)));
   b.buckets[0].has_gap = true; b.buckets[0].metrics.charging = { count: 150, nulls: 0, mean: null, min: 0, max: 1, last: false, mixed: true };
   const mixed = calendar.buildSummaryPlot(b, charts.GROUPS.find(g => g.id === 'flags'), charts.defaults().selected, charts)
     .paths.find(p => p.metric.id === 'charging').glyphs[0];
-  assert(mixed.gap); assert(mixed.path.includes('V')); assert(!mixed.path.includes('H'));
+  assert(mixed.gap); assert(mixed.mixed); assert.equal(mixed.kind, 'range');
+  assert(mixed.path.includes('V')); assert(!mixed.path.includes('H'));
 });
 test('empty/pre-data archive has no fabricated zero samples; null-only bins produce no glyph', () => {
   for (const buckets of [[], [{ ...fixture().buckets[0], samples: 0, metrics: metrics(0), coverage_seconds: 0 }]]) {
@@ -125,14 +201,96 @@ test('floating aggregate rounding is tolerated at the server precision, not conv
   assert(calendar.validate(b, now));
   m.mean = 5; assert.equal(calendar.validate(b, now), null);
 });
-test('latest NULL is not replaced by an older known state and partial states never span an interval', () => {
+test('latest NULL is not replaced by an older known state; partial last marks are bucket-local', () => {
   const b = fixture();
   b.buckets[0].metrics.charging = { count: 149, nulls: 1, mean: null, min: 0, max: 0, last: null, mixed: false };
   assert(calendar.validate(b, now));
   const group = charts.GROUPS.find(g => g.id === 'flags');
   const p = calendar.buildSummaryPlot(b, group, charts.defaults().selected, charts);
-  assert(!p.paths.find(s => s.metric.id === 'charging').glyphs[0].path.includes('H'));
+  assert(p.paths.find(s => s.metric.id === 'charging').glyphs.every(g => g.kind === 'range'));
   b.buckets[0].has_gap = true;
   const q = calendar.buildSummaryPlot(b, group, charts.defaults().selected, charts);
-  assert(q.paths.every(s => s.glyphs.every(g => !g.path.includes('H'))));
+  assert(q.paths.every(s => s.glyphs.every(g => g.gap)));
+  assert(q.paths.find(s => s.metric.id === 'plugged').glyphs.some(g => g.kind === 'value'), 'known false last remains visible');
+});
+
+function hourSeries() {
+  const b = fixture(), start = calendar.utc(b.range.from);
+  b.range.to = new Date(start + 3600000).toISOString();
+  b.selection = { period: 'hour', date: '2026-10-27T00:00', timezone: 'Europe/Vienna' };
+  b.navigation = { previous: null, next: null, now: null };
+  b.buckets = Array.from({ length: 60 }, (_, i) => ({
+    from: new Date(start + i * 60000).toISOString(), to: new Date(start + (i + 1) * 60000).toISOString(),
+    samples: 30, has_gap: true, complete: false, coverage_seconds: 58, metrics: metrics(30)
+  }));
+  return b;
+}
+const summary = (b, field) => {
+  const metric = charts.METRICS.find(m => calendar.fieldFor(m) === field);
+  const group = charts.GROUPS.find(g => g.id === metric.group);
+  return calendar.buildSummaryPlot(b, group, charts.defaults().selected, charts).paths.find(p => p.metric.id === metric.id);
+};
+function assertIndependentTicks(series, expected) {
+  assert.equal(series.path, ''); assert.deepEqual(series.markers, []);
+  const values = series.glyphs.filter(g => g.kind === 'value');
+  assert.equal(values.length, expected);
+  let previous = -Infinity;
+  for (const glyph of values) {
+    const match = /^M([\d.]+),([\d.]+)H([\d.]+)$/.exec(glyph.path);
+    assert(match, 'one solid aggregate tick, no multi-bucket path');
+    const left = Number(match[1]), right = Number(match[3]);
+    assert(left > previous); assert(right > left); previous = right;
+  }
+}
+test('hour-long constant zero W and 6 A retain 60 solid-role aggregates despite incomplete/gap context', () => {
+  const b = hourSeries(); assert(calendar.validate(b, now));
+  for (const field of ['active_power_w', 'current_limit_a']) {
+    const series = summary(b, field);
+    assertIndependentTicks(series, 60);
+    assert(series.glyphs.every(g => g.gap));
+    assert(series.glyphs.filter(g => g.kind === 'value').every(g => g.label.includes(field === 'active_power_w' ? 'Stichprobenmittel 0' : 'letzter Wert 6')));
+  }
+});
+test('complete adjacent buckets still never connect; empty, NULL, offline and missing intervals stay separate', () => {
+  const b = hourSeries();
+  b.buckets.forEach(bin => { bin.complete = true; bin.has_gap = false; bin.coverage_seconds = 60; });
+  assertIndependentTicks(summary(b, 'active_power_w'), 60);
+  b.buckets[10].samples = 0; b.buckets[10].metrics = metrics(0); b.buckets[10].coverage_seconds = 0;
+  b.buckets[20].metrics.active_power_w = { count: 0, nulls: 30, mean: null, min: null, max: null, last: null, mixed: false };
+  b.buckets[30].has_gap = true;
+  b.buckets[31].complete = false;
+  b.buckets.splice(40, 1);
+  assert(calendar.validate(b, now));
+  const series = summary(b, 'active_power_w');
+  assertIndependentTicks(series, 57);
+  assert.equal(series.glyphs.filter(g => g.kind === 'value' && g.gap).length, 2);
+});
+test('partial physical min/max stays separate from mean and never fabricates a zero for missing mean', () => {
+  const b = hourSeries();
+  b.buckets = b.buckets.slice(0, 1);
+  b.buckets[0].metrics.voltage_l1_v = { count: 29, nulls: 1, min: 220, max: 240, mean: 231, last: null, mixed: true };
+  assert(calendar.validate(b, now));
+  const series = summary(b, 'voltage_l1_v');
+  assert.equal(series.glyphs.length, 2);
+  assert(series.glyphs.every(g => g.gap && g.mixed));
+  assert(series.glyphs[0].path.includes('V'));
+  assert(series.glyphs[1].label.includes('Stichprobenmittel 231'));
+  b.buckets[0].metrics.voltage_l1_v.mean = null;
+  assert.deepEqual(summary(b, 'voltage_l1_v').glyphs.map(g => g.kind), ['range']);
+});
+test('flags/codes never average mixed states; limit/session use actual last including NULL', () => {
+  const b = fixture();
+  for (const field of ['charging', 'error_code']) {
+    b.buckets[0].metrics[field] = { count: 150, nulls: 0, min: 0, max: 1, mean: null, last: field === 'charging' ? false : 0, mixed: true };
+    assert.deepEqual(summary(b, field).glyphs.map(g => g.kind), ['range']);
+  }
+  for (const field of ['current_limit_a', 'session_energy_wh']) {
+    b.buckets[0].metrics[field] = { count: 149, nulls: 1, min: 6, max: 16, mean: null, last: 7, mixed: true };
+    const series = summary(b, field);
+    assert.deepEqual(series.glyphs.map(g => g.kind), ['range', 'value']);
+    assert(series.glyphs[1].label.includes(`letzter Wert ${new Intl.NumberFormat('de-AT', { maximumSignificantDigits: 6 }).format(7 / series.metric.divisor)}`));
+    b.buckets[0].metrics[field].last = null;
+    assert.deepEqual(summary(b, field).glyphs.map(g => g.kind), ['range']);
+  }
+  assert(calendar.validate(b, now));
 });

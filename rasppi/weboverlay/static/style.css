@@ -30,16 +30,25 @@ a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible
 .theme-thumb { display: grid; place-items: center; position: absolute; left: 4px; top: 4px; width: 42px; height: 42px; border-radius: 50%; background: #fff; color: #11243a; box-shadow: 0 1px 4px #0002; }
 .theme-thumb svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .theme-mode-label { position: absolute; top: 0; bottom: 0; right: 10px; width: 88px; display: grid; place-content: center; text-align: center; white-space: pre-line; font-size: .76rem; font-weight: 750; line-height: 1.15; letter-spacing: .03em; }
-.theme-switch input:checked + .theme-track { background: #050a10; color: #e8f1f8; }
-.theme-switch input:checked + .theme-track .theme-thumb { transform: translateX(108px); }
-.theme-switch input:checked + .theme-track .theme-mode-label { left: 10px; right: auto; }
+/* The head script resolves this before first paint; checked is bound later. */
+:root[data-effective-theme=dark] .theme-track,
+:root:not([data-effective-theme]) .theme-switch input:checked + .theme-track { background: #050a10; color: #e8f1f8; }
+:root[data-effective-theme=dark] .theme-thumb,
+:root:not([data-effective-theme]) .theme-switch input:checked + .theme-track .theme-thumb { transform: translateX(108px); }
+:root[data-effective-theme=dark] .theme-mode-label,
+:root:not([data-effective-theme]) .theme-switch input:checked + .theme-track .theme-mode-label { left: 10px; right: auto; }
+:root[data-effective-theme] .theme-mode-label { font-size: 0; }
+:root[data-effective-theme] .theme-mode-label::after { content: "LIGHT\a MODE"; font-size: .76rem; letter-spacing: .03em; }
+:root[data-effective-theme=dark] .theme-mode-label::after { content: "DARK\a MODE"; }
 .theme-switch input:focus-visible + .theme-track { outline: 3px solid var(--blue); outline-offset: 4px; }
 .theme-switch input:disabled { cursor: not-allowed; }
 .theme-switch input:disabled + .theme-track { opacity: .5; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .theme-moon { display: none; }
-.theme-switch input:checked + .theme-track .theme-moon { display: block; }
-.theme-switch input:checked + .theme-track .theme-sun { display: none; }
+:root[data-effective-theme=dark] .theme-moon,
+:root:not([data-effective-theme]) .theme-switch input:checked + .theme-track .theme-moon { display: block; }
+:root[data-effective-theme=dark] .theme-sun,
+:root:not([data-effective-theme]) .theme-switch input:checked + .theme-track .theme-sun { display: none; }
 .sidebar { position: sticky; top: 0; height: 100vh; background: var(--sidebar); border-right: 1px solid var(--border); padding: 30px 18px; display: flex; flex-direction: column; }
 .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; font-size: 1.25rem; font-weight: 750; letter-spacing: .015em; padding: 0 8px; }
 .brand-mark { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 40px; height: 42px; border-radius: 8px; background: #f8fbff; box-shadow: inset 0 0 0 1px #062b721f; }
@@ -185,6 +194,26 @@ tbody tr:last-child > * { border-bottom: 0; }
 .chart-legend { display: flex; flex-wrap: wrap; gap: 7px 16px; margin: 10px 0; padding: 0; list-style: none; font-size: .68rem; }
 .chart-legend li::before { content: "━ "; font-weight: 700; }
 .chart-description { color: var(--muted); font-size: .66rem; }
+.current-data { margin-top: 26px; margin-bottom: 0; }
+main > .warning-message:not([hidden]) { margin-bottom: 18px; }
+.current-data h2 { margin-bottom: 12px; font-size: .9rem; }
+.history-state { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); font-size: .73rem; margin: 10px 0; }
+.history-state > span:first-child { color: var(--text); font-weight: 600; }
+.calendar-toolbar { padding: 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+.calendar-periods { display: flex; flex-wrap: wrap; gap: 5px; flex-basis: 100%; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.calendar-periods button { flex: 1 1 auto; min-height: 44px; font-size: .8rem; }
+.calendar-periods button[aria-pressed=true] { background: var(--blue-soft); border-color: var(--blue); color: var(--text); font-weight: 700; }
+.calendar-navigation button { min-width: 44px; min-height: 44px; }
+.calendar-label { flex-basis: 100%; }
+.chart-options { margin: 0 0 12px; gap: 5px 12px; }
+.chart-options li::before { content: none; }
+.chart-options label, .house-choice { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; cursor: pointer; font-size: .75rem; }
+.chart-card .chart-axis { font-size: 11px; }
+.summary-range { opacity: .32; stroke-width: 1.2; }
+.summary-value, .summary-value.summary-gap { opacity: 1; stroke-width: 2.4; stroke-dasharray: none; stroke-linecap: round; }
+.house-history { margin-top: 20px; }
+.house-history .chart-card { padding: 14px 0 0; }
+.house-history svg { width: 100%; height: auto; display: block; }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) { color-scheme: light; --bg: #f2f5f6; --surface: #f8fafb; --surface-top: #ffffff; --sidebar: #f8fafb; --border: #cbd6de; --text: #172630; --muted: #4f6472; --accent: #006b51; --accent-soft: #e1f0e9; --on-accent: #ffffff; --warn: #855500; --warn-soft: #fff5e2; --bad: #ae3333; --blue: #2e638f; --purple: #8057a2; --blue-soft: #e8eef3; --icon-bg: #eef3f6; --power-top: #deedf6; --power-bg: #edf4f8; --power-text: #123b54; --backdrop: #e8eef2; --brand-text: #ffffff; --shadow: 0 1px 4px #152c3a10, inset 0 1px 0 #ffffff; }
 }

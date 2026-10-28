@@ -123,10 +123,24 @@ async function protectedUI(page, route) {
   assert.notEqual(await page.locator('#timestamp').innerText(), '—');
   assert.notEqual(await page.locator('#freshness').innerText(), '—');
   assert.equal(await page.locator('.sidebar').count(), 1);
-  assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()),
-    (route === '/' ? ['reset-display'] : ['calendar-load', 'calendar-next', 'calendar-now', 'calendar-prev', 'reset-display']).sort());
+  assert.deepEqual(await page.locator('button:not([data-calendar-period])').evaluateAll(nodes => nodes.map(n => n.id).sort()),
+    (route === '/' ? [] : ['calendar-load', 'calendar-next', 'calendar-now', 'calendar-prev', 'reset-display']).sort());
   assert.equal(await page.locator('[role="button"], #theme-mode[role]').count(), 0);
-  assert.equal(await page.locator('#metric-options input[type="checkbox"]').count(), 16);
+  assert.equal(await page.locator('.display-options, #metric-options, .history-note').count(), 0);
+  assert.equal(await page.locator('ul.chart-options input[type="checkbox"]').count(), route === '/' ? 0 : 16);
+  if (route === '/diagramme') {
+    assert.equal(await page.locator('ul.chart-options').count(), 9);
+    assert.equal(await page.locator('button[data-calendar-period]').count(), 7);
+    assert(!await page.locator('#calendar-mode').isVisible());
+    assert(await page.locator('.section-heading #reset-display').isVisible());
+  } else assert.equal(await page.locator('#reset-display').count(), 0);
+  assert.equal(await page.locator('.current-data h2').innerText(), 'Aktuelle Wallbox-Messdaten');
+  assert(await page.locator('.current-data').evaluate(panel => {
+    const visible = [...document.querySelectorAll('main > section')].filter(el => !el.hidden);
+    const warning = document.getElementById('wallbox-warning');
+    return visible.at(-1) === panel && warning.tagName === 'P' && warning.parentElement.tagName === 'MAIN'
+      && !!(warning.compareDocumentPosition(visible[0]) & Node.DOCUMENT_POSITION_FOLLOWING);
+  }));
   if (route === '/') assert.equal(await page.locator('.summary-card').count(), 4);
   await switchLayout(page);
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.body.scrollWidth <= innerWidth));
@@ -240,7 +254,8 @@ function clean(run) {
         assert.match(await page.locator('main').innerText(), /Platzhalter/);
         assert.equal(await page.locator('form, input:not(#theme-toggle), textarea').count(), 0);
         assert.equal(await page.locator('input[type="checkbox"]').count(), 1);
-        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id)), ['theme-system', 'pwa-install', 'pwa-update']);
+        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id)), ['theme-system']);
+        assert.equal(await page.locator('.pwa-card, #pwa-heading, #pwa-install, #pwa-update').count(), 0);
         assert.equal(await page.getByRole('link', { name: 'Settings', exact: true }).getAttribute('aria-current'), 'page');
         await mode(page, 'system'); await switchLayout(page);
         await page.locator('#theme-toggle').focus(); await page.keyboard.press('Enter');
@@ -260,21 +275,78 @@ function clean(run) {
       } finally { await run.context.close(); }
     }
 
+    // Hold a deferred script so the full HTML/CSS can paint before DOMContentLoaded.
+    // This catches a saved dark choice rendered as an unchecked/light switch on navigation.
+    for (const selected of ['dark', 'light']) for (const width of [390, 1440]) {
+      const run = await setup(browser, {
+        colorScheme: selected === 'dark' ? 'light' : 'dark', viewport: { width, height: 900 }
+      });
+      let release;
+      try {
+        await run.context.addInitScript(({ key, selected }) => localStorage.setItem(key, selected), { key, selected });
+        let gate;
+        await run.context.route('**/static/pwa.js', async route => { await gate; await route.continue(); });
+        for (const path of ['/', '/diagramme', '/einstellungen', null]) {
+          gate = new Promise(resolve => { release = resolve; });
+          if (path) await run.page.goto(new URL(path, base).href, { waitUntil: 'commit' });
+          else await run.page.reload({ waitUntil: 'commit' });
+          await run.page.waitForFunction(() => document.querySelector('.theme-thumb') &&
+            getComputedStyle(document.querySelector('.theme-thumb')).width === '42px');
+          const before = await run.page.evaluate(() => {
+            const thumb = document.querySelector('.theme-thumb'), label = document.querySelector('.theme-mode-label');
+            return {
+              disabled: document.getElementById('theme-toggle').disabled,
+              checked: document.getElementById('theme-toggle').checked,
+              effective: document.documentElement.dataset.effectiveTheme,
+              preference: document.documentElement.dataset.theme,
+              transform: getComputedStyle(thumb).transform,
+              caption: getComputedStyle(label, '::after').content,
+              moon: getComputedStyle(document.querySelector('.theme-moon')).display,
+              track: getComputedStyle(document.querySelector('.theme-track')).backgroundColor
+            };
+          });
+          assert.equal(before.disabled, true, 'Still before binding / DOMContentLoaded');
+          assert.equal(before.checked, false, 'Parser checkbox default must not control first paint');
+          assert.equal(before.effective, selected);
+          assert.equal(before.preference, selected);
+          assert.equal(before.transform, selected === 'dark' ? 'matrix(1, 0, 0, 1, 108, 0)' : 'none');
+          assert.match(before.caption, selected === 'dark' ? /DARK/ : /LIGHT/);
+          assert.equal(before.moon, selected === 'dark' ? 'block' : 'none');
+          assert.equal(before.track, selected === 'dark' ? 'rgb(5, 10, 16)' : 'rgb(226, 232, 240)');
+          release();
+          await run.page.waitForLoadState('load');
+          await mode(run.page, selected);
+          assert.equal(await run.page.locator('.theme-thumb').evaluate(el => getComputedStyle(el).transform), before.transform);
+          assert.equal(await run.page.evaluate(key => localStorage.getItem(key), key), selected);
+        }
+        clean(run);
+      } finally { if (release) release(); await run.context.close(); }
+    }
+
     // Real keyboard selection plus same-context navigation/reload and independent display preferences.
     const persisted = await setup(browser, { colorScheme: 'dark' });
     try {
       const { page } = persisted;
       await page.goto(new URL('/', base).href); await ready(page);
       await page.locator('#theme-toggle').focus(); await page.keyboard.press('Space'); await mode(page, 'light');
-      await page.locator('.display-options > summary').click();
-      await page.locator('#metric-options input').first().uncheck();
+      await page.locator('nav a[href="/diagramme"]').click(); await page.waitForURL(new URL('/diagramme', base).href);
+      await ready(page); await mode(page, 'light');
+      await page.locator('#show-power').uncheck();
       const display = await page.evaluate(() => localStorage.getItem('evse-display-v1'));
       assert(display !== null);
       for (const route of ['/diagramme', '/']) {
         await page.locator(`nav a[href="${route}"]`).click(); await page.waitForURL(new URL(route, base).href);
         await ready(page); await mode(page, 'light');
         await page.reload(); await ready(page); await mode(page, 'light');
-        assert.equal(await page.locator('#metric-options input').first().isChecked(), false);
+        if (route === '/diagramme') {
+          assert.equal(await page.locator('#show-power').isChecked(), false);
+          assert(await page.locator('#chart-power').isVisible());
+          assert(!await page.locator('#chart-power svg').isVisible());
+        } else {
+          assert.equal(await page.locator('.display-options, #metric-options, #reset-display').count(), 0);
+          assert(await page.locator('#power').isVisible(), 'Diagram preferences never suppress overview values');
+          assert.equal(await page.locator('.summary-card:visible').count(), 4);
+        }
         await choose(page, 'dark');
         assert.equal(await page.evaluate(() => localStorage.getItem('evse-display-v1')), display);
         await choose(page, 'light');

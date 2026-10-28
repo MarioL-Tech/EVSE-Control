@@ -955,8 +955,11 @@ gesonderte Schema-2-Migration oder abgeschlossene Kalenderverdichtung.
 
 ### Installierbare Handy-WebApp: lokales HTTPS und PWA
 
-Die Website erhält Manifest, Installationsicons, einen HTTPS-Installationshinweis
-unter **Settings → Als WebApp verwenden** und einen begrenzten Service Worker.
+**Aktuell zurückgestellt:** Der Projektinhaber möchte die HTTPS-/Handyeinrichtung
+vorerst nicht durchführen. Es ist kein Agent-Deployment erfolgt. HTTP bleibt
+unverändert; die folgenden optionalen Schritte nur bei später gewünschter
+Aktivierung verwenden. Die WebApp-Karte in Settings wurde auf Wunsch entfernt.
+Manifest, Installationsicons und begrenzter Service Worker bleiben implementiert.
 Android-/iOS-Installation und Zertifikatsvertrauen müssen anschließend auf den
 tatsächlichen Handys bestätigt werden; Browser-CI ersetzt keinen Gerätetest.
 PHP/Apache, MQTT-/Haus-Worker und MariaDB bleiben bestehen. Der weitergehende
@@ -1058,9 +1061,8 @@ dieses privaten CA-Stores ist vertraulich aufzubewahren, nicht ins Repository ko
 #### 3. HTTPS und Handyinstallation prüfen
 
 Im Handy-Browser `https://PI-LAN-IP` öffnen (bei anderem HTTPS-Port mit `:PORT`).
-Es darf keine Zertifikatswarnung bleiben. Unter Settings die Installationshinweise
-lesen: Ein echtes Browser-Installationsangebot aktiviert den Installationsbutton;
-sonst das Browsermenü nutzen. Auf iOS in Safari Teilen → Zum Home-Bildschirm bzw.
+Es darf keine Zertifikatswarnung bleiben. Das Installationsangebot des
+Browsermenüs nutzen. Auf iOS in Safari Teilen → Zum Home-Bildschirm bzw.
 Als Web-App öffnen. Android kann je nach Browser/Version/Vertrauensart eine
 Installation oder einen Homescreen-Eintrag anbieten; eine native WebAPK-Erstellung
 durch einen externen Browserdienst wird für private CA/LAN-Adressen nicht zugesichert.
@@ -1150,7 +1152,7 @@ zwingend einen neuen Messwert im Gerät.
 Der zweite PHP-Worker liest die Quelle unabhängig von MQTT und HTTP-Anfragen.
 Privater Cache bis 8 KiB, separate stabile Lockdatei (max. 200 ms), atomarer
 Austausch. Heartbeat alle 250 ms zwischen Abfragen, Auslauf nach max(3 s,
-Timeout+1 s). Browser pollt nur auf der Übersicht jede Sekunde und lässt Werte
+Timeout+1 s). Browser pollt auf Übersicht und Diagrammseite jede Sekunde und lässt Werte
 auch ohne weitere API-Antworten auslaufen. Störungen blenden nur Hausleistung
 aus; MQTT-/Wallboxanzeige bleibt unabhängig. Quelle nicht erreichbar: lokale
 URL und bestehende Erreichbarkeit durch berechtigten Betreiber prüfen lassen,
@@ -1248,14 +1250,23 @@ werden nach Backend-Reconnect erst mit beiden Topics und gültiger Frische gezei
 
 ### Diagramme und Messwerte auswählen
 
-Unter **„Anzeige auswählen“** jeden der 16 Messwerte einzeln ein-/ausblenden.
-Die Auswahl gilt auf **beiden Seiten** für die aktuelle Anzeige und die zugehörige
-Diagrammkurve/Legende. L1/L2/L3 können einzeln gewählt werden; wenn alle Ströme
-oder Spannungen abgewählt sind, verschwindet die entsprechende Tabellenspalte.
-Leere Messwertkarten/Diagramme werden ausgeblendet. Verbindung, Frische, Messzeit
-und aktive Wallbox-Fehlerwarnungen bleiben zur Sicherheit sichtbar.
+Die **Checkboxen direkt am jeweiligen Diagramm** schalten dessen Kurven ein/aus.
+Die 16 Wallbox-Präferenzen gelten nur für Diagramme; die Übersicht zeigt alle
+Messwerte ohne Auswahlfenster. Auch bei vollständig abgewählten Kurven bleiben
+Karte und Checkboxen zum Wiedereinschalten sichtbar. Der Datenstatus mit Verbindung,
+Frische und Messzeit steht auf beiden Seiten ganz unten; aktive Fehlerwarnungen
+bleiben zusätzlich oben. Periodentasten wählen Live/Stunde/Tag/Woche/Monat/Jahr/
+Zeitraum, der Datumswähler passt sich an. Die große Verlaufshinweiskarte entfällt;
+kurze Lade-/Fehler-/Unvollständigkeitsmeldungen bleiben erhalten.
 
-**„Alle Messwerte anzeigen“** setzt Auswahl und Zeitfenster auf die Defaults
+**Haus-Netzleistung:** unabhängiger Live-Verlauf seit Öffnen der Diagrammseite,
+signed kW (Bezug + / Einspeisung −), maximal 15 Minuten/1200 HTTP-Abrufe im RAM.
+Neuladen leert diesen Verlauf. Die Hausquelle besitzt kein SQL-Archiv: bei
+Kalenderauswahl wird keine historische Hauskurve behauptet. Eigene Checkbox,
+keine Erweiterung der 16 Wallbox-Präferenzen, keine neue Einrichtung/DB-Migration.
+Ausfälle/Nullwerte/Veraltung/Lifecycle-/Zeitbrüche erzeugen Lücken, keine Nullen.
+
+**„Alle Kurven anzeigen“** setzt Auswahl und Zeitfenster auf die Defaults
 zurück. Auswahl/Zeitraum werden in diesem Browser im localStorage unter
 `evse-display-v1` gespeichert, weder auf dem Pi noch kontoübergreifend.
 Blockierter/defekter Browserspeicher darf die Anzeige nicht verhindern; dann

@@ -39,8 +39,11 @@
   try { storage = window.localStorage; } catch (_) { /* System default without readable storage. */ }
   const system = window.matchMedia('(prefers-color-scheme: dark)');
   function updateControl(mode) {
-    const dark = effectiveMode(mode, system.matches) === 'dark';
-    document.documentElement.setAttribute('data-effective-theme', dark ? 'dark' : 'light');
+    const effective = effectiveMode(mode, system.matches);
+    // Authoritative visual state, even before the parser has reached the checkbox.
+    // Keep data-theme separate: an effective system mode is not a saved preference.
+    document.documentElement.setAttribute('data-effective-theme', effective);
+    const dark = effective === 'dark';
     const toggle = document.getElementById('theme-toggle');
     if (toggle) {
       toggle.checked = dark;

@@ -35,13 +35,7 @@
     </aside>
     <main id="main-content" tabindex="-1">
       <header class="page-header"><h1>Übersicht</h1><span class="readonly">Nur lesen</span></header>
-      <section class="status-panel" aria-label="Datenstatus">
-        <div class="status-line" role="status"><span id="status" class="badge" data-tone="muted">Warten auf Daten</span><span id="reason">Verbindung zur Anzeige wird hergestellt.</span></div>
-        <div class="metadata"><span>MQTT-Broker <strong id="broker">Unbekannt</strong></span><span>Telemetrie <strong id="availability">Unbekannt</strong></span><span>Restgültigkeit <strong id="freshness">—</strong></span><span>Letzte Messung <strong id="timestamp">—</strong></span><span>Messwertalter <strong id="age">—</strong></span></div>
-        <p id="wallbox-warning" class="warning-message" data-tone="warning" role="status" hidden></p>
-      </section>
-      <details class="display-options"><summary>Anzeige auswählen</summary><div class="options-content"><fieldset><legend>Wallbox-Werte</legend><div id="metric-options" class="metric-options"></div></fieldset><div class="options-footer"><button id="reset-display" type="button">Alle anzeigen</button><p id="display-storage" class="subtle"></p></div></div></details>
-      <p id="display-empty" class="notice" hidden>Alle Wallbox-Messwerte sind ausgeblendet. Unter „Anzeige auswählen“ wieder einschalten.</p>
+      <p id="wallbox-warning" class="warning-message" data-tone="warning" role="status" hidden></p>
       <section class="overview" aria-label="Aktueller Ladezustand">
         <article class="card summary-card power-card" data-metric="power"><div class="card-top"><p class="eyebrow">Wallbox-Leistung</p><span class="metric-icon" aria-hidden="true"><svg class="bolt-icon" viewBox="0 0 24 24"><path d="m13 2-9 12h7l-1 8 10-13h-7z"/></svg></span></div><p class="hero-value" id="power">—</p></article>
         <article class="card summary-card vehicle-card" data-metrics="plugged charging"><div class="card-top"><h2>Fahrzeug</h2><span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 10 2-6h10l2 6M4 10h16v8H4zM6 18v2m12-2v2M7 13h1m8 0h1"/></svg></span></div><dl class="vehicle-facts"><div data-metric="plugged"><dt>Angesteckt</dt><dd id="plugged">Unbekannt</dd></div><div data-metric="charging"><dt>Lädt tatsächlich</dt><dd id="charging">Unbekannt</dd></div></dl></article>
@@ -66,6 +60,11 @@
         <article class="card" data-metrics="wallbox-error charging-state charging-raw lock below"><h2>Wallbox-Diagnose</h2><p data-metric="wallbox-error" id="wallbox-error" class="diagnostic">—</p><dl class="facts"><div data-metric="charging-state"><dt>Ladezustand</dt><dd id="charging-state">—</dd></div><div data-metric="charging-raw"><dt>Ladezustand (Rohwert)</dt><dd id="charging-raw">—</dd></div><div data-metric="lock"><dt>Wallbox-Buchse (Rohwert)</dt><dd id="lock">—</dd></div><div data-metric="below"><dt>Unter Sollstrom</dt><dd id="below">Unbekannt</dd></div></dl></article>
         <article class="card"><h2>Datenprotokoll</h2><dl class="facts timestamps"><div><dt>Letzte gültige Abfrage</dt><dd id="last-success">—</dd></div><div><dt>Lesefehler</dt><dd id="read-error">—</dd></div></dl></article>
       </section></details>
+      <section class="status-panel current-data" aria-labelledby="current-data-heading">
+        <h2 id="current-data-heading">Aktuelle Wallbox-Messdaten</h2>
+        <div class="status-line" role="status"><span id="status" class="badge" data-tone="muted">Warten auf Daten</span><span id="reason">Verbindung zur Anzeige wird hergestellt.</span></div>
+        <div class="metadata"><span>MQTT-Broker <strong id="broker">Unbekannt</strong></span><span>Telemetrie <strong id="availability">Unbekannt</strong></span><span>Restgültigkeit <strong id="freshness">—</strong></span><span>Letzte Messung <strong id="timestamp">—</strong></span><span>Messwertalter <strong id="age">—</strong></span></div>
+      </section>
       <noscript><p class="notice">Für aktuelle Messwerte muss JavaScript aktiviert sein.</p></noscript>
     </main>
   </div>

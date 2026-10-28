@@ -91,15 +91,16 @@
   function fieldFor(m) {
     return m.index === null ? m.field : `${m.field === 'current_a' ? 'current' : 'voltage'}_l${m.index + 1}_${m.field === 'current_a' ? 'a' : 'v'}`;
   }
-  function buildSummaryPlot(batch, group, selected, charts) {
+  function buildSummaryPlot(batch, group, selected, charts, geometry) {
     const start = utc(batch.range.from), end = utc(batch.range.to), points = [];
     for (const bin of batch.buckets) {
       for (const stat of ['min', 'max']) points.push({ t: utc(bin.from), values: Object.fromEntries(charts.METRICS.map(m =>
         [m.id, bin.metrics[fieldFor(m)][stat] === null ? null : bin.metrics[fieldFor(m)][stat] / m.divisor])) });
     }
-    const plot = charts.buildPlot(points, group, selected, start, end);
-    const x = t => 62 + (t - start) / (end - start) * 420;
-    const y = v => 180 - (v - plot.lo) / (plot.hi - plot.lo) * 155;
+    const plot = charts.buildPlot(points, group, selected, start, end, geometry);
+    const bounds = plot.geometry;
+    const x = t => bounds.left + (t - start) / (end - start) * (bounds.right - bounds.left);
+    const y = v => bounds.bottom - (v - plot.lo) / (plot.hi - plot.lo) * (bounds.bottom - bounds.top);
     plot.paths = plot.metrics.map(m => {
       const glyphs = [];
       for (const bin of batch.buckets) {
@@ -108,16 +109,25 @@
         const left = x(utc(bin.from)), right = x(utc(bin.to)), middle = (left + right) / 2;
         const mean = MEANS.includes(fieldFor(m)) ? stat.mean : (typeof stat.last === 'boolean' ? Number(stat.last) : stat.last);
         const min = y(stat.min / m.divisor), max = y(stat.max / m.divisor);
-        // Each bucket is an independent interval glyph, never a line to a
-        // neighbour. Mixed states expose their range instead of a false state.
-        let path = `M${middle.toFixed(2)},${min.toFixed(2)}V${max.toFixed(2)}`;
-        if (mean !== null && !(group.step && (stat.mixed || stat.nulls > 0 || bin.has_gap || !bin.complete))) {
-          const py = y(mean / m.divisor).toFixed(2);
-          path += `M${(left + Math.min(.5, (right - left) / 4)).toFixed(2)},${py}H${(right - Math.min(.5, (right - left) / 4)).toFixed(2)}`;
-        }
         const format = v => v === null ? 'unbekannt' : valueFormat.format(v / m.divisor);
-        glyphs.push({ path, gap: bin.has_gap || !bin.complete || stat.nulls > 0,
-          label: `${m.label} · ${axisLabel(utc(bin.from), 'day', batch.range.timezone)} – ${axisLabel(utc(bin.to), 'day', batch.range.timezone)} · ${batch.range.timezone}: ${stat.count} Werte; Min ${format(stat.min)}, Max ${format(stat.max)}, ${MEANS.includes(fieldFor(m)) ? 'Stichprobenmittel' : 'letzter Wert'} ${format(mean)} ${group.unit}; belegte Dauer ${bin.coverage_seconds} s${stat.mixed ? ', gemischt' : ''}${bin.has_gap || !bin.complete || stat.nulls > 0 ? ', Lücken / unvollständig' : ''}` });
+        const attributes = { gap: bin.has_gap || !bin.complete || stat.nulls > 0, mixed: stat.mixed,
+          label: `${m.label} · ${axisLabel(utc(bin.from), 'day', batch.range.timezone)} – ${axisLabel(utc(bin.to), 'day', batch.range.timezone)} · ${batch.range.timezone}: ${stat.count} Werte; Min ${format(stat.min)}, Max ${format(stat.max)}, ${MEANS.includes(fieldFor(m)) ? 'Stichprobenmittel' : 'letzter Wert'} ${format(mean)} ${group.unit}; belegte Dauer ${bin.coverage_seconds} s${stat.mixed ? ', gemischt' : ''}${bin.has_gap || !bin.complete || stat.nulls > 0 ? ', Lücken / unvollständig' : ''}` };
+        // Independent, observed aggregates, not reconstructed time series. The
+        // renderer styles range softly and value SOLID, even when gap is true;
+        // gap remains available for separate uncertainty styling / the tooltip.
+        glyphs.push({ ...attributes, kind: 'range',
+          path: `M${middle.toFixed(2)},${min.toFixed(2)}V${max.toFixed(2)}` });
+        // Never replace a NULL last with an older non-NULL observation. Mixed
+        // flags/codes expose only the range, not a seemingly constant state.
+        if (mean !== null && !((FLAGS.includes(fieldFor(m)) || CODES.includes(fieldFor(m))) && stat.mixed)) {
+          const py = y(mean / m.divisor).toFixed(2);
+          // A short bucket-local tick is an aggregate mark, not an assertion
+          // that the value held for the entire interval. No neighbour links,
+          // even for complete buckets; an inset preserves every bucket edge.
+          const halfWidth = Math.min(5, (right - left) * .4);
+          glyphs.push({ ...attributes, kind: 'value',
+            path: `M${(middle - halfWidth).toFixed(2)},${py}H${(middle + halfWidth).toFixed(2)}` });
+        }
       }
       return { metric: m, path: '', markers: [], glyphs };
     });
@@ -136,11 +146,19 @@
     const mode = document.getElementById('calendar-mode');
     if (!mode) return null;
     const picker = document.getElementById('calendar-date'), custom = document.getElementById('calendar-custom');
+    const periodButtons = document.querySelectorAll('[data-calendar-period]');
+    const pickerLabel = document.getElementById('calendar-picker-label');
+    const pickerCaption = document.getElementById('calendar-picker-caption');
     const label = document.getElementById('calendar-label'), range = document.getElementById('chart-range');
     let selection = null, navigation = null;
     const persist = () => { try { storage?.setItem(KEY, JSON.stringify(selection)); } catch (_) { /* page-only */ } };
     function controls() {
       picker.hidden = ['live', 'custom'].includes(mode.value); custom.hidden = mode.value !== 'custom';
+      if (pickerLabel) pickerLabel.hidden = picker.hidden;
+      const caption = ({ hour: 'Stunde', day: 'Datum', week: 'Kalenderwoche', month: 'Monat', year: 'Jahr' })[mode.value] || 'Datum';
+      if (pickerCaption) pickerCaption.textContent = caption;
+      for (const button of periodButtons)
+        button.setAttribute('aria-pressed', String(button.getAttribute('data-calendar-period') === mode.value));
       range.disabled = mode.value !== 'live';
       const liveWindow = range.closest('label');
       if (liveWindow) liveWindow.hidden = mode.value !== 'live';
@@ -148,7 +166,7 @@
       picker.step = mode.value === 'hour' ? '3600' : '1';
       if (mode.value === 'year') { picker.min = '1970'; picker.max = '9998'; }
       else { picker.removeAttribute('min'); picker.removeAttribute('max'); }
-      picker.setAttribute('aria-label', `${mode.options[mode.selectedIndex].text} wählen · ${ZONE}`);
+      picker.setAttribute('aria-label', `${caption} wählen · ${ZONE}`);
       for (const [id, key] of [['calendar-prev', 'previous'], ['calendar-next', 'next']])
         document.getElementById(id).disabled = !navigation?.[key];
     }
@@ -170,6 +188,12 @@
         controls(); label.textContent = `Zeitraum wählen · ${ZONE}`; onChange(); return;
       }
       select(mode.value === 'live' ? null : { period: mode.value, date: 'now', tz: ZONE });
+    });
+    for (const button of periodButtons) button.addEventListener('click', () => {
+      const period = button.getAttribute('data-calendar-period');
+      if (!PERIODS.includes(period)) return;
+      mode.value = period;
+      mode.dispatchEvent(new Event('change'));
     });
     picker.addEventListener('change', () => {
       if (picker.value) select({ period: mode.value, date: picker.value, tz: ZONE });

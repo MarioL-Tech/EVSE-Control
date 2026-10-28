@@ -114,3 +114,87 @@ test('without smartmeter article script does not poll or access storage', () => 
     setInterval() { assert.fail('unexpected timer'); }
   });
 });
+
+const house = require('../static/smartmeter-chart.js');
+function houseView(t, power_w = 1000, status = 'live') {
+  return { status, power_w, remaining: status === 'live' ? 10000 : 0,
+    envelope: { fetched_at: typeof t === 'string' ? t : new Date(t).toISOString() } };
+}
+test('house keeps signed watts and actual zero; fetched_at dedupes even changed payloads', () => {
+  const h = house.createHistory();
+  h.observe(houseView(epoch, 1549.4), epoch);
+  h.observe(houseView(epoch, -999), epoch + 100);
+  h.observe(houseView(epoch + 1000, -799.4), epoch + 1000);
+  h.observe(houseView(epoch + 2000, 0), epoch + 2000);
+  assert.deepEqual(h.window(epoch + 2000).map(p => p.power_w), [1549.4, -799.4, 0]);
+  const plot = house.buildPlot(h.window(epoch + 2000), epoch, epoch + 3000);
+  assert(plot.lo < -.7994 && plot.hi > 1.5494);
+  assert.equal((plot.path.match(/L/g) || []).length, 2);
+  assert.equal(plot.markers.length, 1, 'Connected samples need only the latest marker');
+  assert(Number.isFinite(plot.zeroY));
+});
+test('house fetched_at normalizes UTC fractions without losing microsecond deduplication', () => {
+  const h = house.createHistory();
+  h.observe(houseView('2026-10-26T12:00:00.000001Z'), epoch + 1);
+  h.observe(houseView('2026-10-26T12:00:00.000001+00:00'), epoch + 2);
+  h.observe(houseView('2026-10-26T12:00:00.000002Z'), epoch + 3);
+  assert.equal(h.size, 2);
+});
+test('house failure, stale, null, bad timestamps and lifecycle never heal on a duplicate', () => {
+  for (const invalid of [houseView(epoch + 500, null), houseView(epoch + 500, NaN),
+    houseView(epoch + 500, Infinity), houseView('bad'), houseView('2026-02-30T00:00:00Z'),
+    houseView(epoch + 6000), { ...houseView(epoch), remaining: 0 },
+    ...['waiting', 'disabled', 'offline', 'read_error', 'stale', 'clock_error'].map(s => houseView(epoch, null, s))]) {
+    const h = house.createHistory();
+    h.observe(houseView(epoch), epoch);
+    h.observe(invalid, epoch + 500);
+    h.observe(houseView(epoch), epoch + 750);
+    h.observe(houseView(epoch + 1000), epoch + 1000);
+    assert.equal(h.size, 2);
+    assert.equal(h.window(epoch + 1000)[1].breakBefore, true);
+    assert(!house.buildPlot(h.window(epoch + 1000), epoch, epoch + 1000).path.includes('L'));
+  }
+  const h = house.createHistory(); h.observe(houseView(epoch), epoch); h.gap();
+  h.observe(houseView(epoch), epoch + 100); h.observe(houseView(epoch + 1000), epoch + 1000);
+  assert(h.window(epoch + 1000)[1].breakBefore);
+});
+test('house clock rollback clears RAM conservatively; request pauses and fetched clock rollback break edges', () => {
+  const h = house.createHistory();
+  h.observe(houseView(epoch), epoch); h.observe(houseView(epoch + 1000), epoch + 1000);
+  h.observe(houseView(epoch + 500), epoch + 2000);
+  h.observe(houseView(epoch + 3000), epoch + 3000);
+  assert(h.window(epoch + 3000)[2].breakBefore);
+  h.observe(houseView(epoch + 14000), epoch + 14000);
+  assert(h.window(epoch + 14000)[3].breakBefore);
+  h.observe(houseView(epoch), epoch);
+  assert.equal(h.size, 1, 'A new clock epoch accepts its first valid fetch');
+  h.observe(houseView(epoch + 1000), epoch + 1000);
+  assert.equal(h.size, 2, 'Clock rollback must not keep the old timestamp gate');
+  h.observe(houseView(epoch + 15000), epoch + 15000);
+  assert.equal(h.size, 3); assert(h.window(epoch + 15000).at(-1).breakBefore);
+});
+test('house bounds RAM to 1200 / 15 minutes and synchronizes 1/5/15 minute windows', () => {
+  const h = house.createHistory();
+  for (let i = 0; i < 1500; i++) h.observe(houseView(epoch + i * 100, i), epoch + i * 100);
+  assert.equal(h.size, 1200);
+  assert(h.window(epoch + 149900, 1).length < h.window(epoch + 149900, 5).length);
+  assert.equal(h.window(epoch + 149900, 15).length, 1200);
+  assert.equal(h.window(epoch + 150000 + house.RETENTION_MS, 15).length, 0);
+  assert.equal(h.size, 0);
+});
+test('house plotting preserves NULL barriers and isolated points instead of fake zero', () => {
+  const points = [{ t: epoch, power_w: 0 }, { t: epoch + 1000, power_w: null },
+    { t: epoch + 2000, power_w: -1000 }];
+  const plot = house.buildPlot(points, epoch, epoch + 2000);
+  assert.equal(plot.count, 2); assert.equal(plot.markers.length, 2);
+  assert.equal((plot.path.match(/M/g) || []).length, 2); assert(!plot.path.includes('L'));
+  assert(!/NaN|Infinity/.test(house.buildPlot([], epoch, epoch + 2000).path));
+});
+test('house module stays inert on overview and absent chart DOM without storage/timers/requests', () => {
+  for (const pathname of ['/', '/diagramme']) vm.runInNewContext(
+    fs.readFileSync(require.resolve('../static/smartmeter-chart.js'), 'utf8'), {
+      window: { location: { pathname }, get localStorage() { assert.fail('storage'); } },
+      document: { getElementById: () => null }, fetch() { assert.fail('request'); },
+      setInterval() { assert.fail('timer'); }
+    });
+});
