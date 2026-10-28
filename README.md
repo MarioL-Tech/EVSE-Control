@@ -17,7 +17,9 @@ Die HTTPS-/Handyeinrichtung ist auf Wunsch vorerst zurückgestellt; HTTP im LAN
 bleibt nutzbar. Settings enthält keine WebApp-Karte mehr. Die aktuelle
 Oberflächenüberarbeitung verlagert Datenstatus nach unten, bietet Kurvenauswahl
 direkt am Diagramm und einen gesonderten Haus-Liveverlauf ohne SQL-Hausarchiv.
-Docker-Abschluss dieser Überarbeitung und Prüfung am Pi stehen noch aus.
+Docker-CI 40777926455/40777919496 für 296074c ist erfolgreich; Pi-Prüfung steht
+noch aus, aktuellen Freigabestand über PR #52 prüfen. Der Fahrzeuganschluss-Fix
+benötigt zusätzlich das aktualisierte Readerimage, keine Datenbankmigration.
 Das Websitebackend ist separat
 auf PHP 8.4/Apache mit einem PHP-MQTT-Worker umgestellt;
 bestehende Wallbox-Anzeigen und Diagramme bleiben erhalten. Separat ergänzt sind

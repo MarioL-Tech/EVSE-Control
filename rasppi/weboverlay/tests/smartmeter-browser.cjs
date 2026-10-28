@@ -109,6 +109,8 @@ function sample(power_w = 1549.4, overrides = {}) {
       mode = next; await text('grid-power', power); await text('status', 'Offline');
     }
     assert((await series()).includes('L'), 'House connects real successive live fetches despite offline MQTT');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.locator('#smartmeter').screenshot({ path: path.join(artifacts, 'house-chart-dark-mobile.png') });
     mode = 'offline'; await text('grid-status', 'Offline');
     mode = 'positive'; await text('grid-status', 'Live');
     assert((await series()).split('M').length >= 3, 'Offline creates a retained gap');

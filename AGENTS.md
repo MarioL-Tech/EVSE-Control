@@ -678,7 +678,14 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Min-Max-Spannen, keine erfundenen Intervallverbindungen; SVG-Breite dynamisch
   für lesbare mobile Achsen. WebApp-Karte in Settings entfernt; Grundfunktion
   optional erhalten. Theme-Schalter folgt vor erstem Render dem effektiven Modus.
-  Docker-Abschluss/visuelle Abnahme dieser Änderung noch offen, kein Pi-Deployment.
+  Docker-CI 40777926455/40777919496 für 296074c erfolgreich: 125 JS-Fälle,
+  17 PHP-Zustandsfälle, bestehende PHP-/SQL-/Transport-/Auth-/Runtimeprüfungen und
+  sieben Chromium-Suiten, darunter 34 Themefälle und unabhängige Hauskurve bei
+  MQTT-Offline. Reader-CI 40777926278/40777919514 bestätigt alle drei bisherigen
+  C++-/simulierten RTU-/MQTT-Suiten mit zusätzlicher Buchsen-Enumregression.
+  Simulierte mobile Stunden-/Jahresansichten und dunkle Hausanzeige angesehen;
+  erweiterte getrennte Desktop-/Hauskurvenartefakte folgen mit PR-Checks.
+  Aktuellen Freigabestand über PR #52 prüfen; kein Pi-Deployment/Hardwarebeweis.
   Zusätzlich durch Nutzerscreenshot eingegrenzt: Ladezustand 5, Rohwert 34048
   (`0x8500`), Buchsenstatus 257 (`0x0101`), Live/Fehlercode 0. Bisheriger Reader
   nutzte nur den Ladezustand und verlor dabei die unabhängige Anschlussaussage.

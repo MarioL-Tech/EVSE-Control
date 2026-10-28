@@ -221,7 +221,13 @@ const { FIELDS } = require('../static/newcalendar.js');
         assert.equal(await page.locator('#chart-power .summary-value').count(), 36, 'Empty minutes never acquire a value mark');
         assert.equal(await page.locator('#chart-power .summary-range').count(), 36);
         assert(await page.locator('#chart-power .summary-value').first().evaluate(el => getComputedStyle(el).strokeDasharray === 'none'));
+        await page.screenshot({ path: '/artifacts/calendar-hour-gaps-mobile.png', fullPage: true });
+        const viewport = page.viewportSize();
+        await page.setViewportSize({ width: 1440, height: 1050 });
+        await page.evaluate(() => dispatchEvent(new Event('resize')));
         await page.screenshot({ path: '/artifacts/calendar-hour-gaps-desktop.png', fullPage: true });
+        await page.setViewportSize(viewport);
+        await page.evaluate(() => dispatchEvent(new Event('resize')));
       }
       assert.equal(await page.locator('[data-series-marker]').count(), 0, 'Summary glyphs never use circles/pills');
       assert.equal(await page.locator('img').count(), 1, 'DTO reasons cannot add images');
