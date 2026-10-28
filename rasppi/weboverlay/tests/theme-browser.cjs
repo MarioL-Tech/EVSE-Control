@@ -29,6 +29,10 @@ async function logo(page) {
 async function ready(page) {
   await page.waitForFunction(() => document.querySelector('#status')?.textContent === 'Live');
   await page.locator('#theme-toggle').waitFor();
+  await page.waitForFunction(() => {
+    const toggle = document.getElementById('theme-toggle');
+    return toggle && !toggle.disabled;
+  });
   assert(await page.locator('#theme-toggle').isEnabled());
   await logo(page);
 }
