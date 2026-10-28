@@ -1,0 +1,175 @@
+<?php
+declare(strict_types=1);
+
+// Docker-only second phase: legacy history-integration.cjs finishes against schema 1 first.
+require '/app/vendor/autoload.php';
+require __DIR__ . '/archive-fixtures.php';
+
+use EvseOverlay\HistoryArchive;
+use EvseOverlay\HistoryConfig;
+use EvseOverlay\HistoryRange;
+use EvseOverlay\HistoryStore;
+
+archiveAssert(getenv('HISTORY_TEST_DB_HOST') === 'history-db');
+archiveAssert(getenv('HISTORY_TEST_ROOT_PASSWORD') === 'dummy-only-history-root');
+$dsn = 'mysql:host=history-db;port=3306;dbname=evse_history_test;charset=utf8mb4';
+$options = [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false, PDO::ATTR_STRINGIFY_FETCHES => true];
+$root = new PDO($dsn, 'root', 'dummy-only-history-root', $options);
+$config = new HistoryConfig(true, 'history-db', 3306, 'evse_history_test', 'history_reader', 'isolated/archive', 'dummy-only-reader');
+$writerConfig = new HistoryConfig(true, 'history-db', 3306, 'evse_history_test', 'history_writer', 'isolated/archive', 'dummy-only-writer');
+$reader = new PDO($dsn, 'history_reader', 'dummy-only-reader', $options);
+$range = HistoryRange::parse('period=day&date=2026-01-01&tz=UTC');
+$start = $range->from->getTimestamp();
+$case = 'setup'; $completed = 0; $server = null; $secret = null; $failed = false;
+$run = static function (string $label, callable $operation) use (&$case, &$completed): void {
+    $case = $label; $operation(); ++$completed; print("ok $completed - $label\n");
+};
+$insert = static function (array $row, string $source = 'isolated/archive') use ($root): void {
+    $root->prepare('INSERT INTO evse_history_buckets (source,resolution_seconds,bucket_start,data_json,updated_at) VALUES (?,?,?,?,UTC_TIMESTAMP(6))')->execute(
+        [$source, $row['resolution_seconds'], $row['bucket_start'], $row['data_json']]);
+};
+$snapshot = static fn() => (new HistoryArchive($config))->snapshot($range);
+$reset = static function () use ($root): void {
+    // Only this disposable fixture, no production path. Legacy raw rows are left untouched.
+    $root->exec('DELETE FROM evse_history_buckets; DELETE FROM evse_history_work; DELETE FROM evse_history_state;');
+    $root->exec("INSERT INTO evse_history_state (source,algorithm_version,sample_cursor,sample_highwater,samples_done,events_done,updated_at,initialized,event_cursor_at,event_cursor_id,event_highwater_at,event_highwater_id)
+        VALUES ('isolated/archive',1,5,5,1,1,UTC_TIMESTAMP(6),1,'1000-01-01',UNHEX(REPEAT('00',16)),'1000-01-01',UNHEX(REPEAT('00',16)))");
+};
+try {
+    $run('archive unavailable at schema 1; raw API remains schema 1', static function () use ($snapshot, $config): void {
+        archiveAssert($snapshot()['status'] === 'unavailable');
+        archiveAssert((new HistoryStore($config))->snapshot()['schema_version'] === 1);
+    });
+    $run('canonical additive 002 migration in isolated database only', static function () use ($root): void {
+        $sql = file_get_contents('/fixtures/002_newhistory.sql');
+        archiveAssert(is_string($sql) && strlen($sql) < 65536);
+        // This is fixture setup with explicit root, never called by the website reader.
+        foreach (explode(';', $sql) as $statement) {
+            if (trim($statement) !== '') { $root->exec($statement); }
+        }
+        foreach (['evse_history_buckets', 'evse_history_work', 'evse_history_state'] as $table) {
+            $root->exec("GRANT SELECT ON evse_history_test.$table TO 'history_reader'@'%'");
+        }
+        $root->exec('INSERT INTO evse_schema_versions VALUES (2,UTC_TIMESTAMP(6))');
+    });
+    $run('table-specific reader grants reject writes; writer still read-only in API', static function () use ($reader, $writerConfig, $range): void {
+        foreach (["INSERT INTO evse_history_work VALUES ('forbidden',60,'2026-01-01',1,0,1)",
+            'UPDATE evse_history_buckets SET updated_at=UTC_TIMESTAMP(6) WHERE source=0x00',
+            'DELETE FROM evse_history_state WHERE source=0x00', 'CREATE TABLE forbidden_archive (id INT)'] as $sql) {
+            archiveReject(static fn() => $reader->exec($sql));
+        }
+        archiveAssert((new HistoryArchive($writerConfig))->snapshot($range)['read_only']);
+    });
+    $run('missing state and unready progress cannot assert completeness', static function () use ($reset, $root, $snapshot, $insert, $start): void {
+        archiveAssert($snapshot()['status'] === 'unavailable');
+        $reset(); $insert(archiveFixture($start));
+        $root->exec("UPDATE evse_history_state SET samples_done=0,events_done=0,sample_cursor=0 WHERE source='isolated/archive'");
+        $v = $snapshot();
+        archiveAssert($v['status'] === 'ok' && !$v['complete'] && !$v['progress']['samples_done'] && !$v['buckets'][0]['complete']);
+    });
+    $run('exact binary source, weighted means, counter last and nullable flags', static function () use ($reset, $insert, $snapshot, $start): void {
+        $reset(); $insert(archiveFixture($start, 60, 2, 100)); $insert(archiveFixture($start + 60, 60, 6, 300));
+        $insert(archiveFixture($start, 60, 20, 9999), 'isolated/Archive');
+        $v = $snapshot();
+        archiveAssert($v['status'] === 'ok' && $v['buckets'][0]['samples'] === 8);
+        $m = $v['buckets'][0]['metrics'];
+        archiveAssert($m['active_power_w']['mean'] === 250.0 && $m['charging']['last'] === false);
+        archiveAssert($m['session_energy_wh']['mean'] === null && $m['session_energy_wh']['last'] === 2000.0);
+        archiveAssert($v['buckets'][1]['metrics']['charging']['last'] === null);
+    });
+    $run('indexed pending work masks stale materialization', static function () use ($root, $snapshot): void {
+        $root->exec("INSERT INTO evse_history_work VALUES ('isolated/archive',60,'2026-01-01',2,1,1)");
+        $v = $snapshot(); archiveAssert($v['status'] === 'ok' && !$v['buckets'][0]['complete'] && $v['buckets'][0]['has_gap']);
+        archiveAssert($v['buckets'][0]['metrics']['active_power_w']['last'] === null);
+    });
+    $run('dirty child minute invalidates preexisting parent hour', static function () use ($reset, $root, $insert, $start, $config): void {
+        $reset(); $insert(archiveFixture($start, 3600));
+        $root->exec("INSERT INTO evse_history_work VALUES ('isolated/archive',60,'2026-01-01 00:15:00',2,1,1)");
+        $r = HistoryRange::parse('period=year&date=2026&tz=UTC');
+        $v = (new HistoryArchive($config))->snapshot($r);
+        archiveAssert($v['status'] === 'ok' && !$v['buckets'][0]['complete'] && $v['buckets'][0]['metrics']['active_power_w']['last'] === null);
+    });
+    $run('future empty range never substitutes current values', static function () use ($reset, $config): void {
+        $reset(); $r = HistoryRange::parse('period=year&date=9998&tz=UTC');
+        $v = (new HistoryArchive($config))->snapshot($r);
+        archiveAssert($v['status'] === 'ok' && !$v['complete'] && array_sum(array_column($v['buckets'], 'samples')) === 0);
+    });
+    $run('corrupt JSON shape, invalid progress and future update fail closed', static function () use ($reset, $insert, $start, $root, $snapshot): void {
+        $reset(); $row = archiveFixture($start); $row['data_json'] = '{}'; $insert($row);
+        archiveAssert($snapshot()['status'] === 'unavailable');
+        $reset(); $insert(archiveFixture($start));
+        $root->exec("UPDATE evse_history_state SET sample_cursor=6 WHERE source='isolated/archive'");
+        archiveAssert($snapshot()['status'] === 'unavailable');
+        $reset(); $insert(archiveFixture($start));
+        $root->exec('UPDATE evse_history_buckets SET updated_at=UTC_TIMESTAMP(6)+INTERVAL 1 DAY');
+        archiveAssert($snapshot()['status'] === 'unavailable');
+    });
+    $run('schema 1 raw output remains available with {1,2}', static function () use ($reset, $config): void {
+        $reset(); $v = (new HistoryStore($config))->snapshot(15);
+        archiveAssert($v['status'] === 'ok' && $v['schema_version'] === 1 && array_key_exists('samples', $v));
+    });
+    $run('archive reader never writes, including approved temporary writer account', static function () use ($root, $config, $writerConfig, $range): void {
+        $counts = static fn() => $root->query('SELECT (SELECT COUNT(*) FROM evse_history_buckets),(SELECT COUNT(*) FROM evse_history_work),(SELECT COUNT(*) FROM evse_history_state)')->fetchAll(PDO::FETCH_NUM);
+        $before = $counts();
+        foreach ([$config, $writerConfig] as $c) { archiveAssert((new HistoryArchive($c))->snapshot($range)['status'] === 'ok'); }
+        archiveAssert($before === $counts());
+    });
+    $run('database clock mismatch, credential denial and budget expiration are unavailable', static function () use ($config, $range): void {
+        $wrongClock = new HistoryArchive($config, null, static fn() => new DateTimeImmutable('2000-01-01T00:00:00Z'));
+        archiveAssert($wrongClock->snapshot($range)['status'] === 'unavailable');
+        $wrong = new HistoryConfig(true, 'history-db', 3306, 'evse_history_test', 'history_reader', 'isolated/archive', 'dummy-only-wrong');
+        archiveAssert((new HistoryArchive($wrong))->snapshot($range)['status'] === 'unavailable');
+        $i = 0;
+        $mono = static function () use (&$i): int { return $i++ === 0 ? 0 : 3000000000; };
+        $expired = new HistoryArchive($config, static fn() => throw new RuntimeException('Must not connect'), null, $mono);
+        archiveAssert($expired->snapshot($range)['status'] === 'unavailable');
+    });
+    $run('real HTTP schema routing, validation, HEAD, methods, no-store and CSP', static function () use (&$server, &$secret): void {
+        $secret = tempnam('/tmp', 'archive-reader-');
+        archiveAssert($secret !== false);
+        file_put_contents($secret, "dummy-only-reader\n"); chmod($secret, 0600);
+        foreach (['WEB_HISTORY_ENABLED' => '1', 'HISTORY_DB_HOST' => 'history-db', 'HISTORY_DB_NAME' => 'evse_history_test',
+            'HISTORY_DB_USERNAME' => 'history_reader', 'HISTORY_DB_PASSWORD_FILE' => $secret, 'MQTT_TOPIC_PREFIX' => 'isolated/archive'] as $k => $v) { putenv("$k=$v"); }
+        $socket = stream_socket_server('tcp://127.0.0.1:0'); archiveAssert($socket !== false);
+        $address = stream_socket_get_name($socket, false); fclose($socket);
+        $server = proc_open(['php', '-S', $address, '/app/public/index.php'], [['file', '/dev/null', 'r'], ['file', '/dev/null', 'w'], ['file', '/dev/null', 'w']], $pipes, '/app');
+        archiveAssert(is_resource($server));
+        $request = static function (string $query, string $method = 'GET') use ($address): array {
+            $context = stream_context_create(['http' => ['method' => $method, 'ignore_errors' => true, 'timeout' => 5]]);
+            $body = @file_get_contents('http://' . $address . '/api/history?' . $query, false, $context);
+            return [$http_response_header ?? [], $body];
+        };
+        $ready = false;
+        for ($i = 0; $i < 40; ++$i) {
+            [$headers] = $request('minutes=1');
+            if ($headers) { $ready = true; break; }
+            usleep(50000);
+        }
+        archiveAssert($ready);
+        [$headers, $body] = $request('period=day&date=2026-01-01&tz=UTC');
+        archiveAssert(str_contains($headers[0], '200') && json_decode($body, true)['schema_version'] === 2);
+        archiveAssert(strlen($body) <= 2097152 && str_contains(strtolower(implode("\n", $headers)), 'cache-control: no-store'));
+        archiveAssert(str_contains(strtolower(implode("\n", $headers)), 'content-security-policy:'));
+        archiveAssert(!str_contains($body, 'dummy-only') && !str_contains($body, 'history-db'));
+        foreach (['period=day&date=2026-03-29', 'period=year&date=2024', 'period=hour&at=2026-10-25T01%3A30%3A00Z',
+            'period=week&date=2020-W53', 'period=custom&date_from=2026-01-01T00%3A00&date_to=2026-01-02T00%3A00'] as $q) {
+            [$headers] = $request($q); archiveAssert(str_contains($headers[0], '200'));
+        }
+        foreach (['period=day&date=now&date=now', 'period=day&date=now&x=1', 'period=day&date[]=now',
+            'period=hour&date=2026-03-29T02:00', 'period=year&date=2026&minutes=15'] as $q) {
+            [$headers] = $request($q); archiveAssert(str_contains($headers[0], '400'));
+        }
+        [$headers, $body] = $request('period=day&date=2026-01-01', 'HEAD'); archiveAssert(str_contains($headers[0], '200') && $body === '');
+        [$headers] = $request('period=day&date=2026-01-01', 'POST'); archiveAssert(str_contains($headers[0], '405'));
+        [$headers, $body] = $request('minutes=15'); archiveAssert(str_contains($headers[0], '200') && json_decode($body, true)['schema_version'] === 1);
+    });
+    print("Archive integration: $completed scenarios passed (isolated Docker only).\n");
+} catch (Throwable) {
+    // Never print SQL, DSNs, fixture credentials or exception messages.
+    fwrite(STDERR, "Archive integration failed: $case (diagnostics withheld).\n");
+    $failed = true;
+} finally {
+    if (is_resource($server)) { proc_terminate($server); proc_close($server); }
+    if (is_string($secret)) { unlink($secret); }
+}
+if ($failed) { exit(1); }

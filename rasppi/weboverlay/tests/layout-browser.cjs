@@ -249,8 +249,10 @@ function clean(run) {
           const ids = [...document.querySelectorAll('[id]')].map(el => el.id);
           return new Set(ids).size === ids.length;
         }), 'Unique DOM IDs');
-        assert.equal(await page.locator('form, input:not([type="checkbox"]), [role="button"], [role="checkbox"]').count(), 0);
-        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()), ['reset-display']);
+         assert.deepEqual(await page.locator('form, input:not([type="checkbox"]), [role="button"], [role="checkbox"]').evaluateAll(nodes => nodes.map(n => n.id).sort()),
+           route === '/' ? [] : ['calendar-custom', 'calendar-date', 'calendar-from', 'calendar-to']);
+         assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()),
+           (route === '/' ? ['reset-display'] : ['calendar-load', 'calendar-next', 'calendar-now', 'calendar-prev', 'reset-display']).sort());
         assert.equal(await page.locator('#reset-display').getAttribute('type'), 'button');
         assert.equal(await page.locator('#theme-toggle').getAttribute('role'), 'switch');
         assert.equal(await page.locator('#theme-toggle').getAttribute('type'), 'checkbox');

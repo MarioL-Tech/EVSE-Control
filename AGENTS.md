@@ -1,6 +1,6 @@
 # Arbeitskontext für Agents: EVSE-Control
 
-Stand: 2026-10-27. Diese Datei beschreibt den geprüften Repositoryzustand und
+Stand: 2026-10-28. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 

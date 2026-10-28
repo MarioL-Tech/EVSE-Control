@@ -9,6 +9,8 @@ use EvseOverlay\SmartmeterCache;
 use EvseOverlay\SmartmeterConfig;
 use EvseOverlay\HistoryConfig;
 use EvseOverlay\HistoryStore;
+use EvseOverlay\HistoryRange;
+use EvseOverlay\HistoryArchive;
 
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -17,7 +19,7 @@ header('X-Frame-Options: DENY');
 header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$assets = ['app.js' => 'text/javascript', 'charts.js' => 'text/javascript', 'history.js' => 'text/javascript', 'theme.js' => 'text/javascript', 'smartmeter.js' => 'text/javascript',
+$assets = ['app.js' => 'text/javascript', 'charts.js' => 'text/javascript', 'history.js' => 'text/javascript', 'newcalendar.js' => 'text/javascript', 'theme.js' => 'text/javascript', 'smartmeter.js' => 'text/javascript',
     'style.css' => 'text/css', 'icon.svg' => 'image/svg+xml'];
 $pages = ['/' => 'index.html', '/diagramme' => 'diagrams.html', '/einstellungen' => 'settings.html'];
 $asset = is_string($path) && str_starts_with($path, '/static/') ? substr($path, 8) : null;
@@ -50,16 +52,18 @@ if (isset($pages[$path])) {
         $result = ['status' => 'ok', 'read_only' => true];
     } elseif ($path === '/api/history') {
         try {
-            $minutes = HistoryStore::parseMinutes($_SERVER['QUERY_STRING'] ?? '');
+            $query = HistoryRange::parse($_SERVER['QUERY_STRING'] ?? '');
         } catch (InvalidArgumentException) {
             http_response_code(400);
             echo '{"error":"Invalid history query"}';
             exit;
         }
         try {
-            $result = (new HistoryStore(HistoryConfig::fromEnvironment()))->snapshot($minutes);
+            $config = HistoryConfig::fromEnvironment();
+            $result = $query instanceof HistoryRange ? (new HistoryArchive($config))->snapshot($query) :
+                (new HistoryStore($config))->snapshot($query);
         } catch (Throwable) {
-            $result = HistoryStore::failure($minutes);
+            $result = $query instanceof HistoryRange ? HistoryArchive::failure($query) : HistoryStore::failure($query);
         }
         if ($result['status'] === 'unavailable') {
             http_response_code(503);

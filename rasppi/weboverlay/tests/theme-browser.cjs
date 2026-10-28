@@ -123,7 +123,8 @@ async function protectedUI(page, route) {
   assert.notEqual(await page.locator('#timestamp').innerText(), '—');
   assert.notEqual(await page.locator('#freshness').innerText(), '—');
   assert.equal(await page.locator('.sidebar').count(), 1);
-  assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()), ['reset-display']);
+  assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()),
+    (route === '/' ? ['reset-display'] : ['calendar-load', 'calendar-next', 'calendar-now', 'calendar-prev', 'reset-display']).sort());
   assert.equal(await page.locator('[role="button"], #theme-mode[role]').count(), 0);
   assert.equal(await page.locator('#metric-options input[type="checkbox"]').count(), 16);
   if (route === '/') assert.equal(await page.locator('.summary-card').count(), 4);

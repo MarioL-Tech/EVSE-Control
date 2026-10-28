@@ -24,7 +24,7 @@ services:
     <<: *runtime
     restart: unless-stopped
     networks: [mqtt, database]
-    environment:
+    environment: &storage-environment
       DB_HOST: ${DB_HOST:?Set existing MariaDB hostname in .env}
       DB_PORT: ${DB_PORT:-3306}
       DB_NAME: ${DB_NAME:-evse_control}
@@ -41,6 +41,22 @@ services:
       - ./secrets/db-password.txt:/run/secrets/db-password:ro
     healthcheck:
       test: [CMD, python, -m, storage, --healthcheck]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+  history-rollup:
+    <<: *runtime
+    profiles: [history]
+    command: [--history-worker]
+    restart: unless-stopped
+    networks: [database]
+    environment:
+      <<: *storage-environment
+    volumes:
+      - ./secrets/db-password.txt:/run/secrets/db-password:ro
+    healthcheck:
+      test: [CMD, python, -m, storage, --history-healthcheck]
       interval: 10s
       timeout: 5s
       retries: 3

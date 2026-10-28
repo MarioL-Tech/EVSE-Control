@@ -143,6 +143,20 @@ tbody tr:last-child > * { border-bottom: 0; }
 .technical-details .card { box-shadow: none; background: var(--bg); }
 .timestamps dd { font-size: .73rem; max-width: 60%; }
 .history-heading { margin-top: 26px; }
+.calendar-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 12px 0; }
+.calendar-toolbar label { display: grid; gap: 5px; min-width: 0; font-size: .75rem; color: var(--muted); }
+.calendar-toolbar input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 5px; padding: 9px; min-height: 40px; min-width: 0; max-width: 100%; width: 100%; }
+.calendar-picker { flex: 0 1 225px; }
+.calendar-label { flex: 1 1 200px; margin: 0; overflow-wrap: anywhere; font-size: .78rem; }
+.calendar-navigation { display: flex; gap: 6px; }
+.calendar-toolbar button:disabled { cursor: default; opacity: .55; }
+#calendar-custom { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+#calendar-custom[hidden], .calendar-toolbar [hidden] { display: none; }
+#calendar-custom label { flex: 1 1 200px; }
+#calendar-custom span { flex-basis: 100%; color: var(--muted); font-size: .75rem; }
+.summary-glyph { fill: none; stroke-width: 1; stroke-linecap: butt; vector-effect: non-scaling-stroke; }
+.summary-gap { stroke-dasharray: 2 2; }
+@media (max-width: 480px) { .calendar-picker, .calendar-toolbar > label, .calendar-label { flex-basis: 100%; } }
 .history-heading label { color: var(--muted); font-size: .75rem; display: flex; align-items: center; gap: 10px; }
 .history-note { padding: 14px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: .76rem; }
 .history-note p { color: var(--muted); font-size: .72rem; margin-top: 5px; max-width: 95ch; }

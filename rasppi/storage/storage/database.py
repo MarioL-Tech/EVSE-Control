@@ -28,6 +28,7 @@ class Database:
     def __init__(self, config):
         self.config = config
         self.connection = None
+        self.history_enabled = False
 
     def connect(self):
         c = self.config
@@ -47,18 +48,25 @@ class Database:
         self.verify_shape()
         with self.connection.cursor() as cursor:
             cursor.execute("SELECT version FROM evse_schema_versions ORDER BY version")
-            if cursor.fetchall() != ((1,),):
+            versions = cursor.fetchall()
+            if versions not in (((1,),), ((1,), (2,))):
                 raise ValueError("Unsupported database schema; run migration explicitly")
+            self.history_enabled = versions == ((1,), (2,))
             cursor.execute("SELECT " + ",".join(MEASUREMENT_COLUMNS) + " FROM evse_wallbox_samples LIMIT 0")
             cursor.execute("SELECT event_id,details_json FROM evse_ingest_events LIMIT 0")
         self.connection.commit()
+        if self.history_enabled:
+            from .history import verify_history_shape
+            verify_history_shape(self)
+            self.connection.commit()
 
-    def verify_shape(self, names=None):
+    def verify_shape(self, names=None, tables=None):
         # IF NOT EXISTS alone must not bless a foreign/incomplete table. In
         # particular, losing binary source identity or UNIQUE keys breaks retries.
         with self.connection.cursor(pymysql.cursors.DictCursor) as cursor:
-            for name in names or TABLES:
-                types, nullable, unique = TABLES[name]
+            registry = TABLES if tables is None else tables
+            for name in names or registry:
+                types, nullable, unique = registry[name]
                 cursor.execute("SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=%s AND TABLE_NAME=%s", (self.config.db_name, name))
                 row = cursor.fetchone()
                 if not row or row["ENGINE"] != "InnoDB":
@@ -70,7 +78,7 @@ class Database:
                 for key, expected in types.items():
                     col = columns[key]
                     actual = col["COLUMN_TYPE"]
-                    if expected in ("int", "int unsigned", "bigint unsigned"):
+                    if expected in ("int", "int unsigned", "bigint unsigned", "tinyint unsigned"):
                         actual = re.sub(r"\(\d+\)", "", actual)
                     if actual != expected or (col["IS_NULLABLE"] == "YES") != (key in nullable):
                         raise ValueError("Incompatible column type/nullability")
@@ -98,8 +106,11 @@ class Database:
                 self.verify_shape(["evse_schema_versions"])
                 cursor.execute("SELECT version FROM evse_schema_versions ORDER BY version")
                 versions = cursor.fetchall()
-                if versions == ((1,),):
+                if versions in (((1,),), ((1,), (2,))):
                     self.verify_shape()
+                    if versions == ((1,), (2,)):
+                        from .history import verify_history_shape
+                        verify_history_shape(self)
                     self.connection.commit()
                     return
                 if versions:
@@ -127,6 +138,9 @@ class Database:
                 else:
                     cursor.execute("INSERT INTO evse_ingest_events (event_id,source,received_at,kind,availability,retained,details_json) VALUES (%s,%s,%s,%s,%s,%s,%s)",
                                    (item["id"], item["source"], item["received_at"], item["kind"], item.get("availability"), item["retained"], item["details"]))
+                if self.history_enabled:
+                    from .history import notify
+                    notify(cursor, item)
             self.connection.commit()
             return True
         except pymysql.IntegrityError as error:

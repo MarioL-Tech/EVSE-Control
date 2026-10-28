@@ -4,6 +4,10 @@ All notable changes to the EVSE-Control project. This file is **actively maintai
 
 Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
+## 2026-10-28
+
+- **11:41** — **In Arbeit: Kalenderarchiv bis ein Jahr und kantenbezogene Diagrammlücken** — Additive optionale Schema-2-Verdichtung mit eigenem Storage-Worker und begrenztem Backfill, read-only Kalender-API mit Zeitzonen-/Sommerzeitprüfung und Stunde/Tag/ISO-Woche/Monat/Jahr/eigenem Zeitraum sowie unabhängiger begrenzter Browserarchivstore implementiert. Globale SQL-Lückensperre durch kantenbezogene Evidenz ersetzt, dichte Einzelmarker ausgedünnt ohne echte Messlücken zu verbinden. Integration korrigiert: tatsächliches Kalenderscript in Static-Allowlist, neue Tests in Docker eingebunden, NULL-Endpunkte statt letzter Nichtnullwerte, keine Coverage aus abgeschnittenem Ereigniskontext, Offline getrennt von Materialisierungsfortschritt. Erste Gesamt-Docker-CI noch offen, kein Pi-Deployment/Migration. Bestehende Roh-, Preis-/Providerdaten, Benutzerrechte und Infrastruktur bleiben unberührt; Aktivierung erfordert ausdrücklich koordinierten Collector-Neustart vor Workerstart.
+
 ## 2026-10-27
 
 - **23:02** — **Nachweis: Logo-Docker-CI erfolgreich** — Läufe 40590551938 und 40590543291 für e839bb2 bestehen bestehende Backend-/SQL-/JS-/sechs Chromium-/Runtimeprüfungen einschließlich geladenem SVG/Favicon auf Übersicht, Diagrammen und Settings. Simulierte Dark-Desktop-/Light-Mobilbilder visuell geprüft; Wortmarke und übriges Layout erhalten. Kein Pi-Deployment. Zusätzlich beauftragte Kalender-/Jahreshistorie und Punktmarker-Korrektur als in Arbeit festgehalten, nicht als umgesetzt; ausschließlich dieser Betriebs-/Anforderungsnachweis, keine Produktionsänderung.

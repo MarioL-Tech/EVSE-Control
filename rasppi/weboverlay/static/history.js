@@ -1,13 +1,38 @@
 (function (root) {
   'use strict';
   const MAX_BYTES = 1024 * 1024, TIMEOUT_MS = 4000;
+  const ARCHIVE_MAX_BYTES = 2 * MAX_BYTES;
+  function calendarQuery(selection) {
+    if (!selection || typeof selection !== 'object' || Array.isArray(selection)) return null;
+    const allowed = ['period', 'date', 'at', 'tz', 'from', 'to', 'date_from', 'date_to'];
+    if (Object.keys(selection).some(k => !allowed.includes(k)) ||
+        !['hour', 'day', 'week', 'month', 'year', 'custom'].includes(selection.period) ||
+        !['Europe/Vienna', 'UTC'].includes(selection.tz) ||
+        Object.values(selection).some(v => typeof v !== 'string' || v.length > 40 || /[\x00-\x20]/.test(v))) return null;
+    const fields = Object.keys(selection).filter(k => !['period', 'tz'].includes(k));
+    const valid = selection.period === 'custom'
+      ? [['from', 'to'], ['date_from', 'date_to']].some(pair => fields.length === 2 && pair.every(k => fields.includes(k)))
+      : fields.length === 1 && ['date', 'at'].includes(fields[0]);
+    if (!valid) return null;
+    const utc = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?Z$/;
+    const formats = { hour: /^\d{4}-\d\d-\d\dT\d\d:00$/, day: /^\d{4}-\d\d-\d\d$/,
+      week: /^\d{4}-W\d\d$/, month: /^\d{4}-\d\d$/, year: /^\d{4}$/ };
+    if (selection.date && selection.date !== 'now' && !formats[selection.period]?.test(selection.date)) return null;
+    for (const k of ['at', 'from', 'to']) if (selection[k] && !utc.test(selection[k])) return null;
+    for (const k of ['date_from', 'date_to']) if (selection[k] && !/^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test(selection[k])) return null;
+    const params = new URLSearchParams();
+    for (const k of allowed) if (selection[k] !== undefined) params.set(k, selection[k]);
+    return params.toString().length <= 512 ? `/api/history?${params}` : null;
+  }
   // No live-state access and no persistence: this controller only loads archives.
   function createHistoryLoader({ fetch: fetcher = root.fetch.bind(root),
     clock = () => ({ wall: Date.now(), mono: performance.now() }),
     setTimer = setTimeout, clearTimer = clearTimeout,
-    makeAbort = () => new AbortController(), importHistory, onState = () => {}, onReset = () => {} }) {
+    makeAbort = () => new AbortController(), importHistory, importArchive = () => false,
+    onState = () => {}, onReset = () => {} }) {
     let visible = true, generation = 0, active = null, due = 0, failures = 0;
     let disabled = false, loaded = false, lastClock = null, stopped = false;
+    let selection = null, paused = false;
     function cancel() {
       generation++;
       if (active) { clearTimer(active.timer); active.controller.abort(); active = null; }
@@ -17,14 +42,14 @@
       due = now + [10000, 30000, 60000][Math.min(failures++, 2)];
       report('unavailable');
     }
-    async function read(response, current, controller) {
+    async function read(response, current, controller, limit) {
       const length = response.headers?.get('content-length');
-      if (length !== null && length !== undefined && (!/^\d+$/.test(length) || Number(length) > MAX_BYTES)) throw Error('size');
+      if (length !== null && length !== undefined && (!/^\d+$/.test(length) || Number(length) > limit)) throw Error('size');
       if (!response.body?.getReader) {
         // Compatibility for non-streaming fetch implementations; browsers use
         // the bounded streaming path below, before JSON allocation.
         const value = await response.text();
-        if (!current() || new TextEncoder().encode(value).length > MAX_BYTES) throw Error('size');
+        if (!current() || new TextEncoder().encode(value).length > limit) throw Error('size');
         return JSON.parse(value);
       }
       const reader = response.body.getReader(), decoder = new TextDecoder('utf-8', { fatal: true });
@@ -35,7 +60,7 @@
           if (!current()) throw Error('cancelled');
           if (chunk.done) break;
           bytes += chunk.value.byteLength;
-          if (bytes > MAX_BYTES) throw Error('size');
+          if (bytes > limit) throw Error('size');
           value += decoder.decode(chunk.value, { stream: true });
         }
         value += decoder.decode();
@@ -60,12 +85,12 @@
       }, TIMEOUT_MS);
       (async () => {
         try {
-          const response = await fetcher('/api/history?minutes=15', {
+          const response = await fetcher(selection ? calendarQuery(selection) : '/api/history?minutes=15', {
             method: 'GET', cache: 'no-store', signal: controller.signal
           });
           if (!current()) return;
           if (![200, 503].includes(response.status)) throw Error('HTTP');
-          const batch = await read(response, current, controller);
+          const batch = await read(response, current, controller, selection ? ARCHIVE_MAX_BYTES : MAX_BYTES);
           if (!current()) return;
           // Observe both clocks after asynchronous work, before any import.
           const end = clock();
@@ -73,11 +98,12 @@
             cancel(); onReset(); loaded = false; disabled = false; due = 0; lastClock = end; report('browser'); return;
           }
           lastClock = end;
-          if ((response.status === 503) !== (batch?.status === 'unavailable') || !importHistory(batch, end.wall)) throw Error('payload');
+          if ((response.status === 503) !== (batch?.status === 'unavailable') ||
+              !(selection ? importArchive(batch, end.wall, selection) : importHistory(batch, end.wall))) throw Error('payload');
           if (batch.status === 'unavailable') throw Error('unavailable');
           failures = 0; disabled = batch.status === 'disabled';
           if (batch.status === 'ok') loaded = true;
-          due = end.mono + 60000;
+          due = selection && batch.complete && Date.parse(batch.range.to) < end.wall ? Infinity : end.mono + 60000;
           report(batch.status, batch.complete);
         } catch (_) {
           if (current()) {
@@ -103,7 +129,7 @@
           report(disabled ? 'disabled' : 'browser');
         }
         lastClock = now;
-        if (visible && !disabled && !active && now.mono >= due) request(now);
+        if (visible && !paused && !disabled && !active && now.mono >= due) request(now);
       },
       setVisible(value) {
         if (visible === value || stopped) return;
@@ -111,13 +137,20 @@
         if (visible) { disabled = false; due = 0; }
       },
       invalidate() { cancel(); due = 0; },
+      select(value) {
+        if (value !== null && !calendarQuery(value)) return false;
+        cancel(); selection = value === null ? null : { ...value };
+        loaded = false; disabled = false; failures = 0; paused = false; due = 0; report('browser');
+        return true;
+      },
+      suspend() { cancel(); paused = true; },
       restore() {
         cancel(); onReset(); loaded = false; disabled = false; failures = 0; due = 0; lastClock = null; report('browser');
       },
       stop() { cancel(); stopped = true; }
     };
   }
-  const api = { createHistoryLoader, MAX_BYTES, TIMEOUT_MS };
+  const api = { createHistoryLoader, calendarQuery, MAX_BYTES, ARCHIVE_MAX_BYTES, TIMEOUT_MS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.OverlayHistory = api;
 })(typeof window !== 'undefined' ? window : globalThis);

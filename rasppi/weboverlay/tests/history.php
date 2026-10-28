@@ -384,13 +384,18 @@ try {
             historyCheck(str_ends_with($pdo->statements[4][0], 'LIMIT 2'));
         });
     }
-    foreach ([[], [['version' => '2']], [['version' => '1'], ['version' => '2']]] as $versions) {
+    foreach ([[], [['version' => '2']], [['version' => '1'], ['version' => '3']], [['version' => '1'], ['version' => '2'], ['version' => '3']]] as $versions) {
         $test(static function () use ($config, $versions): void {
             $pdo = new HistoryPDO([$versions]);
             $result = (new HistoryStore($config, static fn() => $pdo))->snapshot();
             historyCheck($result['status'] === 'unavailable' && $result['samples'] === [] && $pdo->rolledBack);
         });
     }
+    $test(static function () use ($config): void {
+        $pdo = new HistoryPDO([[['version' => '2'], ['version' => '1']], [['server_now' => historyDate(59)]], [], [], []]);
+        $result = (new HistoryStore($config, static fn() => $pdo))->snapshot();
+        historyCheck($result['schema_version'] === 1 && $result['status'] === 'ok' && $pdo->committed);
+    });
     $test(static function () use ($config): void {
         $pdo = new HistoryPDO([], true);
         $result = (new HistoryStore($config, static fn() => $pdo))->snapshot();

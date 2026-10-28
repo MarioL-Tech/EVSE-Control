@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/charts.js" defer></script>
   <script src="/static/history.js" defer></script>
+  <script src="/static/newcalendar.js" defer></script>
   <script src="/static/app.js" defer></script>
 </head>
 <body>
@@ -40,6 +41,13 @@
       <p id="display-empty" class="notice" hidden>Alle Messwerte sind ausgeblendet. Unter „Anzeige auswählen“ wieder einschalten.</p>
       <section class="history-section" aria-labelledby="history-heading">
         <div class="section-heading history-heading"><h2 id="history-heading">Wallbox-Verlauf</h2><label for="chart-range">Zeitfenster <select id="chart-range"><option value="1">1 Minute</option><option value="5" selected>5 Minuten</option><option value="15">15 Minuten</option></select></label></div>
+        <div class="calendar-toolbar" role="group" aria-label="Kalenderhistorie">
+          <label class="calendar-picker">Kalender · Europe/Vienna<input id="calendar-date" type="date" aria-label="Datum wählen · Europe/Vienna" hidden></label>
+          <p id="calendar-label" class="calendar-label" role="status">Live-Verlauf · Browser und Roharchiv</p>
+          <div class="calendar-navigation"><button id="calendar-now" type="button">Jetzt</button><button id="calendar-prev" type="button" aria-label="Vorheriger Zeitraum" disabled>‹</button><button id="calendar-next" type="button" aria-label="Nächster Zeitraum" disabled>›</button></div>
+          <label>Ansicht<select id="calendar-mode"><option value="live">Live</option><option value="hour">Stunde</option><option value="day">Tag</option><option value="week">Woche</option><option value="month">Monat</option><option value="year">Jahr</option><option value="custom">Zeitraum</option></select></label>
+          <form id="calendar-custom" hidden><label for="calendar-from">Von · Europe/Vienna<input id="calendar-from" type="datetime-local" required></label><label for="calendar-to">Bis (exklusiv) · Europe/Vienna<input id="calendar-to" type="datetime-local" required></label><button id="calendar-load" type="submit">Zeitraum laden</button><span>Maximal ein Kalenderjahr; Grenzen werden serverseitig geprüft.</span></form>
+        </div>
         <div class="history-note"><strong id="history-source">Seit Öffnen dieser Seite · max. 15 Minuten</strong><p id="history-detail">Nur Browser-RAM, kein Datenbankarchiv. Neuladen leert den Verlauf. Historisch, nicht live; Ausfälle bleiben Lücken.</p></div>
         <div id="chart-grid" class="chart-grid"></div>
         <details class="technical-details history-diagnostics"><summary>Zustände &amp; Diagnose</summary><div id="chart-diagnostics-grid" class="chart-grid"></div></details>

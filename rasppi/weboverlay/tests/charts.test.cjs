@@ -45,7 +45,8 @@ test('offline/recovery gaps cannot be filled by the same cached timestamp', () =
   h.observe(live(epoch + 4000), epoch + 4000);
   const path = plot(h, 'power', epoch + 4000).paths[0].path;
   assert.equal((path.match(/M/g) || []).length, 2); assert(!path.includes('L'));
-  assert.equal(plot(h, 'power', epoch + 4000).paths[0].markers.length, 2);
+  assert.equal(plot(h, 'power', epoch + 4000).paths[0].markers.length, 1,
+    'Subpixel-near isolated markers are thinned without joining their paths');
 });
 test('all nonlive states create gaps, without invented zero measurements', () => {
   for (const status of ['waiting', 'offline', 'stale', 'clock_error', 'invalid', 'read_error']) {
@@ -278,7 +279,8 @@ test('newer SQL points never steal live timestamp anchors or clock anchors', () 
   assert.equal(h.window(epoch, 15).at(-1).values.power, 7.4);
   h.observe(live(epoch - 1000), epoch - 1000);
   assert.equal(h.size, 4);
-  assert.equal((plot(h, 'power', epoch).paths[0].path.match(/M/g) || []).length, 4);
+  assert.equal((plot(h, 'power', epoch).paths[0].path.match(/M/g) || []).length, 1,
+    'Overlapping measured live and SQL edges prove continuity without changing live clocks');
 });
 test('shared SQL/live retained allocation never exceeds 1200; rollback and clear remove both', () => {
   const h = createHistory();
@@ -290,10 +292,60 @@ test('shared SQL/live retained allocation never exceeds 1200; rollback and clear
   h.importHistory(batch(rows), epoch); h.clear(); assert.equal(h.size, 0);
   assert.equal(h.importHistory(batch([...rows, row(epoch)]), epoch), false);
 });
-test('partial archives disconnect every sample, error rows are gaps not zeros', () => {
+test('partial archives preserve proven edges; error rows are gaps not zeros', () => {
   const h = createHistory();
   assert(h.importHistory(batch([row(epoch - 4000), row(epoch - 2000, '2', { status: 'error', values: null }),
     row(epoch, '3', { break_before: false })], { complete: false }), epoch));
   assert.equal(h.window(epoch, 15)[1].values.power, null);
   assert(!plot(h, 'power', epoch).paths[0].path.includes('L'));
+});
+
+for (const status of ['waiting', 'read_error']) test(`browser ${status} transport gap is repaired by continuous SQL, not permanent gapFloor poisoning`, () => {
+  const h = createHistory();
+  h.observe(live(epoch - 10000, { active_power_w: 0 }), epoch - 10000);
+  h.observe({ status }, epoch - 9000);
+  h.observe(live(epoch - 6000, { active_power_w: 0 }), epoch - 6000);
+  const data = batch(Array.from({ length: 6 }, (_, i) => row(epoch - 10000 + i * 2000, String(i + 1), {
+    break_before: i === 0, values: { ...values, active_power_w: 0, current_limit_a: 6 }
+  })), { complete: false });
+  assert(h.importHistory(data, epoch));
+  const p = plot(h, 'power', epoch).paths[0];
+  assert.equal((p.path.match(/M/g) || []).length, 1); assert(p.path.includes('L'));
+  assert.equal(p.markers.length, 1);
+  assert.equal(h.window(epoch, 15).filter(p => p.source === 'live').length, 2);
+});
+test('a lone unproven seam does not isolate all later SQL edges', () => {
+  const h = createHistory(); h.observe(live(epoch - 6000), epoch - 6000);
+  assert(h.importHistory(batch([row(epoch - 4000, '1'), row(epoch - 2000, '2', { break_before: false }),
+    row(epoch, '3', { break_before: false })]), epoch));
+  assert.equal((plot(h, 'power', epoch).paths[0].path.match(/M/g) || []).length, 2);
+});
+test('explicit offline/clock/error barriers survive SQL overlap but do not poison subsequent edges', () => {
+  for (const status of ['offline', 'clock_error', 'read_error', 'invalid']) {
+    const h = createHistory(); h.observe(live(epoch - 8000), epoch - 8000);
+    h.observe({ status }, epoch - 7000); h.observe(live(epoch - 4000), epoch - 4000);
+    assert(h.importHistory(batch([row(epoch - 8000, '1'), row(epoch - 6000, '2', { break_before: false }),
+      row(epoch - 4000, '3', { break_before: false }), row(epoch - 2000, '4', { break_before: false }),
+      row(epoch, '5', { break_before: false })]), epoch));
+    const path = plot(h, 'power', epoch).paths[0].path;
+    assert.equal((path.match(/M/g) || []).length, 3); assert(path.includes('L'));
+  }
+});
+test('break_before belongs to its SQL predecessor edge, not an arbitrary merged predecessor', () => {
+  const h = createHistory();
+  assert(h.importHistory(batch([row(epoch - 8000, '1'), row(epoch - 4000, '2', { break_before: false }),
+    row(epoch, '3', { break_before: true })]), epoch));
+  h.observe(live(epoch - 6000), epoch - 6000);
+  h.observe(live(epoch - 2000), epoch - 2000);
+  const p = h.window(epoch, 15);
+  assert.equal(p[1].breakBefore, false); assert.equal(p[2].breakBefore, false);
+  assert.equal(p[3].breakBefore, true); assert.equal(p[4].breakBefore, true);
+});
+test('dense isolated flat samples have sparse pixel markers, never a marker pill or fabricated line', () => {
+  const h = createHistory();
+  assert(h.importHistory(batch(Array.from({ length: 1000 }, (_, i) => row(epoch - 1000 + i, String(i + 1), {
+    values: { ...values, active_power_w: 0 }, break_before: true
+  }))), epoch));
+  const p = plot(h, 'power', epoch).paths[0];
+  assert(!p.path.includes('L')); assert(p.markers.length <= 2);
 });
