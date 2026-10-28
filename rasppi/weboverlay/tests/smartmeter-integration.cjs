@@ -10,6 +10,7 @@ const { spawn } = require('node:child_process');
 const { performance } = require('node:perf_hooks');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 let completed = 0;
+let phase = 'startup';
 let mode = 'positive';
 let hits = 0;
 let redirectFollows = 0;
@@ -136,17 +137,30 @@ async function workerPid() {
   await new Promise(resolve => source.listen(0, '127.0.0.1', resolve));
   await launch(true);
   for (const [nextMode, expected] of [['positive', 1549.4], ['negative', -1200.5], ['zero', 0]]) {
+    phase = 'signed-values';
     mode = nextMode;
     await until(async () => { const s = await state(); return s.status === 'live' && s.power_w === expected; });
     completed++;
   }
   // Independent API remains live with no MQTT broker listening.
-  assert.equal((await request('/api/state')).code, 200);
-  assert.equal((await state()).status, 'live'); completed++;
+  phase = 'mqtt-independence';
+  // Live observation is not a readiness barrier for a later IPC snapshot:
+  // its bounded lock/heartbeat guard can fail closed during scheduling stalls.
+  // Require the same result through bounded observation, without relaxing TTLs.
+  await until(async () => {
+    const response = await request('/api/state');
+    assert.equal(response.code, 200);
+    const wallbox = JSON.parse(response.body);
+    const house = await state();
+    return wallbox.status === 'offline' && wallbox.broker_connected === false && wallbox.values === null
+      && house.status === 'live' && house.power_w === 0;
+  }); completed++;
+  phase = 'cache-only-http';
   const before = hits;
   await Promise.all(Array.from({ length: 20 }, () => state()));
   assert(hits - before <= 1, 'API reads must not fetch source'); completed++;
   for (const failure of ['500', 'malformed', 'oversize', 'headers', 'redirect', 'slow']) {
+    phase = 'source-failure';
     mode = failure;
     await until(async () => (await state()).status === 'read_error');
     if (failure === 'redirect') assert.equal(redirectFollows, 0, 'Never follow source redirects');
@@ -157,9 +171,11 @@ async function workerPid() {
     await until(async () => (await state()).status === 'live');
   }
   for (const method of ['POST', 'PUT']) {
+    phase = 'read-only-methods';
     assert.equal((await request('/api/smartmeter', method)).code, 405); completed++;
   }
   stoppedPid = await workerPid();
+  phase = 'stopped-worker';
   process.kill(stoppedPid, 'SIGSTOP');
   await until(async () => (await state()).status === 'offline', 6000);
   assert.equal((await request('/api/state')).code, 200); completed++;
@@ -167,6 +183,7 @@ async function workerPid() {
   await until(async () => (await state()).status === 'live');
   await stop(true);
   const disabledHits = hits;
+  phase = 'disabled-source';
   await launch(false);
   await until(async () => (await state()).status === 'disabled');
   await pause(1200);
@@ -175,7 +192,7 @@ async function workerPid() {
   console.log(`Smartmeter integration: ${completed} scenarios passed`);
 })().catch(() => {
   // Do not expose source URLs, bodies, logs or environment even on failure.
-  console.error(`Smartmeter integration failed (${completed} completed, mode=${mode})`); process.exitCode = 1;
+  console.error(`Smartmeter integration failed (${completed} completed, phase=${phase}, mode=${mode})`); process.exitCode = 1;
 }).finally(async () => {
   await stop();
   source.closeAllConnections();

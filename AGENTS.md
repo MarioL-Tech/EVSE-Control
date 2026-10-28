@@ -1,10 +1,21 @@
 # Arbeitskontext für Agents: EVSE-Control
 
-Stand: 2026-10-28. Diese Datei beschreibt den geprüften Repositoryzustand und
+Stand: 2026-10-29. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
 ## Projekt und Ziele
+
+Aktueller Folgeauftrag (2026-10-29): Archivdiagramme wegen hoher Renderlast und
+weiterhin unbefriedigender Darstellung erneut überarbeiten; Haus-Netzleistung
+nun ausdrücklich dauerhaft speichern und in Stunde/Tag/weiteren Kalenderansichten
+anzeigen, oberhalb von „Diagnose“. Diese Hausarchivierung ist neu autorisiert,
+aber noch nicht implementiert; bisheriger Live-RAM-Verlauf ist kein SQL-Hausarchiv.
+Website bleibt SELECT-only, vorhandene Raw-/Preis-/Providerdaten erhalten,
+keine Produktionsmigration durch Agent. Main-Build 40782985667 scheiterte nach
+drei Hauswertprüfungen in der MQTT-Unabhängigkeitsphase; Hotfix ersetzt deren
+einmalige Folgebeobachtung durch begrenztes gemeinsames Warten bei unveränderten
+Anwendungsgrenzen und ergänzt redigierte Phasendiagnostik. CI-Abschluss offen.
 
 EVSE-Control ist eine Diplomarbeit zur Steuerung und Überwachung einer
 Elektrofahrzeug-Ladestation mit RFID-basierter Diebstahlsicherung.

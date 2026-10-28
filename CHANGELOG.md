@@ -4,6 +4,10 @@ All notable changes to the EVSE-Control project. This file is **actively maintai
 
 Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
+## 2026-10-29
+
+- **00:05** — **Test: Haus-Smartmeter-/MQTT-Unabhängigkeit robust beobachten** — Main-CI 40782985667 für 9eb4a17 besteht PHP-/Historien-/MQTT-Prüfungen und drei signierte Hauswerte, scheitert danach vor Abschluss der Unabhängigkeitsprüfung. Der Test verlangte unmittelbar nach einer Live-Beobachtung eine weitere Live-Antwort ohne Readiness-Barriere, obwohl IPC-/Heartbeat-Grenzen unter Schedulinglast absichtlich fail-closed sind. Dieselben Bedingungen nun begrenzt gemeinsam beobachten, zusätzlich Wallbox tatsächlich offline/keine Werte und echte Haus-0 prüfen; keine TTL-/Lock-/Timeoutgrenzen der Anwendung verändert. Nur statische Phasenkennung im Fehlerfall, keine URLs/Bodys/Secrets. Docker-Verifikation noch offen.
+
 ## 2026-10-28
 
 - **23:41** — **Test: Navigation bis zum Status-DOM abwarten** — Push-CI 40780960848 für c2a2558 vollständig erfolgreich, parallele PR-CI trifft eine Layout-Test-Race beim Seitenwechsel: Ready-Prädikat dereferenzierte den noch nicht geparsten Statusknoten. Nullsicheres Warten bis tatsächlich „Live“ erscheint; keine Produktions-/UI-Änderung oder gelockerte Statusanforderung. Erneute Abschluss-CI folgt.
