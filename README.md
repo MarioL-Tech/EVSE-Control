@@ -11,7 +11,7 @@ Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die Website soll später
 inhaltlich umgebaut werden. Davon separat erhält sie eine **installierbare
 Progressive Web App (PWA)** mit optionalem lokalem HTTPS/eigener CA ohne Domain.
 Manifest, Installations-/Offlinefunktionen und Proxy implementiert; abschließende
-CI/Icons und tatsächliche Handyinstallation noch offen. Spätere Domainanbindung
+CI und tatsächliche Handyinstallation noch offen. Spätere Domainanbindung
 über konfigurierbaren Namen, kein Backendwechsel.
 Das Websitebackend ist separat
 auf PHP 8.4/Apache mit einem PHP-MQTT-Worker umgestellt;

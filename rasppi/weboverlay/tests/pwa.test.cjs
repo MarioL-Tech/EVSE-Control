@@ -112,6 +112,23 @@ test('Statische Antworten werden online neu geladen, aber niemals zur Laufzeit g
   assert.equal(await staticResponse(request('/static/app.js'), storage, async () => { throw new Error('offline'); }), fallback);
 });
 
+test('Auch hängende Offline-Shell-Scripts und Styles fallen begrenzt auf den Cache zurück', async () => {
+  let timeout, aborted = false, deadline;
+  const box = { module: { exports: {} }, URL, Response, AbortController,
+    setTimeout: (callback, delay) => { timeout = callback; deadline = delay; return 1; }, clearTimeout: () => {} };
+  vm.runInNewContext(fs.readFileSync(require.resolve('../static/service-worker.js'), 'utf8'), box);
+  const result = box.module.exports.staticResponse(request('/static/theme.js'), {
+    open: async () => ({ match: async () => new Response('Statische Offline-Shell') })
+  }, (_, options) => {
+    options.signal.addEventListener('abort', () => { aborted = true; });
+    return new Promise(() => {});
+  });
+  assert.equal(deadline, 3000);
+  timeout();
+  assert.equal(await (await result).text(), 'Statische Offline-Shell');
+  assert.equal(aborted, true);
+});
+
 function environment({ secure = true, worker = true, standaloneMode = false, ios = false, reject = false, protocol = 'https:' } = {}) {
   const calls = [], listeners = {}, registration = {
     waiting: null, installing: null,

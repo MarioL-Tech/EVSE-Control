@@ -24,7 +24,7 @@ function requestKind(request, origin) {
   return STATIC_PATHS.includes(url.pathname) ? 'static' : null;
 }
 
-async function navigation(request, cacheStorage, fetcher) {
+async function boundedFetch(request, fetcher, timeoutMs) {
   const controller = new AbortController();
   let timer;
   try {
@@ -34,8 +34,14 @@ async function navigation(request, cacheStorage, fetcher) {
       new Promise((_, reject) => { timer = setTimeout(() => {
         controller.abort();
         reject(new Error('Keine Verbindung'));
-      }, 5000); })
+      }, timeoutMs); })
     ]);
+  } finally { clearTimeout(timer); }
+}
+
+async function navigation(request, cacheStorage, fetcher) {
+  try {
+    return await boundedFetch(request, fetcher, 5000);
   } catch (_) {
     const cache = await cacheStorage.open(CACHE_NAME);
     const fallback = await cache.match('/static/offline.html');
@@ -43,13 +49,15 @@ async function navigation(request, cacheStorage, fetcher) {
     return new Response('Offline – keine Verbindung. Keine Livewerte verfügbar.', {
       status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }
     });
-  } finally { clearTimeout(timer); }
+  }
 }
 
 async function staticResponse(request, cacheStorage, fetcher) {
   // Online always uses current server assets, never a stale-while-revalidate
   // race. Only installation writes this immutable generation's shell cache.
-  try { return await fetcher(request, { cache: 'no-store' }); }
+  // A blackholed connection must not leave the offline page's script/style
+  // parser-blocking indefinitely even though navigation already timed out.
+  try { return await boundedFetch(request, fetcher, 3000); }
   catch (error) {
     const cache = await cacheStorage.open(CACHE_NAME);
     const cached = await cache.match(request);

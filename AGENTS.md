@@ -25,7 +25,7 @@ konkretisiert: Die Handy-Oberfläche soll eine **installierbare Progressive Web 
 (PWA)** sein, nicht eine native Handy-App. Funktionsumfang, Gestaltung und
 Zusammenspiel weitergehender Bedienoberflächen sind noch festzulegen. Manifest,
 HTTPS-only-Installationscontroller und Offline-Shell sowie optionaler lokaler
-HTTPS-Proxy sind implementiert; CI/Icons und Handyabnahme noch in Arbeit. Separat
+HTTPS-Proxy und Produkticons sind implementiert; CI und Handyabnahme noch in Arbeit. Separat
 autorisiert und implementiert ist die PHP-Backendmigration ausschließlich der Website
 `rasppi/weboverlay`; HTML/CSS/JS, Seiten und Diagramme bleiben ohne Neugestaltung.
 Separat beauftragt und umgesetzt ist das Theme „Compact / Dense“ nach Entwurf
@@ -112,7 +112,13 @@ Für die bedienende Website sind folgende Funktionen vorgesehen; die genaue
   Außerhalb des LAN entsteht keine automatische Fernverbindung; Zugriffsschutz,
   erlaubtes Offlineverhalten und mobile Bedienung bleiben abzustimmen. Bestehende
   serverseitige Dienste laufen unabhängig davon, ob die Handy-App geöffnet ist.
-- CI-Freigabe/Produktionsicons noch ausstehend; kein Pi-HTTPS-Deployment,
+- Produkticons aus Docker-Rendererlauf 40725917549 übernommen (dieser erste
+  Bootstraplauf scheiterte danach erwartungsgemäß an noch fehlenden committed
+  PNGs, kein App-/TLS-Nachweis). Statische Prüfung fand einen unbegrenzten
+  Shell-Asset-Fetch bei Netzwerk-Blackholes: jetzt auch für Scripts/CSS 3-s-
+  Abort/Race mit ausschließlich statischem Cachefallback und Regressionstest.
+  Bei späteren Assetänderungen die Shellgeneration bewusst erhöhen.
+- CI-Freigabe noch ausstehend; kein Pi-HTTPS-Deployment,
   produktives CA-Zertifikat oder echter Android-/iOS-Installationsnachweis.
 
 ### Geplante Lademodi (noch nicht implementiert)

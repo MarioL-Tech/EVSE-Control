@@ -27,7 +27,7 @@ services:
         printf 'listener 1883\nallow_anonymous true\npersistence false\n' > /tmp/mosquitto.conf
         exec mosquitto -c /tmp/mosquitto.conf
     read_only: true
-    tmpfs: [/tmp:uid=1883,gid=1883,mode=0700,size=1m]
+    tmpfs: ["/tmp:uid=1883,gid=1883,mode=0700,size=1m"]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     networks: [mqtt-test]
@@ -51,7 +51,7 @@ services:
       WEB_STALE_SECONDS: "10"
     networks: [web-test, mqtt-test]
     read_only: true
-    tmpfs: [/tmp:size=16m,mode=1777]
+    tmpfs: ["/tmp:size=16m,mode=1777"]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
   https:

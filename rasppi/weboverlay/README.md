@@ -12,7 +12,7 @@ Bestehender Broker im Netzwerk `evse-mqtt` bleibt unverändert.
 und eine statische Offline-Shell. Optionaler Caddy-Container im vorhandenen
 Compose-Profil `https`, eigene lokale CA, zunächst ohne Domain; der Name bleibt
 für spätere Domainanbindung konfigurierbar. Keine zusätzlichen Betriebsdateien.
-CI-/Iconabschluss und echte Handyabnahme noch offen. Die Website bleibt lesend;
+CI-Abschluss und echte Handyabnahme noch offen. Die Website bleibt lesend;
 weitergehender inhaltlicher Websiteumbau und Ladebedienung bleiben geplant.
 Einrichtung/CA-Vertrauen ausschließlich im
 [Installationsguide](../../docs/installation.md#installierbare-handy-webapp-lokales-https-und-pwa).
