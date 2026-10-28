@@ -60,7 +60,10 @@ jobs:
           PWA_TEST_CA_DIR: ${{ runner.temp }}/evse-pwa-public-ca
         run: |
           mkdir -p "$PWA_TEST_CA_DIR" ../../artifacts/pwa
-          trap 'docker compose -f compose.pwa-test.yaml logs --tail 60 weboverlay https; docker compose -f compose.pwa-test.yaml down --volumes' EXIT
+          # Test browser drops all capabilities, including root's DAC override:
+          # only this disposable screenshot directory is writable by its UID.
+          chmod 0777 ../../artifacts/pwa
+          trap 'docker compose -f compose.pwa-test.yaml logs --tail 60 weboverlay https; docker compose -f compose.pwa-test.yaml --profile tools down --volumes' EXIT
           docker compose -f compose.pwa-test.yaml up -d --wait weboverlay https
           sh tests/https-integration.sh
           docker compose -f compose.pwa-test.yaml cp https:/data/caddy/pki/authorities/local/root.crt "$PWA_TEST_CA_DIR/root.crt"

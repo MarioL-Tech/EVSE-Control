@@ -970,6 +970,12 @@ kein zusätzlicher Broker/DB/VPN-/Clouddienst, keine Hostinstallation von Caddy 
 OpenSSL. Caddy ist non-root/readonly/cap-drop, nur im privaten internen Webnetz,
 nicht im MQTT-/DB-Netz. IPv4 ohne SNI wird durch explizites `default_sni` unterstützt.
 
+Das heißt nicht, dass jeder Homescreen-Eintrag HTTPS benötigt: Je nach Browser
+kann auch eine HTTP-Seite als Verknüpfung/App-Fenster hinzugefügt werden. Das allein
+beweist keine Service-Worker-/Offline-Unterstützung. Diese WebApp aktiviert ihre
+PWA-Funktionen ausdrücklich nur über HTTPS. Die Browserausnahme für `localhost`
+bezieht sich auf das Gerät selbst, nicht auf eine entfernte Pi-LAN-IP.
+
 #### 1. Bestehende Websitekonfiguration beibehalten und HTTPS aktivieren
 
 Nach Feature-Merge und Repositoryupdate aus `rasppi/weboverlay` die vorhandene

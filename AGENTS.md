@@ -87,6 +87,11 @@ Für die bedienende Website sind folgende Funktionen vorgesehen; die genaue
   Handys verteilen oder committen. Zielgeräte/Vertrauensinstallation und konkrete
   Pi-Aktivierung noch offen; keine öffentliche Freigabe, neuen VPN-/Clouddienste
   oder tatsächliche Proxy-/Portänderung ohne Umsetzungsauftrag vornehmen.
+- Präzisierung nach Rückfrage: Nicht jede Installation/Homescreen-Verknüpfung
+  setzt HTTPS voraus; Browser können HTTP-Seiten als Shortcut/App-Fenster ablegen.
+  Davon die sicheren Service-Worker-/Offlinefunktionen dieser WebApp unterscheiden.
+  Deren Controller verlangt bewusst HTTPS, auch auf Loopback; `localhost` auf dem
+  Handy ist nicht der entfernte Pi. Lokales HTTPS wird ausdrücklich weitergeführt.
 - Spätere Domainanbindung als konfigurierbare Erweiterung derselben Proxygrenze
   vorsehen (Zieladresse, Zertifikatsmodus/-bezug), kein PHP-/DB-/MQTT-Neubau und
   keine fest codierte Deploymentadresse. DNS/Zertifikatsvalidierung und gewünschte

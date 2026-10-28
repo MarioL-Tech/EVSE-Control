@@ -14,7 +14,7 @@
       state.canInstall = supported(env) && !installed && deferred !== null && !busy;
       state.canUpdate = registration !== null && !busy;
       state.status = installed ? 'Die WebApp ist im eigenen Fenster geöffnet.' :
-        !supported(env) ? 'Installation hier nicht verfügbar. HTTPS mit vertrauenswürdigem Zertifikat und einen geeigneten Browser verwenden.' :
+        !supported(env) ? 'PWA- und Offline-Funktionen hier nicht verfügbar. HTTPS mit vertrauenswürdigem Zertifikat verwenden. Eine einfache Homescreen-Verknüpfung ist je nach Browser auch über HTTP möglich.' :
         deferred ? 'Dieser Browser bietet die Installation an.' :
         'Installation über das Browsermenü, sofern verfügbar. Auf iPhone/iPad Safari und „Teilen“ verwenden.';
       render({ ...state });
