@@ -947,6 +947,12 @@ Die localhost-Bindung wird damit ersetzt; für den bisherigen Tunnelbetrieb
 HTTP-Healthcheck im Container und MQTT-/SQL-/Hausdienste bleiben unverändert.
 Ein Hostport-Eintrag allein ist noch kein bestätigter Browser-/LAN-Erreichbarkeitstest.
 
+Projektinhaber meldet nach Merge von PR #49 und dieser vereinfachten Anleitung
+am 2026-10-28 „funktioniert“. Damit ist direkter LAN-Websitezugriff laut Rückmeldung
+bestätigt; keine unabhängig geprüfte Runtime-/API-/Zugriffsschutz-/Langzeitprüfung
+und kein Agent-Deployment. Diese Rückmeldung bestätigt nicht zusätzlich die
+gesonderte Schema-2-Migration oder abgeschlossene Kalenderverdichtung.
+
 ### Haus-Smartmeter optional einrichten
 
 Die Quelle muss vom vorhandenen Websitecontainer aus über das bestehende Netz
