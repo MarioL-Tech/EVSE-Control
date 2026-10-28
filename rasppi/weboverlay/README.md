@@ -112,14 +112,18 @@ die Auswahl nur für die geöffnete Seite; Credentials werden nie gespeichert.
 SVG-Diagramme zeigen Leistung (kW), Phasenströme/Limit (A), Spannungen (V),
 Sessionenergie (kWh) sowie getrennte Stufenverläufe für Anschluss/Laden und
 Diagnosecodes/Rohwerte. Phasenkurven behalten beim Ausblenden ihre Farbe.
-Zeitfenster: **1, 5 oder 15 Minuten**. Erst ein Messpunkt ist ein Punkt, keine Linie.
+Live-Zeitfenster: **1, 5 oder 15 Minuten**. Einzelmessungen bleiben erkennbar;
+dichte Marker werden ausgedünnt, ohne Messlücken künstlich zu verbinden.
 
 **Default ohne SQL:** maximal 15 Minuten/1200 Messzeitpunkte im RAM dieses
 Browser-Tabs, nur seit Öffnen der **Diagrammseite** beobachtet. Neuladen oder
 Seitenwechsel leert den Verlauf, auch Rückkehr über den Browser-Seitencache.
 **Mit optionalem SQL-Verlauf:** nach dem Leeren wird das gespeicherte letzte
-15-Minuten-Fenster nachgeladen. Kein neues Layout oder längeres Zeitfenster;
-Anzeigeauswahl und Live-MQTT bleiben unverändert. Der vorhandene Verlaufshinweis
+15-Minuten-Fenster nachgeladen. Anzeigeauswahl und Live-MQTT bleiben unverändert.
+Zusätzliches Kalenderarchiv (noch in abschließender Docker-Prüfung) bietet Stunde,
+Tag, ISO-Woche, Monat, Jahr und eigenen Zeitraum bis ein Jahr. Es benötigt das
+optionale additive Speicherschema 2 und dessen getrennten Verdichtungsworker.
+Der vorhandene Verlaufshinweis
 unterscheidet lokale, geladene, unvollständige und nicht verfügbare Historie.
 Die Übersicht sammelt/lädt keinen verdeckten Diagrammverlauf.
 Wiederholte API-Polls zählen nicht als neue Messungen; bei gleicher Sekunden-
@@ -145,8 +149,16 @@ vorhandenen drei Prozesse; SQL wird begrenzt durch HTTP bedient.
 
 `GET /api/history?minutes=15`: maximal 1.200 Samples/1 MiB, exakte Quelle,
 versionierter Read-only-Vertrag und konservative Ereignis-/Fehlerlücken. Initialer
-Abruf, sichtbare Aktualisierung nach 60 s; Zeitfenster weiterhin 1/5/15 Minuten.
+Abruf, sichtbare Aktualisierung nach 60 s; Live-Zeitfenster weiterhin 1/5/15 Minuten.
 Deaktiviert/DB-Ausfall verändert weder Live-Status noch bereits vorhandene Kurven.
+Die alternative Kalenderabfrage `period`/`date`/`tz` liest nur materialisierte
+Minuten-/Stundendaten, nie Millionen Rohzeilen je Jahresansicht. Eigenständiger
+Browserstore: maximal 512 Intervalle/2 MiB, Europe/Vienna mit echten Sommerzeit-
+und Kalendergrenzen, Jetzt/Vor/Zurück und adaptive native Datumseingabe. Größere
+Intervalle zeigen Messwertmittel/Min–Max beziehungsweise letzten Sessionzähler,
+keine errechnete Jahresverbrauchsenergie. Rohpuffer und Live-Frische bleiben getrennt.
+Ein Jahr ist keine Löschfrist. Für Kalenderansichten sind zusätzliche SELECT-Rechte
+auf eigene Summary-/Work-/Statustabellen nötig; kein Schema-/Schreibzugriff der Website.
 Schema, Grenzen und Lifecycle: [Historien-API](../../docs/history-api.md).
 Konfiguration nur im [Installationsguide](../../docs/installation.md#sql-verlauf-optional-einrichten).
 

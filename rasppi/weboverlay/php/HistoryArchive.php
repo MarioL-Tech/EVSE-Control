@@ -89,8 +89,15 @@ final class HistoryArchive
         if (strlen($json) > 65536) {
             throw new \UnexpectedValueException('Summary too large');
         }
-        // StrictJson also rejects duplicate keys, escaped aliases, nonfinite numbers and arrays-as-objects.
-        $object = StrictJson::decode($json);
+        // Worker summaries contain only canonical compact ASCII JSON, integer
+        // counts and decimal *strings*. A native decode/encode round-trip rejects
+        // duplicate/escaped-alias keys and noncanonical numbers without scanning
+        // a year's summaries with the PHP-level MQTT parser. Structural/type
+        // validation below remains mandatory, including arrays-as-objects.
+        $object = json_decode($json, false, 64, JSON_THROW_ON_ERROR);
+        if (json_encode($object, JSON_THROW_ON_ERROR) !== $json) {
+            throw new \UnexpectedValueException('Noncanonical summary JSON');
+        }
         if (!$object instanceof \stdClass) {
             throw new \UnexpectedValueException('Invalid summary object');
         }

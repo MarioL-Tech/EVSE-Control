@@ -161,9 +161,11 @@ nicht auf dem Host installiert. Netzwerk, Broker, Compose und SSH-Tunnel bleiben
 unverändert; Reader, UART-Brücke und Speichercollector werden nicht ersetzt.
 
 **Übersicht** zeigt aktuelle Werte; **Diagramme** ist eine eigene Seite
-(`/diagramme`) mit bis zu 15 Minuten **seit Öffnen der Diagrammseite**, kein
-Datenbankarchiv. „Anzeige auswählen“ gilt auf beiden Seiten. Auswahl bleibt
-lokal gespeichert; Neuladen oder Seitenwechsel leert die Messwerthistorie.
+(`/diagramme`). Default: bis zu 15 Minuten seit Öffnen der Diagrammseite im RAM;
+optional lädt SQL diese Rohhistorie nach Neuladen nach. Zusätzlich implementiert,
+noch in abschließender Docker-Prüfung: Kalenderarchiv für Stunde, Tag, ISO-Woche,
+Monat, Jahr und eigenen Zeitraum bis ein Jahr, mit additiver Speicherverdichtung.
+„Anzeige auswählen“ gilt auf beiden Seiten; nur Präferenzen werden lokal gespeichert.
 
 Das Theme folgt Entwurf Nr. 8 „Compact / Dense“: dunkle Graphitflächen, feine
 blau-graue Rahmen, dezente Verläufe/Schatten, cyanfarbene Leistung und gefüllte

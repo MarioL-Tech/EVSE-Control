@@ -96,7 +96,10 @@ JSON-Objekt mit genau folgenden öffentlich benötigten Eigenschaften:
 
 Statistikzahlen als endliche kanonische Dezimalstrings, fehlende Werte `null`.
 Counts ganze nichtnegative JSON-Zahlen, Bool-/Codewerte dezimal 0/1 bzw. UInt32.
-`first`/`last` nach Messzeit + Roh-ID, nicht Empfangs- oder Verarbeitungsreihenfolge.
+`first`/`last` nach Messzeit + Roh-ID, nicht Empfangs- oder Verarbeitungsreihenfolge;
+die tatsächlichen Endpunkte einschließlich NULL/Fehler, kein letzter Nichtnullwert.
+Leere Buckets haben `first_at`/`last_at=null`; ein leerer Kindbucket überschreibt
+keinen realen Endpunkt. `n=0` erzeugt keinen Mittelwert, auch bei Summe `"0"`.
 `n` zählt Nichtnullwerte, `nulls` fehlende Werte. `sum` nur für W/A/V-Felder;
 für Flags/Codes, Limit und Sessionzähler `null`. `mixed` bedeutet unterschiedliche
 beobachtete Nichtnullwerte. Fehlerzeilen zählen Nulls, liefern keine Fakewerte.

@@ -313,7 +313,10 @@
       importHistory: (batch, now) => history.importHistory(batch, now),
       importArchive: (batch, now, selection) => {
         if (!archive?.importHistory(batch, now, selection)) return false;
-        calendar?.loaded(batch); return true;
+        calendar?.loaded(batch);
+        // Archive completion is its own rendering event, independent of MQTT
+        // ticks (including a paused clock or currently unavailable live API).
+        draw(Date.now()); return true;
       },
       onReset: () => { history.clear(); archive?.clear(); calendar?.reset(); },
       onState: state => {
@@ -322,7 +325,7 @@
         if (calendar?.selection) {
           const snapshot = archive?.snapshot();
           source.textContent = snapshot ? `Kalenderarchiv · ${snapshot.buckets.reduce((n, b) => n + b.samples, 0)} Messwerte` : 'Kalenderarchiv';
-          detail.textContent = `${state.status === 'ok' ? state.complete ? 'Archiv geladen.' : 'Archiv teilweise materialisiert; Lücken bleiben sichtbar.'
+          detail.textContent = `${state.status === 'ok' ? state.complete ? 'Archiv geladen.' : 'Archiv enthält Lücken oder ist noch nicht vollständig verdichtet.'
             : state.status === 'browser' ? 'Zeitraum wird geladen.' : snapshot ? 'Archiv derzeit nicht verfügbar; geladene Daten bleiben erhalten.' : 'Archiv derzeit nicht verfügbar.'} Historisch, nicht live. Stichprobenmittel / Min–Max; Sessionenergie ist der letzte Sessionzähler, kein Zeitraumverbrauch.`;
         } else if (!state.loaded && ['browser', 'disabled'].includes(state.status)) {
           source.textContent = browserNote.source; detail.textContent = browserNote.detail;

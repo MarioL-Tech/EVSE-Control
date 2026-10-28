@@ -114,6 +114,29 @@ try {
         foreach ([$config, $writerConfig] as $c) { archiveAssert((new HistoryArchive($c))->snapshot($range)['status'] === 'ok'); }
         archiveAssert($before === $counts());
     });
+    $run('complete leap-year hourly materialization fits bounded local-day API', static function () use ($root, $reset, $config): void {
+        $reset();
+        $year = HistoryRange::parse('period=year&date=2024&tz=Europe%2FVienna');
+        $statement = $root->prepare('INSERT INTO evse_history_buckets (source,resolution_seconds,bucket_start,data_json,updated_at) VALUES (?,?,?,?,UTC_TIMESTAMP(6))');
+        $root->beginTransaction();
+        $hours = 0;
+        for ($t = $year->from->getTimestamp(); $t < $year->to->getTimestamp(); $t += 3600) {
+            $row = archiveFixture($t, 3600, 1800);
+            $statement->execute(['isolated/archive', 3600, $row['bucket_start'], $row['data_json']]);
+            ++$hours;
+        }
+        $root->commit();
+        $v = (new HistoryArchive($config))->snapshot($year);
+        archiveAssert($v['status'] === 'ok' && $v['complete'] && count($v['buckets']) === 366);
+        archiveAssert($hours === 8784 && array_sum(array_column($v['buckets'], 'samples')) === 15811200);
+        archiveAssert(strlen(json_encode($v, JSON_THROW_ON_ERROR)) <= 2097152);
+        foreach ($v['buckets'] as $b) {
+            archiveAssert($b['samples'] === (int) ((strtotime($b['to']) - strtotime($b['from'])) / 3600) * 1800);
+            archiveAssert($b['metrics']['active_power_w']['mean'] === 1000.0);
+            archiveAssert($b['metrics']['session_energy_wh']['mean'] === null);
+        }
+        // Keep these fixture rows for the real HTTP year request below too.
+    });
     $run('database clock mismatch, credential denial and budget expiration are unavailable', static function () use ($config, $range): void {
         $wrongClock = new HistoryArchive($config, null, static fn() => new DateTimeImmutable('2000-01-01T00:00:00Z'));
         archiveAssert($wrongClock->snapshot($range)['status'] === 'unavailable');
