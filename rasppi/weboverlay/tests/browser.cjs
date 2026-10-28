@@ -46,10 +46,23 @@ const fs = require('node:fs');
     assert.equal(await page.locator('#limit').innerText(), '6,0 A');
     assert.equal(await page.locator('#voltage-0').innerText(), '235,7 V');
     assert.equal(await page.locator('input:not([type="checkbox"]), form').count(), 0);
-    assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()),
-      ['reset-display']); // Local view controls, not wallbox commands.
+    assert.equal(await page.locator('button, .display-options, #metric-options, #reset-display').count(), 0);
+    assert.equal(await page.locator('.status-panel.current-data h2').innerText(), 'Aktuelle Wallbox-Messdaten');
+    assert(await page.locator('.current-data').evaluate(panel => {
+      const sections = [...document.querySelectorAll('main > section')].filter(el => !el.hidden);
+      const warning = document.getElementById('wallbox-warning');
+      return sections.at(-1) === panel && warning.tagName === 'P' && warning.parentElement.tagName === 'MAIN'
+        && !!(warning.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING);
+    }));
     assert.equal(await page.locator('#theme-toggle').getAttribute('type'), 'checkbox');
     assert.equal(await page.locator('.quick-controls').count(), 0);
+    for (const [plugged, charging, expectedPlugged, expectedCharging] of [
+      [false, false, 'Nein', 'Nein'], [true, true, 'Ja', 'Ja'], [true, false, 'Ja', 'Nein']
+    ]) {
+      data = { ...data, values: { ...data.values, plugged_in: plugged, charging } };
+      await page.waitForFunction(([p, c]) => document.getElementById('plugged').textContent === p
+        && document.getElementById('charging').textContent === c, [expectedPlugged, expectedCharging]);
+    }
     fs.mkdirSync('/artifacts', { recursive: true });
     await page.screenshot({ path: '/artifacts/weboverlay-desktop.png', fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });

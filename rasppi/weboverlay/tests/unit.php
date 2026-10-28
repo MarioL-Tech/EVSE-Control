@@ -195,6 +195,18 @@ $tests['whitelist null flags ownership and out of order'] = static function (): 
         'timestamp', 'last_success_at', 'age_seconds', 'fresh_for_seconds', 'values', 'error'];
     check(array_keys($result) === $expected);
 };
+$tests['Others keeps independently known EV connection and unknown charging'] = static function (): void {
+    $h = new Harness(); $data = fixture();
+    $data['values']['socket_lock_state'] = 257;
+    $data['values']['charging_state_raw'] = 34048;
+    $data['values']['charging_state'] = 5;
+    $data['values']['plugged_in'] = true;
+    $data['values']['charging'] = null;
+    $h->load($data);
+    $result = $h->store->snapshot();
+    check($result['status'] === 'live');
+    check($result['values']['plugged_in'] === true && $result['values']['charging'] === null);
+};
 $tests['malformed sample matrix'] = static function (): void {
     $cases = ['', '{', 'null', '[]', "\xff", str_repeat(' ', 16385), '{"schema_version":1,"schema_version":1}'];
     foreach ([['schema_version', 2], ['schema_version', true], ['device', 'other'], ['timestamp', '2026-10-03T12:00:00'], ['values', null], ['values', []], ['error', 1]] as [$key, $value]) {

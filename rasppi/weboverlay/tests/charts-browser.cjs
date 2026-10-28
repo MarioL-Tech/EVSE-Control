@@ -2,6 +2,7 @@
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const { METRICS } = require('../static/charts.js');
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -10,6 +11,9 @@ const fs = require('node:fs');
   page.on('pageerror', e => errors.push(String(e)));
   let sequence = 0, offline = false;
   await page.clock.install();
+  // Keep elapsed test time explicit. Full-page captures / responsive viewport
+  // work must not advance a one-minute history window behind our assertions.
+  await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000));
   await page.route('**/api/state', async route => {
     const now = await page.evaluate(() => Date.now());
     const timestamp = new Date(now).toISOString();
@@ -29,19 +33,18 @@ const fs = require('node:fs');
     await page.goto(process.env.WEB_TEST_URL || 'http://127.0.0.1:8080');
     await page.waitForFunction(() => document.getElementById('status').textContent === 'Live');
     assert.equal(await page.locator('.chart-card, #chart-range').count(), 0, 'Dashboard has no charts');
-    assert.equal(await page.locator('#metric-options input').count(), 16);
-    await page.locator('.display-options summary').click();
-    await page.locator('#show-power').uncheck();
-    assert(!await page.locator('#power').isVisible());
-    await page.locator('#show-current-1').uncheck();
-    assert(!await page.locator('#current-1').isVisible());
-    assert(await page.locator('#voltage-1').isVisible());
-    await page.locator('#show-current-0').uncheck();
-    await page.locator('#show-current-2').uncheck();
-    assert(!await page.locator('thead .phase-current').isVisible());
-    assert(await page.locator('thead .phase-voltage').isVisible());
-    await page.locator('#show-wallbox-error').uncheck();
-    assert(await page.locator('#wallbox-warning').isVisible(), 'Hiding a value must not hide an active warning');
+    assert.equal(await page.locator('.display-options, #metric-options, #reset-display').count(), 0);
+    // Seed diagram-only preferences before navigation. Overview must ignore them.
+    await page.evaluate(ids => localStorage.setItem('evse-display-v1', JSON.stringify({ minutes: 1,
+      selected: Object.fromEntries(ids.map(id => [id, false])) })), METRICS.map(m => m.id));
+    await page.reload();
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Live');
+    for (const id of ['power', 'current-0', 'current-1', 'current-2', 'voltage-1']) assert(await page.locator(`#${id}`).isVisible(), id);
+    assert(await page.locator('thead .phase-current').isVisible());
+    assert.equal(await page.locator('.summary-card:visible').count(), 4);
+    await page.locator('.technical-details > summary').click();
+    for (const metric of await page.locator('[data-metric]').all()) assert(await metric.isVisible(), 'Overview ignores all-off diagram preferences');
+    assert(await page.locator('#wallbox-warning').isVisible());
     assert(await page.locator('#timestamp').isVisible());
     await page.locator('.sidebar nav a[href="/diagramme"]').click();
     await page.waitForURL('**/diagramme', { waitUntil: 'domcontentloaded' });
@@ -49,17 +52,32 @@ const fs = require('node:fs');
     assert(new URL(page.url()).pathname === '/diagramme');
     assert.equal(await page.locator('#chart-grid > figure').count(), 4);
     assert.equal(await page.locator('#chart-diagnostics-grid > figure').count(), 5);
-    assert(!await page.locator('#chart-power').isVisible(), 'Selection shared between pages');
+    assert.equal(await page.locator('.display-options, #metric-options, .history-note').count(), 0);
+    assert.equal(await page.locator('#chart-grid > figure > ul.chart-options, #chart-diagnostics-grid > figure > ul.chart-options').count(), 9);
+    assert.equal(await page.locator('ul.chart-options input[type="checkbox"]').count(), 16);
+    const owners = await page.locator('ul.chart-options').evaluateAll(lists => Object.fromEntries(lists.map(list =>
+      [list.closest('figure').id, [...list.querySelectorAll('input')].map(input => input.id).sort()])));
+    assert.deepEqual(owners, {
+      'chart-power': ['show-power'], 'chart-current': ['show-current-0', 'show-current-1', 'show-current-2', 'show-limit'],
+      'chart-voltage': ['show-voltage-0', 'show-voltage-1', 'show-voltage-2'], 'chart-energy': ['show-energy'],
+      'chart-flags': ['show-below', 'show-charging', 'show-plugged'], 'chart-error': ['show-wallbox-error'],
+      'chart-state': ['show-charging-state'], 'chart-raw': ['show-charging-raw'], 'chart-lock': ['show-lock']
+    }, 'Each metric belongs to its own figure, exactly once');
+    assert(await page.locator('#chart-power').isVisible(), 'Figure and controls remain reachable');
+    assert(!await page.locator('#chart-power svg').isVisible(), 'Diagram preference hides only SVG');
+    assert.equal(await page.locator('#smartmeter #chart-house').count(), 1);
+    assert.equal(await page.locator('#chart-grid #chart-house, ul.chart-options #show-house-power').count(), 0);
+    assert(await page.locator('#show-house-power').isVisible());
     assert.equal(await page.locator('[data-series="current-1"], [data-legend="current-1"]').count(), 0);
     assert(await page.locator('#wallbox-warning').isVisible());
     await page.locator('#chart-range').selectOption('1');
     await page.reload();
     await page.waitForFunction(() => document.getElementById('status').textContent === 'Live');
-    assert(!await page.locator('#chart-power').isVisible(), 'Selection must survive reload');
+    assert(!await page.locator('#chart-power svg').isVisible(), 'Selection must survive reload');
     assert.equal(await page.locator('#chart-range').inputValue(), '1');
-    await page.locator('.display-options summary').click();
     assert(!await page.locator('#show-current-1').isChecked());
     await page.locator('#reset-display').click();
+    assert(await page.locator('#chart-energy svg').isVisible());
     assert(await page.locator('#chart-power').isVisible());
     const initialColor = await page.locator('[data-series="current-1"]').getAttribute('class');
     await page.locator('#show-current-1').uncheck();
@@ -100,16 +118,25 @@ const fs = require('node:fs');
       && ((document.querySelector('[data-series="power"]').getAttribute('d') || '').match(/M/g) || []).length >= 2);
     assert(((await page.locator('[data-series="power"]').getAttribute('d')).match(/M/g) || []).length >= 2,
       'Recovery must start a disconnected segment');
-    await page.locator('.display-options summary').click(); // Close, then reopen consistently.
-    if (!await page.locator('#show-power').isVisible()) await page.locator('.display-options summary').click();
-    for (const checkbox of await page.locator('#metric-options input').all()) await checkbox.uncheck();
-    assert(await page.locator('#display-empty').isVisible());
+    await page.locator('.history-diagnostics > summary').click();
+    const wallboxFigures = page.locator('#chart-grid > figure, #chart-diagnostics-grid > figure');
+    for (const checkbox of await page.locator('ul.chart-options input').all()) await checkbox.uncheck();
     assert(await page.locator('#status').isVisible());
     assert(await page.locator('#wallbox-warning').isVisible());
-    assert.equal(await page.locator('.chart-card:visible').count(), 0);
+    assert.equal(await wallboxFigures.count(), 9);
+    for (const figure of await wallboxFigures.all()) {
+      assert(await figure.isVisible(), 'All-off figure remains visible');
+      assert(!await figure.locator('svg').isVisible(), 'Only SVG is hidden');
+      const controls = figure.locator('ul.chart-options input');
+      assert(await controls.first().isVisible(), 'Own controls remain available');
+      await controls.first().check();
+      assert(await figure.locator('svg').isVisible(), 'Each figure can recover without global reset');
+    }
     await page.locator('#reset-display').click();
     const prefs = await page.evaluate(() => JSON.parse(localStorage.getItem('evse-display-v1')));
     assert.deepEqual(Object.keys(prefs).sort(), ['minutes', 'selected']);
+    assert.equal(Object.keys(prefs.selected).length, 16);
+    assert(!Object.hasOwn(prefs.selected, 'house-power'), 'House selection is not a wallbox preference');
     assert(Object.values(prefs.selected).every(v => typeof v === 'boolean'));
     await page.evaluate(() => localStorage.setItem('evse-display-v1', '{broken'));
     await page.reload();
@@ -126,7 +153,7 @@ const fs = require('node:fs');
     });
     await page.waitForFunction(() => document.getElementById('status').textContent === 'Live');
     assert(!(await page.locator('[data-series="energy"]').getAttribute('d')).includes('L'), 'Cached page restoration starts fresh history');
-    assert(!await page.locator('#chart-power').isVisible(), 'Cached page reloads shared preferences');
+    assert(!await page.locator('#chart-power svg').isVisible(), 'Cached page reloads diagram preferences');
     assert.equal(await page.locator('#chart-range').inputValue(), '15');
     assert(!await page.locator('#show-current-1').isChecked());
     assert.equal(await page.locator('[data-series="current-1"], [data-legend="current-1"]').count(), 0);

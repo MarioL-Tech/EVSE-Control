@@ -16,7 +16,14 @@ function sample(power_w = 1549.4, overrides = {}) {
   try {
     const context = await browser.newContext();
     const errors = [], requests = [];
-    let mode = 'positive', count = 0;
+    let mode = 'positive', count = 0, frozen = null;
+    // No database or external sensor is used by this simulated browser scenario.
+    await context.route('**/api/history?**', route => route.fulfill({ json: {
+      schema_version: 1, read_only: true, status: 'disabled', reason: 'Test: kein Archiv',
+      generated_at: new Date().toISOString(), minutes: 15,
+      range: { from: new Date(Date.now() - 900000).toISOString(), to: new Date().toISOString() },
+      complete: false, samples: []
+    } }));
     await context.route('**/api/state', route => route.fulfill({ json: {
       schema_version: 1, read_only: true, status: 'offline', reason: 'MQTT nicht verbunden.',
       broker_connected: false, availability: null, timestamp: null, last_success_at: null,
@@ -26,6 +33,7 @@ function sample(power_w = 1549.4, overrides = {}) {
       count++;
       if (mode === 'hung') { await pause(3500); await route.abort().catch(() => {}); return; }
       if (mode === 'missing') { await route.fulfill({ json: {} }); return; }
+      if (mode === 'frozen') { await route.fulfill({ json: frozen }); return; }
       const data = mode === 'offline' ? sample(null, { status: 'offline', fresh_for_seconds: 0 })
         : mode === 'bad' ? sample(null, { reason: '<img src=x onerror=alert(1)>' })
           : mode === 'negative' ? sample(-799.4) : mode === 'zero' ? sample(0) : sample();
@@ -36,6 +44,8 @@ function sample(power_w = 1549.4, overrides = {}) {
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
     page.on('request', request => requests.push({ method: request.method(), url: request.url() }));
     await page.goto(base);
+    assert.equal(await page.evaluate(() => typeof window.OverlayHouseChart?.observe), 'undefined',
+      'Overview never mounts a house history collector');
     const text = (id, value) => page.waitForFunction(({ id, value }) =>
       document.getElementById(id)?.textContent === value, { id, value });
     await text('grid-power', '+1,55 kW'); await text('grid-direction', 'Netzbezug');
@@ -88,8 +98,62 @@ function sample(power_w = 1549.4, overrides = {}) {
       }
     }
     await page.goto(new URL('/diagramme', base).href);
-    const before = count;
-    await pause(1200); assert.equal(count, before, 'No house polling without dashboard article');
+    await text('grid-status', 'Live');
+    assert(await page.locator('#chart-house').isVisible());
+    assert.equal(await page.locator('#show-house-power').count(), 1);
+    const series = () => page.locator('#house-chart-svg [data-house-series]').getAttribute('d');
+    const hasPoints = () => page.waitForFunction(() =>
+      !!document.querySelector('#house-chart-svg [data-house-series]')?.getAttribute('d'));
+    await hasPoints();
+    for (const [next, power] of [['negative', '-0,80 kW'], ['zero', '0,00 kW']]) {
+      mode = next; await text('grid-power', power); await text('status', 'Offline');
+    }
+    assert((await series()).includes('L'), 'House connects real successive live fetches despite offline MQTT');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.locator('#smartmeter').screenshot({ path: path.join(artifacts, 'house-chart-dark-mobile.png') });
+    mode = 'offline'; await text('grid-status', 'Offline');
+    mode = 'positive'; await text('grid-status', 'Live');
+    assert((await series()).split('M').length >= 3, 'Offline creates a retained gap');
+    // Fixed fetch timestamp is deduped, then expires even with successful HTTP responses.
+    frozen = sample(0); mode = 'frozen'; await text('grid-power', '0,00 kW');
+    const pointCount = await page.locator('#house-chart-svg circle').count();
+    await pause(1100);
+    assert.equal(await page.locator('#house-chart-svg circle').count(), pointCount, 'Duplicate fetch is not a measurement');
+    await text('grid-status', 'Veraltet');
+    mode = 'negative'; await text('grid-status', 'Live');
+    assert((await series()).split('M').length >= 4, 'Stale recovery does not bridge');
+    await page.locator('#show-house-power').uncheck();
+    assert(await page.locator('#chart-house').isVisible(), 'Control container remains recoverable');
+    assert(!await page.locator('#house-chart-svg').isVisible());
+    await page.locator('#show-house-power').check(); assert(await page.locator('#house-chart-svg').isVisible());
+    await page.selectOption('#chart-range', '1');
+    assert.equal(await page.locator('#chart-range').inputValue(), '1');
+    await page.locator('[data-calendar-period="day"]').click();
+    assert(!await page.locator('#house-chart-svg').isVisible());
+    assert.match(await page.locator('#house-chart-description').innerText(), /Keine Haus-Archivdaten/);
+    mode = 'zero'; await text('grid-power', '0,00 kW');
+    await page.locator('[data-calendar-period="live"]').click(); await hasPoints();
+    // Visibility transitions break edges, pause polling, and discard stale replies.
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await text('grid-power', '—');
+    const before = count; await pause(1200); assert.equal(count, before, 'No hidden polling');
+    await page.evaluate(() => {
+      delete document.hidden; document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await text('grid-status', 'Live');
+    const gaps = (await series()).split('M').length;
+    mode = 'hung';
+    assert.equal(await page.evaluate(() => {
+      dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+      return document.getElementById('grid-power').textContent;
+    }), '—');
+    mode = 'positive'; await text('grid-status', 'Live');
+    assert((await series()).split('M').length > gaps, 'Pageshow starts a separate segment');
+    assert.equal(await page.evaluate(() => Object.keys(localStorage).some(key => /house/.test(key))), false,
+      'House measurements/preferences are page-local');
     assert.deepEqual(errors, [], 'JavaScript/console/CSP errors');
     for (const request of requests) {
       assert.equal(request.method, 'GET', 'Read-only requests');

@@ -73,10 +73,34 @@ void test() {
     check(wallbox::json_string(std::string("\"\\\n\r\t") + char(1)) ==
           "\"\\\"\\\\\\n\\r\\t\\u0001\"", "JSON escaping failed");
     set(r, 0x400C, 0x8500);
+    set(r, 0x400A, 0x2222);
     v = wallbox::decode(r);
     const auto unknown = wallbox::sample_json(stamp, stamp, v, std::nullopt);
     check(unknown.find("\"plugged_in\":null,\"charging\":null") != std::string::npos,
           "unknown state serialization failed");
+    for (const auto state : {5U, 6U, 127U}) {
+        set(r, 0x400C, (state | 0x80U) << 8);
+        for (const auto socket : {0x0101U, 0x0111U}) {
+            set(r, 0x400A, socket);
+            const auto connected = wallbox::decode(r);
+            check(connected.plugged_in == std::optional<bool>(true), "documented EV socket state must prove connection");
+            check(!connected.charging, "socket connection/unlock must not invent charging activity");
+            const auto json = wallbox::sample_json(stamp, stamp, connected, std::nullopt);
+            check(json.find("\"plugged_in\":true,\"charging\":null") != std::string::npos,
+                  "independent known connection/unknown charging must survive JSON");
+        }
+        for (const auto socket : {0U, 1U, 0x0011U, 0x0100U, 0x01010000U, 0xFFFFFFFFU}) {
+            set(r, 0x400A, socket);
+            const auto uncertain = wallbox::decode(r);
+            check(!uncertain.plugged_in && !uncertain.charging, "only exact documented EV-connected enums may provide fallback");
+        }
+    }
+    for (unsigned state = 0; state <= 4; ++state) {
+        set(r, 0x400C, state << 8); set(r, 0x400A, 0x0101);
+        const auto known = wallbox::decode(r);
+        check(known.plugged_in == std::optional<bool>(state != 0) &&
+              known.charging == std::optional<bool>(state == 4), "known charging-state precedence must remain unchanged");
+    }
 }
 } // namespace
 

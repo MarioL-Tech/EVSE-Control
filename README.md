@@ -13,6 +13,13 @@ Progressive Web App (PWA)** mit optionalem lokalem HTTPS/eigener CA ohne Domain.
 Manifest, Installations-/Offlinefunktionen und Proxy implementiert und Docker-
 geprüft; Pi-/Handyinstallation noch offen. Spätere Domainanbindung
 über konfigurierbaren Namen, kein Backendwechsel.
+Die HTTPS-/Handyeinrichtung ist auf Wunsch vorerst zurückgestellt; HTTP im LAN
+bleibt nutzbar. Settings enthält keine WebApp-Karte mehr. Die aktuelle
+Oberflächenüberarbeitung verlagert Datenstatus nach unten, bietet Kurvenauswahl
+direkt am Diagramm und einen gesonderten Haus-Liveverlauf ohne SQL-Hausarchiv.
+Docker-CI 40777926455/40777919496 für 296074c ist erfolgreich; Pi-Prüfung steht
+noch aus, aktuellen Freigabestand über PR #52 prüfen. Der Fahrzeuganschluss-Fix
+benötigt zusätzlich das aktualisierte Readerimage, keine Datenbankmigration.
 Das Websitebackend ist separat
 auf PHP 8.4/Apache mit einem PHP-MQTT-Worker umgestellt;
 bestehende Wallbox-Anzeigen und Diagramme bleiben erhalten. Separat ergänzt sind

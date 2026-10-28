@@ -91,6 +91,7 @@
   let active = null, timer = null;
   function render() {
     const view = state.snapshot();
+    window.OverlayHouseChart?.observe(view);
     for (const [id, value] of Object.entries(present(view))) {
       const element = document.getElementById(id);
       if (element && element.textContent !== value) element.textContent = value;
@@ -123,6 +124,11 @@
   }
   document.addEventListener('visibilitychange', resume);
   window.addEventListener('pageshow', resume);
+  window.addEventListener('pagehide', () => {
+    clearTimeout(timer); state.reset();
+    if (active) active.abort();
+    render();
+  });
   setInterval(render, 250);
   render(); poll();
 })();

@@ -76,6 +76,17 @@ test('buffer has point and 15 minute bounds even at high sample rates', () => {
   h.observe({ status: 'offline' }, epoch + RETENTION_MS + 5000);
   assert.equal(h.size, 0);
 });
+test('offline and responsive geometry preserve already observed connected history', () => {
+  const h = createHistory();
+  h.observe(live(epoch), epoch); h.observe(live(epoch + 2000), epoch + 2000);
+  const narrow = { width: 244, height: 230, left: 54, right: 226, top: 20, bottom: 188 };
+  const group = GROUPS.find(g => g.id === 'power');
+  h.observe({ status: 'offline', values: null }, epoch + 3000);
+  const p = buildPlot(h.window(epoch + 3000, 1), group, defaults().selected,
+    epoch + 3000 - 60000, epoch + 3000, narrow);
+  assert.equal(p.count, 2); assert(p.paths[0].path.includes('L'));
+  assert(!/NaN|Infinity/.test(p.paths[0].path));
+});
 test('same-second unknown transitions keep gaps on both sides of only that series', () => {
   for (const key of ['plugged_in', 'charging']) {
     const id = key === 'plugged_in' ? 'plugged' : 'charging';

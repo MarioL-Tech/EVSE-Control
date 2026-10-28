@@ -66,15 +66,27 @@ const { FIELDS } = require('../static/newcalendar.js');
       const date = iso(Date.UTC(2024, 0, i + 1)).slice(0, 10);
       // Known fixture boundaries, including the 23/25-hour days of 2024.
       return iso(Date.parse(date + 'T00:00:00Z') - (date >= '2024-04-01' && date <= '2024-10-27' ? 2 : 1) * 3600000);
-    }) : [from, to];
+    }) : period === 'hour' ? Array.from({ length: 61 }, (_, i) => iso(Date.parse(from) + i * 60000)) : [from, to];
     const json = { schema_version: 2, read_only: true, status: calendarFail ? 'unavailable' : 'ok', reason: '<img src=x>',
       generated_at: iso(now), range: { from, to, timezone: 'Europe/Vienna' },
       selection: { period, date: selected && selected !== 'now' ? selected : dates[period], timezone: 'Europe/Vienna' },
       navigation: { previous: { period, at: iso(Date.parse(from) - (Date.parse(to) - Date.parse(from))), tz: 'Europe/Vienna' },
         next: { period, at: to, tz: 'Europe/Vienna' }, now: { period, date: 'now', tz: 'Europe/Vienna' } },
       aggregation: 'sample_mean', complete: true, progress: { samples_done: true, events_done: true },
-      buckets: calendarFail ? [] : bounds.slice(0, -1).map((a, i) => ({ from: a, to: bounds[i + 1], samples: 30,
-        has_gap: false, complete: true, coverage_seconds: 58, metrics: statistics })) };
+      buckets: calendarFail ? [] : bounds.slice(0, -1).map((a, i) => {
+        const empty = period === 'hour' && i >= 20 && i < 44;
+        const metrics = JSON.parse(JSON.stringify(statistics));
+        if (empty) {
+          for (const stat of Object.values(metrics)) Object.assign(stat, { count: 0, mean: null, min: null, max: null, last: null });
+        } else if (period === 'hour') {
+          for (const [phase, field] of ['voltage_l1_v', 'voltage_l2_v', 'voltage_l3_v'].entries()) {
+            const mean = 236 + phase + Math.sin(i / 4);
+            Object.assign(metrics[field], { mean, min: mean - .8, max: mean + 1, last: mean });
+          }
+        }
+        return { from: a, to: bounds[i + 1], samples: empty ? 0 : 30,
+          has_gap: period === 'hour', complete: true, coverage_seconds: empty ? 0 : 58, metrics };
+      }) };
     if (period === 'custom') json.navigation = { previous: null, next: null, now: null };
     if (calendarHold) { heldCalendar.push({ route, json }); return; }
     await route.fulfill({ status: calendarFail ? 503 : 200, json });
@@ -87,8 +99,9 @@ const { FIELDS } = require('../static/newcalendar.js');
     await page.waitForFunction(() => document.getElementById('status').textContent === 'Offline');
     assert.equal(historyRequests, 0, 'Dashboard never starts history requests');
     await page.goto(base + '/diagramme');
-    await page.waitForFunction(() => document.getElementById('history-source').textContent.includes('Archiv und'));
+    await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok');
     await page.waitForFunction(() => document.querySelector('[data-series="power"]')?.getAttribute('d')?.includes('L'));
+    assert.match(await page.locator('#history-source').innerText(), /Wallbox-Archiv/);
     assert.equal(await page.locator('#status').innerText(), 'Offline');
     assert((await path()).includes('L'), 'Archive renders while MQTT is offline');
     assert.equal(await page.locator('#chart-grid > figure').count(), 4);
@@ -96,13 +109,20 @@ const { FIELDS } = require('../static/newcalendar.js');
     assert.deepEqual(await page.locator('.sidebar nav a').allTextContents(), ['Übersicht', 'Diagramme', 'Settings']);
     assert.equal(await page.locator('#theme-toggle').getAttribute('role'), 'switch');
     assert.equal(await page.locator('#chart-range').inputValue(), '5');
-    assert.equal(await page.locator('#metric-options input').count(), 16);
+    assert.equal(await page.locator('.display-options, #metric-options, .history-note').count(), 0);
+    assert.equal(await page.locator('ul.chart-options').count(), 9);
+    assert.equal(await page.locator('ul.chart-options input').count(), 16);
+    assert(await page.locator('.section-heading #reset-display').isVisible());
+    assert.equal(await page.locator('#calendar-mode').isVisible(), false);
+    assert.equal(await page.locator('button[data-calendar-period]').count(), 7);
+    assert.equal(await page.locator('[data-calendar-period="live"]').getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('#smartmeter #chart-house').count(), 1);
     assert.equal(await page.locator('img').count(), 1, 'Only the static brand logo may be an image');
     assert.equal(await page.locator('.brand-mark img[src="/static/icon.svg"]').count(), 1);
     await page.screenshot({ path: '/artifacts/history-sql-desktop.png',
       fullPage: true, animations: 'disabled' });
     await page.reload();
-    await page.waitForFunction(() => document.getElementById('history-source').textContent.includes('Archiv und'));
+    await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok');
     await page.waitForFunction(() => document.querySelector('[data-series="power"]')?.getAttribute('d')?.includes('L'));
     assert((await path()).includes('L'), 'Reload fetches history rather than inventing live observations');
     live = true; fail = true;
@@ -152,7 +172,8 @@ const { FIELDS } = require('../static/newcalendar.js');
     // restore() immediately shows the RAM-only reset note. Wait for the actual
     // disabled response acknowledgement before fast-forwarding network timeouts.
     await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'disabled');
-    assert((await page.locator('#history-detail').innerText()).includes('kein Datenbankarchiv'));
+    assert.match(await page.locator('#history-source').innerText(), /Live-Verlauf/);
+    assert.match(await page.locator('#history-detail').innerText(), /Browser|RAM|Seitenöffnung/);
     assert.equal(await page.locator('#chart-range').inputValue(), '1', 'Restoration preserves range preference');
     const disabledRequests = historyRequests;
     await page.evaluate(() => {
@@ -174,8 +195,13 @@ const { FIELDS } = require('../static/newcalendar.js');
     await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000));
     const pickerDates = { hour: '2026-10-27T12:00', day: '2026-10-25', week: '2026-W44', month: '2026-10', year: '2024' };
     for (const period of ['hour', 'day', 'week', 'month', 'year']) {
-      await page.locator('#calendar-mode').selectOption(period);
+      await page.locator(`[data-calendar-period="${period}"]`).click();
       await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok');
+      assert.equal(await page.locator('#calendar-mode').inputValue(), period);
+      assert.equal(await page.locator(`[data-calendar-period="${period}"]`).getAttribute('aria-pressed'), 'true');
+      assert.equal(await page.locator('[data-calendar-period][aria-pressed="true"]').count(), 1);
+      assert(!await page.locator('#house-chart-svg').isVisible(), 'Calendar cannot imply a house archive');
+      assert.match(await page.locator('#house-chart-description').innerText(), /keine? Haus-?Archiv/i);
       assert.equal(await page.locator('#chart-range').isDisabled(), true);
       assert.equal(await page.locator('#chart-range').isVisible(), false, 'Minute picker is not presented as the archive window');
       assert((await page.locator('#calendar-label').innerText()).includes('Europe/Vienna'));
@@ -191,6 +217,18 @@ const { FIELDS } = require('../static/newcalendar.js');
         throw error;
       }
       assert(await page.locator('[data-summary-series="power"]').count() > 0);
+      if (period === 'hour') {
+        assert.equal(await page.locator('#chart-power .summary-value').count(), 36, 'Empty minutes never acquire a value mark');
+        assert.equal(await page.locator('#chart-power .summary-range').count(), 36);
+        assert(await page.locator('#chart-power .summary-value').first().evaluate(el => getComputedStyle(el).strokeDasharray === 'none'));
+        await page.screenshot({ path: '/artifacts/calendar-hour-gaps-mobile.png', fullPage: true });
+        const viewport = page.viewportSize();
+        await page.setViewportSize({ width: 1440, height: 1050 });
+        await page.evaluate(() => dispatchEvent(new Event('resize')));
+        await page.screenshot({ path: '/artifacts/calendar-hour-gaps-desktop.png', fullPage: true });
+        await page.setViewportSize(viewport);
+        await page.evaluate(() => dispatchEvent(new Event('resize')));
+      }
       assert.equal(await page.locator('[data-series-marker]').count(), 0, 'Summary glyphs never use circles/pills');
       assert.equal(await page.locator('img').count(), 1, 'DTO reasons cannot add images');
       await page.locator('#calendar-date').fill(pickerDates[period]);
@@ -198,7 +236,15 @@ const { FIELDS } = require('../static/newcalendar.js');
       await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok');
       assert.equal(new URLSearchParams(calendarRequests.at(-1)).get('date'), pickerDates[period]);
     }
-    assert.equal(await page.locator('[data-summary-series="power"]').count(), 366);
+    assert.equal(await page.locator('[data-summary-series="power"]').count(), 732, 'Each day has separate range and value glyphs');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+    assert(await page.locator('#chart-power svg').evaluate(svg => {
+      const width = Math.max(240, Math.round(svg.closest('figure').getBoundingClientRect().width - 40));
+      return svg.viewBox.baseVal.width === width;
+    }), 'Archive resize recomputes pixel geometry, not compressed text');
+    await page.setViewportSize({ width: 1440, height: 1050 });
+    await page.evaluate(() => window.dispatchEvent(new Event('resize')));
     await page.evaluate(() => {
       window.__calendarMutations = 0;
       new MutationObserver(() => window.__calendarMutations++).observe(document.querySelector('#chart-power svg'), { childList: true });
@@ -220,20 +266,20 @@ const { FIELDS } = require('../static/newcalendar.js');
     await page.reload();
     await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok');
     assert.equal(await page.locator('#calendar-mode').inputValue(), 'year');
-    assert.equal(await page.locator('[data-summary-series="power"]').count(), 366);
+    assert.equal(await page.locator('[data-summary-series="power"]').count(), 732);
     await page.setViewportSize({ width: 320, height: 844 });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.screenshot({ path: '/artifacts/calendar-year-flat-mobile.png', fullPage: true });
-    await page.locator('#calendar-mode').selectOption('custom');
+    await page.locator('[data-calendar-period="custom"]').click();
     await page.locator('#calendar-from').fill('2026-10-02T00:00');
     await page.locator('#calendar-to').fill('2026-10-03T00:00');
     await page.locator('#calendar-custom button').click();
     await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok');
     assert(new URLSearchParams(calendarRequests.at(-1)).has('date_from'));
     calendarHold = true;
-    await page.locator('#calendar-mode').selectOption('day');
+    await page.locator('[data-calendar-period="day"]').click();
     await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'browser');
-    await page.locator('#calendar-mode').selectOption('year');
+    await page.locator('[data-calendar-period="year"]').click();
     calendarHold = false;
     for (const item of heldCalendar.splice(0)) await item.route.fulfill({ json: item.json }).catch(() => {});
     await page.clock.runFor(5000);
@@ -252,9 +298,9 @@ const { FIELDS } = require('../static/newcalendar.js');
     assert.equal(await page.locator('[data-summary-series="power"]').count(), retainedGlyphs);
     const calendarStored = await page.evaluate(() => localStorage.getItem('evse-calendar-v1'));
     assert.equal(JSON.parse(calendarStored).period, 'year'); assert(!calendarStored.includes('buckets'));
-    await page.locator('#calendar-mode').selectOption('live');
+    await page.locator('[data-calendar-period="live"]').click();
     assert.equal(await page.locator('#chart-range').isDisabled(), false);
-    assert.equal(await page.locator('#metric-options input').count(), 16);
+    assert.equal(await page.locator('ul.chart-options input').count(), 16);
     assert.deepEqual(errors, []);
     console.log('History browser: offline archive/reload, isolated SQL failure, unchanged controls, RAM-only, hidden and BFCache passed');
   } finally { await browser.close(); }
