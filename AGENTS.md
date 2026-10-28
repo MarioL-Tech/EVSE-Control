@@ -551,8 +551,9 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Docker-Ports können UFW umgehen. Keine automatische Firewall-/SSH-/Netzänderung.
   Projektinhaber zeigt am 2026-10-28 einen gesunden, aber nur localhost-gebundenen
   Websitecontainer; erfolgreiche neue LAN-Bindung/Browserzugriff noch nicht belegt.
-  Neue Compose-CI prüft Default und explizite Test-LAN-Bindung samt Overlays;
-  Prüfung dieses neuen Konfigurationsparameters noch offen.
+  Compose-CI prüft Default und explizite Test-LAN-Bindung samt Overlays ohne
+  tatsächliche Testportfreigabe; aktuellen Prüf-/Freigabestand über PR #49 prüfen.
+  Keine neue LAN-Erreichbarkeit allein aus einem CI-Konfigurationstest ableiten.
 - Kein HTTP-Login/TLS; nicht öffentlich freigeben. MQTT-Credentials nur Backend,
   optional Passwortdatei mit `compose.auth.yaml`, für UID 10001 lesbar.
 - Build/Tests ausschließlich in Docker. Historische Python-CI `37200290345` für `cf7184f` erfolgreich:
