@@ -35,6 +35,11 @@ Telemetry decode(const Registers &registers) {
     if (result.charging_state <= 4) {
         result.plugged_in = result.charging_state != 0;
         result.charging = result.charging_state == 4;
+    } else if (result.socket_lock_state == 0x0101U || result.socket_lock_state == 0x0111U) {
+        // ABB v1.7, section 5.5 (p. 7): both exact enum values explicitly
+        // identify a cable connected to the EV and charger. This independently
+        // proves connection, NOT charging, even when charging state is Others.
+        result.plugged_in = true;
     }
     result.current_limit_a = value_at(registers, 0x400E) / 1000.0;
     for (int phase = 0; phase < 3; ++phase) {

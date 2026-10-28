@@ -89,9 +89,9 @@
     const geometry = { width, height, left: 62, right: width - 18, top: 24, bottom: height - 38 };
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     const points = history.window(now, minutes), plot = buildPlot(points, now - ([1, 5, 15].includes(minutes) ? minutes : 5) * 60000, now, geometry);
-    description.textContent = archive ? 'Keine Haus-Archivdaten verfügbar. Haus-Netzleistung wird nur live im Browser gespeichert.'
-      : !checkbox.checked ? 'Hauskurve ausgeblendet. Zum Anzeigen Haus-Netzleistung aktivieren.'
-        : `Haus-Netzleistung · nur Browser-RAM · ${plot.count} Messpunkte · Bezug (+), Einspeisung (−). ${plot.count ? 'Unterbrechungen bleiben als Lücken sichtbar.' : 'Warten auf neue Live-Abrufe.'}`;
+    description.textContent = archive ? 'Keine Haus-Archivdaten verfügbar.'
+      : !checkbox.checked ? 'Kurve ausgeblendet.'
+        : `${plot.count} Messpunkte · Bezug (+) / Einspeisung (−) · seit Seitenöffnung`;
     svg.replaceChildren();
     if (archive || !checkbox.checked) return;
     svg.append(node('path', { d: `M${geometry.left},${geometry.top}V${geometry.bottom}H${geometry.right}M${geometry.left},${plot.zeroY}H${geometry.right}`, fill: 'none', stroke: 'currentColor', 'stroke-opacity': '.3' }));

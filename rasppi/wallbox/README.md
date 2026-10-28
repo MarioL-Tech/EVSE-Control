@@ -206,7 +206,12 @@ Ein FC03-Read ab `0x4008` liest 24 **16-Bit-Register** bis einschließlich
 - 0: Idle → `plugged_in=false`, `charging=false`.
 - 1/2/3: B1/B2/C1 → `plugged_in=true`, `charging=false`.
 - 4: C2 / Kontakt geschlossen, Energieabgabe → beide `true`.
-- 5 („Others“) oder unbekannte Codes → beide `null`, keine falsche Aussage.
+- 5 („Others“) oder unbekannte Codes → `charging=null`. Nur die exakten
+  Buchsenstatuswerte `0x0101`/`0x0111` belegen unabhängig davon
+  `plugged_in=true`; sonst ebenfalls `null`. Kein Rückschluss aus 0 W oder
+  unverriegelter Buchse. Quelle: ABB v1.7, Seite 7, Abschnitt 5.5
+  „Socket Lock State“; `0x0101` gilt auch für Non-socket. Bekannte Ladezustände
+  0–4 behalten ihre bisherige Priorität. Keine zusätzlichen Registerabfragen.
 
 Diese Werte sind **keine Ladefreigabe**. `current_limit_a` ist auch nicht der
 im Gebäude verfügbare Strom; dafür fehlen noch DTSU666-Auswertung und Regelung.

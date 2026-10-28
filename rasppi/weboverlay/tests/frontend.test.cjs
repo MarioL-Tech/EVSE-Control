@@ -94,6 +94,13 @@ test('vehicle booleans remain independent; unknown and stale never become yes or
     assert.equal(present(state.snapshot()).charging, 'Unbekannt');
   }
 });
+test('Others may have independently known socket connection without invented charging', () => {
+  const { state } = setup();
+  state.receive(state.begin(), live({ values: { ...telemetry, charging_state: 5,
+    charging_state_raw: 34048, socket_lock_state: 257, plugged_in: true, charging: null } }));
+  const text = present(state.snapshot());
+  assert.equal(text.plugged, 'Ja'); assert.equal(text.charging, 'Unbekannt');
+});
 test('all nonlive statuses mask telemetry, even if a payload contains old values', () => {
   for (const status of ['waiting', 'offline', 'stale', 'clock_error', 'invalid', 'read_error']) {
     const { state } = setup(); state.receive(state.begin(), live({ status })); const p = present(state.snapshot());

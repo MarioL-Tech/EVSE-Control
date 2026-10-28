@@ -96,6 +96,12 @@ async function globals(page) {
   }
   assert.match(await page.locator('#wallbox-warning').innerText(), /7/);
   assert.notEqual(await page.locator('#timestamp').innerText(), '—');
+  assert(await page.evaluate(() => {
+    const main = document.getElementById('main-content');
+    const content = [...main.children].filter(element => element.tagName !== 'NOSCRIPT');
+    return content[0].matches('.page-header') && content[1].id === 'wallbox-warning'
+      && content.at(-1).matches('.status-panel.current-data');
+  }), 'Warning above content; current-data panel last on both pages');
 }
 async function overflow(page, description) {
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth
@@ -252,12 +258,21 @@ function clean(run) {
          assert.deepEqual(await page.locator('form, input:not([type="checkbox"]), [role="button"], [role="checkbox"]').evaluateAll(nodes => nodes.map(n => n.id).sort()),
            route === '/' ? [] : ['calendar-custom', 'calendar-date', 'calendar-from', 'calendar-to']);
          assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()),
-           (route === '/' ? ['reset-display'] : ['calendar-load', 'calendar-next', 'calendar-now', 'calendar-prev', 'reset-display']).sort());
-        assert.equal(await page.locator('#reset-display').getAttribute('type'), 'button');
+           (route === '/' ? [] : ['', '', '', '', '', '', '', 'calendar-load', 'calendar-next', 'calendar-now', 'calendar-prev', 'reset-display']).sort());
+        if (route === '/diagramme') {
+          assert.equal(await page.locator('#reset-display').getAttribute('type'), 'button');
+          assert.deepEqual(await page.locator('button[data-calendar-period]').evaluateAll(nodes =>
+            nodes.map(node => node.dataset.calendarPeriod)), ['live', 'hour', 'day', 'week', 'month', 'year', 'custom']);
+        }
         assert.equal(await page.locator('#theme-toggle').getAttribute('role'), 'switch');
         assert.equal(await page.locator('#theme-toggle').getAttribute('type'), 'checkbox');
-        const boxes = page.locator('#metric-options input[type="checkbox"]');
-        assert.equal(await boxes.count(), 16);
+        const boxes = page.locator('ul.chart-options input[type="checkbox"]');
+        assert.equal(await page.locator('#metric-options, .display-options, .history-note').count(), 0);
+        assert.equal(await boxes.count(), route === '/' ? 0 : 16);
+        if (route === '/diagramme') assert.deepEqual(await boxes.evaluateAll(inputs => inputs.map(input => input.id).sort()),
+          ['power', 'energy', 'limit', 'current-0', 'current-1', 'current-2', 'voltage-0', 'voltage-1',
+            'voltage-2', 'plugged', 'charging', 'below', 'wallbox-error', 'charging-state', 'charging-raw', 'lock']
+            .map(id => `show-${id}`).sort(), 'All 16 preferences remain available per chart');
         assert(await boxes.evaluateAll(inputs => inputs.every(input => input.checked && !input.disabled
           && [...input.labels].some(label => label.textContent.trim()))), 'Native labelled checkboxes');
         assert.equal(await page.locator('details[open]').count(), 0);
@@ -267,7 +282,7 @@ function clean(run) {
             'voltage-0', 'voltage-1', 'voltage-2', 'plugged', 'charging', 'below',
             'wallbox-error', 'charging-state', 'charging-raw', 'lock']) {
             assert.equal(await page.locator(`#${id}`).count(), 1, `Preserved wallbox metric ${id}`);
-            assert.equal(await page.locator(`#show-${id}`).count(), 1, `Preserved preference ${id}`);
+            assert.equal(await page.locator(`#show-${id}`).count(), 0, `No overview preference ${id}`);
           }
           assert.equal(await page.locator('#chart-grid, .chart-card, .chart-line').count(), 0);
           assert.equal(await page.locator('#power').innerText(), '0,00 kW');
@@ -291,35 +306,45 @@ function clean(run) {
         await overflow(page, `${route} ${scheme} ${width}: default`);
         const size = { 320: 'phone', 390: 'mobile', 768: 'tablet', 1440: 'desktop' }[width];
         if (size) await page.screenshot({ path: `/artifacts/${route === '/' ? 'dashboard' : 'diagrams'}-${scheme}-${size}.png`, fullPage: true });
-        await page.locator('.display-options > summary').click();
-        assert.equal(await page.locator('.display-options legend').innerText(), 'Wallbox-Werte');
-        assert.equal(await page.locator('#reset-display').innerText(), 'Alle anzeigen');
-        await overflow(page, `${route} ${width}: display options`);
         await page.locator('.technical-details > summary').click();
         if (route === '/') {
           assert(await page.locator('.technical-details #below').isVisible());
           assert((await page.locator('.technical-details article[data-metrics]').getAttribute('data-metrics')).split(/\s+/).includes('below'));
-          const below = page.locator('#metric-options #show-below');
-          // Resolve by the stable metric ID rather than its order.
-          assert.equal(await below.count(), 1);
-          await below.uncheck();
-          assert(!await page.locator('#below').isVisible(), 'Below preference still hides diagnostic row');
-          await globals(page);
-          assert(await page.locator('#smartmeter').isVisible());
-          await below.check();
-          assert(await page.locator('#below').isVisible());
+          assert.equal(await page.locator('#reset-display').count(), 0);
+        } else {
+          assert.equal(await page.locator('#reset-display').innerText(), 'Alle Kurven anzeigen');
+          assert.equal(await page.locator('figure ul.chart-options').count(), 9);
+          assert(await boxes.evaluateAll(inputs => inputs.every(input => input.getClientRects().length)),
+            'Diagnostic controls reachable after opening details');
         }
         await overflow(page, `${route} ${width}: technical details`);
-        await page.locator('.technical-details > summary').click();
-        for (let i = 0; i < 16; i++) await boxes.nth(i).uncheck();
-        assert(await boxes.evaluateAll(inputs => inputs.every(input => !input.checked)));
-        await globals(page);
-        assert(await page.locator('#display-empty').isVisible());
-        assert.equal(await page.locator('.summary-card:visible, .chart-card:visible').count(), 0);
-        if (route === '/') assert(await page.locator('#smartmeter').isVisible(), 'Wallbox preferences never hide house measurements');
-        await overflow(page, `${route} ${width}: all off`);
-        await page.locator('#reset-display').click();
-        assert(await boxes.evaluateAll(inputs => inputs.every(input => input.checked)));
+        if (route === '/diagramme') {
+          for (let i = 0; i < 16; i++) await boxes.nth(i).uncheck();
+          assert(await boxes.evaluateAll(inputs => inputs.every(input => !input.checked)));
+          await globals(page);
+          assert.equal(await page.locator('#display-empty').count(), 0);
+          assert.equal(await page.locator('figure:has(ul.chart-options):visible').count(), 9);
+          assert.equal(await page.locator('figure:has(ul.chart-options) svg:visible').count(), 0);
+          assert.equal(await page.locator('figure:has(ul.chart-options) svg[hidden]').count(), 9);
+          assert.equal(await page.locator('ul.chart-options input:visible').count(), 16);
+          await overflow(page, `${route} ${width}: all off`);
+          // Shared all-off preferences must not hide any overview card or diagnostic value.
+          await page.locator('nav a[href="/"]').click(); await live(page);
+          assert.equal(await page.locator('.summary-card:visible').count(), 4);
+          assert.equal(await page.locator('ul.chart-options, #reset-display').count(), 0);
+          assert(await page.locator('#smartmeter').isVisible());
+          await page.locator('.technical-details > summary').click();
+          assert.equal(await page.locator('[data-metric]:not(:visible), [data-metrics]:not(:visible)').count(), 0);
+          await globals(page);
+          await overflow(page, `${route} ${width}: overview ignores all-off preferences`);
+          await page.locator('nav a[href="/diagramme"]').click(); await live(page);
+          assert(await boxes.evaluateAll(inputs => inputs.every(input => !input.checked)));
+          await page.locator('#reset-display').click();
+          assert(await boxes.evaluateAll(inputs => inputs.every(input => input.checked)));
+          assert.equal(await page.locator('#chart-grid svg[hidden], #chart-diagnostics-grid svg[hidden]').count(), 0);
+        }
+        if (await page.locator('.technical-details[open] > summary').count())
+          await page.locator('.technical-details[open] > summary').click();
         clean(run);
       } finally { await context.close(); }
     }
@@ -331,32 +356,65 @@ function clean(run) {
       assert(await run.page.locator('.skip-link').evaluate(el => el === document.activeElement));
       await run.page.keyboard.press('Enter');
       assert(await run.page.locator('#main-content').evaluate(el => el === document.activeElement));
-      await run.page.locator('.display-options > summary').click();
-      await run.page.locator('#metric-options input').first().uncheck();
-      assert(await run.page.evaluate(() => localStorage.getItem('evse-display-v1') !== null));
       await run.page.locator('nav a[href="/diagramme"]').focus(); await run.page.keyboard.press('Enter');
       await run.page.waitForURL(new URL('/diagramme', base).href); await live(run.page);
-      assert.equal(await run.page.locator('#metric-options input').first().isChecked(), false);
+      await run.page.locator('ul.chart-options #show-power').uncheck();
+      assert(await run.page.evaluate(() => localStorage.getItem('evse-display-v1') !== null));
+      await run.page.locator('nav a[href="/"]').click(); await live(run.page);
+      assert.equal(await run.page.locator('.summary-card:visible').count(), 4);
+      assert(await run.page.locator('#power').isVisible());
+      await run.page.locator('nav a[href="/diagramme"]').focus(); await run.page.keyboard.press('Enter');
+      await run.page.waitForURL(new URL('/diagramme', base).href); await live(run.page);
+      assert.equal(await run.page.locator('ul.chart-options #show-power').isChecked(), false);
       await run.page.reload(); await live(run.page);
-      assert.equal(await run.page.locator('#metric-options input').first().isChecked(), false);
+      assert.equal(await run.page.locator('ul.chart-options #show-power').isChecked(), false);
+      await run.page.evaluate(() => {
+        const prefs = JSON.parse(localStorage.getItem('evse-display-v1'));
+        prefs.selected.power = true;
+        localStorage.setItem('evse-display-v1', JSON.stringify(prefs));
+        const event = new Event('pageshow');
+        Object.defineProperty(event, 'persisted', { value: true }); window.dispatchEvent(event);
+      });
+      await live(run.page);
+      assert.equal(await run.page.locator('ul.chart-options #show-power').isChecked(), true,
+        'Pageshow restores readable shared preferences');
+      await run.page.evaluate(() => {
+        window.layoutMutations = 0;
+        window.layoutObserver = new MutationObserver(records => { window.layoutMutations += records.length; });
+        for (const id of ['status', 'reason']) window.layoutObserver.observe(document.getElementById(id),
+          { childList: true, subtree: true, characterData: true });
+        window.layoutTimestamp = document.getElementById('timestamp').textContent;
+      });
+      await run.page.waitForFunction(() => document.getElementById('timestamp').textContent !== window.layoutTimestamp);
+      assert.equal(await run.page.evaluate(() => {
+        window.layoutObserver.disconnect(); return window.layoutMutations;
+      }), 0, 'Unchanged live status text is not repeatedly replaced during polling');
       clean(run);
     } finally { await run.context.close(); }
     for (const route of routes) {
       const denied = await setup(browser, {}, true);
       try {
         await denied.page.goto(new URL(route, base).href); await live(denied.page);
-        await denied.page.locator('.display-options > summary').click();
-        const first = denied.page.locator('#metric-options input').first();
-        await first.uncheck(); assert.equal(await first.isChecked(), false);
+        const first = denied.page.locator('ul.chart-options #show-power');
+        if (route === '/diagramme') {
+          await first.uncheck(); assert.equal(await first.isChecked(), false);
+        } else {
+          assert.equal(await denied.page.locator('ul.chart-options, #reset-display').count(), 0);
+          assert.equal(await denied.page.locator('.summary-card:visible').count(), 4);
+        }
         await globals(denied.page);
         await denied.page.evaluate(() => {
           const event = new Event('pageshow');
           Object.defineProperty(event, 'persisted', { value: true }); window.dispatchEvent(event);
         });
         await live(denied.page);
-        assert.equal(await first.isChecked(), false, 'Cached page keeps session-only choices without storage');
+        if (route === '/diagramme')
+          assert.equal(await first.isChecked(), false, 'Cached page keeps session-only choices without storage');
+        else assert.equal(await denied.page.locator('.summary-card:visible').count(), 4);
         await denied.page.reload(); await live(denied.page);
-        assert.equal(await first.isChecked(), true); clean(denied);
+        if (route === '/diagramme') assert.equal(await first.isChecked(), true);
+        else assert.equal(await denied.page.locator('.summary-card:visible').count(), 4);
+        clean(denied);
       } finally { await denied.context.close(); }
     }
     const failure = await setup(browser);

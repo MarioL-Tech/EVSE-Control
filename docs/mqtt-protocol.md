@@ -43,6 +43,14 @@ Messwertfelder und Einheiten:
 | `active_power_w` | Wirkleistung in W |
 | `session_energy_wh` | Sessionenergie in Wh |
 
+Bei Ladezustand 5 („Others“) oder unbekanntem Code bleibt `charging=null`.
+Die exakten rohen Buchsenwerte `0x0101`/`0x0111` belegen nach ABB v1.7,
+Abschnitt 5.5, unabhängig einen Fahrzeuganschluss: dann `plugged_in=true`.
+Andere Buchsenwerte werden nicht pauschal als „Nein“ gedeutet. Ladezustände
+0–4 behalten ihre bisherige Zuordnung; keine Interpretation von 0 W als Ladestatus.
+Schema, Topics und alle Feldtypen bleiben unverändert; alte Archivwerte werden
+nicht rückwirkend geändert.
+
 Ein `ok`-Sample oder `online` ist **keine Ladefreigabe** und kein Nachweis
 fehlerfreier Wallbox-Hardware. Wallbox-Fehlercode und tatsächlichen Ladezustand
 separat darstellen. Details: [Registerdekodierung](../rasppi/wallbox/README.md#register-und-interpretation).

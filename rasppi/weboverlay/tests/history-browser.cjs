@@ -66,15 +66,27 @@ const { FIELDS } = require('../static/newcalendar.js');
       const date = iso(Date.UTC(2024, 0, i + 1)).slice(0, 10);
       // Known fixture boundaries, including the 23/25-hour days of 2024.
       return iso(Date.parse(date + 'T00:00:00Z') - (date >= '2024-04-01' && date <= '2024-10-27' ? 2 : 1) * 3600000);
-    }) : [from, to];
+    }) : period === 'hour' ? Array.from({ length: 61 }, (_, i) => iso(Date.parse(from) + i * 60000)) : [from, to];
     const json = { schema_version: 2, read_only: true, status: calendarFail ? 'unavailable' : 'ok', reason: '<img src=x>',
       generated_at: iso(now), range: { from, to, timezone: 'Europe/Vienna' },
       selection: { period, date: selected && selected !== 'now' ? selected : dates[period], timezone: 'Europe/Vienna' },
       navigation: { previous: { period, at: iso(Date.parse(from) - (Date.parse(to) - Date.parse(from))), tz: 'Europe/Vienna' },
         next: { period, at: to, tz: 'Europe/Vienna' }, now: { period, date: 'now', tz: 'Europe/Vienna' } },
       aggregation: 'sample_mean', complete: true, progress: { samples_done: true, events_done: true },
-      buckets: calendarFail ? [] : bounds.slice(0, -1).map((a, i) => ({ from: a, to: bounds[i + 1], samples: 30,
-        has_gap: false, complete: true, coverage_seconds: 58, metrics: statistics })) };
+      buckets: calendarFail ? [] : bounds.slice(0, -1).map((a, i) => {
+        const empty = period === 'hour' && i >= 20 && i < 44;
+        const metrics = JSON.parse(JSON.stringify(statistics));
+        if (empty) {
+          for (const stat of Object.values(metrics)) Object.assign(stat, { count: 0, mean: null, min: null, max: null, last: null });
+        } else if (period === 'hour') {
+          for (const [phase, field] of ['voltage_l1_v', 'voltage_l2_v', 'voltage_l3_v'].entries()) {
+            const mean = 236 + phase + Math.sin(i / 4);
+            Object.assign(metrics[field], { mean, min: mean - .8, max: mean + 1, last: mean });
+          }
+        }
+        return { from: a, to: bounds[i + 1], samples: empty ? 0 : 30,
+          has_gap: period === 'hour', complete: true, coverage_seconds: empty ? 0 : 58, metrics };
+      }) };
     if (period === 'custom') json.navigation = { previous: null, next: null, now: null };
     if (calendarHold) { heldCalendar.push({ route, json }); return; }
     await route.fulfill({ status: calendarFail ? 503 : 200, json });
@@ -205,6 +217,12 @@ const { FIELDS } = require('../static/newcalendar.js');
         throw error;
       }
       assert(await page.locator('[data-summary-series="power"]').count() > 0);
+      if (period === 'hour') {
+        assert.equal(await page.locator('#chart-power .summary-value').count(), 36, 'Empty minutes never acquire a value mark');
+        assert.equal(await page.locator('#chart-power .summary-range').count(), 36);
+        assert(await page.locator('#chart-power .summary-value').first().evaluate(el => getComputedStyle(el).strokeDasharray === 'none'));
+        await page.screenshot({ path: '/artifacts/calendar-hour-gaps-desktop.png', fullPage: true });
+      }
       assert.equal(await page.locator('[data-series-marker]').count(), 0, 'Summary glyphs never use circles/pills');
       assert.equal(await page.locator('img').count(), 1, 'DTO reasons cannot add images');
       await page.locator('#calendar-date').fill(pickerDates[period]);

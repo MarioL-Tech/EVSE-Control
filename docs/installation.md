@@ -301,6 +301,23 @@ ACLs und erforderliche Erreichbarkeit klären. Keine Zugangsdaten hier posten.
 
 ### Reader auf die MQTT-Version aktualisieren
 
+**Fahrzeuganschluss bei Zustand 5:** Der Decoder verwendet nun zusätzlich die
+bereits gelesenen Buchsenwerte `0x0101`/`0x0111` (ABB v1.7, Abschnitt 5.5) als
+positiven Anschlussnachweis. Der Ladezustand bleibt bei „Others“ unbekannt.
+Nach Merge und Git-Aktualisierung braucht dieser Fix auch ein neues Readerimage,
+nicht nur einen Website-Neustart. Im Verzeichnis `rasppi/wallbox`, mit derselben
+bisherigen Compose-/Auth-Dateiauswahl:
+
+```bash
+docker compose up -d --build wallbox-reader
+docker compose ps
+```
+
+Keine Migration oder Änderung an Broker/DB/Collector nötig. Der vorhandene
+Readercontainer wird ersetzt, nicht parallel ein zweiter Master gestartet.
+Kurze MQTT-Offlinephase bis zum ersten frischen Read ist erwartbar. Alte
+Historien-NULLs werden nicht umgeschrieben; Anschluss ist keine Ladeaktivität.
+
 Nach Merge der MQTT-PR auf `main`, oder bewusst auf dem gewünschten Feature-
 Branch, den Stand gemäß Abschnitt 2 aktualisieren. Dann aus `rasppi/wallbox/`:
 

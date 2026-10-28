@@ -11,6 +11,9 @@ const { METRICS } = require('../static/charts.js');
   page.on('pageerror', e => errors.push(String(e)));
   let sequence = 0, offline = false;
   await page.clock.install();
+  // Keep elapsed test time explicit. Full-page captures / responsive viewport
+  // work must not advance a one-minute history window behind our assertions.
+  await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000));
   await page.route('**/api/state', async route => {
     const now = await page.evaluate(() => Date.now());
     const timestamp = new Date(now).toISOString();
