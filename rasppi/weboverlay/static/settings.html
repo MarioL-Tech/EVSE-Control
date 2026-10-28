@@ -4,6 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#171c22">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" sizes="180x180">
+  <script src="/static/pwa.js" defer></script>
   <title>Settings · EVSE Control</title>
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <script src="/static/theme.js"></script>
@@ -31,6 +35,18 @@
       <div class="settings-placeholder">
         <section class="card"><h2>In Vorbereitung</h2><p class="subtle">Platzhalter – noch keine Lade- oder Hardwareeinstellungen.</p></section>
         <section class="card"><h2>Darstellung</h2><p class="subtle">Die Auswahl gilt nur in diesem Browser.</p><button id="theme-system" type="button" disabled>Systemdarstellung verwenden</button></section>
+        <section class="card pwa-card" aria-labelledby="pwa-heading">
+          <h2 id="pwa-heading">Als WebApp verwenden</h2>
+          <p id="pwa-status" class="subtle" role="status">Die Installation benötigt JavaScript und einen geeigneten Browser.</p>
+          <div class="pwa-actions"><button id="pwa-install" type="button" disabled hidden>WebApp installieren</button><button id="pwa-update" type="button" disabled>Auf Aktualisierung prüfen</button></div>
+          <p id="pwa-update-status" class="subtle" role="status">Aktualisierungen benötigen eine Verbindung zur Website.</p>
+          <ol class="pwa-instructions">
+            <li>Die Website über HTTPS öffnen. Bei lokaler Zertifizierungsstelle deren Stammzertifikat zuerst auf dem Gerät als vertrauenswürdig einrichten. Zertifikatswarnungen nicht umgehen.</li>
+            <li>Android/Chrome: im Browsermenü „App installieren“ oder „Zum Startbildschirm hinzufügen“ wählen, sofern angeboten.</li>
+            <li>iPhone/iPad: in Safari „Teilen“ und „Zum Home-Bildschirm“ wählen; je nach Version „Als Web-App öffnen“ aktivieren.</li>
+          </ol>
+          <p class="subtle">Dies ist die Website im eigenen Fenster, keine native App. Messwerte benötigen eine Verbindung. Offline erscheint nur ein Hinweis, keine gespeicherten Livewerte. Eine neue Version wird nach dem Schließen aller App-Fenster und Website-Tabs aktiv; danach erneut öffnen.</p>
+        </section>
         <p class="subtle"><a class="text-link" href="/">Zur Übersicht</a></p>
       </div>
       <noscript><p class="notice">Ohne JavaScript folgt die Darstellung der Systemeinstellung.</p></noscript>

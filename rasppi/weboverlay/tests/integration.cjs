@@ -276,17 +276,31 @@ async function httpContract(scope) {
     assert.ok(response.body.includes(`<title>${title}</title>`));
     security(response);
   }
-  for (const asset of ['app.js', 'charts.js', 'theme.js', 'smartmeter.js', 'style.css', 'icon.svg']) {
+  for (const asset of ['app.js', 'charts.js', 'theme.js', 'smartmeter.js', 'style.css', 'icon.svg', 'pwa.js', 'offline.html',
+    'app-192.png', 'app-512.png', 'app-maskable-512.png', 'apple-touch-icon.png']) {
     const response = await request(scope.webPort, `/static/${asset}`);
     assert.equal(response.code, 200);
     assert.ok(response.body.length > 0);
     security(response);
   }
+  for (const [url, mime] of [['/manifest.webmanifest', 'application/manifest+json'], ['/service-worker.js', 'text/javascript']]) {
+    const response = await request(scope.webPort, url);
+    assert.equal(response.code, 200);
+    assert.equal(response.headers['content-type'], `${mime}; charset=utf-8`);
+    security(response);
+    if (url === '/service-worker.js') assert.equal(response.headers['service-worker-allowed'], '/');
+    const head = await request(scope.webPort, url, 'HEAD');
+    assert.equal(head.code, 200);
+    assert.equal(head.body, '');
+    assert.equal(head.headers['content-type'], response.headers['content-type']);
+    security(head);
+  }
   for (const target of ['/missing', '/.env', '/php/Config.php', '/docker/entrypoint.sh',
     '/static/missing.js', '/static/.env', '/static/../php/Config.php',
     '/static/%2e%2e/php/Config.php', '/static/%2e%2e%2f.env',
     '/static/%252e%252e%252f.env', '/static/..%5c.env', '/static/index.html.bak',
-    '/static/subscriber-secret', '/private-state/state.json']) {
+    '/static/subscriber-secret', '/private-state/state.json', '/static/service-worker.js',
+    '/static/manifest.webmanifest', '/service-worker.js.bak', '/manifest.json', '/static/app-193.png']) {
     const response = await request(scope.webPort, target);
     assert.ok([400, 403, 404].includes(response.code), 'Unsafe/static unknown path was served');
     for (const text of [PASSWORD, WRONG_PASSWORD, MARKER, '<?php', '#!/bin/']) {
@@ -295,7 +309,8 @@ async function httpContract(scope) {
   }
   assert.equal((await request(scope.webPort, '/missing')).code, 404);
   for (const method of ['POST', 'PUT']) {
-    for (const url of ['/api/state', '/api/smartmeter', '/healthz', '/', '/diagramme', '/einstellungen']) {
+    for (const url of ['/api/state', '/api/smartmeter', '/healthz', '/', '/diagramme', '/einstellungen',
+      '/service-worker.js', '/manifest.webmanifest', '/static/pwa.js', '/static/offline.html']) {
       const response = await request(scope.webPort, url, method);
       assert.equal(response.code, 405);
       security(response);

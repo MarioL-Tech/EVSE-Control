@@ -1,0 +1,99 @@
+# DISPOSABLE CI fixture only. Never combine with production Compose files.
+# No published ports, production networks, credentials or CA volumes.
+name: evse-pwa-test
+x-proxy: &proxy
+  image: evse-web-https:test
+  build:
+    context: .
+    dockerfile: docker/https/Dockerfile
+  init: true
+  stop_grace_period: 20s
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs:
+    - /config:uid=10001,gid=10001,mode=0700,size=4m
+    - /tmp:uid=10001,gid=10001,mode=0700,size=4m
+  depends_on:
+    weboverlay:
+      condition: service_healthy
+services:
+  broker:
+    image: eclipse-mosquitto:2.0.22
+    user: "1883:1883"
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - |
+        printf 'listener 1883\nallow_anonymous true\npersistence false\n' > /tmp/mosquitto.conf
+        exec mosquitto -c /tmp/mosquitto.conf
+    read_only: true
+    tmpfs: [/tmp:uid=1883,gid=1883,mode=0700,size=1m]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [mqtt-test]
+  weboverlay:
+    image: evse-weboverlay:test
+    init: true
+    stop_grace_period: 10s
+    depends_on:
+      broker:
+        condition: service_started
+    environment:
+      MQTT_HOST: broker
+      MQTT_PORT: "1883"
+      MQTT_TOPIC_PREFIX: evse/pwa-test
+      MQTT_CLIENT_ID: evse-pwa-test-overlay
+      MQTT_USERNAME: ""
+      MQTT_PASSWORD: ""
+      MQTT_PASSWORD_FILE: ""
+      WEB_HISTORY_ENABLED: "0"
+      SMARTMETER_URL: ""
+      WEB_STALE_SECONDS: "10"
+    networks: [web-test, mqtt-test]
+    read_only: true
+    tmpfs: [/tmp:size=16m,mode=1777]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  https:
+    <<: *proxy
+    environment:
+      EVSE_TLS_HOST: evse.test
+    networks:
+      web-test:
+        aliases: [evse.test]
+    volumes: [https-test-data:/data]
+  # Separate CA and listener to prove LAN IPv4 access without TLS SNI.
+  https-ip:
+    <<: *proxy
+    profiles: [tools]
+    environment:
+      EVSE_TLS_HOST: 192.0.2.10
+    networks: [web-test]
+    volumes: [https-ip-test-data:/data]
+  browser:
+    image: evse-web-browser:test
+    profiles: [tools]
+    init: true
+    command: [sh, /tests/run-pwa-browser.sh]
+    environment:
+      WEB_TEST_URL: https://evse.test:8443
+      PWA_CA_FILE: /pwa-ca/root.crt
+      MQTT_HOST: broker
+      MQTT_PORT: "1883"
+      MQTT_TOPIC_PREFIX: evse/pwa-test
+    # Parent CI copies ONLY the public root.crt here before browser launch.
+    # The browser image's runner installs OS/NSS trust before pwa-browser.cjs.
+    volumes:
+      - ${PWA_TEST_CA_DIR:-./.pwa-test-public-ca}:/pwa-ca:ro
+      - ../../artifacts/pwa:/artifacts
+    networks: [web-test, mqtt-test]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+networks:
+  web-test:
+    internal: true
+  mqtt-test:
+    internal: true
+volumes:
+  https-test-data:
+  https-ip-test-data:

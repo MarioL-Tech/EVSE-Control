@@ -32,7 +32,7 @@ RUN find php public docker tests -name '*.php' -print0 | xargs -0 -n1 php -l \
     && apache2 -t \
     && php tests/unit.php && php tests/shared.php && php tests/transport.php && php tests/smartmeter.php && php tests/history.php && php tests/archive.php \
     && node tests/integration.cjs && node tests/smartmeter-integration.cjs \
-    && node --test tests/frontend.test.cjs tests/charts.test.cjs tests/theme.test.cjs tests/smartmeter.test.cjs tests/history.test.cjs tests/newcalendar.test.cjs \
+    && node --test tests/frontend.test.cjs tests/charts.test.cjs tests/theme.test.cjs tests/smartmeter.test.cjs tests/history.test.cjs tests/newcalendar.test.cjs tests/pwa.test.cjs \
     && touch /tmp/tests-passed
 
 FROM base AS runtime

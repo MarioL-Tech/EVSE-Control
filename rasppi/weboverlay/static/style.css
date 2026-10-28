@@ -127,6 +127,12 @@ dd { margin: 0; text-align: right; font-weight: 550; font-variant-numeric: tabul
 .settings-placeholder { max-width: 720px; }
 .settings-placeholder > .card { margin-top: 18px; }
 .settings-placeholder p + button { margin-top: 16px; }
+.pwa-card p, .pwa-instructions { margin-top: 12px; }
+.pwa-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.pwa-actions button:disabled { cursor: default; opacity: .55; }
+.pwa-actions [hidden] { display: none; }
+.pwa-instructions { padding-left: 22px; font-size: .82rem; line-height: 1.65; }
+.pwa-instructions li + li { margin-top: 8px; }
 .diagnostic { font-size: .82rem; font-weight: 600; margin-top: 14px; }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 caption { text-align: left; font-size: .72rem; color: var(--muted); padding-bottom: 14px; }

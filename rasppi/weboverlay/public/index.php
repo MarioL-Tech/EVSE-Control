@@ -20,10 +20,16 @@ header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-sr
 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $assets = ['app.js' => 'text/javascript', 'charts.js' => 'text/javascript', 'history.js' => 'text/javascript', 'newcalendar.js' => 'text/javascript', 'theme.js' => 'text/javascript', 'smartmeter.js' => 'text/javascript',
-    'style.css' => 'text/css', 'icon.svg' => 'image/svg+xml'];
+    'pwa.js' => 'text/javascript', 'style.css' => 'text/css', 'icon.svg' => 'image/svg+xml',
+    'app-192.png' => 'image/png', 'app-512.png' => 'image/png',
+    'app-maskable-512.png' => 'image/png', 'apple-touch-icon.png' => 'image/png',
+    'offline.html' => 'text/html'];
+$rootAssets = ['/manifest.webmanifest' => ['manifest.webmanifest', 'application/manifest+json'],
+    '/service-worker.js' => ['service-worker.js', 'text/javascript']];
 $pages = ['/' => 'index.html', '/diagramme' => 'diagrams.html', '/einstellungen' => 'settings.html'];
 $asset = is_string($path) && str_starts_with($path, '/static/') ? substr($path, 8) : null;
 $known = isset($pages[$path ?? '']) || in_array($path, ['/api/state', '/api/smartmeter', '/api/history', '/healthz'], true)
+    || isset($rootAssets[$path ?? ''])
     || ($asset !== null && isset($assets[$asset]));
 
 if (!$known) {
@@ -40,7 +46,13 @@ if (!in_array($_SERVER['REQUEST_METHOD'], ['GET', 'HEAD'], true)) {
     exit;
 }
 
-if (isset($pages[$path])) {
+if (isset($rootAssets[$path])) {
+    header('Content-Type: ' . $rootAssets[$path][1] . '; charset=utf-8');
+    if ($path === '/service-worker.js') {
+        header('Service-Worker-Allowed: /');
+    }
+    readfile(dirname(__DIR__) . '/static/' . $rootAssets[$path][0]);
+} elseif (isset($pages[$path])) {
     header('Content-Type: text/html; charset=utf-8');
     readfile(dirname(__DIR__) . '/static/' . $pages[$path]);
 } elseif ($asset !== null && isset($assets[$asset])) {

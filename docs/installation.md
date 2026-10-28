@@ -6,7 +6,7 @@ werden. Die Betriebsschritte setzen einen vorbereiteten Pi voraus. Hardware-
 und Erstvorbereitungsreferenz stehen in Abschnitt 8; eine vollständige OS-,
 Docker- oder Broker-Neuinstallation ist damit noch nicht beschrieben.
 
-**Stand:** 2026-10-27. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
+**Stand:** 2026-10-28. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
 zyklischer Betrieb wurden vom Projektinhaber bestätigt. Der vorhandene MQTT-Broker ist
 erreichbar; der Empfang der echten Reader-Messwerte wurde ebenfalls bestätigt.
 Das rein lesende PHP-Weboverlay ist implementiert und Docker-getestet;
@@ -15,10 +15,10 @@ gezielte Ausfalltests, Diagramme und neuer manueller Theme-Schalter noch offen
 (Abschnitt 9).
 
 **Planungsänderung:** Kein eigenes Home-Assistant-Modul. Die Website soll später
-umgebaut werden; anschließend ist eine Smartphone-WebApp vorgesehen. Details
-sind noch offen, beide Vorhaben noch nicht umgesetzt. Die aktuelle Browseranzeige
-und ihre Startbefehle bleiben unverändert; es gibt dafür keine neuen
-Installationsschritte oder Netzwerkfreigaben.
+inhaltlich umgebaut werden. Separat ergänzt ist die **installierbare PWA** mit
+optionalem lokalem HTTPS (eigene CA, zunächst ohne Domain). Einrichtung und
+Sicherheitsgrenzen stehen im PWA-Abschnitt; CI-Abschluss/Handyabnahme noch offen.
+Keine native Handy-App und kein automatisches Pi-/Netzwerkdeployment.
 
 ## Inhalt
 
@@ -952,6 +952,133 @@ am 2026-10-28 „funktioniert“. Damit ist direkter LAN-Websitezugriff laut Rü
 bestätigt; keine unabhängig geprüfte Runtime-/API-/Zugriffsschutz-/Langzeitprüfung
 und kein Agent-Deployment. Diese Rückmeldung bestätigt nicht zusätzlich die
 gesonderte Schema-2-Migration oder abgeschlossene Kalenderverdichtung.
+
+### Installierbare Handy-WebApp: lokales HTTPS und PWA
+
+Die Website erhält Manifest, Installationsicons, einen HTTPS-Installationshinweis
+unter **Settings → Als WebApp verwenden** und einen begrenzten Service Worker.
+Android-/iOS-Installation und Zertifikatsvertrauen müssen anschließend auf den
+tatsächlichen Handys bestätigt werden; Browser-CI ersetzt keinen Gerätetest.
+PHP/Apache, MQTT-/Haus-Worker und MariaDB bleiben bestehen. Der weitergehende
+inhaltliche Websiteumbau und Ladesteuerung sind davon getrennte Vorhaben.
+
+**Voraussetzung für eine reguläre PWA mit Service Worker ist vertrauenswürdiges
+HTTPS.** Der bisherige HTTP-LAN-Zugriff allein genügt nicht. Zunächst läuft alles
+**nur lokal ohne Domain**: optionaler Caddy-Container im Profil `https`, eigene
+lokale CA, Port 443/TCP → intern 8443 → Apache 8080. Keine Internet-Portweiterleitung,
+kein zusätzlicher Broker/DB/VPN-/Clouddienst, keine Hostinstallation von Caddy oder
+OpenSSL. Caddy ist non-root/readonly/cap-drop, nur im privaten internen Webnetz,
+nicht im MQTT-/DB-Netz. IPv4 ohne SNI wird durch explizites `default_sni` unterstützt.
+
+#### 1. Bestehende Websitekonfiguration beibehalten und HTTPS aktivieren
+
+Nach Feature-Merge und Repositoryupdate aus `rasppi/weboverlay` die vorhandene
+`.env` bearbeiten, nicht überschreiben. Für das bereits freigegebene LAN:
+
+```dotenv
+WEB_BIND_ADDRESS=PI-LAN-IP
+COMPOSE_PROFILES=https
+```
+
+`PI-LAN-IP` durch die echte lokale IPv4-Adresse ersetzen. Bestehende MQTT-/DB-/
+Smartmeterwerte und Passwortdateien behalten. `WEB_HTTPS_PORT=443` ist Default.
+`WEB_TLS_HOST` darf leer bleiben: Die Zertifikatsidentität übernimmt dann
+`WEB_BIND_ADDRESS`. Bei Bindung an `0.0.0.0` muss `WEB_TLS_HOST` ausdrücklich eine
+erreichbare konkrete IP/ein DNS-Name sein; `0.0.0.0` ist keine Zertifikatsidentität.
+Keine URLs, Ports, Pfade, Wildcards oder IPv6-Literale als `WEB_TLS_HOST` verwenden.
+
+Mit bisheriger History-Auswahl den **gesamten Website-Stack ohne Dienstsuffix**
+starten; dadurch startet das aktivierte HTTPS-Profil mit, ohne dritte Betriebsdatei:
+
+```bash
+docker compose -f compose.yaml -f compose.history.yaml up -d --build
+docker compose -f compose.yaml -f compose.history.yaml ps
+```
+
+Falls bisher `compose.auth.yaml` verwendet wird, diese Datei wie bisher zusätzlich
+einbeziehen. Ohne SQL-Historie den History-Schalter weglassen. Ein explizites
+`up -d weboverlay` startet den unabhängigen HTTPS-Proxy **nicht** mit. Nur die
+Websitekomponenten ändern sich; Reader/Collector/DB/Broker weiterlaufen lassen,
+keine Migration oder Pi-Neustart nötig. Port 443 muss lokal frei/erreichbar sein;
+Firewall nur bei Bedarf gezielt prüfen, keine pauschalen Netzwerkänderungen.
+Docker-Portveröffentlichungen können UFW umgehen.
+
+**Kompatibilität:** Die vorhandene HTTP-Veröffentlichung auf `WEB_PORT` bleibt
+unverändert erreichbar. Es gibt keinen erzwungenen Redirect und kein HSTS;
+die PWA ausschließlich über HTTPS verwenden. HTTPS ist kein Login/Zugriffsschutz.
+Es ist keine öffentliche ACME-Ausstellung aktiviert, auch nicht bei einem DNS-Namen.
+
+#### 2. Öffentliches CA-Zertifikat vertrauenswürdig zum Handy übertragen
+
+Erst nach gesundem HTTPS-Container aus der bestehenden vertrauenswürdigen
+SSH-/Docker-Verwaltung **nur das öffentliche Root-Zertifikat** exportieren:
+
+```bash
+umask 077
+mkdir -p pwa-public-ca
+docker compose -f compose.yaml -f compose.history.yaml cp \
+  https:/data/caddy/pki/authorities/local/root.crt pwa-public-ca/evse-local-ca.crt
+docker compose -f compose.yaml -f compose.history.yaml exec -T https \
+  openssl x509 -in /data/caddy/pki/authorities/local/root.crt -noout -fingerprint -sha256
+```
+
+Für diese Verwaltungsaufrufe dieselbe bisherige Auth-/History-Dateiauswahl
+beibehalten. Die ausgegebene SHA256-**Zertifikats**fingerprint ist nicht die
+Prüfsumme der PEM-Datei. Das `.crt` über einen vertrauenswürdigen Weg vom Pi/PC
+auf das Handy kopieren und Fingerprint vergleichen. Nicht aus einer ungeprüften
+Browserwarnung oder einem fremden HTTP-Download eine CA übernehmen. Die Website
+bietet absichtlich keinen CA-/Schlüsseldownload an.
+
+- **Android:** Je nach Version unter Sicherheit/Datenschutz → Verschlüsselung/
+  Anmeldedaten → Zertifikat installieren → **CA-Zertifikat** installieren.
+  Nicht mit einem WLAN-/Clientzertifikat verwechseln. Danach aktuellen Chrome/
+  geeigneten Browser öffnen. Menübezeichnungen und Installationsangebot variieren.
+- **iPhone/iPad:** Zertifikat als Profil installieren (Einstellungen → Allgemein →
+  VPN und Geräteverwaltung/geladenes Profil). Anschließend unter Allgemein → Info →
+  **Zertifikatsvertrauenseinstellungen** das volle Vertrauen für diese Root-CA
+  ausdrücklich aktivieren. Eine Profilinstallation allein genügt nicht immer.
+
+Eine weggeklickte Browserwarnung ist **kein** verlässlicher PWA-Installationsweg.
+Nur das öffentliche Zertifikat verteilen, **niemals `root.key` oder andere private
+CA-Schlüssel**. Das persistente Volume `https-data` gehört zu diesem HTTPS-Dienst:
+nicht löschen/neu initialisieren. Ein Containerneubau behält es; Verlust/Ersetzung
+der CA erfordert eine neue Vertrauensinstallation auf allen Geräten. Eine Sicherung
+dieses privaten CA-Stores ist vertraulich aufzubewahren, nicht ins Repository kopieren.
+
+#### 3. HTTPS und Handyinstallation prüfen
+
+Im Handy-Browser `https://PI-LAN-IP` öffnen (bei anderem HTTPS-Port mit `:PORT`).
+Es darf keine Zertifikatswarnung bleiben. Unter Settings die Installationshinweise
+lesen: Ein echtes Browser-Installationsangebot aktiviert den Installationsbutton;
+sonst das Browsermenü nutzen. Auf iOS in Safari Teilen → Zum Home-Bildschirm bzw.
+Als Web-App öffnen. Android kann je nach Browser/Version/Vertrauensart eine
+Installation oder einen Homescreen-Eintrag anbieten; eine native WebAPK-Erstellung
+durch einen externen Browserdienst wird für private CA/LAN-Adressen nicht zugesichert.
+App-Symbol, eigenständigen Start, Navigation, Theme und Live-Frische tatsächlich prüfen.
+
+Der Service Worker registriert nur auf HTTPS in sicherem Kontext. Er speichert
+ausschließlich freigegebene statische App-Dateien; `/api/*` und `/healthz` sind
+network-only/no-store. Offline-Navigation zeigt eine ausdrücklich benannte
+Offline-Seite statt eines zwischengespeicherten Dashboards. Bereits angezeigte
+Livewerte müssen durch die bestehende Frischelogik verfallen, keine 0/Nein-Werte
+erfinden. Keine Offline-Befehlsqueue, kein MQTT-/Hardwarezugriff im Browser.
+Neue Worker warten regulär auf den Abschluss alter Clients statt laufende Seiten
+mit `skipWaiting` ungefragt auf gemischte Scriptversionen umzuschalten.
+
+#### Spätere Domainanbindung
+
+`WEB_TLS_HOST` nimmt auch einen ASCII-DNS-Namen an; DNS auf den Pi dann gesondert
+einrichten. Dieselbe lokale CA funktioniert dafür weiter, ohne Backend-/DB-/MQTT-
+Umbau. Ein öffentlich vertrauenswürdiges Zertifikat/anderes Ausstellungsverfahren
+ist eine spätere gesonderte Proxykonfiguration, **kein** bereits automatisierter
+Domain-/ACME-Assistent. Eine Domain erteilt keine automatische Internetfreigabe.
+Adresswechsel von IP/lokalem Namen zur
+Domain ändert die Browser-Origin: eventuell PWA neu installieren und browserlokale
+Präferenzen neu wählen; gespeicherte Messdaten auf dem Server bleiben erhalten.
+
+Installation macht den Server außerhalb des LAN nicht automatisch erreichbar.
+Kein Agent-Pi-Deployment, produktives Zertifikat oder echte Android-/iOS-Installation
+als bewiesen behandeln; hierfür sind die Rückmeldungen des Betreibers erforderlich.
 
 ### Haus-Smartmeter optional einrichten
 

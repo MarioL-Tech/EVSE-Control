@@ -33,6 +33,8 @@ config.local.h
 
 # PHP dependencies are installed only in the Docker build.
 rasppi/weboverlay/vendor/
+rasppi/weboverlay/pwa-public-ca/
+rasppi/weboverlay/.pwa-test-public-ca/
 
 # Slidev deck (local experiment)
 slide/node_modules/

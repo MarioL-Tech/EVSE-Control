@@ -17,7 +17,7 @@ permissions:
 jobs:
   docker:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
       - name: Validate Compose
@@ -28,15 +28,44 @@ jobs:
           docker compose -f rasppi/weboverlay/compose.yaml config --quiet
           docker compose -f rasppi/weboverlay/compose.yaml -f rasppi/weboverlay/compose.history.yaml config --quiet
           docker compose -f rasppi/weboverlay/compose.yaml -f rasppi/weboverlay/compose.auth.yaml -f rasppi/weboverlay/compose.history.yaml config --quiet
+          COMPOSE_PROFILES=https WEB_BIND_ADDRESS=192.0.2.10 docker compose -f rasppi/weboverlay/compose.yaml -f rasppi/weboverlay/compose.auth.yaml -f rasppi/weboverlay/compose.history.yaml config --quiet
+          docker compose -f rasppi/weboverlay/compose.pwa-test.yaml --profile tools config --quiet
           # Check actual expanded host bindings without publishing any test ports
           # or logging environment/credentials from the full configuration.
           env -u WEB_BIND_ADDRESS docker compose -f rasppi/weboverlay/compose.yaml config --format json | grep -Eq '"host_ip"[[:space:]]*:[[:space:]]*"127\.0\.0\.1"'
           WEB_BIND_ADDRESS=192.0.2.10 docker compose -f rasppi/weboverlay/compose.yaml -f rasppi/weboverlay/compose.history.yaml config --format json | grep -Eq '"host_ip"[[:space:]]*:[[:space:]]*"192\.0\.2\.10"'
           WEB_BIND_ADDRESS=192.0.2.10 docker compose -f rasppi/weboverlay/compose.yaml -f rasppi/weboverlay/compose.auth.yaml -f rasppi/weboverlay/compose.history.yaml config --format json | grep -Eq '"host_ip"[[:space:]]*:[[:space:]]*"192\.0\.2\.10"'
-      - name: Build and test in Docker with isolated broker
-        run: docker build --progress=plain -t evse-weboverlay:test rasppi/weboverlay
       - name: Build disposable browser test image
         run: docker build -f rasppi/weboverlay/Dockerfile.browser -t evse-web-browser:test rasppi/weboverlay
+      - name: Render PWA product icons in disposable Docker image
+        run: |
+          mkdir -p artifacts/pwa-icons
+          docker run --rm --network none -v "$PWD/artifacts/pwa-icons:/icons" evse-web-browser:test node generate-icons.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evse-pwa-product-icons
+          path: artifacts/pwa-icons/
+      - name: Check committed icon provenance
+        run: |
+          for icon in app-192.png app-512.png app-maskable-512.png apple-touch-icon.png; do
+            cmp "artifacts/pwa-icons/$icon" "rasppi/weboverlay/static/$icon"
+          done
+      - name: Build and test in Docker with isolated broker
+        run: docker build --progress=plain -t evse-weboverlay:test rasppi/weboverlay
+      - name: Build local HTTPS proxy
+        run: docker build --progress=plain -f rasppi/weboverlay/docker/https/Dockerfile -t evse-web-https:test rasppi/weboverlay
+      - name: Trusted HTTPS and PWA with isolated CA and broker
+        working-directory: rasppi/weboverlay
+        env:
+          PWA_TEST_CA_DIR: ${{ runner.temp }}/evse-pwa-public-ca
+        run: |
+          mkdir -p "$PWA_TEST_CA_DIR" ../../artifacts/pwa
+          trap 'docker compose -f compose.pwa-test.yaml logs --tail 60 weboverlay https; docker compose -f compose.pwa-test.yaml down --volumes' EXIT
+          docker compose -f compose.pwa-test.yaml up -d --wait weboverlay https
+          sh tests/https-integration.sh
+          docker compose -f compose.pwa-test.yaml cp https:/data/caddy/pki/authorities/local/root.crt "$PWA_TEST_CA_DIR/root.crt"
+          chmod 644 "$PWA_TEST_CA_DIR/root.crt"
+          docker compose -f compose.pwa-test.yaml run --rm --no-deps -T browser
       - name: Raw and calendar archive history with isolated MariaDB 11.8.8
         working-directory: rasppi/weboverlay
         run: |
