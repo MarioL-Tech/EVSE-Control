@@ -864,7 +864,7 @@ PHP-CI 40365837026 bestätigt 16 Zustands-/Config-Fälle, IPC-Suite,
 Chromium-Suiten sowie non-root/readonly Runtime ohne Broker/Python. Installation
 aus committed Lockfile und Bytevergleich des extrahierten Locks sind bestätigt.
 
-Der Dienst bindet den Hostport bewusst **nur an `127.0.0.1:8080`**. Es werden
+Der Dienst bindet den Hostport standardmäßig **nur an `127.0.0.1:8080`**. Es werden
 keine Firewall-, SSH-, WireGuard- oder Routereinstellungen verändert. Kein
 HTTP-Login und kein TLS in dieser ersten Version: nicht ins Internet freigeben.
 
@@ -894,6 +894,58 @@ Dann http://127.0.0.1:8081 öffnen. Ist Port 8080 hingegen **auf dem Pi** belegt
 `WEB_PORT=8081` in der lokalen Weboverlay-`.env` setzen, Compose erneut starten
 und auch das rechte Tunnelziel auf `127.0.0.1:8081` ändern. Vorhandene Dienste
 nicht stoppen/ersetzen, um den Port frei zu machen.
+
+### Direkter Zugriff im vertrauenswürdigen LAN
+
+Separat autorisierter Zugang ohne SSH-/WireGuard-Tunnel: **eine Einstellung in
+der bestehenden Website-`.env`**, keine zusätzliche Compose-Datei oder Hilfsskripte.
+Der Default bleibt localhost, damit ein Update nicht ungefragt andere Netze öffnet.
+Kein HTTP-Login/TLS; andere erreichende LAN-Geräte können die Anzeige lesen.
+Nicht für öffentliche/unvertrauenswürdige Netze verwenden, keine Router-
+Portweiterleitung einrichten. Docker-Portfreigaben können UFW umgehen; eine
+UFW-Regel allein ist keine verlässliche Zugriffsbeschränkung für Containerports.
+
+Nach Repositoryupdate, aus `rasppi/weboverlay`, die vorhandene `.env` bearbeiten:
+
+```bash
+nano .env
+```
+
+Nur folgenden Wert ergänzen/anpassen; `PI-LAN-IP` durch die tatsächlich dem Pi
+zugewiesene LAN-IPv4-Adresse ersetzen, nicht durch eine Docker-/VPN-Adresse:
+
+```dotenv
+WEB_BIND_ADDRESS=PI-LAN-IP
+```
+
+Bestehende MQTT-/DB-/Smartmeterwerte und Passwortdateien behalten. Adresse nur
+lokal speichern, nie committen. `0.0.0.0` würde alle IPv4-Schnittstellen öffnen,
+nicht nur LAN. Die konkrete LAN-Adresse muss beim Containerstart vorhanden sein;
+ändert sie sich, `.env` aktualisieren. Die frühere Empfehlung mit separater
+`compose.lan.yaml` und dynamischem Dateiliste-/Array-Skript ist nicht mehr nötig.
+Eine eventuell vorhandene solche Datei nicht weiter mit `-f` einbeziehen; sie
+muss nicht gelöscht werden. Keine fremden Konfigurationsdateien überschreiben.
+
+Danach Website mit **derselben bisher genutzten History-/Auth-Auswahl** neu erstellen.
+Bei der bereits eingerichteten SQL-Historie ohne MQTT-Auth-Datei:
+
+```bash
+docker compose -f compose.yaml -f compose.history.yaml up -d weboverlay
+docker compose -f compose.yaml ps weboverlay
+```
+
+Mit bisher genutztem `compose.auth.yaml` dieses wie zuvor zusätzlich einbeziehen;
+ohne SQL-Historie genügt der normale Basisaufruf. Keine Images neu bauen und
+keine Datenbankmigration nötig: ausschließlich Docker-Portbindung. Kein Pi-
+Neustart, kein Stoppen von Reader/Collector/DB/Broker, keine Hostpakete installieren.
+
+Unter `PORTS` muss `PI-LAN-IP:8080->8080/tcp` stehen (beziehungsweise `WEB_PORT`).
+Dann im LAN-Browser `http://PI-LAN-IP:8080` öffnen. Firewallfreigabe und Router-
+Erreichbarkeit bei Bedarf gezielt prüfen, nicht wahllos weitere Ports öffnen.
+Die localhost-Bindung wird damit ersetzt; für den bisherigen Tunnelbetrieb
+`WEB_BIND_ADDRESS=127.0.0.1` setzen und denselben Compose-Aufruf wiederholen.
+HTTP-Healthcheck im Container und MQTT-/SQL-/Hausdienste bleiben unverändert.
+Ein Hostport-Eintrag allein ist noch kein bestätigter Browser-/LAN-Erreichbarkeitstest.
 
 ### Haus-Smartmeter optional einrichten
 
@@ -1136,7 +1188,8 @@ Eigene `.env` unter `rasppi/weboverlay/`, unabhängig von `rasppi/wallbox/.env`:
 
 | Variable | Default / Bedeutung |
 |---|---|
-| `WEB_PORT` | `8080`, Hostport ausschließlich auf Pi-Localhost |
+| `WEB_PORT` | `8080`, veröffentlichter Hostport |
+| `WEB_BIND_ADDRESS` | `127.0.0.1`; für ausdrücklich gewünschten vertrauenswürdigen LAN-Zugriff lokale Pi-LAN-IPv4-Adresse, ohne zusätzliche Datei |
 | `WEB_STALE_SECONDS` | `10`, zulässig 3–120 s; an Reader-Intervall anpassen |
 | `MQTT_HOST`, `MQTT_PORT` | `mqtt-broker`, `1883` |
 | `MQTT_TOPIC_PREFIX` | `evse/wallbox`, muss zum Reader passen |

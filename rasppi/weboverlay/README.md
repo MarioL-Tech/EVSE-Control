@@ -79,7 +79,13 @@ ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.0.1:8080 'BENUTZER@PI
 `BENUTZER@PI-ADRESSE` durch dein vorhandenes SSH-Ziel oder deinen SSH-Alias ersetzen;
 dieses tatsächliche Ziel nur lokal aufbewahren, nicht im Repository.
 Browser: **http://127.0.0.1:8080**. SSH-Tunnel offen halten. Hostport ist nur an
-Pi-Localhost gebunden, kein neues Internet-/LAN-Portmapping. Keine SSH-/WG-Änderung.
+Pi-Localhost gebunden, sofern nichts anderes konfiguriert ist. Für ausdrücklich
+gewünschten direkten LAN-Zugriff nur `WEB_BIND_ADDRESS` in der bestehenden `.env`
+auf die Pi-LAN-IPv4-Adresse setzen und den bisherigen Compose-Aufruf wiederholen.
+Keine zusätzliche LAN-Datei/Dateilisten-Skripte, kein Neubau/Migration nötig.
+Konkrete Schritte und Sicherheitsgrenzen stehen ausschließlich im
+[Installationsguide](../../docs/installation.md#direkter-zugriff-im-vertrauenswürdigen-lan).
+Keine automatische Firewall-/SSH-/WG-/Routeränderung oder öffentliche Freigabe.
 
 Alle Schritte zu Konfiguration, Passwortdatei, Portkonflikten, Diagnose und Tests:
 [zentraler Installationsguide](../../docs/installation.md#9-lesendes-weboverlay).
@@ -202,7 +208,9 @@ isolierte Tests sind weiterhin kein Pi-Deploymentnachweis dieser neuen Funktion.
   250 ms; HTTP erneuert ihn nie. Nach 3 s Stillstand oder bei fehlendem/defektem
   Snapshot liefert die API fail-closed offline und keine Werte.
 - Keine externen CDN-/Font-/Browser-MQTT-Abhängigkeiten, keine Zugangsdaten im JS.
-- Kein HTTP-Login/TLS: nur vertrauenswürdiger Zugang über den vorhandenen SSH-Tunnel.
+- Kein HTTP-Login/TLS: Default SSH-Tunnel; direktes LAN nur ausdrücklich über
+  `WEB_BIND_ADDRESS` wählen. Keine öffentliche Freigabe, UFW allein schützt
+  Docker-Portveröffentlichungen nicht zuverlässig.
 - MQTT-Vertrag: [Topics, Einheiten und Verfügbarkeit](../../docs/mqtt-protocol.md).
 
 ## Optionaler HTTP-Haus-Smartmeter

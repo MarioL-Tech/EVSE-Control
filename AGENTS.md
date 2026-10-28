@@ -540,8 +540,20 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   den Webserver nicht neu. Reconnect verwirft alte Availability/Samples.
 - Compose nutzt bestehenden `evse-mqtt`/`mqtt-broker`, Client-ID `evse-weboverlay`
   muss sich vom Reader unterscheiden. Container non-root UID 10001, readonly,
-  keine Capabilities. Hostport nur `127.0.0.1:8080`; Zugang via vorhandenem
-  SSH-Tunnel über WireGuard, keine Firewall-/SSH-/Netzwerkänderungen.
+  keine Capabilities. Hostport standardmäßig `127.0.0.1:8080`; Zugang via
+  vorhandenem SSH-Tunnel. Separat ausdrücklich gewünschter direkter LAN-Zugang
+  jetzt über eine einzige lokale `.env`-Einstellung `WEB_BIND_ADDRESS` auf die
+  Pi-LAN-IPv4-Adresse, `WEB_PORT` weiter 8080. Keine zusätzliche LAN-Datei oder
+  dynamische Dateilisten-/Array-Skripte nötig; frühere Chatempfehlung ersetzt.
+  Bestehende Auth-/History-Overlays weiterverwenden, nur Website neu erstellen;
+  kein Build/Migration/Pi-Neustart/Collectorstop nötig. Default nicht ungefragt
+  auf alle Schnittstellen ändern. Kein Login/TLS, keine WAN-/Routerfreigabe;
+  Docker-Ports können UFW umgehen. Keine automatische Firewall-/SSH-/Netzänderung.
+  Projektinhaber zeigt am 2026-10-28 einen gesunden, aber nur localhost-gebundenen
+  Websitecontainer; erfolgreiche neue LAN-Bindung/Browserzugriff noch nicht belegt.
+  Compose-CI prüft Default und explizite Test-LAN-Bindung samt Overlays ohne
+  tatsächliche Testportfreigabe; aktuellen Prüf-/Freigabestand über PR #49 prüfen.
+  Keine neue LAN-Erreichbarkeit allein aus einem CI-Konfigurationstest ableiten.
 - Kein HTTP-Login/TLS; nicht öffentlich freigeben. MQTT-Credentials nur Backend,
   optional Passwortdatei mit `compose.auth.yaml`, für UID 10001 lesbar.
 - Build/Tests ausschließlich in Docker. Historische Python-CI `37200290345` für `cf7184f` erfolgreich:
