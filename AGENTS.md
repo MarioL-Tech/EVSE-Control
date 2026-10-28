@@ -123,6 +123,13 @@ Für die bedienende Website sind folgende Funktionen vorgesehen; die genaue
   Shell-Asset-Fetch bei Netzwerk-Blackholes: jetzt auch für Scripts/CSS 3-s-
   Abort/Race mit ausschließlich statischem Cachefallback und Regressionstest.
   Bei späteren Assetänderungen die Shellgeneration bewusst erhöhen.
+- Caddy-Pin `2.11.7-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f`
+  unabhängig als OCI-Index mit Linux-amd64 und arm64/v8 geprüft; keine ARM-Laufzeit-
+  Aussage. TLS-/Rootvertrauen-/IPv4-ohne-SNI-/Persistenzprüfungen bisher bestanden.
+  Erster Browserlauf scheiterte nur an CI-Ausgaberechten; Folgelauf zeigte, dass
+  CDP-`setOffline` Service-Worker-Netzzugriffe nicht zuverlässig unterbricht.
+  Neuer isolierter Harness stoppt/startet den echten Testproxy über den CI-Host,
+  ohne Docker-Socket im Browser; MQTT/Backend laufen für echte Frische weiter.
 - CI-Freigabe noch ausstehend; kein Pi-HTTPS-Deployment,
   produktives CA-Zertifikat oder echter Android-/iOS-Installationsnachweis.
 

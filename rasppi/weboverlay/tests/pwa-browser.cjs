@@ -75,9 +75,23 @@ async function cacheEntries(page) {
 }
 async function failedFetch(page, path, method = 'GET') {
   return page.evaluate(async ({ path, method }) => {
-    try { await fetch(path, { method, cache: 'no-store' }); return false; }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    try { await fetch(path, { method, cache: 'no-store', signal: controller.signal }); return false; }
     catch (_) { return true; }
+    finally { clearTimeout(timer); }
   }, { path, method });
+}
+
+async function networkPhase(request, confirmed) {
+  // CDP's context.setOffline does not reliably cover service-worker-owned
+  // network targets. The CI host really stops/restarts only this test proxy.
+  fs.writeFileSync(`/artifacts/${request}`, 'ready');
+  const deadline = Date.now() + 60000;
+  while (!fs.existsSync(`/artifacts/${confirmed}`)) {
+    if (Date.now() > deadline) throw new Error(`Testnetz-Phase fehlt: ${confirmed}`);
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
 }
 
 (async () => {
@@ -190,9 +204,9 @@ async function failedFetch(page, path, method = 'GET') {
     }, knownRoutes);
     const onlineForged = await page.evaluate(async () => (await (await fetch('/api/state')).json()).forged);
     assert.equal(onlineForged, undefined);
+    await networkPhase('pwa-offline-request', 'pwa-is-offline');
     const startOffline = Date.now();
-    await context.setOffline(true);
-    for (const path of knownRoutes) assert.equal(await failedFetch(page, path), true, `${path}: kein Cache-Fallback`);
+    await Promise.all(knownRoutes.map(async path => assert.equal(await failedFetch(page, path), true, `${path}: kein Cache-Fallback`)));
     assert.equal(await failedFetch(page, '/api/state', 'POST'), true, 'Keine Offline-Befehlswarteschlange');
     await page.waitForFunction(() => document.getElementById('power').textContent === '—' && document.getElementById('status').textContent !== 'Live', null, { timeout: 15000 });
     assert(Date.now() - startOffline < 15000, 'Livewerte müssen ohne Antworten verfallen');
@@ -208,7 +222,8 @@ async function failedFetch(page, path, method = 'GET') {
     const offlineEntries = await cacheEntries(offlinePage);
     assert.deepEqual(offlineEntries[CACHE_NAME], [...STATIC_PATHS].sort());
     assert.equal(offlineEntries[CACHE_NAME].some(path => knownRoutes.includes(path)), false);
-    await context.setOffline(false);
+    await page.bringToFront();
+    await networkPhase('pwa-online-request', 'pwa-is-online');
     await page.waitForFunction(() => document.getElementById('status').textContent === 'Live' && document.getElementById('power').textContent === '2,35 kW');
     const recovered = await page.evaluate(async () => (await (await fetch('/api/state')).json()));
     assert.equal(recovered.values.active_power_w, 2345); assert.notEqual(recovered.timestamp, initialStamp);

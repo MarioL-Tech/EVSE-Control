@@ -68,7 +68,7 @@ jobs:
           sh tests/https-integration.sh
           docker compose -f compose.pwa-test.yaml cp https:/data/caddy/pki/authorities/local/root.crt "$PWA_TEST_CA_DIR/root.crt"
           chmod 644 "$PWA_TEST_CA_DIR/root.crt"
-          docker compose -f compose.pwa-test.yaml run --rm --no-deps -T browser
+          sh tests/run-pwa-integration.sh
       - name: Raw and calendar archive history with isolated MariaDB 11.8.8
         working-directory: rasppi/weboverlay
         run: |

@@ -1013,6 +1013,10 @@ Docker-Portveröffentlichungen können UFW umgehen.
 unverändert erreichbar. Es gibt keinen erzwungenen Redirect und kein HSTS;
 die PWA ausschließlich über HTTPS verwenden. HTTPS ist kein Login/Zugriffsschutz.
 Es ist keine öffentliche ACME-Ausstellung aktiviert, auch nicht bei einem DNS-Namen.
+Das spätere Entfernen des Profilwerts beendet einen bereits laufenden Proxy nicht
+automatisch. Zum Abschalten nur `https` mit derselben Compose-Dateiauswahl und
+`--profile https stop https` stoppen; vorhandenen CA-Store behalten. Keine anderen
+Dienste/Volumes herunterfahren oder löschen.
 
 #### 2. Öffentliches CA-Zertifikat vertrauenswürdig zum Handy übertragen
 
