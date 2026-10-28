@@ -409,15 +409,27 @@ final class HistoryArchive
             }
             $rows = (static function () use ($segments, $select, $c, $now): \Generator {
                 foreach ($segments as [$res, $a, $b]) {
-                    // Do not attribute the part of a stored minute outside a custom second boundary.
-                    // Bound even a corrupt LONGTEXT before it reaches PDO's row allocation.
-                    foreach ($select('SELECT resolution_seconds, bucket_start, SUBSTRING(CAST(data_json AS BINARY),1,65537) AS data_json, updated_at FROM evse_history_buckets WHERE source = CAST(? AS BINARY) AND resolution_seconds = ? AND bucket_start >= ? AND bucket_start <= ? ORDER BY bucket_start LIMIT 10001',
-                        [$c->prefix, (string) $res, gmdate('Y-m-d H:i:s', $a), gmdate('Y-m-d H:i:s', $b - $res)]) as $row) {
-                        if (self::timestamp($row['updated_at'] ?? null, true) > $now->getTimestamp() + 5) {
-                            throw new \UnexpectedValueException('Future materialization');
+                    $last = null;
+                    do {
+                        // Small keyset pages avoid keeping a server statement open
+                        // while PHP validates an entire year. All pages still share
+                        // the same read-only snapshot, row/byte and total-time caps.
+                        $sql = 'SELECT resolution_seconds, bucket_start, SUBSTRING(CAST(data_json AS BINARY),1,65537) AS data_json, updated_at FROM evse_history_buckets WHERE source = CAST(? AS BINARY) AND resolution_seconds = ? AND bucket_start >= ? AND bucket_start <= ?';
+                        $parameters = [$c->prefix, (string) $res, gmdate('Y-m-d H:i:s', $a), gmdate('Y-m-d H:i:s', $b - $res)];
+                        if ($last !== null) {
+                            $sql .= ' AND bucket_start > ?';
+                            $parameters[] = $last;
                         }
-                        yield $row;
-                    }
+                        $page = 0;
+                        foreach ($select($sql . ' ORDER BY bucket_start LIMIT 256', $parameters) as $row) {
+                            if (self::timestamp($row['updated_at'] ?? null, true) > $now->getTimestamp() + 5) {
+                                throw new \UnexpectedValueException('Future materialization');
+                            }
+                            $last = $row['bucket_start'];
+                            ++$page;
+                            yield $row;
+                        }
+                    } while ($page === 256);
                 }
             })();
             $projection = self::project($range, $rows, $dirty, $progress['samples_done'] && $progress['events_done'], $guard, (float) $now->format('U.u'));

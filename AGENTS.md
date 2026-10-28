@@ -103,7 +103,8 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
   40365837026 für 06a3626 erfolgreich; Pi-Start und Live-Übersicht am 2026-10-26
   durch Projektinhaber/Screenshot bestätigt, gezielte Fehlerfallprüfung offen.
 - `rasppi/storage/`: MQTT-Collector für vorhandene MariaDB, Schema/Migration,
-  typisierte Wallbox-Historie, Docker-only-Tests; keine Steuerung/Hardwareports.
+  typisierte Wallbox-Historie und optionale separate Schema-2-Kalenderverdichtung,
+  Docker-only-Tests; keine Steuerung/Hardwareports.
 - `docs/pin-connection.md`, `docs/uart-protocol.md`: Pinreferenz und UART-Protokoll.
 - `docs/installation.md`: zentrale Anleitung für Installation, Hardware und
   Wiederinbetriebnahme; vereint die frühere Setup-Datei mit dem Docker-only-Ablauf
@@ -613,8 +614,11 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Generationen verwerfen Spätantworten. Puffer kombiniert 1.200 Punkte/15 Minuten,
   SQL importiert keine Live-Frische. Live gewinnt bei gleicher präziser Zeitmarke;
   Unknown/Same-Stamp-/Retained-/Event-/Rücksprunglücken bleiben konservativ.
-  Gleichzeitige Baseline-Ereignisse beweisen keine Reihenfolge. Nach lokalem
-  Ausfall SQL-Punkte ab dieser Grenze bis Reset isoliert statt falscher Verbindung.
+  Gleichzeitige Baseline-Ereignisse beweisen keine Reihenfolge. Die beauftragte
+  Diagrammkorrektur ersetzt die frühere globale SQL-Lückensperre durch begrenzte
+  Kanten-/Barrierenevidenz: belegte SQL-Messungen dürfen reine Browser-Transport-
+  lücken füllen, explizite Mess-/Clock-/Nullunterbrechungen bleiben erhalten.
+  Ein unbelegter Quellenübergang isoliert nicht sämtliche nachfolgenden SQL-Punkte.
 - Reale `smartReader`-Anmeldung über Socket und Docker-TCP wurde jeweils mit
   1045 abgewiesen; kein SELECT-Rechtenachweis möglich. Exakten Benutzernamen,
   Passwortzuordnung/Hostfreigabe nur durch berechtigten Einrichter klären, nicht
@@ -682,7 +686,8 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   lokales `DB_NAME=energy_control` statt `energyControl`; `.env` korrigiert und nur
   Storage-Container neu erstellt. Migration nicht wiederholt, keine fremden Daten
   gelöscht. Haus-Smartmeter bleibt ohne SQL-Archiv; optionale Websitehistorie ist
-  separat implementiert, deren produktiver Lesezugang noch blockiert.
+  separat implementiert; deren Aktivierung mit ausdrücklich erlaubtem temporärem
+  `smart` wurde danach vom Projektinhaber als „funktioniert“ gemeldet (siehe oben).
 - Pi meldet fehlende Docker-Speicherlimitfähigkeit; angeforderte RAM-Limits werden
   verworfen (Test und Storage). Kein wirksames 256-/512-MiB-Limit behaupten;
   keine Host-/Kernel-/cgroup-Änderung ohne separaten Auftrag. Migration ohne `--rm`

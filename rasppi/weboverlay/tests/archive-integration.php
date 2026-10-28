@@ -126,7 +126,11 @@ try {
             ++$hours;
         }
         $root->commit();
+        $before = hrtime(true);
         $v = (new HistoryArchive($config))->snapshot($year);
+        print('Year fixture: ' . json_encode(['status' => $v['status'], 'complete' => $v['complete'],
+            'buckets' => count($v['buckets']), 'samples' => array_sum(array_column($v['buckets'], 'samples')),
+            'elapsed_ms' => (int) ((hrtime(true) - $before) / 1000000)], JSON_THROW_ON_ERROR) . "\n");
         archiveAssert($v['status'] === 'ok' && $v['complete'] && count($v['buckets']) === 366);
         archiveAssert($hours === 8784 && array_sum(array_column($v['buckets'], 'samples')) === 15811200);
         archiveAssert(strlen(json_encode($v, JSON_THROW_ON_ERROR)) <= 2097152);
