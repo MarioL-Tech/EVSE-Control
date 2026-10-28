@@ -28,6 +28,11 @@ jobs:
           docker compose -f rasppi/weboverlay/compose.yaml config --quiet
           docker compose -f rasppi/weboverlay/compose.yaml -f rasppi/weboverlay/compose.history.yaml config --quiet
           docker compose -f rasppi/weboverlay/compose.yaml -f rasppi/weboverlay/compose.auth.yaml -f rasppi/weboverlay/compose.history.yaml config --quiet
+          # Check actual expanded host bindings without publishing any test ports
+          # or logging environment/credentials from the full configuration.
+          env -u WEB_BIND_ADDRESS docker compose -f rasppi/weboverlay/compose.yaml config --format json | grep -Eq '"host_ip"[[:space:]]*:[[:space:]]*"127\.0\.0\.1"'
+          WEB_BIND_ADDRESS=192.0.2.10 docker compose -f rasppi/weboverlay/compose.yaml -f rasppi/weboverlay/compose.history.yaml config --format json | grep -Eq '"host_ip"[[:space:]]*:[[:space:]]*"192\.0\.2\.10"'
+          WEB_BIND_ADDRESS=192.0.2.10 docker compose -f rasppi/weboverlay/compose.yaml -f rasppi/weboverlay/compose.auth.yaml -f rasppi/weboverlay/compose.history.yaml config --format json | grep -Eq '"host_ip"[[:space:]]*:[[:space:]]*"192\.0\.2\.10"'
       - name: Build and test in Docker with isolated broker
         run: docker build --progress=plain -t evse-weboverlay:test rasppi/weboverlay
       - name: Build disposable browser test image

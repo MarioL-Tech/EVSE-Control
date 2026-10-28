@@ -154,11 +154,15 @@ docker compose up -d --build
 Auf deinem Rechner: `ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.0.1:8080 'BENUTZER@PI-ADRESSE'`
 (`BENUTZER@PI-ADRESSE` durch dein vorhandenes SSH-Ziel oder deinen SSH-Alias ersetzen),
 dann **http://127.0.0.1:8080** öffnen.
-Pi-Port bleibt nur lokal gebunden. Keine Start-/Stop- oder Limitänderung enthalten.
+Pi-Port bleibt standardmäßig lokal gebunden. Für direkten Zugang im vertrauenswürdigen
+LAN genügt `WEB_BIND_ADDRESS` in der vorhandenen Website-`.env`; keine zusätzliche
+LAN-Compose-Datei und kein Hilfsskript nötig. [LAN-Einrichtung](docs/installation.md#direkter-zugriff-im-vertrauenswürdigen-lan).
+Keine öffentliche Freigabe, kein Login/TLS und keine Start-/Stop-/Limitänderung.
 [Konfiguration und Diagnose](docs/installation.md#9-lesendes-weboverlay).
 PHP/Composer und Abhängigkeiten werden ausschließlich im Docker-Build verwendet,
-nicht auf dem Host installiert. Netzwerk, Broker, Compose und SSH-Tunnel bleiben
-unverändert; Reader, UART-Brücke und Speichercollector werden nicht ersetzt.
+nicht auf dem Host installiert. Bestehende Netze/Broker und die getrennten
+Compose-Dienste werden nicht ersetzt; die ausdrücklich gewählte LAN-Bindung
+betrifft nur den Websiteport. Reader, UART-Brücke und Speichercollector bleiben.
 
 **Übersicht** zeigt aktuelle Werte; **Diagramme** ist eine eigene Seite
 (`/diagramme`). Default: bis zu 15 Minuten seit Öffnen der Diagrammseite im RAM;
