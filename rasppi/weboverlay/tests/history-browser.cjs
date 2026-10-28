@@ -169,6 +169,9 @@ const { FIELDS } = require('../static/newcalendar.js');
     assert.equal(historyRequests, disabledRequests,
       'Disabled history stops automatic refresh: ' + JSON.stringify(trace));
     disabled = false;
+    // Keep calendar selection checks independent of real-time live expiry.
+    // runFor() below explicitly exercises live ticks and late responses again.
+    await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000));
     const pickerDates = { hour: '2026-10-27T12:00', day: '2026-10-25', week: '2026-W44', month: '2026-10', year: '2024' };
     for (const period of ['hour', 'day', 'week', 'month', 'year']) {
       await page.locator('#calendar-mode').selectOption(period);
@@ -176,6 +179,17 @@ const { FIELDS } = require('../static/newcalendar.js');
       assert.equal(await page.locator('#chart-range').isDisabled(), true);
       assert.equal(await page.locator('#chart-range').isVisible(), false, 'Minute picker is not presented as the archive window');
       assert((await page.locator('#calendar-label').innerText()).includes('Europe/Vienna'));
+      // A successful fetch status is not a DOM/render barrier. Live/clock
+      // lifecycle callbacks may run between the preceding awaited assertions.
+      try {
+        await page.locator('[data-summary-series="power"]').first().waitFor({ state: 'attached', timeout: 5000 });
+      } catch (error) {
+        console.error('Calendar render readiness', JSON.stringify({ period, requests: calendarRequests.slice(-6),
+          state: await page.evaluate(() => ({ mode: document.getElementById('calendar-mode').value,
+            status: document.getElementById('history-source').dataset.historyStatus,
+            label: document.getElementById('calendar-label').textContent })), errors }));
+        throw error;
+      }
       assert(await page.locator('[data-summary-series="power"]').count() > 0);
       assert.equal(await page.locator('[data-series-marker]').count(), 0, 'Summary glyphs never use circles/pills');
       assert.equal(await page.locator('img').count(), 1, 'DTO reasons cannot add images');
