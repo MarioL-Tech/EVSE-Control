@@ -549,8 +549,12 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   kein Build/Migration/Pi-Neustart/Collectorstop nötig. Default nicht ungefragt
   auf alle Schnittstellen ändern. Kein Login/TLS, keine WAN-/Routerfreigabe;
   Docker-Ports können UFW umgehen. Keine automatische Firewall-/SSH-/Netzänderung.
-  Projektinhaber zeigt am 2026-10-28 einen gesunden, aber nur localhost-gebundenen
-  Websitecontainer; erfolgreiche neue LAN-Bindung/Browserzugriff noch nicht belegt.
+  Projektinhaber zeigte am 2026-10-28 zunächst einen gesunden, aber nur localhost-
+  gebundenen Websitecontainer. Nach Merge von PR #49 und der vereinfachten
+  LAN-Anleitung meldet er am selben Tag „funktioniert“: positive Rückmeldung zum
+  direkten LAN-Websitezugriff, keine vom Agent geprüfte Laufzeitkonfiguration.
+  Keine unabhängige API-/Dauerbetriebs-/Zugriffsschutzprüfung und insbesondere
+  kein zusätzlicher Nachweis der Schema-2-Migration/Kalenderverdichtung daraus.
   Compose-CI prüft Default und explizite Test-LAN-Bindung samt Overlays ohne
   tatsächliche Testportfreigabe; aktuellen Prüf-/Freigabestand über PR #49 prüfen.
   Keine neue LAN-Erreichbarkeit allein aus einem CI-Konfigurationstest ableiten.
