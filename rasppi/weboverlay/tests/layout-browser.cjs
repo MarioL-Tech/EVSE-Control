@@ -87,7 +87,7 @@ function sample() {
       current_a: [0, 0, 0], voltage_v: [235.7, 233.4, 235.3], active_power_w: 0, session_energy_wh: 0 } };
 }
 async function live(page) {
-  await page.waitForFunction(() => document.getElementById('status').textContent === 'Live');
+  await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Live');
 }
 async function globals(page) {
   for (const id of ['status', 'reason', 'wallbox-warning', 'timestamp', 'freshness']) {
