@@ -120,7 +120,7 @@ Browser-Tabs, nur seit Öffnen der **Diagrammseite** beobachtet. Neuladen oder
 Seitenwechsel leert den Verlauf, auch Rückkehr über den Browser-Seitencache.
 **Mit optionalem SQL-Verlauf:** nach dem Leeren wird das gespeicherte letzte
 15-Minuten-Fenster nachgeladen. Anzeigeauswahl und Live-MQTT bleiben unverändert.
-Zusätzliches Kalenderarchiv (noch in abschließender Docker-Prüfung) bietet Stunde,
+Zusätzliches Kalenderarchiv bietet Stunde,
 Tag, ISO-Woche, Monat, Jahr und eigenen Zeitraum bis ein Jahr. Es benötigt das
 optionale additive Speicherschema 2 und dessen getrennten Verdichtungsworker.
 Der vorhandene Verlaufshinweis
@@ -161,6 +161,13 @@ Ein Jahr ist keine Löschfrist. Für Kalenderansichten sind zusätzliche SELECT-
 auf eigene Summary-/Work-/Statustabellen nötig; kein Schema-/Schreibzugriff der Website.
 Schema, Grenzen und Lifecycle: [Historien-API](../../docs/history-api.md).
 Konfiguration nur im [Installationsguide](../../docs/installation.md#sql-verlauf-optional-einrichten).
+
+Kalender-CI 40678971209 für c83b1cc erfolgreich: 132 PHP-Rohhistorien-, 59 neue
+PHP-Kalenderfälle, 93 JS-Tests, 18 bestehende plus 14 neue isolierte SQL-/HTTP-
+Szenarien und alle sechs Chromium-Suiten. Volljahresfall: 8.784 SQL-Stundensummaries
+ergeben 366 lokale Tagesintervalle und 15.811.200 künstliche Sample-Counter;
+beobachtete Lesezeit 1.278 ms auf amd64, keine Pi-/ARM-Zusage. Simuliertes mobiles
+Jahresdiagramm und Desktop-Roharchiv visuell geprüft. Produktivmigration offen.
 
 **Reader-Status:** `smartReader`-Anmeldung über Socket und Docker-TCP mit 1045
 abgewiesen. Keine Passwortversuche/Resets oder automatischer Writer-Fallback;

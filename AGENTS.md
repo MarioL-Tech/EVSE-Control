@@ -96,7 +96,8 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
 - `rasppi/weboverlay/`: PHP 8.4/Apache und ein PHP-CLI-
   MQTT-Subscriber und unabhängigem HTTP-Haus-Smartmeter-Worker; `php/` enthält
   Config, StrictJson, StateStore, SharedState, MqttTransport, `worker.php` sowie
-  die optionale lesende `HistoryConfig`/`HistoryStore`-Anbindung (PDO/mysqlnd) und
+  die optionale lesende `HistoryConfig`/`HistoryStore`-/`HistoryRange`-/
+  `HistoryArchive`-Anbindung (PDO/mysqlnd) und
   SmartmeterConfig/-Client/-Cache und `smartmeter-worker.php`, `public/` den HTTP-Einstieg, `docker/` Apache-
   Konfiguration, Bash-Supervision und PHP-Healthcheck. Bestehende Browseroberfläche,
   PHP-/Node-Tests und Docker/Compose; keine seriellen Ports/Schreibbefehle. Docker-CI
@@ -641,6 +642,61 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Vertrag `docs/history-api.md`,
   alle Konfigurationsschritte zentral in `docs/installation.md`.
 
+### Optionale Kalenderhistorie bis ein Jahr (Schema 2)
+
+- Separat am 2026-10-27 beauftragt, am 2026-10-28 implementiert und Docker-geprüft:
+  Stunde/Tag/ISO-Woche/Monat/Jahr/eigener Zeitraum, maximal ein Kalenderjahr,
+  native Kalender-/Jahreseingabe und Jetzt/Vor/Zurück auf der Diagrammseite.
+  Default weiter Live/1/5/15 Minuten. Minutenwahl nur im Live-Modus sichtbar;
+  16 Anzeigepräferenzen, Theme, Navigation, Karten und Live-Frische unabhängig.
+- Alternative `/api/history?period=day&date=2026-10-27&tz=Europe%2FVienna`, Schema 2;
+  Server berechnet halb offene Grenzen einschließlich 23-/25-Stunden-Tagen,
+  Schaltjahren/ISO-Wochen; UTC-Navigation unterscheidet doppelte Herbststunden.
+  Europe/Vienna oder UTC, eigene Bereiche maximal ein Kalenderjahr. Keine freien
+  SQLnamen, nur prepared SELECT/Read-only-Snapshot. 256-Zeilen-Keysetseiten,
+  insgesamt maximal 10.000 Eingangszeilen/32 MiB, 512 Ausgabebuckets/2 MiB;
+  Statementbudget 1 s, kooperativ 3 s. Kein Jahres-Rohscan/Raw-GROUP-BY-Fallback.
+- Website bleibt mit genau drei Prozessen lesend. `newcalendar.js` verwaltet
+  eigenen begrenzten Archivstore und nur Präferenzen unter `evse-calendar-v1`.
+  Auswahlwechsel/Hidden/Pageshow/Clock verwenden Abort-/Generationenschutz;
+  vergangene vollständige Perioden nicht unnötig laufend abfragen. Archivabschluss
+  zeichnet selbst, nicht erst beim nächsten Live-Takt. Intervalle als Min/Max und
+  Messwertmittel (W/A/V), Limit/Sessionzähler letzter Wert; keine Session-Wh-Summe
+  oder behauptete Jahresverbrauchsenergie, keine Bool-/Codemittel. NULL-Endpunkte
+  und gemischte/unklare Zustände nicht als konstantes Ja/Nein/0 darstellen.
+- Additive optionale `--migrate-history`: neue Tabellen `evse_history_buckets`,
+  `evse_history_work`, `evse_history_state`; Metadataversion 2 zusätzlich zu 1.
+  Unterstützt exakt `{1}` und `{1,2}`, Default-`--migrate` bleibt Schema 1,
+  keine automatische DDL, keine Raw-/Preis-/Provideränderung oder Löschfrist.
+  Neuer separater `history-rollup` im Storageprofil `history`, gleiches Image/
+  vorhandener DB-Zugang, nur DB-Netz/kein MQTT/Hostport/Hardware/Docker-Socket.
+  Runtime braucht zusätzlich SELECT/INSERT/UPDATE ausschließlich an neuen
+  Historytabellen. Website zusätzlich SELECT dort; `smart` vorübergehend
+  ausdrücklich erlaubt, dessen weitere Rechte und kaputter `smartReader` bleiben.
+- Neu eingefügte Rawdaten/Ereignisse markieren Work atomar vor ACK; Worker
+  recomputiert UTC-Minute/Stunde/Tag, Generation-/Commit-Retry idempotent,
+  Backfill-Cursor dauerhaft und begrenzt. Zufällige UUIDs beweisen keine zeitliche
+  Ordnung; fehlender/abgeschnittener Kontext liefert keine Coverage. Bekannter
+  Offlinezustand ist Lücke, nicht automatisch unfertige Verarbeitung. Health
+  bedeutet laufende DB-Verarbeitung, nicht fertiges Archiv. Raw bleibt append-only.
+- **Aktivierung zwingend koordiniert:** kompatible neue Website zuerst, neues
+  Storageimage bauen, alten Collector vor Migration stoppen, aus neuem Image
+  starten und erst dann Worker. Eine unter Schema 1 verbundene Instanz cached
+  ihren Modus und erzeugt sonst keine Dirtymeldungen. Pause kann Records verlieren,
+  retained ist kein Replay. Aktuelle EVSE-Sicherung nötig; bisheriger bestätigter
+  Vor-Migrationsdump enthält keine EVSE-Tabellen. Kein Agent-Produktionszugriff.
+- CI 40678971209/c83b1cc: 132 PHP-Rohhistorien-/59 Kalenderfälle, 93 JS-Tests,
+  18 bisherige + 14 Kalender-SQL-/HTTP-Szenarien, sechs Chromium-Suiten und Runtime
+  erfolgreich. Echte isolierte 8.784 SQL-Stundenzeilen repräsentieren 15.811.200
+  künstliche Read-Counter, liefern 366 lokale Tagesbuckets in beobachteten 1.278 ms.
+  Kein Test mit 15 Millionen Rawzeilen, keine Pi-/ARM-Laufzeitgarantie. Matrix
+  40678971216 besteht 75 Storagefälle + Runtime je MariaDB 10.11/11.8.8/11.8.
+  Mobile 320-px-Jahresansicht und Desktop-Roharchiv visuell geprüft; kein echter
+  Pi-Kalender-/Migrations-/Backfill-/Ausfallnachweis. Zusätzliche Browserassertion
+  prüft die ausgeblendete Minutenwahl im Archivmodus; aktuellen Freigabestand
+  über die PR-Checks prüfen. Vertrag `docs/history-range-contract.md`,
+  Aktivierungsablauf nur im zentralen Installationsguide.
+
 ### MQTT-Speichercollector / MariaDB
 
 - **Aktueller bestätigter Zugangsstand (2026-10-27):** Projektinhaber hat sich
@@ -699,8 +755,9 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   und einen auf EVSE-Tabellen begrenzten Dump. Frühere Zugangsnotizen unten sind
   historische Nachweise, nicht der aktuelle pauschale Migrationsblocker.
 - `rasppi/storage/`: Subscribe-only Paho + PyMySQL, eigener Client `evse-storage`,
-  bestehendes `evse-mqtt`. Produktions-Compose enthält nur Collector und expliziten
-  Migrations-Client; vorhandene MariaDB extern über konfigurierbares `DB_NETWORK`
+  bestehendes `evse-mqtt`. Produktions-Compose enthält Collector, expliziten
+  Migrations-Client und optionalen Kalenderworker im Profil `history`;
+  vorhandene MariaDB extern über konfigurierbares `DB_NETWORK`
   (Default `evse-data`), kein zweiter DB-Server/Broker, keine Hostports/Hardware.
 - Schema 1: `evse_wallbox_samples` (typisierte A/V/W/Wh, Nullable-Flags, Readfehler,
   Mess-/Empfangszeit UTC, bereinigtes JSON, erstes Retained-Flag) und
@@ -721,7 +778,8 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   bei Crash/Restart verloren. Startup-/Gap-Ereignisse markieren unbekannte Abdeckung.
   Keine automatische Aufbewahrungs-/Backup-Policy und keine RFID-/UART-/DTSU666-
   Datenerfassung. Die optionale Website-Historie liest separat und verändert den
-  Collector/Vertrag nicht; Browserpuffer selbst bleibt im Tab-RAM.
+  Schema-1-Collectorvertrag nicht; zusätzliches Schema 2 ist separat und explizit
+  zu aktivieren. Browserpuffer selbst bleibt im Tab-RAM.
 - Docker-CI `37209898185` für `50794db` erfolgreich: 32 Unit- und 7 isolierte
   MariaDB-10.11-/MQTT-Integrationstests sowie non-root/readonly Runtime-Smoke ohne DB.
   Prüft auch defekte bereits registrierte Schemas, eingeschränkte Runtime-Grants,
@@ -773,14 +831,8 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 
 ## Geplant / noch nicht implementiert
 
-- Neu am 2026-10-27 autorisiert und in Arbeit: Kalenderhistorie bis zu einem
-  Jahr mit Auswahl für Stunde/Tag/ISO-Woche/Monat/Jahr/eigenen Zeitraum sowie
-  Korrektur überlagerter Einzelpunktmarker. Additive Speicherverdichtung und
-  begrenzte lesende Archiv-API vorgesehen; bestehende Rohwerte, Preis-/Provider-
-  tabellen, Live-Frische, Theme und übrige Seitenaufteilung bleiben erhalten.
-  Ein Jahr ist Anzeigespanne, keine Lösch-/Aufbewahrungsfrist. Noch keine
-  Aktivierung/Migration auf dem Pi; laufende Implementierung, nicht Teil des
-  bestätigten Betriebsstands.
+- Tatsächliche Pi-Aktivierung/Migration und Prüfung des implementierten Kalender-
+  archivs/Backfills bis ein Jahr; keine Remote-/Langzeit-/Ausfallnachweise durch CI.
 - Dauerbetriebs-/Fehlerfallprüfung und weitere Hardwarevalidierung der ABB-Abfragen sowie
   anschließende Pi-Modbus-Steuerung der ABB Terra AC.
 - DTSU666-Messwerterfassung und Berechnung verfügbarer Ladeleistung.

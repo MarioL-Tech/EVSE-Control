@@ -82,7 +82,7 @@ belegten Kanten. Dichte Einzelpunktmarker werden erst nach Segmentierung ausged�
 
 ## Kalenderarchiv bis ein Jahr (Schema 2)
 
-Neu implementiert, abschließende Docker-Prüfung noch offen. Alternative strenge
+Neu implementiert, Docker-CI 40678971209 für c83b1cc erfolgreich. Alternative strenge
 Queryform `period=day&date=2026-10-27&tz=Europe%2FVienna` beziehungsweise serverseitige
 UTC-Navigation über `at`; eigene Zeitbereiche maximal ein Kalenderjahr.
 Stunde/Tag/ISO-Woche/Monat/Jahr, Europe/Vienna oder UTC, halb offene Grenzen und

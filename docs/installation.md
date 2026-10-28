@@ -1358,8 +1358,9 @@ verwenden. Docker-CI und echte Pi-/Accounttests getrennt berichten.
 
 ### Kalender-/Jahresverlauf zusätzlich einrichten (optionales Schema 2)
 
-**Neue Erweiterung, noch in abschließender Docker-Prüfung. Nicht aus einem
-ungeprüften Feature-Branch produktiv aktivieren.** Der bestehende Minutenverlauf
+**Neue optionale Erweiterung:** Docker-CI 40678971209 für c83b1cc erfolgreich,
+reale Pi-Aktivierung noch offen. Erst nach Merge und Prüfung des freigegebenen
+Standes aktivieren. Der bestehende Minutenverlauf
 benötigt weiterhin nur Schema 1. Kalenderansichten für Stunde, Tag, ISO-Woche,
 Monat, Jahr und eigenen Zeitraum lesen ausschließlich vorverdichtete Daten.
 Ein Jahr ist die maximale **Anzeigespanne**, keine Aufbewahrungs-/Löschfrist.
@@ -1426,12 +1427,13 @@ Additive DDL ist nicht vollständig transaktional; erneuter Lauf prüft vorhande
 Teiltabellen statt sie zu ersetzen. Keine Host-Pakete installieren.
 
 ```bash
-docker compose -f compose.yaml --profile history up -d storage history-rollup
+docker compose -f compose.yaml up -d storage
+docker compose -f compose.yaml --profile history up -d history-rollup
 docker compose -f compose.yaml --profile history ps
 docker compose -f compose.yaml --profile history logs --tail 30 storage history-rollup
 ```
 
-Das aktualisierte `storage` wird dabei neu erstellt und erkennt Schema 2, bevor
+Das aktualisierte `storage` wird dabei neu gestartet und erkennt Schema 2, bevor
 es neue Reads schreibt; neue Daten und Dirtymeldungen committen zusammen vor ACK.
 Workerfehler pausieren keine Modbusabfragen und blockieren keine Collector-ACKs.
 Orphan-Warnungen zu erhaltenen Migrationscontainern sind kein Aufräumauftrag;

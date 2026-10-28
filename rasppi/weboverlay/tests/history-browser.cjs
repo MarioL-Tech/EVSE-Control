@@ -174,6 +174,7 @@ const { FIELDS } = require('../static/newcalendar.js');
       await page.locator('#calendar-mode').selectOption(period);
       await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok');
       assert.equal(await page.locator('#chart-range').isDisabled(), true);
+      assert.equal(await page.locator('#chart-range').isVisible(), false, 'Minute picker is not presented as the archive window');
       assert((await page.locator('#calendar-label').innerText()).includes('Europe/Vienna'));
       assert(await page.locator('[data-summary-series="power"]').count() > 0);
       assert.equal(await page.locator('[data-series-marker]').count(), 0, 'Summary glyphs never use circles/pills');

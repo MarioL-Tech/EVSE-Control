@@ -67,7 +67,7 @@ docker compose logs --tail 50 storage
 
 ## Optionale Kalenderverdichtung (Schema 2)
 
-Neu implementiert, noch in abschließender Docker-Prüfung: explizites
+Neu implementiert und Docker-geprüft: explizites
 `--migrate-history` ergänzt drei eigene Tabellen und Metadataversion 2; Version 1
 bleibt erhalten. Kein ALTER/Löschen bestehender Daten oder automatischer DDL-Start.
 Die Versionsmengen `{1}` und `{1,2}` sind kompatibel; Basisbetrieb bleibt Schema 1.
@@ -89,6 +89,8 @@ nicht. Die kurze Pause kann Records verlieren; retained ersetzt kein Replay.
 Konkrete sichere Schritte ausschließlich im [Installationsguide](../../docs/installation.md#kalender-jahresverlauf-zusätzlich-einrichten-optionales-schema-2).
 Worker-Health ist laufende DB-Verarbeitung, nicht abgeschlossener Backfill oder
 lückenlose Messabdeckung. Keine Anzeigebegrenzung als Datenlöschfrist auslegen.
+Schema-2-CI 40678971216 für c83b1cc: alle 75 Tests und Runtime auf MariaDB
+10.11/11.8.8/11.8 erfolgreich. Kein Pi-/Produktionsmigrations-/Langzeitnachweis.
 
 ## Tests
 

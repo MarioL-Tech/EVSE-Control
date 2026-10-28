@@ -142,6 +142,8 @@
     function controls() {
       picker.hidden = ['live', 'custom'].includes(mode.value); custom.hidden = mode.value !== 'custom';
       range.disabled = mode.value !== 'live';
+      const liveWindow = range.closest('label');
+      if (liveWindow) liveWindow.hidden = mode.value !== 'live';
       picker.type = ({ hour: 'datetime-local', day: 'date', week: 'week', month: 'month', year: 'number' })[mode.value] || 'date';
       picker.step = mode.value === 'hour' ? '3600' : '1';
       if (mode.value === 'year') { picker.min = '1970'; picker.max = '9998'; }

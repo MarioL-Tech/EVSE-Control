@@ -1,7 +1,10 @@
-# Arbeitsvertrag: Kalenderhistorie und Verdichtung
+# Kalenderhistorie und Verdichtung
 
-Entwurfs-/Implementierungsvertrag vom 2026-10-27; nicht als bereits auf dem Pi
-bereitgestellt behandeln. Dieser Vertrag dient der abgestimmten Umsetzung.
+Implementierter Vertrag, Stand 2026-10-28. Docker-CI 40678971209 für c83b1cc
+erfolgreich; kein Pi-Deployment oder produktiver Backfill. Eine Jahres-Fixture
+verwendet 8.784 echte SQL-Stundenzeilen mit künstlichen Read-Countern, nicht
+15 Millionen eingefügte Rohzeilen. Beobachtete CI-Lesezeit 1.278 ms (amd64),
+keine zugesicherte Pi-/ARM-Laufzeit.
 
 ## Unveränderliche Grenzen
 
@@ -126,6 +129,8 @@ Neue alternative Form (kein Mischen von Formen):
 - Navigation alternativ `at=<UTC-ISO-Z>` statt `date` (insbesondere doppelte
   Herbststunde eindeutig). `custom`: `from`/`to` als strikte UTC-Zeitgrenzen,
   oder `date_from`/`date_to` als zivile `YYYY-MM-DDTHH:mm` in angegebener Zone.
+  Eigene Zeitbereiche liefern `navigation: null`, da benachbarte Kalenderperioden
+  dafür nicht eindeutig definiert sind.
 - Zonen explizit `Europe/Vienna` (Default) oder `UTC`, keine versteckte Browserzone.
 - Strikte Kalenderdaten, ISO-Wochen, Schaltjahre, Sommerzeit 23/25-h-Tage,
   nicht existente Stunden ablehnen. Bereich halb offen `[from,to)`, maximal ein
