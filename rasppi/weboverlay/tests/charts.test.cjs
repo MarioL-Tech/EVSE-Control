@@ -323,7 +323,8 @@ test('a lone unproven seam does not isolate all later SQL edges', () => {
 test('explicit offline/clock/error barriers survive SQL overlap but do not poison subsequent edges', () => {
   for (const status of ['offline', 'clock_error', 'read_error', 'invalid']) {
     const h = createHistory(); h.observe(live(epoch - 8000), epoch - 8000);
-    h.observe({ status }, epoch - 7000); h.observe(live(epoch - 4000), epoch - 4000);
+    h.observe({ status, envelope: { timestamp: new Date(epoch - 7000).toISOString() } }, epoch - 7000);
+    h.observe(live(epoch - 4000), epoch - 4000);
     assert(h.importHistory(batch([row(epoch - 8000, '1'), row(epoch - 6000, '2', { break_before: false }),
       row(epoch - 4000, '3', { break_before: false }), row(epoch - 2000, '4', { break_before: false }),
       row(epoch, '5', { break_before: false })]), epoch));

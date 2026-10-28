@@ -535,6 +535,15 @@ class HistoryWorker:
                     dirty(c, self.source, start, 3600 if seconds == 60 else 86400)
             connection.commit()
             return True
+        except pymysql.OperationalError as error:
+            connection.rollback()
+            # A concurrent generation update can make MariaDB 11.8 reject the
+            # optimistic snapshot's locking read with ER_CHECKREAD (1020).
+            # Retry the still-pending job in a fresh transaction; never publish
+            # the obsolete result or hide non-transient database failures.
+            if error.args and error.args[0] in (1020, 1205, 1213):
+                return True
+            raise
         except Exception:
             connection.rollback()
             raise

@@ -1356,6 +1356,102 @@ Nur diese Datei enthält einen flüchtigen MariaDB-11.8.8-Testserver, internes N
 und keine Hostports/Produktivnetze. `down --volumes` nie gegen bestehende Infrastruktur
 verwenden. Docker-CI und echte Pi-/Accounttests getrennt berichten.
 
+### Kalender-/Jahresverlauf zusätzlich einrichten (optionales Schema 2)
+
+**Neue Erweiterung, noch in abschließender Docker-Prüfung. Nicht aus einem
+ungeprüften Feature-Branch produktiv aktivieren.** Der bestehende Minutenverlauf
+benötigt weiterhin nur Schema 1. Kalenderansichten für Stunde, Tag, ISO-Woche,
+Monat, Jahr und eigenen Zeitraum lesen ausschließlich vorverdichtete Daten.
+Ein Jahr ist die maximale **Anzeigespanne**, keine Aufbewahrungs-/Löschfrist.
+Vor Beginn der Aufzeichnung existieren keine nachträglich erzeugten Messwerte;
+vorhandene Strompreise sind keine Wallboxmessungen und werden nicht umgedeutet.
+
+Voraussetzungen: funktionierender Schema-1-Collector, aktuelle Sicherung auch der
+inzwischen aufgezeichneten EVSE-Rohdaten, ausdrücklich freigegebene additive
+Migration und kompatible Website. Die alten Sicherungen vor Schema 1 enthalten
+noch keine EVSE-Messungen. Bestehende `.env`, Netzwerkzuordnungen und geschützte
+Passwortdateien **behalten**; keine neuen Accounts oder Grants automatisch ändern.
+Ein eingeschränkter Website-Reader braucht zusätzlich SELECT auf den drei neuen
+Tabellen; die ausdrücklich erlaubte temporäre `smart`-Konfiguration bleibt möglich.
+Collector/Worker brauchen zusätzlich SELECT/INSERT/UPDATE ausschließlich an den
+neuen eigenen Historytabellen. Original-Samples/Events bleiben append-only.
+
+Die explizite `--migrate-history`-Migration erstellt ausschließlich
+`evse_history_buckets`, `evse_history_work`, `evse_history_state` und registriert
+Version 2 **zusätzlich** zu Version 1. Keine Umwandlung/Löschung der bestehenden
+Mess-, Preis-/Providertabellen. Default-`--migrate` bleibt Schema 1; Laufzeit startet
+keine DDL. Minuten-/Stunden-/Tagesverdichtung und resumierbarer Backfill laufen in
+einem eigenen `history-rollup`-Container aus demselben Storageimage. Keine neue DB,
+kein Broker, kein Hostport/Hardwarezugriff und kein vierter Websiteprozess.
+
+**Reihenfolge ist zwingend:** Eine bereits mit Schema 1 verbundene alte
+Collectorinstanz kennt die neuen Dirtymeldungen nicht. Deshalb erst die kompatible
+Website bereitstellen, dann den Collector vor der Migration stoppen und aus dem
+aktualisierten Image starten; den Worker niemals zuerst gegen den alten weiter-
+laufenden Collector aktivieren. Die kurze Collectorpause kann eine Aufzeichnungslücke
+verursachen, MQTT-retained ist kein Replay. Reader/Broker/MariaDB bleiben aktiv.
+
+Nach Merge und sauberem Repositoryupdate, aus `rasppi/weboverlay`, zunächst nur
+die aktualisierte Website mit **derselben bisherigen Overlayauswahl** bauen:
+
+```bash
+docker compose -f compose.yaml -f compose.history.yaml up -d --build weboverlay
+```
+
+Bei bereits genutzter MQTT-Dateiauthentifizierung wie bisher zusätzlich
+`-f compose.auth.yaml` vor dem Historyoverlay verwenden. Nicht neu hinzufügen,
+wenn keine passende lokale Konfiguration vorliegt. Die neue Website versteht
+die Versionsmengen `{1}` und `{1,2}`; der alte Websitecode nur Schema 1.
+
+Dann nach `rasppi/storage` wechseln. Auch dort vorhandene Auth-Overlays bei
+Build/Start unverändert beibehalten. Jeden Block einzeln ausführen:
+
+```bash
+docker compose -f compose.yaml build storage
+docker compose -f compose.yaml stop storage
+```
+
+Nur den Migrationsclient mit vorhandenem, berechtigtem Projektzugang starten;
+bewusst **ohne `--rm`**, damit der Container prüfbar erhalten bleibt:
+
+```bash
+docker compose -f compose.yaml --profile tools run \
+  --no-deps -T --interactive=false migrate --migrate-history
+```
+
+Nur bei erfolgreichem Abschluss und `storage: schema version 2 ready` fortfahren.
+Bei Fehlern keine Version manuell registrieren, keine Tabellen/Volumes löschen;
+erst die nicht geheimen Fehlermeldungen und die konkrete Schemaform prüfen.
+Additive DDL ist nicht vollständig transaktional; erneuter Lauf prüft vorhandene
+Teiltabellen statt sie zu ersetzen. Keine Host-Pakete installieren.
+
+```bash
+docker compose -f compose.yaml --profile history up -d storage history-rollup
+docker compose -f compose.yaml --profile history ps
+docker compose -f compose.yaml --profile history logs --tail 30 storage history-rollup
+```
+
+Das aktualisierte `storage` wird dabei neu erstellt und erkennt Schema 2, bevor
+es neue Reads schreibt; neue Daten und Dirtymeldungen committen zusammen vor ACK.
+Workerfehler pausieren keine Modbusabfragen und blockieren keine Collector-ACKs.
+Orphan-Warnungen zu erhaltenen Migrationscontainern sind kein Aufräumauftrag;
+**kein `--remove-orphans`, kein `down --volumes` gegen den Produktivstack.**
+
+Website über den vorhandenen Tunnel öffnen, neu laden und unter `/diagramme`
+die Ansicht und das Kalenderdatum wählen. „Jetzt“ springt in die aktuelle
+gewählte Periode, Pfeile wechseln die Periode. Zeitzone ist ausdrücklich
+`Europe/Vienna`; Sommerzeit-/Schalttage haben ihre tatsächlichen Grenzen.
+Archivdaten verändern keine Live-Frische. Bei laufendem Backfill/Dirtyarbeit
+bleiben unvollständige Intervalle als solche gekennzeichnet. `healthy` des Workers
+bedeutet laufende DB-Verarbeitung, nicht abgeschlossenen Jahresbackfill.
+
+Für größere Intervalle sind W/A/V stichprobengewichtete Mittel mit Min/Max-Spannen,
+keine zugesicherten zeitgewichteten Energieintegrale. Sessionenergie ist der
+letzte Sessionzähler, **kein Tages-/Jahresverbrauch**. Gemischte/fehlende Zustände
+werden nicht zu konstantem „Nein“ oder Null. API und Grenzen:
+[Kalendervertrag](history-range-contract.md). Reale Aktivierung/API-/Browser-
+und Ausfallnachweise erst nach tatsächlicher Prüfung dokumentieren.
+
 ## 10. MQTT-Zustandsspeicherung in der vorhandenen MariaDB
 
 **Erster Datenbankabschnitt:** Wallbox-Samples (auch Lesefehler) und Availability-
