@@ -49,19 +49,48 @@ docker compose logs --tail 50 storage
   verwirft Zustellungen. Gap-Zähler/Startgrenzen kennzeichnen unbestimmte Abdeckung,
   nicht die exakte Anzahl fehlender Messungen. Queue-Zähler enthalten auch verworfene
   Collector-Ereignisse, Invalid-Zähler nur abgelehnte MQTT-Payloads. Bei Ausfall bleiben Lücken.
-- Keine automatische Löschung/Aggregation, Sessionerkennung, RFID-/UART-/Zählerdaten
-  oder Verbindung der Browserdiagramme mit SQL. Das folgt separat. Speicherplatz
+- Keine automatische Löschung, Sessionerkennung oder RFID-/UART-/Zählerdaten.
+  Optionale Verdichtung für den getrennten lesenden Website-Kalender siehe unten. Speicherplatz
   und Backups überwachen; default 2 s ergeben etwa 43.200 Samples **plus** wiederholte
   Availability-Beobachtungen pro Tag. Daten wachsen ohne vereinbarte Aufbewahrungsfrist.
 - Explizites `--migrate` mit CREATE/SELECT/INSERT-Berechtigung; getrennte
-  Minimalrechte-Accounts sind empfohlen. Runtime führt nur SELECT/INSERT aus.
-  Schema-Version 1; keine automatische Änderung fremder Tabellen/Accounts.
+  Minimalrechte-Accounts sind empfohlen. Schema-1-Runtime führt nur SELECT/INSERT aus.
+  Mit explizitem Schema 2 zusätzlich SELECT/INSERT/UPDATE an neuen eigenen Historytabellen,
+  niemals UPDATE an Rohsamples/Events oder Preis-/Providertabellen.
+  Keine automatische Änderung fremder Tabellen/Accounts.
   Vor Bestätigung werden Engine, Spaltentypen/Nullability und UNIQUE-Identitäten
   geprüft; gleichnamige inkompatible Tabellen werden nicht als Version 1 übernommen.
 - Healthcheck ist **Readiness** (DB geprüft, MQTT subscribed, frischer Worker-Tick),
   nicht Vollständigkeit oder Wallbox-Frische. Fehler lösen kein neues DB-/Broker-
   Deployment aus. DNS kann Prozessfristen überschreiten; Compose beendet nötigenfalls
   nach 20 s, dann können RAM-Daten verloren gehen.
+
+## Optionale Kalenderverdichtung (Schema 2)
+
+Neu implementiert und Docker-geprüft: explizites
+`--migrate-history` ergänzt drei eigene Tabellen und Metadataversion 2; Version 1
+bleibt erhalten. Kein ALTER/Löschen bestehender Daten oder automatischer DDL-Start.
+Die Versionsmengen `{1}` und `{1,2}` sind kompatibel; Basisbetrieb bleibt Schema 1.
+Separater `history-rollup` im Compose-Profil `history` verwendet dasselbe Image,
+die vorhandene DB und die geschützte Runtime-Passwortdatei, ausschließlich DB-Netz,
+keinen Brokerzugriff, Hostport oder Docker-Socket. Keinen zweiten Server starten.
+
+Neu eingefügte Samples/Ereignisse markieren Work in derselben Transaktion vor ACK.
+Der Worker rekonstruiert UTC-Minuten/Stunden/Tage deterministisch, generation-geprüft
+und mit dauerhaften Backfill-Cursorn. Wiederholungen ersetzen Summarydaten statt
+Zähler doppelt zu erhöhen. Erledigte Workeinträge bleiben erhalten. Mittelwerte
+nur aus vorhandenen W/A/V-Samples, keine Bool-/Codemittel oder Session-Wh-Summen.
+Unklare Ereignisse, Retained, NULL und Ausfälle bleiben sichtbare Qualitätsgrenzen.
+
+**Aktivierung zwingend koordiniert:** kompatible Website zuerst, neues Storageimage
+bauen, alten Collector stoppen, Migration, aktualisierten Collector und erst dann
+Worker starten. Eine schon unter Schema 1 verbundene Instanz kennt neue Dirtyarbeit
+nicht. Die kurze Pause kann Records verlieren; retained ersetzt kein Replay.
+Konkrete sichere Schritte ausschließlich im [Installationsguide](../../docs/installation.md#kalender-jahresverlauf-zusätzlich-einrichten-optionales-schema-2).
+Worker-Health ist laufende DB-Verarbeitung, nicht abgeschlossener Backfill oder
+lückenlose Messabdeckung. Keine Anzeigebegrenzung als Datenlöschfrist auslegen.
+Schema-2-CI 40678971216 für c83b1cc: alle 75 Tests und Runtime auf MariaDB
+10.11/11.8.8/11.8 erfolgreich. Kein Pi-/Produktionsmigrations-/Langzeitnachweis.
 
 ## Tests
 

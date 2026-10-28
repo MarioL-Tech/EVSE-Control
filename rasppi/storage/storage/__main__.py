@@ -20,17 +20,17 @@ def diagnostic(text):
         pass
 
 
-def health(data):
-    path = Path("/tmp/evse-storage-health.json")
+def health(data, history=False):
+    path = Path("/tmp/evse-history-health.json" if history else "/tmp/evse-storage-health.json")
     temporary = path.with_suffix(".tmp")
     temporary.write_text(json.dumps({**data, "tick": time.monotonic()}))
     temporary.replace(path)
 
 
-def healthcheck():
+def healthcheck(history=False):
     try:
-        state = json.loads(Path("/tmp/evse-storage-health.json").read_text())
-        return 0 if 0 <= time.monotonic() - state["tick"] < 30 and state["database_ready"] and state["subscribed"] else 1
+        state = json.loads(Path("/tmp/evse-history-health.json" if history else "/tmp/evse-storage-health.json").read_text())
+        return 0 if 0 <= time.monotonic() - state["tick"] < 30 and state["database_ready"] and (history or state["subscribed"]) else 1
     except (OSError, ValueError, KeyError, TypeError):
         return 1
 
@@ -128,30 +128,64 @@ def run(config, stop):
         health({"database_ready": False, "subscribed": False, "written": written, "duplicates": duplicates, **inbox.stats()})
 
 
+def run_history(config, stop):
+    from .history import HistoryWorker
+    db = Database(config)
+    retry = 1
+    while not stop.is_set():
+        health({"database_ready": False}, history=True)
+        try:
+            db.connect()
+            worker = HistoryWorker(db)
+            worker.acquire()
+            while not stop.is_set():
+                worker.turn()
+                health({"database_ready": True}, history=True)
+                retry = 1
+                stop.wait(0.25)
+        except (ValueError, ArithmeticError, OSError, pymysql.MySQLError):
+            diagnostic("storage history: database, schema or materialization unavailable; retrying")
+        finally:
+            db.close()  # Also releases source GET_LOCK, including failed turns.
+            health({"database_ready": False}, history=True)
+        stop.wait(retry)
+        retry = min(30, retry * 2)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Subscribe-only wallbox history collector")
-    parser.add_argument("--migrate", action="store_true", help="Explicit schema initialization using DDL account")
-    parser.add_argument("--healthcheck", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--migrate", action="store_true", help="Explicit schema initialization using DDL account")
+    mode.add_argument("--migrate-history", action="store_true", help="Explicit additive schema-2 migration")
+    mode.add_argument("--history-worker", action="store_true", help="Separate bounded materialization worker; no MQTT")
+    mode.add_argument("--healthcheck", action="store_true")
+    mode.add_argument("--history-healthcheck", action="store_true")
     args = parser.parse_args()
     if args.healthcheck:
         return healthcheck()
+    if args.history_healthcheck:
+        return healthcheck(history=True)
     try:
         os.set_blocking(2, False)
         config = Config.from_environment()
-        if args.migrate:
+        if args.migrate or args.migrate_history:
             database = Database(config)
             try:
                 database.connect()
-                database.migrate()
+                if args.migrate_history:
+                    from .history import migrate_history
+                    migrate_history(database)
+                else:
+                    database.migrate()
                 database.verify()
-                diagnostic("storage: schema version 1 ready")
+                diagnostic(f"storage: schema version {2 if database.history_enabled else 1} ready")
             finally:
                 database.close()
             return 0
         stop = threading.Event()
         signal.signal(signal.SIGTERM, lambda *_: stop.set())
         signal.signal(signal.SIGINT, lambda *_: stop.set())
-        run(config, stop)
+        (run_history if args.history_worker else run)(config, stop)
         return 0
     except (ValueError, OSError, pymysql.MySQLError):
         diagnostic("storage: configuration, migration or database error; check local configuration/grants")

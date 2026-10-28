@@ -57,18 +57,25 @@
     }));
   }
   function createHistory() {
-    let points = [], lastStamp = null, lastClock = null, broken = true, revision = 0, gapFloor = Infinity;
+    let points = [], edges = [], barriers = [], lastStamp = null, lastClock = null, broken = true, revision = 0;
+    let hardGap = false;
+    const overlaps = (a, b, c, d) => a < d && b > c;
+    function edge(from, to, blocked = false) {
+      if (from === null || to <= from) return;
+      const list = blocked ? barriers : edges;
+      if (!list.some(e => e[0] === from && e[1] === to)) list.push([from, to]);
+    }
     function prune(now) {
       const retained = points.filter(p => p.t >= now - RETENTION_MS).slice(-MAX_POINTS);
       if (retained.length !== points.length) { points = retained; revision++; }
+      edges = edges.filter(e => e[1] >= now - RETENTION_MS).slice(-MAX_POINTS * 2);
+      barriers = barriers.filter(e => e[1] >= now - RETENTION_MS).slice(-MAX_POINTS * 2);
     }
-    function gap() {
-      // An observed outage is stronger evidence than an archive's continuity.
-      // Conservatively isolate archive points from the earliest local outage.
-      if (lastStamp !== null) gapFloor = Math.min(gapFloor, lastStamp);
+    function gap(hard = true) {
+      hardGap ||= hard;
       if (!broken) { broken = true; revision++; }
     }
-    function clear() { points = []; lastStamp = null; lastClock = null; broken = true; gapFloor = Infinity; revision++; }
+    function clear() { points = []; edges = []; barriers = []; lastStamp = null; lastClock = null; broken = true; hardGap = false; revision++; }
     return {
       gap, clear,
       importHistory(batch, now = Date.now()) {
@@ -76,9 +83,13 @@
         if (!incoming) return false;
         if (batch.status !== 'ok') return true;
         // Validation finishes before touching any retained state or live anchors.
-        const signature = () => JSON.stringify(points.map(({ t, values, source, seriesBreak, breakBefore }) =>
-          ({ t, values, source, seriesBreak, breakBefore })));
+        const signature = () => JSON.stringify({ points: points.map(({ t, values, source, seriesBreak }) =>
+          ({ t, values, source, seriesBreak })), edges, barriers });
         const before = signature(), oldRevision = revision;
+        for (let i = 1; i < incoming.length; i++) {
+          const a = incoming[i - 1], b = incoming[i];
+          edge(a.t, b.t, b.breakBefore || a.error || b.error);
+        }
         for (const row of incoming) {
           const old = points.find(p => p.t === row.t);
           if (!old) {
@@ -86,7 +97,6 @@
             if (points.length === MAX_POINTS) points.shift();
             points.push(row); points.sort((a, b) => a.t - b.t); continue;
           }
-          old.breakBefore ||= row.breakBefore;
           for (const m of METRICS) old.seriesBreak[m.id] ||= row.seriesBreak[m.id];
           if (old.source === 'sql' && compareReceipt(old, row) < 0) {
             old.values = row.values; old.received = row.received; old.id = row.id;
@@ -100,12 +110,16 @@
       observe(view, now = Date.now()) {
         if (lastClock !== null && now < lastClock) {
           clear();
-        } else if (lastClock !== null && now - lastClock > MAX_GAP_MS) gap();
+        } else if (lastClock !== null && now - lastClock > MAX_GAP_MS) gap(false);
         lastClock = now;
         prune(now);
         const t = utc(view.envelope?.timestamp);
         if (view.status !== 'live' || !view.values || !Number.isFinite(t) ||
-            t > now + 5000 || t < now - RETENTION_MS) { gap(); return; }
+            t > now + 5000 || t < now - RETENTION_MS) {
+          const transportOnly = ['waiting', 'stale'].includes(view.status) ||
+            (view.status === 'read_error' && view.envelope == null);
+          gap(!transportOnly); return;
+        }
         if (lastStamp !== null && t < lastStamp) { gap(); return; }
         const values = readings(view.values);
         if (t === lastStamp) {
@@ -122,23 +136,29 @@
           return;
         }
         const old = points.find(p => p.t === t);
+        if (hardGap) edge(lastStamp, t, true);
+        else if (!broken && lastStamp !== null && t - lastStamp <= MAX_GAP_MS) edge(lastStamp, t);
         if (old) points.splice(points.indexOf(old), 1);
         if (points.length < MAX_POINTS || t >= points[0].t) {
           if (points.length === MAX_POINTS) points.shift();
           points.push({ t, values, source: 'live', seriesBreak: Object.fromEntries(METRICS.map(m =>
             [m.id, values[m.id] === null || !!old?.seriesBreak[m.id]])),
-            breakBefore: !!old?.breakBefore || broken || (lastStamp !== null && t - lastStamp > MAX_GAP_MS) });
+            breakBefore: broken || (lastStamp !== null && t - lastStamp > MAX_GAP_MS) });
         }
         points.sort((a, b) => a.t - b.t); prune(now);
-        lastStamp = t; broken = false; revision++;
+        lastStamp = t; broken = false; hardGap = false; revision++;
       },
       get revision() { return revision; },
       get size() { return points.length; },
       window(now, minutes) {
         const duration = [1, 5, 15].includes(minutes) ? minutes * 60000 : 300000;
         return points.filter(p => p.t >= now - duration && p.t <= now).map((p, i, list) =>
-          ({ ...p, breakBefore: p.breakBefore || (i > 0 && list[i - 1].source !== p.source) ||
-              (p.source === 'sql' && p.t >= gapFloor),
+          ({ ...p, breakBefore: i === 0 || (() => {
+            const a = list[i - 1].t, b = p.t;
+            return b - a > MAX_GAP_MS || !edges.some(e => e[0] <= a && e[1] >= b) ||
+              barriers.some(e => overlaps(a, b, e[0], e[1])) ||
+              (hardGap && lastStamp !== null && b > lastStamp);
+          })(),
             values: { ...p.values }, seriesBreak: { ...p.seriesBreak } }));
       }
     };
@@ -189,7 +209,7 @@
       const receiptOrder = s.received_at.slice(0, 19) + '.' +
         (s.received_at.match(/\.(\d+)/)?.[1] || '').padEnd(6, '0') + 'Z';
       const row = { t, received: receiptOrder, id: s.id, source: 'sql', values,
-        breakBefore: s.break_before || !batch.complete || s.status === 'error',
+        breakBefore: s.break_before || s.status === 'error', error: s.status === 'error',
         seriesBreak: Object.fromEntries(METRICS.map(m => [m.id, values[m.id] === null])) };
       const previous = result.at(-1);
       if (previous && (t < previous.t || (t === previous.t && compareReceipt(previous, row) > 0))) return null;
@@ -236,7 +256,14 @@
       }
       if (segmentLength === 1) markers.push(segmentLast);
       if (last && !markers.includes(last)) markers.push(last);
-      return { metric: m, path, last, markers };
+      // Thin isolated-point markers only after segmentation; never heal a gap
+      // to make a flat series prettier. Pixel spacing prevents marker pills.
+      const sparse = [];
+      for (let i = markers.length - 1; i >= 0; i--) {
+        const p = markers[i];
+        if (!sparse.some(q => Math.abs(Number(q.x) - Number(p.x)) < 7 && Math.abs(Number(q.y) - Number(p.y)) < 5)) sparse.push(p);
+      }
+      return { metric: m, path, last, markers: sparse.reverse() };
     });
     return { lo, hi, paths, metrics, count: points.length };
   }
@@ -249,7 +276,7 @@
     const history = createHistory();
     let storage;
     try { storage = root.localStorage; } catch (_) { storage = null; }
-    let prefs = loadPreferences(storage), lastDraw = 0, lastRevision = -1;
+    let prefs = loadPreferences(storage), lastDraw = 0, lastRevision = -1, lastArchiveDraw = null;
     const controls = document.getElementById('metric-options'), figures = new Map();
     const svgNS = 'http://www.w3.org/2000/svg';
     const fmt = new Intl.NumberFormat('de-DE', { maximumSignificantDigits: 4, notation: 'compact' });
@@ -280,13 +307,27 @@
     }
     const source = document.getElementById('history-source'), detail = document.getElementById('history-detail');
     const browserNote = { source: source?.textContent, detail: detail?.textContent };
+    const archive = root.OverlayCalendar?.createArchiveStore();
+    let calendar = null;
     const loader = figures.size && root.OverlayHistory ? root.OverlayHistory.createHistoryLoader({
       importHistory: (batch, now) => history.importHistory(batch, now),
-      onReset: () => history.clear(),
+      importArchive: (batch, now, selection) => {
+        if (!archive?.importHistory(batch, now, selection)) return false;
+        calendar?.loaded(batch);
+        // Archive completion is its own rendering event, independent of MQTT
+        // ticks (including a paused clock or currently unavailable live API).
+        draw(Date.now()); return true;
+      },
+      onReset: () => { history.clear(); archive?.clear(); calendar?.reset(); },
       onState: state => {
         if (!source || !detail) return;
         source.dataset.historyStatus = state.status;
-        if (!state.loaded && ['browser', 'disabled'].includes(state.status)) {
+        if (calendar?.selection) {
+          const snapshot = archive?.snapshot();
+          source.textContent = snapshot ? `Kalenderarchiv · ${snapshot.buckets.reduce((n, b) => n + b.samples, 0)} Messwerte` : 'Kalenderarchiv';
+          detail.textContent = `${state.status === 'ok' ? state.complete ? 'Archiv geladen.' : 'Archiv enthält Lücken oder ist noch nicht vollständig verdichtet.'
+            : state.status === 'browser' ? 'Zeitraum wird geladen.' : snapshot ? 'Archiv derzeit nicht verfügbar; geladene Daten bleiben erhalten.' : 'Archiv derzeit nicht verfügbar.'} Historisch, nicht live. Stichprobenmittel / Min–Max; Sessionenergie ist der letzte Sessionzähler, kein Zeitraumverbrauch.`;
+        } else if (!state.loaded && ['browser', 'disabled'].includes(state.status)) {
           source.textContent = browserNote.source; detail.textContent = browserNote.detail;
         } else {
           source.textContent = state.loaded ? 'Archiv und Seitenverlauf · max. 15 Minuten' : 'Seitenverlauf · max. 15 Minuten';
@@ -306,6 +347,8 @@
       root.addEventListener('pageshow', () => loader.setVisible(!document.hidden));
     }
     const range = document.getElementById('chart-range');
+    if (loader && archive) calendar = root.OverlayCalendar.mount({ document, loader, archive, storage,
+      onChange: () => { lastRevision = -1; draw(Date.now()); } });
     if (range) {
       range.value = String(prefs.minutes);
       range.addEventListener('change', () => { prefs.minutes = Number(range.value); loader?.invalidate(); apply(); });
@@ -329,10 +372,18 @@
       lastRevision = -1; draw(Date.now());
     }
     function draw(now) {
-      const points = history.window(now, prefs.minutes), start = now - prefs.minutes * 60000;
+      const archiveMode = !!calendar?.selection;
+      const archiveKey = archiveMode ? `${archive?.revision}:${JSON.stringify(calendar.selection)}:${JSON.stringify(prefs.selected)}` : null;
+      if (archiveMode && archiveKey === lastArchiveDraw) { lastDraw = now; lastRevision = history.revision; return; }
+      lastArchiveDraw = archiveKey;
+      const archived = archiveMode ? archive?.snapshot() : null;
+      const points = archiveMode ? [] : history.window(now, prefs.minutes);
+      const start = archived ? Date.parse(archived.range.from) : now - prefs.minutes * 60000;
+      const end = archived ? Date.parse(archived.range.to) : now;
       for (const g of GROUPS.filter(g => figures.has(g.id))) {
         const { figure, svg, legend, description } = figures.get(g.id);
-        const plot = buildPlot(points, g, prefs.selected, start, now);
+        const plot = archived ? root.OverlayCalendar.buildSummaryPlot(archived, g, prefs.selected, api)
+          : buildPlot(points, g, prefs.selected, start, end);
         figure.hidden = plot.metrics.length === 0;
         if (figure.hidden) continue;
         svg.replaceChildren(); legend.replaceChildren();
@@ -342,13 +393,19 @@
           svg.append(node('text', g.boolean ? (value === 0 ? 'Nein' : 'Ja') : fmt.format(value),
             { x: 55, y: yPos + 4, 'text-anchor': 'end', class: 'chart-axis' }, true));
         }
-        for (const [t, px, anchor] of [[start, 62, 'start'], [now, 482, 'end']])
-          svg.append(node('text', timeFmt.format(t), { x: px, y: 211, 'text-anchor': anchor, class: 'chart-axis' }, true));
+        for (const [t, px, anchor] of [[start, 62, 'start'], [end, 482, 'end']])
+          svg.append(node('text', archived ? root.OverlayCalendar.axisLabel(t, archived.selection.period, archived.range.timezone) : timeFmt.format(t),
+            { x: px, y: 211, 'text-anchor': anchor, class: 'chart-axis' }, true));
         plot.paths.forEach(series => {
           const color = series.metric.index !== null ? series.metric.index : series.metric.id === 'limit' ? 3
             : METRICS.filter(m => m.group === g.id).findIndex(m => m.id === series.metric.id);
           const css = `series-${color % 4}`;
           svg.append(node('path', null, { d: series.path, class: `chart-line ${css}`, 'data-series': series.metric.id }, true));
+          for (const glyph of series.glyphs || []) {
+            const path = node('path', null, { d: glyph.path, class: `summary-glyph ${css}${glyph.gap ? ' summary-gap' : ''}`,
+              'data-summary-series': series.metric.id }, true);
+            path.append(node('title', glyph.label, {}, true)); svg.append(path);
+          }
           for (const marker of series.markers) {
             const dot = node('circle', null, { cx: marker.x, cy: marker.y, r: 3, class: `chart-dot ${css}`,
               'data-series-marker': series.metric.id }, true);
@@ -358,8 +415,11 @@
           }
           legend.append(node('li', series.metric.label, { class: css, 'data-legend': series.metric.id }));
         });
-        description.textContent = plot.count ? `${plot.count} Messzeitpunkte im Fenster · Lücken bleiben unverbunden.`
-          : 'Noch keine Messwerte in diesem Zeitfenster. Verlauf beginnt mit Seitenöffnung.';
+        description.textContent = archiveMode ? archived
+          ? `${plot.count} Messwerte · ${archived.buckets.length} Intervalle · ${g.id === 'energy' ? 'Letzter Sessionzähler, kein Zeitraumverbrauch' : g.step ? 'Spanne / letzter Zustand; gemischt bleibt sichtbar' : 'Stichprobenmittel / Min–Max'} · gestrichelt: Lücken / unvollständig.`
+          : 'Keine Archivmesswerte geladen. Live-Anzeige bleibt unabhängig.'
+          : plot.count ? `${plot.count} Messzeitpunkte im Fenster · Lücken bleiben unverbunden.`
+            : 'Noch keine Messwerte in diesem Zeitfenster. Verlauf beginnt mit Seitenöffnung.';
       }
       lastDraw = now; lastRevision = history.revision;
     }

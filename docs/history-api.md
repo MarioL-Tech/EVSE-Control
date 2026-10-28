@@ -64,7 +64,7 @@ dem Sortieren geprüft. Überlauf oder unzuordenbare Clock-/Ereignisreihenfolge
 liefert `complete=false` und konservativ getrennte Punkte. Pausen über 10 s
 werden weiterhin nicht verbunden. Fehlende Daten werden nicht interpoliert.
 
-Der Browser lädt nur auf `/diagramme`, stets das gesamte 15-Minuten-Fenster und
+Im Live-Modus lädt der Browser nur auf `/diagramme` das gesamte 15-Minuten-Fenster und
 filtert die bestehenden 1/5/15-Minuten-Auswahlen lokal. Höchstens ein aktiver Abruf,
 Timeout 4 s, sichtbare Aktualisierung nach 60 s, Fehler-Backoff 10/30/60 s.
 Verstecken/Verlassen bricht ab; Rückkehr/Seitencache-Neustart lädt neu.
@@ -73,10 +73,35 @@ Historie stoppt regelmäßige SQL-Abrufe. Keine Messwerte in localStorage.
 
 SQL-Import ist kein künstliches Live-Sample und ändert keine Frischeanker.
 Gemeinsamer Puffer maximal 15 Minuten/1.200 Punkte; Live-Werte gewinnen bei
-gleicher Zeitmarke, Unknown-/Fehlerwechsel bewahren Unterbrechungen. Gemischte
-SQL-/Live-Kanten sind konservativ getrennt. Nach lokal beobachtetem Ausfall
-werden spätere SQL-Punkte bis zum Zurücksetzen isoliert: lieber zusätzliche
-Lücken als nachträgliches Überbrücken einer bekannten Unterbrechung.
+gleicher Zeitmarke, Unknown-/Fehlerwechsel bewahren Unterbrechungen. Kontinuität
+wird kantenbezogen belegt: ein SQL-/Live-Quellenwechsel allein trennt oder verbindet
+keine Messreihe. Ein unbelegter Übergang bleibt eine Lücke; belegte SQL-Kanten
+können reine Browser-Transportlücken füllen, aber keine expliziten Mess-/Clock-
+oder Nullbarrieren überschreiben. Ein unvollständiger Abruf vergiftet nicht alle
+belegten Kanten. Dichte Einzelpunktmarker werden erst nach Segmentierung ausgedünnt.
+
+## Kalenderarchiv bis ein Jahr (Schema 2)
+
+Neu implementiert, Docker-CI 40678971209 für c83b1cc erfolgreich. Alternative strenge
+Queryform `period=day&date=2026-10-27&tz=Europe%2FVienna` beziehungsweise serverseitige
+UTC-Navigation über `at`; eigene Zeitbereiche maximal ein Kalenderjahr.
+Stunde/Tag/ISO-Woche/Monat/Jahr, Europe/Vienna oder UTC, halb offene Grenzen und
+23-/25-Stunden-Tage werden serverseitig bestimmt. Kein freier Tabellen-/SQLparameter.
+Die Minutenform oben bleibt Schema 1 und unverändert begrenzt.
+
+Schema 2 liest ausschließlich zusätzliche materialisierte Storage-Summaries und
+deren Work-/Fortschrittsstatus. Keine jährlichen Roh-GROUP-BY-Abfragen, Migration,
+Schreibbefehle oder automatischer Writer-Fallback im Websiteprozess. Maximal
+10.000 Summary-Eingangszeilen/32 MiB, 512 Ausgabebuckets/2 MiB, ein begrenzter Abruf.
+Min/Max und stichprobengewichtete Mittel für W/A/V; Limit/Sessioncounter als letzte
+Beobachtung, NULL bleibt NULL, gemischte Zustände nicht als konstantes Ja/Nein.
+**Sessionenergie ist kein Zeitraumverbrauch.** Unabhängiger Browserarchivstore;
+SQL-Liveness, Datenfrische und Geräteverfügbarkeit nicht vermischen.
+
+Vertrag und JSON-Beispiel: [Kalender-/Summaryvertrag](history-range-contract.md).
+Voraussetzungen/koordinierte Aktivierung:
+[Installationsguide](installation.md#kalender-jahresverlauf-zusätzlich-einrichten-optionales-schema-2).
+Keine Produktionsmigration oder Pi-Prüfung durch diese Implementierung behaupten.
 
 ## Nachweisgrenze
 
@@ -96,3 +121,8 @@ berechtigt geklärt werden. **Später ausdrücklich autorisierte Zwischenlösung
 Der Code bleibt SELECT-only/Read-only-Transaktion, das Konto selbst besitzt aber
 weitere Schreib-/DDL-/Löschrechte. Kein automatischer Rückfall, keine Benutzer-/
 Grant-/Schemaänderung und kein Passwortreset; Least Privilege bleibt Empfehlung.
+
+Nach Merge von PR #46 und der Pi-Aktivierungsanleitung meldet der Projektinhaber
+am 2026-10-27 „funktioniert“. Das ist eine Bedien-/Betriebsrückmeldung, keine
+unabhängig geprüfte API-Ausgabe, kein gezielter Reload-/SQL-Ausfall-/Langzeittest
+und kein Agent-Deployment. Diese Nachweisgrenzen bleiben getrennt von der CI.

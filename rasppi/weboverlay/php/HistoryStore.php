@@ -299,8 +299,10 @@ final class HistoryStore
                 $guard();
                 return $rows;
             };
-            $version = $select('SELECT version FROM evse_schema_versions LIMIT 2');
-            if (count($version) !== 1 || ($version[0]['version'] ?? null) !== '1') {
+            $version = $select('SELECT version FROM evse_schema_versions LIMIT 3');
+            $versions = array_column($version, 'version');
+            sort($versions, SORT_STRING);
+            if (count($version) !== count($versions) || ($versions !== ['1'] && $versions !== ['1', '2'])) {
                 throw new \UnexpectedValueException('Unsupported history schema');
             }
             $time = $select('SELECT UTC_TIMESTAMP(6) AS server_now');

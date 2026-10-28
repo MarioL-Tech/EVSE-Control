@@ -16,10 +16,21 @@ function sample() {
       below_commanded_current: true, plugged_in: true, charging: false, current_limit_a: 6,
       current_a: [0, 0, 0], voltage_v: [235.7, 233.4, 235.3], active_power_w: 0, session_energy_wh: 0 } };
 }
+async function logo(page) {
+  assert.equal(await page.locator('.brand-logo').count(), 1);
+  assert.equal(await page.locator('.brand-logo').getAttribute('alt'), '');
+  assert.equal(await page.locator('.brand-logo').getAttribute('src'), '/static/icon.svg');
+  assert.equal(await page.locator('link[rel="icon"]').getAttribute('href'), '/static/icon.svg');
+  await page.waitForFunction(() => {
+    const image = document.querySelector('.brand-logo');
+    return image.complete && image.naturalWidth > 0 && image.naturalHeight > 0;
+  });
+}
 async function ready(page) {
   await page.waitForFunction(() => document.querySelector('#status')?.textContent === 'Live');
   await page.locator('#theme-toggle').waitFor();
   assert(await page.locator('#theme-toggle').isEnabled());
+  await logo(page);
 }
 async function colors(page) {
   return page.evaluate(() => {
@@ -112,7 +123,8 @@ async function protectedUI(page, route) {
   assert.notEqual(await page.locator('#timestamp').innerText(), '—');
   assert.notEqual(await page.locator('#freshness').innerText(), '—');
   assert.equal(await page.locator('.sidebar').count(), 1);
-  assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()), ['reset-display']);
+  assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()),
+    (route === '/' ? ['reset-display'] : ['calendar-load', 'calendar-next', 'calendar-now', 'calendar-prev', 'reset-display']).sort());
   assert.equal(await page.locator('[role="button"], #theme-mode[role]').count(), 0);
   assert.equal(await page.locator('#metric-options input[type="checkbox"]').count(), 16);
   if (route === '/') assert.equal(await page.locator('.summary-card').count(), 4);
@@ -221,6 +233,7 @@ function clean(run) {
       try {
         const { page } = run;
         await page.goto(new URL('/einstellungen', base).href);
+        await logo(page);
         await page.waitForFunction(() => !document.getElementById('theme-toggle').disabled);
         assert.equal(await page.title(), 'Settings · EVSE Control');
         assert.equal(await page.locator('h1').innerText(), 'Settings');
@@ -283,7 +296,8 @@ function clean(run) {
       await page.evaluate(key => localStorage.setItem(key, '<img src=x onerror=alert(1)>'), key);
       await pageshow(page); await mode(page, 'system');
       await page.reload(); await ready(page); await mode(page, 'system');
-      assert.equal(await page.locator('img').count(), 0);
+      assert.equal(await page.locator('img').count(), 1);
+      assert.equal(await page.locator('.brand-mark img[src="/static/icon.svg"]').count(), 1);
       assert.equal(await page.evaluate(() => localStorage.getItem('evse-display-v1')), display);
       // A theme change cannot turn failed or expired telemetry back into live measurements.
       await page.route('**/api/state', route => route.fulfill({ json: {

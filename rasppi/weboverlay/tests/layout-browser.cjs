@@ -249,8 +249,10 @@ function clean(run) {
           const ids = [...document.querySelectorAll('[id]')].map(el => el.id);
           return new Set(ids).size === ids.length;
         }), 'Unique DOM IDs');
-        assert.equal(await page.locator('form, input:not([type="checkbox"]), [role="button"], [role="checkbox"]').count(), 0);
-        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()), ['reset-display']);
+         assert.deepEqual(await page.locator('form, input:not([type="checkbox"]), [role="button"], [role="checkbox"]').evaluateAll(nodes => nodes.map(n => n.id).sort()),
+           route === '/' ? [] : ['calendar-custom', 'calendar-date', 'calendar-from', 'calendar-to']);
+         assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()),
+           (route === '/' ? ['reset-display'] : ['calendar-load', 'calendar-next', 'calendar-now', 'calendar-prev', 'reset-display']).sort());
         assert.equal(await page.locator('#reset-display').getAttribute('type'), 'button');
         assert.equal(await page.locator('#theme-toggle').getAttribute('role'), 'switch');
         assert.equal(await page.locator('#theme-toggle').getAttribute('type'), 'checkbox');
@@ -367,7 +369,8 @@ function clean(run) {
       await failure.page.waitForFunction(() => document.getElementById('status').textContent === 'Lesefehler');
       assert.equal(await failure.page.locator('#freshness').innerText(), '—');
       assert.equal(await failure.page.locator('#reason').innerText(), '<img src=x onerror=alert(1)>');
-      assert.equal(await failure.page.locator('img').count(), 0);
+      assert.equal(await failure.page.locator('img').count(), 1);
+      assert.equal(await failure.page.locator('.brand-mark img[src="/static/icon.svg"]').count(), 1);
       assert(!await failure.page.locator('#wallbox-warning').isVisible(), 'Stale hardware warning not kept as current');
       clean(failure);
     } finally { await failure.context.close(); }

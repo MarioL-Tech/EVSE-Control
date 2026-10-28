@@ -4,11 +4,13 @@ on:
     paths:
       - 'rasppi/weboverlay/**'
       - 'rasppi/storage/migrations/**'
+      - 'rasppi/storage/storage/history.py'
       - '.github/workflows/weboverlay-docker.yml'
   pull_request:
     paths:
       - 'rasppi/weboverlay/**'
       - 'rasppi/storage/migrations/**'
+      - 'rasppi/storage/storage/history.py'
       - '.github/workflows/weboverlay-docker.yml'
 permissions:
   contents: read
@@ -30,7 +32,7 @@ jobs:
         run: docker build --progress=plain -t evse-weboverlay:test rasppi/weboverlay
       - name: Build disposable browser test image
         run: docker build -f rasppi/weboverlay/Dockerfile.browser -t evse-web-browser:test rasppi/weboverlay
-      - name: Read-only SQL history with isolated MariaDB 11.8.8
+      - name: Raw and calendar archive history with isolated MariaDB 11.8.8
         working-directory: rasppi/weboverlay
         run: |
           trap 'docker compose -f compose.history-test.yaml logs --tail 60; docker compose -f compose.history-test.yaml down --volumes' EXIT

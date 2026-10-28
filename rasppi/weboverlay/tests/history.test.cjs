@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { createHistoryLoader, MAX_BYTES, TIMEOUT_MS } = require('../static/history.js');
+const { createHistoryLoader, MAX_BYTES, ARCHIVE_MAX_BYTES, TIMEOUT_MS } = require('../static/history.js');
 const { createHistory } = require('../static/charts.js');
 const epoch = Date.parse('2026-10-04T12:00:00Z');
 const iso = t => new Date(t).toISOString();
@@ -11,7 +11,7 @@ const batch = (status = 'ok') => ({ schema_version: 1, read_only: true, status, 
 const response = (data, status = 200) => ({ status, headers: { get: () => null }, text: async () => JSON.stringify(data) });
 const flush = async () => { for (let i = 0; i < 16; i++) await Promise.resolve(); };
 function setup() {
-  const calls = [], pending = [], timers = new Map(), states = [], imports = [];
+  const calls = [], pending = [], timers = new Map(), states = [], imports = [], archives = [];
   let now = { wall: epoch, mono: 0 }, nextTimer = 0, resets = 0;
   const history = createHistory();
   const loader = createHistoryLoader({
@@ -20,9 +20,10 @@ function setup() {
     setTimer: (fn, ms) => { const id = ++nextTimer; timers.set(id, { fn, ms }); return id; },
     clearTimer: id => timers.delete(id),
     onState: s => states.push(s), onReset: () => { resets++; history.clear(); },
-    importHistory: (b, t) => { imports.push(b); return history.importHistory(b, t); }
+    importHistory: (b, t) => { imports.push(b); return history.importHistory(b, t); },
+    importArchive: (b, t, selection) => { archives.push({ b, t, selection }); return b.schema_version === 2 && b.read_only === true; }
   });
-  return { loader, calls, pending, timers, states, imports, history,
+  return { loader, calls, pending, timers, states, imports, archives, history,
     get resets() { return resets; },
     advance(ms) { now.wall += ms; now.mono += ms; },
     setClock(value) { now = value; }
@@ -197,4 +198,47 @@ test('successful complete/partial responses report own metadata and never expose
   assert.deepEqual(s.states.at(-1), { status: 'ok', loaded: true, complete: false });
   assert(!JSON.stringify(s.states).includes('<img'));
   s.loader.stop(); s.advance(60000); s.loader.tick(); assert.equal(s.calls.length, 1);
+});
+
+const calendarBatch = (to = epoch + 3600000, complete = true) => ({ schema_version: 2, read_only: true,
+  status: 'ok', complete, range: { from: iso(epoch - 3600000), to: iso(to) }, buckets: [] });
+test('calendar selection replaces raw query, aborts old generations, never imports archive into live', async () => {
+  const s = setup(); s.loader.tick();
+  assert(s.loader.select({ period: 'year', date: '2026', tz: 'Europe/Vienna' })); s.loader.tick();
+  assert(s.calls[0].options.signal.aborted);
+  assert.equal(new URL(s.calls[1].url, 'http://test').searchParams.get('period'), 'year');
+  s.pending[0].resolve(response(batch())); await flush(); assert.equal(s.imports.length, 0);
+  s.pending[1].resolve(response(calendarBatch())); await flush();
+  assert.equal(s.archives.length, 1); assert.equal(s.imports.length, 0); assert.equal(s.history.size, 0);
+  assert(s.loader.select({ period: 'day', date: 'now', tz: 'Europe/Vienna' })); s.loader.tick();
+  assert.equal(s.calls.length, 3); assert.equal(s.states.at(-1).loaded, false);
+  assert.equal(s.loader.select({ period: 'day', date: 'now', tz: 'Europe/Vienna', url: 'https://evil' }), false);
+});
+test('calendar current/partial refresh is bounded; completed past periods are not repeatedly fetched', async () => {
+  for (const [to, complete, refresh] of [[epoch - 1000, true, false], [epoch + 3600000, true, true], [epoch - 1000, false, true]]) {
+    const s = setup(); s.loader.select({ period: 'day', date: '2026-10-04', tz: 'Europe/Vienna' }); s.loader.tick();
+    s.pending[0].resolve(response(calendarBatch(to, complete))); await flush();
+    s.advance(59999); s.loader.tick(); assert.equal(s.calls.length, 1);
+    s.advance(1); s.loader.tick(); assert.equal(s.calls.length, refresh ? 2 : 1);
+  }
+});
+test('API 2 alone has 2 MiB budget; hiding, restore, failure and late response cannot leak selections', async () => {
+  const s = setup(); s.loader.select({ period: 'month', date: '2026-10', tz: 'Europe/Vienna' }); s.loader.tick();
+  s.pending[0].resolve({ ...response(calendarBatch()), headers: { get: () => String(MAX_BYTES + 1) } }); await flush();
+  assert.equal(s.archives.length, 1);
+  s.loader.invalidate(); s.loader.tick();
+  s.pending[1].resolve({ ...response(calendarBatch()), headers: { get: () => String(ARCHIVE_MAX_BYTES + 1) } }); await flush();
+  assert(s.calls[1].options.signal.aborted); assert.equal(s.states.at(-1).loaded, true);
+  s.loader.invalidate(); s.loader.tick(); s.loader.setVisible(false);
+  s.pending[2].resolve(response(calendarBatch())); await flush(); assert.equal(s.archives.length, 1);
+  s.loader.setVisible(true); s.loader.restore(); s.loader.tick();
+  assert.equal(s.resets, 1); assert.equal(s.states.at(-1).loaded, false);
+  s.loader.select(null); s.loader.tick();
+  assert(s.calls[3].options.signal.aborted); assert.equal(s.calls[4].url, '/api/history?minutes=15');
+});
+test('unsubmitted custom picker suspends all SQL requests through visibility/restore until valid selection', () => {
+  const s = setup(); s.loader.tick(); s.loader.suspend(); assert(s.calls[0].options.signal.aborted);
+  s.loader.setVisible(false); s.loader.setVisible(true); s.loader.restore(); s.loader.tick(); assert.equal(s.calls.length, 1);
+  s.loader.select({ period: 'custom', date_from: '2026-10-01T00:00', date_to: '2026-10-02T00:00', tz: 'Europe/Vienna' });
+  s.loader.tick(); assert.equal(s.calls.length, 2);
 });
