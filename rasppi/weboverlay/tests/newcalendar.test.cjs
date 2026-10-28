@@ -142,6 +142,14 @@ test('full response validation is atomic, bounded, rejects foreign navigation an
     assert.deepEqual(store.snapshot(), previous);
   }
 });
+test('compact axes omit repeated date/zone while full labels retain DST context', () => {
+  const stamp = Date.parse('2026-10-28T12:30:00Z');
+  for (const period of ['hour', 'day']) {
+    assert.match(calendar.axisLabel(stamp, period, calendar.ZONE, true), /^13:30$/);
+    assert.match(calendar.axisLabel(stamp, period), /GMT\+1/);
+  }
+  assert(calendar.axisLabel(stamp, 'year', calendar.ZONE, true).length < 10);
+});
 test('server supplied DST/leap ranges are retained exactly, never fixed-24h civil arithmetic', () => {
   for (const [date, from, to, hours] of [
     ['2026-03-29', '2026-03-28T23:00:00Z', '2026-03-29T22:00:00Z', 23],

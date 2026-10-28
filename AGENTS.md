@@ -679,6 +679,11 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   für lesbare mobile Achsen. WebApp-Karte in Settings entfernt; Grundfunktion
   optional erhalten. Theme-Schalter folgt vor erstem Render dem effektiven Modus.
   Docker-Abschluss/visuelle Abnahme dieser Änderung noch offen, kein Pi-Deployment.
+  Zusätzlich meldet der Projektinhaber unbekannte Fahrzeuganzeigen. Reader-/PHP-
+  Codeprüfung belegt bislang keinen Regressionspfad; die angeforderte aktuelle
+  `/api/state`-Ausgabe fehlt noch. Nicht als behoben ausgeben und nicht aus Leistung
+  oder Lastdaten einen Fahrzeugzustand erfinden; bekannte echte Booleans und
+  NULL-/Offline-/Stale-Fälle per Unit-/Browserregression absichern.
 - Kurvencheckboxen gelten nur auf der Diagrammseite; Einstellungen
   lokal im Browser (`evse-display-v1`), keine Messwerte/Credentials im localStorage.
   Nicht verfügbarer Speicher fällt auf aktuelle Sitzung zurück. Status, Messzeit

@@ -409,7 +409,7 @@
             { x: geometry.left - 9, y: yPos + 4, 'text-anchor': 'end', class: 'chart-axis' }, true));
         }
         for (const [t, px, anchor] of [[start, geometry.left, 'start'], [end, geometry.right, 'end']])
-          svg.append(node('text', archived ? root.OverlayCalendar.axisLabel(t, archived.selection.period, archived.range.timezone) : timeFmt.format(t),
+          svg.append(node('text', archived ? root.OverlayCalendar.axisLabel(t, archived.selection.period, archived.range.timezone, true) : timeFmt.format(t),
             { x: px, y: height - 12, 'text-anchor': anchor, class: 'chart-axis' }, true));
         plot.paths.forEach(series => {
           const css = colorClass(series.metric, g);

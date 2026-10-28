@@ -56,6 +56,13 @@ const fs = require('node:fs');
     }));
     assert.equal(await page.locator('#theme-toggle').getAttribute('type'), 'checkbox');
     assert.equal(await page.locator('.quick-controls').count(), 0);
+    for (const [plugged, charging, expectedPlugged, expectedCharging] of [
+      [false, false, 'Nein', 'Nein'], [true, true, 'Ja', 'Ja'], [true, false, 'Ja', 'Nein']
+    ]) {
+      data = { ...data, values: { ...data.values, plugged_in: plugged, charging } };
+      await page.waitForFunction(([p, c]) => document.getElementById('plugged').textContent === p
+        && document.getElementById('charging').textContent === c, [expectedPlugged, expectedCharging]);
+    }
     fs.mkdirSync('/artifacts', { recursive: true });
     await page.screenshot({ path: '/artifacts/weboverlay-desktop.png', fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });

@@ -79,6 +79,21 @@ test('unknown flags remain unknown, plugged in and charging are distinct', () =>
   assert.equal(present(state.snapshot()).plugged, 'Unbekannt');
   assert.equal(present(state.snapshot()).charging, 'Unbekannt');
 });
+test('vehicle booleans remain independent; unknown and stale never become yes or no', () => {
+  for (const [plugged, charging, expectedPlugged, expectedCharging] of [
+    [false, false, 'Nein', 'Nein'], [true, false, 'Ja', 'Nein'],
+    [true, true, 'Ja', 'Ja'], [null, false, 'Unbekannt', 'Nein'],
+    [true, null, 'Ja', 'Unbekannt'], [null, null, 'Unbekannt', 'Unbekannt']
+  ]) {
+    const { state, advance } = setup();
+    state.receive(state.begin(), live({ values: { ...telemetry, plugged_in: plugged, charging } }));
+    assert.equal(present(state.snapshot()).plugged, expectedPlugged);
+    assert.equal(present(state.snapshot()).charging, expectedCharging);
+    advance(5000);
+    assert.equal(present(state.snapshot()).plugged, 'Unbekannt');
+    assert.equal(present(state.snapshot()).charging, 'Unbekannt');
+  }
+});
 test('all nonlive statuses mask telemetry, even if a payload contains old values', () => {
   for (const status of ['waiting', 'offline', 'stale', 'clock_error', 'invalid', 'read_error']) {
     const { state } = setup(); state.receive(state.begin(), live({ status })); const p = present(state.snapshot());

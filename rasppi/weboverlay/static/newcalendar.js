@@ -134,10 +134,12 @@
     plot.count = batch.buckets.reduce((n, b) => n + b.samples, 0);
     return plot;
   }
-  function axisLabel(t, period, zone = ZONE) {
-    const key = `${period}:${zone}`;
+  function axisLabel(t, period, zone = ZONE, compact = false) {
+    const key = `${period}:${zone}:${compact}`;
     if (!timeFormats.has(key)) timeFormats.set(key, new Intl.DateTimeFormat('de-AT', { timeZone: zone,
-      ...(period === 'hour' ? { hour: '2-digit', minute: '2-digit', timeZoneName: 'shortOffset' }
+      ...(compact ? ['hour', 'day'].includes(period) ? { hour: '2-digit', minute: '2-digit' }
+        : { day: '2-digit', month: '2-digit', ...(period === 'custom' ? { year: '2-digit' } : {}) }
+        : period === 'hour' ? { hour: '2-digit', minute: '2-digit', timeZoneName: 'shortOffset' }
         : period === 'day' ? { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'shortOffset' }
           : { day: '2-digit', month: '2-digit', year: 'numeric' }) }));
     return timeFormats.get(key).format(t);
