@@ -16,8 +16,10 @@ Live-/Raw-10s- und Lifecycle-Barrieren sowie Langzeit-Min/Max-Spannen unverände
 Keine DB-/Aufzeichnungs-/Verdichtungsänderung, Migration oder Refresh. Regression
 für119 Messwerte in vier noch qualitätsunsicheren Minuten und stabiles Linienbild
 bei nachlaufenden Flagupdates, echte Fehlintervalle/NULL und unabhängige Hauswerte.
-Statische Shell v10. Separater Fixbranch baut auf Nullreferenz-PR#59 auf, um diese
+Statische Shell v10. Separater Fix-PR#60 baut auf Nullreferenz-PR#59 auf, um diese
 kleine Darstellung separat überprüfbar zu halten; dessen Merge bleibt beim Nutzer.
+Prüf-/Freigabestand über PR#60. Nullreferenz-PR#59 besteht Web40945782058;
+simulierte helle/mobil/dunkle Nullreferenz angesehen, PR ist bereit zur Prüfung.
 
 Aktueller kleiner UI-Auftrag (2026-10-29): dezente Nullreferenz im Haus-
 Netzleistungsdiagramm. Separate neutrale1px-Linie mit4/5-Strichelung,55% Deckkraft

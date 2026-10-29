@@ -86,11 +86,17 @@ test('HOUSE hour/day/week use signed mean centre lines without bands; raw 10s li
         const copy = JSON.parse(JSON.stringify(b)), bin = copy.buckets[1];
         if (reason === 'has_gap') bin.has_gap = true;
         if (reason === 'complete') bin.complete = false;
-        if (reason === 'nulls') bin.metrics.power_w.nulls = 1;
+        if (reason === 'nulls') { bin.metrics.power_w.nulls = 1; bin.metrics.power_w.count = 29; }
         if (reason === 'coverage') bin.coverage_seconds = 59;
         const broken = house.buildArchivePlot(copy);
-        assert.equal((broken.path.match(/M/g) || []).length, 3);
-        assert.equal(broken.markers.length, 2); assert.equal(broken.band, '');
+        assert.equal(broken.band, '');
+        if (reason === 'nulls') {
+          assert.equal((broken.path.match(/M/g) || []).length, 3);
+          assert.equal(broken.markers.length, 2);
+        } else {
+          assert.equal(broken.path, p.path, 'Coarse quality changes cannot turn known aggregate values back into dots');
+          assert.equal(broken.markers.length, 0);
+        }
         assert(!broken.path.includes('H'), 'No short aggregate ticks');
       }
     }
