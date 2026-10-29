@@ -120,7 +120,9 @@ keine MQTT-/MariaDB-Speicherung und keine erfundene Kalenderkurve. Das neue opt-
 Storage-Collector; Website bleibt SELECT-only. `/api/house-history` ist unabhängig
 vom Wallboxschema, Default `WEB_HOUSE_HISTORY_ENABLED=0`. Einrichtung ausschließlich
 im [Installationsguide](../../docs/installation.md#haus-netzleistung-dauerhaft-aufzeichnen-separates-house-schema).
-Neue Docker-/Pi-Abnahme offen. HTTP-Abrufzeit ist weiterhin keine Gerätemesszeit.
+Quellstand 3f3257f Docker-geprüft (acht Browsersuiten einschließlich PWA),
+aktuellen Freigabestand über PR #54 prüfen; Pi-Abnahme offen.
+HTTP-Abrufzeit ist weiterhin keine Gerätemesszeit.
 
 **Diagramme `/diagramme`:** über die gemeinsame Navigation öffnen. Vier
 elektrische Zeitverläufe, weitere Zustands-/Rohwertkurven unter „Zustands- &

@@ -114,6 +114,7 @@ function year(query) {
     assert.equal(await page.locator('#house-chart-description').innerText(), currentDescription, 'Late year reply cannot replace the active selection');
     for (const width of [320, 390, 768, 1440]) {
       await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       assert(await page.locator('#house-chart-svg *').count() < 15);
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       if ([320, 1440].includes(width)) {
@@ -121,6 +122,7 @@ function year(query) {
         for (const colorScheme of ['light', 'dark']) {
           await page.emulateMedia({ colorScheme });
           await page.waitForFunction(scheme => document.documentElement.dataset.effectiveTheme === scheme, colorScheme);
+          await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
           await page.screenshot({ path: `/artifacts/house-year-${width}-${colorScheme}.png`, fullPage: true, animations: 'disabled' });
         }
       }

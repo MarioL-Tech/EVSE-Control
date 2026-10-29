@@ -1,6 +1,7 @@
-# Haus-Netzleistung: persistente Historie (in Umsetzung)
+# Haus-Netzleistung: persistente Historie (implementiert, opt-in)
 
-Neuer Auftrag 2026-10-29. Noch keine produktive Migration/Aktivierung.
+Auftrag 2026-10-29. Quellstand 3f3257f Docker-geprüft, aktuellen Freigabestand
+über PR #54 prüfen. Noch keine produktive Migration/Aktivierung.
 Vorhandene MariaDB weiterverwenden; Preis-, Provider-, Wallbox- und Rawdaten
 niemals löschen/umschreiben. Website bleibt SELECT-only. Nur vorwärts ab
 Aktivierung aufzeichnen, keine früheren Hausmessungen erfinden.

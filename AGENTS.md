@@ -10,7 +10,7 @@ Aktueller Folgeauftrag (2026-10-29): Archivdiagramme wegen hoher Renderlast und
 weiterhin unbefriedigender Darstellung erneut überarbeiten; Haus-Netzleistung
 nun ausdrücklich dauerhaft speichern und in Stunde/Tag/weiteren Kalenderansichten
 anzeigen, oberhalb von „Diagnose“. Hausarchivierung ist als opt-in implementiert,
-aber noch nicht Docker-/Pi-abgenommen; bisheriger Live-RAM-Verlauf allein ist
+für Quellstand 3f3257f Docker-abgenommen, Pi-Abnahme offen; bisheriger Live-RAM-Verlauf allein ist
 kein SQL-Hausarchiv. Vorgabe zusätzlich: belegte Datenpunkte als Linien verbinden.
 Website bleibt SELECT-only, vorhandene Raw-/Preis-/Providerdaten erhalten,
 keine Produktionsmigration durch Agent. Main-Build 40782985667 scheiterte nach
@@ -21,7 +21,7 @@ Live-/Archiv-Readiness im Historienbrowsertest getrennt synchronisiert.
 Hotfix-PR #53 für 6d976fc ist reviewbereit: vollständige Docker-CI
 40846713475 und 40846704139 erfolgreich. Merge durch Projektinhaber.
 
-Aktuelle Haus-/Diagrammimplementierung (Feature-CI noch offen): bestehender
+Aktuelle Haus-/Diagrammimplementierung (Freigabehead über PR #54 prüfen): bestehender
 Website-Compose enthält optionalen separaten PHP-`house-publisher`, bestehender
 Storage-Compose einen `house-storage`, beide Profil `house-history`. Bestehender
 Broker, eigene HOUSE-Präfix-/ID-Variablen mit Default `evse/house`; Websitecontainer
@@ -52,8 +52,15 @@ vorhandene Minutenbuckets eines expliziten UTC-Bereichs (max. Kalenderjahr) in
 256er-Seiten erneut dirty, keine Raw-/Fremddaten-/DDL-/Versionsänderung. Kein
 automatischer Refresh beim Start; regulärer Worker verdichtet anschließend.
 Vertrag `docs/house-history-contract.md`, vollständige Einrichtung zentral in
-`docs/installation.md`. Neue Docker-/SQL-/Publisher-/Browser-/E2E-Tests vorbereitet,
-keine lokalen Hosttests und kein Pi-/ARM-/Dauerbetriebsnachweis.
+`docs/installation.md`. Neue Docker-/SQL-/Publisher-/Browser-/E2E-Tests bestanden
+für 3f3257f: Web 40870615802 und 40870609085, Storage-Matrix 40870615878 (MariaDB
+10.11, exakt 11.8.8 und rollendes 11.8). Acht Browsersuiten einschließlich PWA und
+unabhängigem Hausarchiv, echter PHP→MQTT→Python→SQL-Pfad mit laufender Aufnahme,
+SELECT-only-/Checksum-/Pending-/Dedupe-/Frische-/Lifecycle-/Gap-/DOM-Budgetfällen.
+Simulierte 320-/1440-px-Hausjahresbilder in Hell/Dunkel angesehen; erstes mobiles
+Fullpagebild nach Resize zu früh gemessen, reine Capturefixture wartet deshalb
+zusätzlich zwei RAFs. Diesen letzten Prüf-/Bildstand über PR #54 kontrollieren.
+Keine lokalen Hosttests und kein Pi-/ARM-/Dauerbetriebsnachweis oder Deployment.
 
 EVSE-Control ist eine Diplomarbeit zur Steuerung und Überwachung einer
 Elektrofahrzeug-Ladestation mit RFID-basierter Diebstahlsicherung.

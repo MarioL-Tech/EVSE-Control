@@ -1609,8 +1609,9 @@ HOUSE-PHP/JS-/acht Browsersuiten und drei MariaDB-Matrixversionen bleiben erhalt
 
 ### Haus-Netzleistung dauerhaft aufzeichnen (separates HOUSE-Schema)
 
-**Neue optionale Implementierung; Docker-/Pi-Abnahme noch offen. Nicht bereits
-aktiviert.** Sie verwendet dieselbe bestehende MariaDB und denselben Broker,
+**Neue optionale Implementierung; Quellstand 3f3257f Docker-geprüft, aktuellen
+Freigabehead über PR #54 prüfen. Pi-Abnahme offen, nicht bereits aktiviert.**
+Sie verwendet dieselbe bestehende MariaDB und denselben Broker,
 aber eigene Topics, Client-IDs und fünf additive `evse_house_*`-Tabellen. Keine
 Wallbox-/Preis-/Provider-/Rawdaten löschen oder umschreiben. Die Website führt
 weiter nur SELECTs aus. Ohne Aktivierung bleibt der bisherige RAM-Liveverlauf.
