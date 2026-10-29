@@ -15,7 +15,9 @@ Website bleibt SELECT-only, vorhandene Raw-/Preis-/Providerdaten erhalten,
 keine Produktionsmigration durch Agent. Main-Build 40782985667 scheiterte nach
 drei Hauswertprüfungen in der MQTT-Unabhängigkeitsphase; Hotfix ersetzt deren
 einmalige Folgebeobachtung durch begrenztes gemeinsames Warten bei unveränderten
-Anwendungsgrenzen und ergänzt redigierte Phasendiagnostik. CI-Abschluss offen.
+Anwendungsgrenzen und ergänzt redigierte Phasendiagnostik. Hotfix-CI bestätigt
+alle 17 Smartmeter-Szenarien; danach gefundene unabhängige Live-/Archiv-Readiness-
+Race im Historien-Browsertest getrennt synchronisiert, erneuter CI-Abschluss offen.
 
 EVSE-Control ist eine Diplomarbeit zur Steuerung und Überwachung einer
 Elektrofahrzeug-Ladestation mit RFID-basierter Diebstahlsicherung.

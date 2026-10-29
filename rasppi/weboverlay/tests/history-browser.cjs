@@ -102,6 +102,7 @@ const { FIELDS } = require('../static/newcalendar.js');
     await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok');
     await page.waitForFunction(() => document.querySelector('[data-series="power"]')?.getAttribute('d')?.includes('L'));
     assert.match(await page.locator('#history-source').innerText(), /Wallbox-Archiv/);
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Offline');
     assert.equal(await page.locator('#status').innerText(), 'Offline');
     assert((await path()).includes('L'), 'Archive renders while MQTT is offline');
     assert.equal(await page.locator('#chart-grid > figure').count(), 4);

@@ -6,6 +6,7 @@ Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
 ## 2026-10-29
 
+- **10:03** — **Test: Unabhängige Live-/Archiv-Readiness getrennt abwarten** — Hotfix-CI 40785742965 besteht alle 17 Haus-Smartmeter-Szenarien, erreicht danach die letzte Browsersuite und trifft eine unabhängige Erwartung „Offline“ unmittelbar nach Archivabschluss, während die Live-Abfrage vorübergehend „Lesefehler“ meldet. Archiv- und Liveantwort sind keine gegenseitigen Synchronisationsbarrieren. Test wartet begrenzt auf den weiterhin exakt geforderten Offlinezustand, bevor er historische Linien bestätigt. Keine Produktionslogik oder TTL-/Lückenanforderung geändert; erneute Docker-CI offen.
 - **00:05** — **Test: Haus-Smartmeter-/MQTT-Unabhängigkeit robust beobachten** — Main-CI 40782985667 für 9eb4a17 besteht PHP-/Historien-/MQTT-Prüfungen und drei signierte Hauswerte, scheitert danach vor Abschluss der Unabhängigkeitsprüfung. Der Test verlangte unmittelbar nach einer Live-Beobachtung eine weitere Live-Antwort ohne Readiness-Barriere, obwohl IPC-/Heartbeat-Grenzen unter Schedulinglast absichtlich fail-closed sind. Dieselben Bedingungen nun begrenzt gemeinsam beobachten, zusätzlich Wallbox tatsächlich offline/keine Werte und echte Haus-0 prüfen; keine TTL-/Lock-/Timeoutgrenzen der Anwendung verändert. Nur statische Phasenkennung im Fehlerfall, keine URLs/Bodys/Secrets. Docker-Verifikation noch offen.
 
 ## 2026-10-28
