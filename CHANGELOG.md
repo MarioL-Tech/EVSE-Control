@@ -6,6 +6,8 @@ Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
 ## 2026-10-29
 
+- **20:12** — **Zukunftssperre im vollständigen Dockerlauf bestätigt** — Codehead23ef0d2 besteht Web40936744288 und Storage40936744498 auf drei MariaDB-Versionen, einschließlich Zukunfts-Picker-/API-/DST-/Customprüfungen und realistischer SQL-Refreshrekonstruktion. Nachfolgende Zusatzfixtures sichern zukünftige SQL-Zeilen und den Wechsel von Coverage0-Punktcache zu belegten Linien ab; deren finaler Stand über PR#58. Betriebs-/Vertragsdokumentation trennt diese Codefreigabe weiterhin von ausstehender produktiver Refresh-/Pi-Kurvenabnahme. Keine Agent-Produktionsänderung oder erzwungene Gapüberbrückung.
+
 - **20:09** — **Refresh-Darstellung gegen stale Punktcache absichern** — Browser-Store-/Plotregression übernimmt zunächst fünf alte Coverage0-Intervalle als getrennte Punkte. Erst eine explizit neu berechnete API-Antwort darf daraus zwei verbundene Spannungsabschnitte machen; reale mittlere Lücke und unbekannter Ladezustand bleiben erhalten. Revision und gecachter Pfad müssen trotz unveränderter Messwertanzahl aktualisieren. Nur Docker-Testfixture, keine Umdeutung alter Daten im Renderer; neuer CI-Abschluss offen.
 
 - **20:07** — **Echten SQL-Nachweis für ausgeschlossene Zukunftsdaten ergänzen** — Neue Wegwerf-MariaDB-Fixture enthält eine zukünftige Stundenverdichtung innerhalb des laufenden Jahres: API muss weiterhin200/ok mit null gelesenen Messwerten und Next=null liefern, statt Zukunftszeilen erst nach dem Lesen als Fehler zu behandeln. Storage40936638289 für23ef0d2 erfolgreich einschließlich realistischer expliziter Coverage-Rekonstruktion; Webprüfung besteht PHP/JS-Build, TLS-/Gesamtabschluss noch offen. Nur Fixture ergänzt, keine Produktion oder andere Daten geändert.

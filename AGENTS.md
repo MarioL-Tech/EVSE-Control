@@ -4,7 +4,7 @@ Stand: 2026-10-29. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
-Aktuelle Nachbesserung (2026-10-29, in Arbeit): Zukünftige Kalenderperioden und
+Aktuelle Nachbesserung (2026-10-29, implementiert; Freigabestand PR#58): Zukünftige Kalenderperioden und
 benutzerdefinierte Enden nach jetzt in UI UND beiden Historien-APIs sperren;
 laufende Kalenderperioden bleiben auswählbar, Next am aktuellen Zeitraum null.
 Kalender-SELECTs dürfen nur bereits abgeschlossene vergangene Summaries lesen.
@@ -16,7 +16,11 @@ expliziter begrenzter --refresh-history-Weg empfohlen; regulärer Worker rekonst
 nur aus belegten Daten, keine blanket Verbindungen über gespeicherte Gapflags.
 Regression erweitert um realistische Online-Refreshs hinter jedem Sample und
 unbekanntes charging bei unveränderten Rohdaten/Preisen/Providern. Pi-Refresh-
-Ergebnis und neue Docker-Abnahme offen; kein Agent-Produktionszugriff.
+Ergebnis weiterhin offen; kein Agent-Produktionszugriff. Codehead23ef0d2 besteht
+Web40936744288 und Storage40936744498 auf drei MariaDB-Versionen; nachfolgende
+Zusatztests für ausgeschlossene Zukunfts-SQLzeilen und den Cachewechsel von
+Coverage0-Punkten auf belegte Linien sind in PR#58 enthalten. Aktuellen finalen
+Docker-/Freigabestand dort prüfen; Merge ausschließlich durch Projektinhaber.
 
 Aktueller Auftrag (2026-10-29, implementiert/Docker-geprüft, Pi-Abnahme offen): Stunde/Tag/Woche sollen
 dieselbe einfache Linienoptik wie Live bekommen. Echte Offline-/NULL-/Clock-/

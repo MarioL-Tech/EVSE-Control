@@ -14,7 +14,7 @@ keine zugesicherte Pi-/ARM-Laufzeit.
   leere zukünftige Intervalle enthalten, aber Abfragen lesen keine zukünftigen
   Summaries. `navigation.next` ist am aktuellen Zeitraum `null`. Die Oberfläche
   begrenzt alle Picker und verwirft zukünftige gespeicherte Auswahlen vor Fetch.
-  Diese neue Regel benötigt gesonderten Dockerabschluss; Live-Frische unverändert.
+  Prüf-/Freigabestand dieser neuen Regel: PR#58; Live-Frische unverändert.
 
 - Keine Löschung/Änderung bestehender Rohmessungen, Preis-/Providerdaten, Grants,
   Accounts, Server, Hardware, Netzwerke oder Ports. Website nur SELECT/read-only.
@@ -22,7 +22,10 @@ keine zugesicherte Pi-/ARM-Laufzeit.
 - Keine Jahresabfrage über Millionen Rohzeilen. Begrenzte gespeicherte Summaries.
 - Migration und Betrieb ausschließlich in Docker; kein Agent-Produktionszugriff.
 - Neues Schema ausdrücklich optional migrieren, nicht automatisch beim Start.
-- Kein automatisches Retention/Purge. Ein Jahr ist die Anzeigespanne, keine Löschfrist.
+- Schema2 allein aktiviert kein Retention/Purge. Separat autorisierte
+  quellgebundene Aufbewahrung ist in [minute-recording.md](minute-recording.md)
+  beschrieben und standardmäßig0/unbegrenzt. Ein Jahr ist die Anzeigespanne,
+  keine Löschfrist.
 
 ## Speichervertrag (Schema 2, additiv)
 
