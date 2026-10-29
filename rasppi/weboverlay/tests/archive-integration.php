@@ -180,6 +180,15 @@ try {
     $run('future period is rejected before any archive access', static function (): void {
         archiveReject(static fn() => HistoryRange::parse('period=year&date=9998&tz=UTC'));
     });
+    $run('current period never reads future materializations', static function () use ($reset, $insert, $config): void {
+        $reset();
+        $r = HistoryRange::parse('period=year&date=now&tz=UTC');
+        $future = intdiv(time(), 3600) * 3600 + 3600;
+        $insert(archiveFixture($future, 3600));
+        $v = (new HistoryArchive($config))->snapshot($r);
+        archiveAssert($v['status'] === 'ok' && array_sum(array_column($v['buckets'], 'samples')) === 0);
+        archiveAssert($v['navigation']['next'] === null);
+    });
     $run('corrupt JSON shape, invalid progress and future update fail closed', static function () use ($reset, $insert, $start, $root, $snapshot): void {
         $reset(); $row = archiveFixture($start); $row['data_json'] = '{}'; $insert($row);
         archiveAssert($snapshot()['status'] === 'unavailable');
