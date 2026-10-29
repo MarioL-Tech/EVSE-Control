@@ -21,6 +21,29 @@
     const history = root.OverlayHistory || (typeof require === 'function' ? require('./history.js') : null);
     return history?.calendarQuery(s);
   }
+  function calendarLimits(now = Date.now(), zone = ZONE) {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: zone,
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+      .formatToParts(now).map(part => [part.type, part.value]));
+    const day = `${p.year}-${p.month}-${p.day}`, month = day.slice(0, 7);
+    const thursday = new Date(`${day}T00:00:00Z`);
+    thursday.setUTCDate(thursday.getUTCDate() + 4 - (thursday.getUTCDay() || 7));
+    const year = thursday.getUTCFullYear();
+    const week = Math.ceil(((thursday - Date.UTC(year, 0, 1)) / 86400000 + 1) / 7);
+    return { hour: `${day}T${p.hour}:00`, day, week: `${year}-W${String(week).padStart(2, '0')}`,
+      month, year: p.year, custom: `${day}T${p.hour}:${p.minute}` };
+  }
+  function selectionAllowed(value, now = Date.now()) {
+    if (value === null) return true;
+    if (!query(value)) return false;
+    const limits = calendarLimits(now, value.tz);
+    if (value.period === 'custom') {
+      if (value.from) return utc(value.from) < utc(value.to) && utc(value.to) <= now;
+      return value.date_from < value.date_to && value.date_to <= limits.custom;
+    }
+    if (value.at) return Number.isFinite(utc(value.at)) && utc(value.at) <= now;
+    return value.date === 'now' || value.date <= limits[value.period];
+  }
   function validate(batch, now, requested) {
     if (!keys(batch, ['schema_version', 'read_only', 'status', 'reason', 'generated_at', 'range', 'selection',
       'navigation', 'aggregation', 'complete', 'progress', 'buckets']) || batch.schema_version !== 2 || batch.read_only !== true ||
@@ -245,7 +268,7 @@
           : { day: '2-digit', month: '2-digit', year: 'numeric' }) }));
     return timeFormats.get(key).format(t);
   }
-  function mount({ document, loader, archive, onChange, storage, eventTarget = root }) {
+  function mount({ document, loader, archive, onChange, storage, eventTarget = root, clock = () => Date.now() }) {
     const mode = document.getElementById('calendar-mode');
     if (!mode) return null;
     const picker = document.getElementById('calendar-date'), custom = document.getElementById('calendar-custom');
@@ -269,6 +292,7 @@
     }
     const persist = () => { try { storage?.setItem(KEY, JSON.stringify(selection)); } catch (_) { /* page-only */ } };
     function controls() {
+      const limits = calendarLimits(clock());
       picker.hidden = ['live', 'custom'].includes(mode.value); custom.hidden = mode.value !== 'custom';
       if (pickerLabel) pickerLabel.hidden = picker.hidden;
       const caption = ({ hour: 'Stunde', day: 'Datum', week: 'Kalenderwoche', month: 'Monat', year: 'Jahr' })[mode.value] || 'Datum';
@@ -280,14 +304,19 @@
       if (liveWindow) liveWindow.hidden = mode.value !== 'live';
       picker.type = ({ hour: 'datetime-local', day: 'date', week: 'week', month: 'month', year: 'number' })[mode.value] || 'date';
       picker.step = mode.value === 'hour' ? '3600' : '1';
-      if (mode.value === 'year') { picker.min = '1970'; picker.max = '9998'; }
-      else { picker.removeAttribute('min'); picker.removeAttribute('max'); }
+      if (mode.value === 'year') picker.min = '1970';
+      else picker.removeAttribute('min');
+      picker.max = limits[mode.value] || limits.day;
+      for (const id of ['calendar-from', 'calendar-to']) document.getElementById(id).max = limits.custom;
       picker.setAttribute('aria-label', `${caption} wählen · ${ZONE}`);
       for (const [id, key] of [['calendar-prev', 'previous'], ['calendar-next', 'next']])
-        document.getElementById(id).disabled = !navigation?.[key];
+        document.getElementById(id).disabled = !navigation?.[key] || !selectionAllowed(navigation[key], clock());
     }
     function select(value, save = true) {
       if (value !== null && (!query(value) || value.tz !== ZONE)) return false;
+      if (!selectionAllowed(value, clock())) {
+        controls(); label.textContent = 'Zukünftige Zeiträume sind nicht verfügbar.'; return false;
+      }
       selection = value; navigation = null; archive.clear(); loader.select(value);
       loader.setVisible(!document.hidden);
       mode.value = value?.period || 'live'; picker.value = value?.date === 'now' ? '' : value?.date || '';
@@ -314,6 +343,8 @@
     picker.addEventListener('change', () => {
       if (picker.value) select({ period: mode.value, date: picker.value, tz: ZONE });
     });
+    for (const element of [picker, document.getElementById('calendar-from'), document.getElementById('calendar-to')])
+      element.addEventListener('focus', controls);
     custom.addEventListener('submit', event => {
       event.preventDefault();
       const a = document.getElementById('calendar-from'), b = document.getElementById('calendar-to');
@@ -353,7 +384,7 @@
     if (!select(saved, false)) select(null, false);
     return { get selection() { return selection; }, loaded, reset() { navigation = null; controls(); publish(); } };
   }
-  const api = { KEY, ZONE, MAX_BINS, PERIODS, FIELDS, utc, validate, createArchiveStore, fieldFor, buildSummaryPlot, axisLabel, mount,
+  const api = { KEY, ZONE, MAX_BINS, PERIODS, FIELDS, utc, calendarLimits, selectionAllowed, validate, createArchiveStore, fieldFor, buildSummaryPlot, axisLabel, mount,
     currentSelection: null, currentRange: null };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.OverlayCalendar = api;

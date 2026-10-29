@@ -1,6 +1,6 @@
 # Kalenderhistorie und Verdichtung
 
-Implementierter Vertrag, Stand 2026-10-28. Docker-CI 40678971209 für c83b1cc
+Implementierter Vertrag, Stand 2026-10-29. Historische Docker-CI 40678971209 für c83b1cc
 erfolgreich; kein Pi-Deployment oder produktiver Backfill. Eine Jahres-Fixture
 verwendet 8.784 echte SQL-Stundenzeilen mit künstlichen Read-Countern, nicht
 15 Millionen eingefügte Rohzeilen. Beobachtete CI-Lesezeit 1.278 ms (amd64),
@@ -8,13 +8,24 @@ keine zugesicherte Pi-/ARM-Laufzeit.
 
 ## Unveränderliche Grenzen
 
+- Zukünftige Kalenderperioden oder explizite UTC-Anker nach jetzt liefern400,
+  ebenso benutzerdefinierte Bereiche mit einem Ende nach jetzt. Laufende Stunde/
+  Tag/Woche/Monat/Jahr bleiben auswählbar; deren kalendarische Achse darf noch
+  leere zukünftige Intervalle enthalten, aber Abfragen lesen keine zukünftigen
+  Summaries. `navigation.next` ist am aktuellen Zeitraum `null`. Die Oberfläche
+  begrenzt alle Picker und verwirft zukünftige gespeicherte Auswahlen vor Fetch.
+  Prüf-/Freigabestand dieser neuen Regel: PR#58; Live-Frische unverändert.
+
 - Keine Löschung/Änderung bestehender Rohmessungen, Preis-/Providerdaten, Grants,
   Accounts, Server, Hardware, Netzwerke oder Ports. Website nur SELECT/read-only.
 - Basisbetrieb Schema 1 und `/api/history?minutes=1|5|15` bleiben kompatibel.
 - Keine Jahresabfrage über Millionen Rohzeilen. Begrenzte gespeicherte Summaries.
 - Migration und Betrieb ausschließlich in Docker; kein Agent-Produktionszugriff.
 - Neues Schema ausdrücklich optional migrieren, nicht automatisch beim Start.
-- Kein automatisches Retention/Purge. Ein Jahr ist die Anzeigespanne, keine Löschfrist.
+- Schema2 allein aktiviert kein Retention/Purge. Separat autorisierte
+  quellgebundene Aufbewahrung ist in [minute-recording.md](minute-recording.md)
+  beschrieben und standardmäßig0/unbegrenzt. Ein Jahr ist die Anzeigespanne,
+  keine Löschfrist.
 
 ## Speichervertrag (Schema 2, additiv)
 

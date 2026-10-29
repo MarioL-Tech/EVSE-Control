@@ -260,9 +260,16 @@ class HistoryIntegration(unittest.TestCase):
         self.db.write(self.availability())
         for second in range(-2, 182, 2):
             self.db.write(self.sample(second, values={"charging": None, "active_power_w": 100}))
+            # Match the real publisher: each state is followed by a fresh
+            # online refresh, not just the single idealized startup baseline.
+            online = self.availability(second)
+            online['received_at'] += timedelta(microseconds=1)
+            self.db.write(online)
         self.drain()
         original = self.bucket()
         self.assertFalse(original["has_gap"])
+        self.assertEqual(original['coverage_seconds'], '60')
+        self.assertEqual(original['metrics']['charging']['nulls'], 30)
         # Simulate a persisted, conservative summary from the old algorithm.
         conservative = {**original, "has_gap": True, "coverage_seconds": "0"}
         other = self.source.upper()  # Binary source matching must not fold case.

@@ -4,6 +4,29 @@ Stand: 2026-10-29. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
+Aktuelle Nachbesserung (2026-10-29, implementiert; Freigabestand PR#58): Zukünftige Kalenderperioden und
+benutzerdefinierte Enden nach jetzt in UI UND beiden Historien-APIs sperren;
+laufende Kalenderperioden bleiben auswählbar, Next am aktuellen Zeitraum null.
+Kalender-SELECTs dürfen nur bereits abgeschlossene vergangene Summaries lesen.
+Betreiber-API zunächst239 belegte Tagesintervalle,237 has_gap,3 incomplete,
+erste6 coverage_seconds=0. Nutzer stellt ausdrücklich klar: keine erneute
+Komprimierung/Verdichtung beauftragt, nur Diagrammdarstellung. Die daraus zuvor
+abgeleitete Refresh-Empfehlung ist zurückgenommen; keine Produktionsaktion durch
+Agent. Neuer Nutzerscreenshot vom29.10.,20:40 zeigt am rechten Rand bereits
+verbundene neuere Werte neben älteren Punkten. Nutzer vermutet letzte Änderung
+als Ursache, ohne kausalen Nachweis oder bestätigte Refresh-Ausführung.
+Auftrag nun: PR#58 vorbereiten, keine vorschnelle Lockerung der Lückenprüfung.
+Begonnene uncommittete Rendererlockerung und Erweiterung auf alle Perioden
+vollständig verworfen; bisherige Renderer bleiben unverändert. Bestehender
+expliziter Refresh ist nur separate optionale Wartung, keine Diagrammvoraussetzung.
+Codehead1ad27a7 besteht Web40940945771/40940936832 und Storage40940945815
+auf drei MariaDB-Versionen:171 JS-Fälle,83 PHP-Kalenderfälle,18 Archiv-SQL-/HTTP-
+Szenarien,35 Theme-/Settingsfälle und181 Storagefälle je DB-Version. Kalender-/
+Lückenbilder aus simulierter CI angesehen; kein Nachweis durchgehender Altwerte.
+Aktuellen finalen Dokumentations-/Freigabestand über PR#58 prüfen; Merge nur
+durch Projektinhaber. Zusätzlicher Modelltest-Lookup scheiterte am Kontingent,
+ohne Toolausführung/Ergebnis; keine zusätzliche unabhängige Prüfung behaupten.
+
 Aktueller Auftrag (2026-10-29, implementiert/Docker-geprüft, Pi-Abnahme offen): Stunde/Tag/Woche sollen
 dieselbe einfache Linienoptik wie Live bekommen. Echte Offline-/NULL-/Clock-/
 Lifecycle-Unterbrechungen bleiben getrennt; Min-Max-Bänder entfallen in diesen

@@ -219,8 +219,18 @@ const { FIELDS } = require('../static/newcalendar.js');
       // This suite has a virtual date and no house fixture. A disabled server
       // response outside that clock's freshness window is unavailable, never
       // a fabricated house curve. Exact status cases have their own suite.
-      await page.waitForFunction(() => /Hausarchiv ist (deaktiviert|nicht verfügbar)/i.test(
-        document.getElementById('house-chart-description')?.textContent || ''));
+      // HOUSE completes independently of the Wallbox request. Its response
+      // can queue a RAF after the preceding 32ms barrier; waiting with a
+      // paused clock then deadlocks that paint forever. Let real frames run
+      // only until this status is painted, then freeze again for assertions.
+      await page.clock.resume();
+      try {
+        await page.waitForFunction(() => /Hausarchiv ist (deaktiviert|nicht verfügbar)/i.test(
+          document.getElementById('house-chart-description')?.textContent || ''), null, { timeout: 5000 });
+      } finally {
+        await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000));
+      }
+      await page.clock.runFor(32);
       assert.equal(await page.locator('#chart-range').isDisabled(), true);
       assert.equal(await page.locator('#chart-range').isVisible(), false, 'Minute picker is not presented as the archive window');
       assert((await page.locator('#calendar-label').innerText()).includes('Europe/Vienna'));
@@ -384,6 +394,15 @@ const { FIELDS } = require('../static/newcalendar.js');
     assert.equal(await page.locator('[data-summary-series="power"]').count(), retainedGlyphs);
     const calendarStored = await page.evaluate(() => localStorage.getItem('evse-calendar-v1'));
     assert.equal(JSON.parse(calendarStored).period, 'year'); assert(!calendarStored.includes('buckets'));
+    // Native limits are not sufficient: scripted/manual future changes must
+    // not issue requests or replace the last accepted preference either.
+    assert.equal(await page.locator('#calendar-date').getAttribute('max'), '2026');
+    const requestCount = calendarRequests.length;
+    await page.locator('#calendar-date').fill('2027');
+    await page.locator('#calendar-date').dispatchEvent('change');
+    assert.equal(calendarRequests.length, requestCount);
+    assert.equal(await page.evaluate(() => localStorage.getItem('evse-calendar-v1')), calendarStored);
+    assert((await page.locator('#calendar-label').innerText()).includes('Zukünftige'));
     await page.locator('[data-calendar-period="live"]').click();
     assert.equal(await page.locator('#chart-range').isDisabled(), false);
     assert.equal(await page.locator('ul.chart-options input').count(), 16);
