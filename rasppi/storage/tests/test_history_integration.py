@@ -230,6 +230,29 @@ class HistoryIntegration(unittest.TestCase):
         self.assertEqual(self.bucket(), first)
         self.assertEqual(self.bucket(seconds=3600)["metrics"]["active_power_w"]["n"], 31)
 
+    def test_left_adjoining_retained_edge_and_in_bucket_tie(self):
+        self.db.write(self.availability())
+        left = self.sample(-2)
+        left["retained"] = True
+        self.db.write(left)
+        for second in range(0, 62, 2):
+            self.db.write(self.sample(second, values={"active_power_w": 0, "charging": None}))
+        self.drain()
+        healthy = self.bucket()
+        self.assertTrue(healthy["complete"])
+        self.assertFalse(healthy["has_gap"])
+        self.assertEqual(healthy["coverage_seconds"], "60")
+        self.assertEqual(healthy["metrics"]["active_power_w"]["sum"], "0")
+        self.assertEqual(healthy["metrics"]["charging"]["nulls"], 30)
+        # A different payload at the same in-bucket time is not deduplicated
+        # and must remain ambiguous, even with 60 seconds of other good edges.
+        self.db.write(self.sample(0, values={"active_power_w": 1, "charging": None}))
+        self.drain()
+        tied = self.bucket()
+        self.assertEqual(tied["samples"], 31)
+        self.assertEqual(tied["coverage_seconds"], "60")
+        self.assertTrue(tied["has_gap"])
+
     def test_explicit_refresh_requeues_only_existing_source_minutes_in_range(self):
         import threading
         from storage.history_refresh import refresh_history

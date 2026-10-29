@@ -11,9 +11,9 @@
     let points = [], lastStamp = null, lastClock = null, broken = true, revision = 0;
     function gap() { broken = true; }
     function prune(now) {
-      const next = points.filter(p => p.t >= now - RETENTION_MS).slice(-MAX_POINTS);
-      if (next.length !== points.length) revision++;
-      points = next;
+      if (points.length > MAX_POINTS || points.length && points[0].t < now - RETENTION_MS) {
+        points = points.filter(p => p.t >= now - RETENTION_MS).slice(-MAX_POINTS); revision++;
+      }
     }
     return {
       gap,
@@ -109,7 +109,19 @@
     finish();
     return { ...scale, path, band, markers: [], count };
   }
-  const api = { RETENTION_MS, MAX_POINTS, MAX_GAP_MS, timestamp, createHistory, buildPlot, buildArchivePlot };
+  function historyDescription({ status, archive, count, complete, hasSnapshot, checked }) {
+    const label = archive ? 'Hausarchiv' : 'SQL-Hausverlauf';
+    const state = status === 'disabled' ? `${label} ist deaktiviert.`
+      : status === 'unavailable' ? `${label} ist nicht verfügbar.`
+        : status !== 'ok' ? `${label} wird geladen.` : '';
+    const retained = state && hasSnapshot ? ' Zuvor geladene Daten; kein erfolgreicher aktueller Abruf.' : '';
+    if (!checked) return `${state}${retained}${state ? ' ' : ''}Kurve ausgeblendet.`;
+    if (state) return `${state}${retained}`;
+    const pending = complete === false ? ' Verdichtung/Verarbeitung noch unvollständig.' : '';
+    if (!count) return `Keine Messpunkte im gewählten Zeitraum.${pending}`;
+    return `${count} Messpunkte · Bezug (+) / Einspeisung (−)${pending}`;
+  }
+  const api = { RETENTION_MS, MAX_POINTS, MAX_GAP_MS, timestamp, createHistory, buildPlot, buildArchivePlot, historyDescription };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof document === 'undefined' || root.location?.pathname !== '/diagramme') return;
   const figure = document.getElementById('chart-house'), svg = document.getElementById('house-chart-svg');
@@ -118,7 +130,7 @@
   const history = createHistory(), range = document.getElementById('chart-range'), mode = document.getElementById('calendar-mode');
   const persistence = root.OverlayHouseHistory, store = persistence?.createStore();
   let selection = root.OverlayCalendar?.currentSelection || null, selectedRange = root.OverlayCalendar?.currentRange || null;
-  let lastDraw = '', pending = false, archiveQuery = null;
+  let lastDraw = '', pending = false, archiveQuery = null, loadStatus = 'loading', statusRevision = 0;
   const defer = typeof root.queueMicrotask === 'function' ? root.queueMicrotask.bind(root) : callback => Promise.resolve().then(callback);
   const schedule = () => {
     if (pending || document.hidden) return;
@@ -126,6 +138,10 @@
     root.requestAnimationFrame(() => { pending = false; draw(); });
   };
   const loader = persistence?.createLoader({
+    onState(state) {
+      const next = state.status === 'browser' ? 'loading' : state.status;
+      if (loadStatus !== next) { loadStatus = next; statusRevision++; schedule(); }
+    },
     importHistory(batch, now) {
       const revision = store.revision, ok = store.importHistory(batch, now);
       if (ok && store.revision !== revision) schedule();
@@ -135,7 +151,7 @@
       const revision = store.revision, previousQuery = archiveQuery;
       const ok = store.importHistory(batch, now, requested);
       if (ok && batch.status === 'ok') {
-        const query = root.OverlayHistory.calendarQuery(requested), snapshot = store.archive();
+        const query = root.OverlayHistory.calendarQuery(requested), snapshot = store.archiveView();
         archiveQuery = query;
         // Metadata only, and only after strict HOUSE validation. Wallbox may
         // be disabled; its loader is never a prerequisite for this request.
@@ -167,17 +183,17 @@
   checkbox.checked = true;
   function draw(now = Date.now()) {
     const archive = selection !== null || (mode && mode.value !== 'live'), minutes = Number(range?.value || 5);
-    const live = history.window(now, minutes);
-    const batch = archive ? store?.archive() : null;
+    const batch = archive ? store?.archiveView() : null;
     const matches = !!(selection && batch && root.OverlayHistory?.calendarQuery(selection) === archiveQuery &&
       batch.selection.period === selection.period && batch.range.timezone === selection.tz &&
       (!selection.date || selection.date === 'now' || batch.selection.date === selection.date) &&
       (!selection.at || (timestamp(selection.at) >= timestamp(batch.range.from) && timestamp(selection.at) < timestamp(batch.range.to))) &&
       (!selection.from || (selection.from === batch.range.from && selection.to === batch.range.to)) &&
       (!selectedRange || (timestamp(selectedRange.from) === timestamp(batch.range.from) && timestamp(selectedRange.to) === timestamp(batch.range.to))));
-    const points = store ? store.points(live, now, minutes) : live;
+    const live = archive ? [] : history.window(now, minutes);
+    const points = archive ? [] : store ? store.points(live, now, minutes) : live;
     const width = Math.max(240, Math.round(figure.getBoundingClientRect().width - 32 || 500)), height = 250;
-    const signature = JSON.stringify([archive ? null : history.revision, store?.revision, archiveQuery, minutes, selection,
+    const signature = JSON.stringify([statusRevision, archive ? null : history.revision, store?.revision, archiveQuery, minutes, selection,
       selectedRange, checkbox.checked, width, archive ? null : [points.length, points[0]?.t]]);
     if (signature === lastDraw) return;
     lastDraw = signature;
@@ -188,9 +204,11 @@
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     const plot = archive && matches ? buildArchivePlot(batch, geometry)
       : buildPlot(points, now - ([1, 5, 15].includes(minutes) ? minutes : 5) * 60000, now, geometry);
-    description.textContent = archive && !matches ? 'Keine Haus-Archivdaten verfügbar.'
-      : !checkbox.checked ? 'Kurve ausgeblendet.'
-        : `${plot.count} Messpunkte · Bezug (+) / Einspeisung (−)`;
+    const snapshot = archive ? (matches ? batch : null) : store?.rawView();
+    description.textContent = historyDescription({ status: loadStatus, archive,
+      count: archive && !matches ? 0 : plot.count,
+      complete: snapshot ? snapshot.complete && (!archive || Object.values(snapshot.progress).every(Boolean)) : false,
+      hasSnapshot: !!snapshot, checked: checkbox.checked });
     svg.replaceChildren();
     if (svg.hidden) return;
     svg.append(node('path', { d: `M${geometry.left},${geometry.top}V${geometry.bottom}H${geometry.right}M${geometry.left},${plot.zeroY}H${geometry.right}`, fill: 'none', stroke: 'currentColor', 'stroke-opacity': '.3' }));
@@ -215,7 +233,7 @@
   api.observe = view => {
     const revision = history.revision;
     history.observe(view); loader?.tick();
-    if (history.revision !== revision) schedule();
+    if (!selection && (!mode || mode.value === 'live') && history.revision !== revision) schedule();
   };
   root.OverlayHouseChart = api;
   // Explicit user choices apply immediately; only automatic updates are

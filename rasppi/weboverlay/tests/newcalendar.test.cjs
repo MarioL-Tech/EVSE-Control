@@ -122,6 +122,30 @@ test('archive remains independent of raw/live buffer, has copy ownership and pre
   first.buckets.length = 0; assert.equal(store.size, 1);
   store.clear(); assert.equal(store.snapshot(), null); assert.equal(store.size, 0);
 });
+test('immutable render views and unchanged data revisions avoid archive copies and duplicate rebuilding', () => {
+  const store = calendar.createArchiveStore(), b = fixture();
+  assert(store.importHistory(b, now));
+  const view = store.view(), revision = store.revision;
+  assert(Object.isFrozen(view)); assert(Object.isFrozen(view.buckets[0].metrics));
+  assert.throws(() => { view.buckets.length = 0; }, TypeError);
+  const newer = fixture({ generated_at: new Date(now + 1000).toISOString(), reason: 'Neu abgerufen' });
+  assert(store.importHistory(newer, now + 1000));
+  assert.equal(store.revision, revision); assert.equal(store.view(), view);
+  newer.buckets[0].metrics.active_power_w.max = 100;
+  assert(store.importHistory(newer, now + 1000));
+  assert.equal(store.revision, revision + 1); assert.notEqual(store.view(), view);
+});
+test('archive plotting reads only selected group metrics and formats interval labels lazily', () => {
+  const b = fixture();
+  for (const field of calendar.FIELDS.filter(f => f !== 'active_power_w'))
+    Object.defineProperty(b.buckets[0].metrics, field, { get() { throw Error('unselected metric touched'); } });
+  const p = calendar.buildSummaryPlot(b, charts.GROUPS[0], charts.defaults().selected, charts);
+  assert.equal(p.count, 150); assert.equal(p.paths.length, 1);
+  assert(p.paths[0].renderPaths.length > 0);
+  assert.match(p.paths[0].labelAt(0), /150 Werte/);
+  assert.equal(p.paths[0].labelAt(9), null);
+  assert.equal(p.paths[0].glyphs.length, 2, 'Optional logical glyph access stays compatible');
+});
 test('full response validation is atomic, bounded, rejects foreign navigation and wrong selection', () => {
   const invalid = [b => b.buckets.push(...Array(512).fill(b.buckets[0])),
     b => b.buckets[0].metrics.active_power_w.mean = Infinity,

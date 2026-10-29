@@ -1360,6 +1360,13 @@ PR #33 wurde durch den Projektinhaber gemergt; obige Updatefolge verwenden.
 
 ### Lokale Konfiguration und optionale Zugangsdaten
 
+**Geplant, noch nicht verfügbar:** Alle bisher über `.env` gesetzten
+Projektkonfigurationen sollen später zentral unter Settings verwaltbar sein.
+Bis zu einer gesondert implementierten, geschützten Administration bleibt die
+nachfolgende lokale Einrichtung verbindlich. Zugangsdaten nicht in Browserstorage
+ablegen; geänderte Compose-Umgebungswerte benötigen weiterhin die dokumentierte
+Containerneuerstellung. Die heutige Website schreibt keine Konfiguration.
+
 Eigene `.env` unter `rasppi/weboverlay/`, unabhängig von `rasppi/wallbox/.env`:
 
 | Variable | Default / Bedeutung |
@@ -1400,6 +1407,17 @@ Betriebsart dieselben `-f`-Optionen auch für Updates/Logs/Stop verwenden. Keine
 Secrets committen, in Chat posten oder als CLI-Argumente weitergeben.
 
 ### Diagnose, Tests und Update
+
+Bei einem leeren Hausdiagramm zuerst zwischen Livequelle und SQL-Archiv
+unterscheiden: Ein Livewert aus `/api/smartmeter` bestätigt keine Speicherung.
+`/api/house-history` unterscheidet `disabled`, `unavailable` und `ok`; eine
+erfolgreich leere Abfrage ist kein belegter Nullleistungsverlauf. Bei Bedarf
+nur Status, `complete`, `progress` und Sample-/Bucketanzahlen weitergeben,
+niemals `.env`, vollständige Containerkonfiguration oder private Quellen.
+Aktivierung, übereinstimmende SQL-Quellkennung und getrennte Storagekonfiguration
+stehen unter „Haus-Netzleistung dauerhaft aufzeichnen“. Bei Fehlern nach einem
+erfolgreichen Abruf bleiben historische Kurven erhalten, werden aber als zuvor
+geladen gekennzeichnet; die unabhängige Livekarte wird nicht dadurch aufgefrischt.
 
 Im Verzeichnis `rasppi/weboverlay/`:
 

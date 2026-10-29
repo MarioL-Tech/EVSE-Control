@@ -152,7 +152,9 @@ def minute(start, rows, events, context_complete=True):
                     or event.get("availability") != "online")
         for left, right in zip(ordered, ordered[1:]):
             a, b = left["measured_at"], right["measured_at"]
-            if b < start or a >= end:
+            # A left-adjoining edge covers none of this bucket. Keep tied
+            # samples at/inside the bucket, however: their ordering is unknown.
+            if (b <= start and a < start) or a >= end:
                 continue
             delta = b - a
             ra, rb = left["received_at"], right["received_at"]

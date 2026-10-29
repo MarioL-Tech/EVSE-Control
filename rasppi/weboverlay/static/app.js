@@ -6,13 +6,15 @@
     stale: 'Daten veraltet', clock_error: 'Zeitfehler', invalid: 'Ungültige Daten',
     read_error: 'Lesefehler'
   };
-  const number = (value, digits = 1) => new Intl.NumberFormat('de-DE', {
+  const numberFormats = new Map([1, 2].map(digits => [digits, new Intl.NumberFormat('de-DE', {
     minimumFractionDigits: digits, maximumFractionDigits: digits
-  }).format(value);
+  })]));
+  const dateFormat = new Intl.DateTimeFormat('de-DE', { dateStyle: 'short', timeStyle: 'medium' });
+  const number = (value, digits = 1) => numberFormats.get(digits).format(value);
   const flag = value => value === true ? 'Ja' : value === false ? 'Nein' : 'Unbekannt';
   const finite = value => typeof value === 'number' && Number.isFinite(value);
   const date = value => typeof value === 'string' && Number.isFinite(Date.parse(value))
-    ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(value)) : '—';
+    ? dateFormat.format(new Date(value)) : '—';
   function validValues(v) {
     return v && ['error_code', 'socket_lock_state', 'charging_state_raw', 'charging_state'].every(k => Number.isInteger(v[k]))
       && ['current_limit_a', 'active_power_w', 'session_energy_wh'].every(k => finite(v[k]))
@@ -68,13 +70,12 @@
       reset, snapshot
     };
   }
-  function present(view) {
+  function presentStatic(view) {
     const v = view.values, e = view.envelope;
     const result = {
       status: statuses[view.status] || statuses.invalid, reason: view.reason,
       broker: flag(e ? e.broker_connected : null),
       availability: e && e.availability === 'online' ? 'Online' : e && e.availability === 'offline' ? 'Offline' : 'Unbekannt',
-      freshness: v ? `${number(view.remaining / 1000, 1)} s` : '—',
       plugged: flag(v ? v.plugged_in : null), charging: flag(v ? v.charging : null),
       below: flag(v ? v.below_commanded_current : null),
       power: v ? `${number(v.active_power_w / 1000, 2)} kW` : '—',
@@ -84,7 +85,6 @@
       'charging-raw': v ? String(v.charging_state_raw) : '—', lock: v ? String(v.socket_lock_state) : '—',
       'wallbox-error': v ? v.error_code === 0 ? 'Kein Wallbox-Fehler · Code 0' : `Wallbox-Fehler · Code ${v.error_code}` : '—',
       timestamp: e ? date(e.timestamp) : '—', 'last-success': e ? date(e.last_success_at) : '—',
-      age: v && finite(e.age_seconds) ? `${number(e.age_seconds + Math.max(0, e.fresh_for_seconds - view.remaining / 1000))} s` : '—',
       'read-error': e && typeof e.error === 'string' ? e.error : '—'
     };
     for (let i = 0; i < 3; i++) {
@@ -93,27 +93,56 @@
     }
     return result;
   }
-  if (typeof module !== 'undefined' && module.exports) module.exports = { createViewState, present, flag, TIMEOUT_MS };
+  function presentFreshness(view) {
+    const v = view.values, e = view.envelope;
+    return {
+      freshness: v ? `${number(view.remaining / 1000, 1)} s` : '—',
+      age: v && finite(e.age_seconds) ? `${number(e.age_seconds + Math.max(0, e.fresh_for_seconds - view.remaining / 1000))} s` : '—'
+    };
+  }
+  function present(view) { return { ...presentStatic(view), ...presentFreshness(view) }; }
+  function createRenderer({ document, charts, formatStatic = presentStatic }) {
+    let previous = null;
+    const write = values => {
+      for (const [id, value] of Object.entries(values)) {
+        const element = document.getElementById(id);
+        if (element && element.textContent !== value) element.textContent = value;
+      }
+    };
+    const tone = (id, value) => {
+      const element = document.getElementById(id);
+      if (element && element.dataset.tone !== value) element.dataset.tone = value;
+    };
+    return function render(view) {
+      // receive() replaces the envelope with each parsed response: identity,
+      // not timestamp equality, preserves changed values within one second.
+      const changed = !previous || previous.envelope !== view.envelope || previous.values !== view.values ||
+        previous.status !== view.status || previous.reason !== view.reason;
+      if (changed) {
+        write(formatStatic(view));
+        tone('status', view.status === 'live' ? 'good' : view.status === 'waiting' ? 'muted' : 'warning');
+        tone('wallbox-error', view.values && view.values.error_code !== 0 ? 'warning' : 'muted');
+        const warning = document.getElementById('wallbox-warning');
+        const message = view.values && view.values.error_code !== 0 ? `Wallbox meldet Fehlercode ${view.values.error_code}.` : '';
+        if (warning) {
+          if (warning.hidden !== !message) warning.hidden = !message;
+          if (warning.textContent !== message) warning.textContent = message;
+        }
+        previous = view;
+      }
+      write(presentFreshness(view));
+      // This is also the loader/retry and chart clock. Keep it running on
+      // unchanged/offline freshness ticks independently of presentation caches.
+      charts.update(view);
+    };
+  }
+  if (typeof module !== 'undefined' && module.exports) module.exports = { createViewState, present, presentStatic, createRenderer, flag, TIMEOUT_MS };
   if (typeof document === 'undefined') return;
   const state = createViewState();
   const charts = window.OverlayCharts.mount();
+  const renderView = createRenderer({ document, charts });
   let active = null, pollTimer = null;
-  function render() {
-    const view = state.snapshot();
-    for (const [id, value] of Object.entries(present(view))) {
-      const element = document.getElementById(id);
-      // Avoid repeating unchanged live-region text on every countdown tick.
-      if (element && element.textContent !== value) element.textContent = value;
-    }
-    document.getElementById('status').dataset.tone = view.status === 'live' ? 'good' : view.status === 'waiting' ? 'muted' : 'warning';
-    const error = document.getElementById('wallbox-error');
-    if (error) error.dataset.tone = view.values && view.values.error_code !== 0 ? 'warning' : 'muted';
-    const warning = document.getElementById('wallbox-warning');
-    const message = view.values && view.values.error_code !== 0 ? `Wallbox meldet Fehlercode ${view.values.error_code}.` : '';
-    warning.hidden = !message;
-    if (warning.textContent !== message) warning.textContent = message;
-    charts.update(view);
-  }
+  function render() { renderView(state.snapshot()); }
   async function poll() {
     if (active || document.hidden) return;
     clearTimeout(pollTimer);

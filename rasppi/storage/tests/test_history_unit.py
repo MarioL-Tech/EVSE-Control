@@ -34,6 +34,35 @@ def online(second=-60, **changes):
 
 
 class HistoryStatistics(unittest.TestCase):
+    def test_bad_left_adjoining_edge_does_not_poison_full_bucket(self):
+        for changes in (dict(retained=True), dict(status="error"),
+                        dict(received_at=START - timedelta(seconds=30))):
+            with self.subTest(changes=changes):
+                reads = [row(-2, 1, **changes)] + [row(s, s + 3) for s in range(0, 62, 2)]
+                data = minute(START, reads, [online()])
+                self.assertTrue(data["complete"])
+                self.assertEqual(data["coverage_seconds"], "60")
+                self.assertFalse(data["has_gap"])
+                self.assertEqual(data["samples"], 30)
+
+    def test_bad_edge_with_positive_overlap_still_breaks_bucket(self):
+        reads = [row(-2, 1, retained=True),
+                 row(0, 2, measured_at=START + timedelta(microseconds=1))]
+        reads += [row(s, s + 3) for s in range(2, 62, 2)]
+        data = minute(START, reads, [online()])
+        self.assertTrue(data["has_gap"])
+        self.assertEqual(data["coverage_seconds"], "59.999999")
+
+    def test_tied_samples_at_start_and_inside_bucket_remain_ambiguous(self):
+        for second in (0, 20):
+            with self.subTest(second=second):
+                reads = [row(s, s + 3) for s in range(-2, 62, 2)]
+                reads.append(row(second, 1000))
+                data = minute(START, reads, [online()])
+                self.assertEqual(data["coverage_seconds"], "60")
+                self.assertTrue(data["has_gap"])
+                self.assertEqual(data["samples"], 31)
+
     def test_online_refreshes_do_not_break_continuous_measurements(self):
         reads = [row(s, s + 3) for s in range(-2, 62, 2)]
         events = [online()] + [online(s, received_at=START + timedelta(seconds=s, microseconds=1))

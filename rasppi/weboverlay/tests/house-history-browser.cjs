@@ -39,6 +39,7 @@ function year(query) {
   try {
     const context = await browser.newContext();
     let houseRequests = 0, holdDate = null, releaseHeld = null, heldReady = null;
+    let houseMode = 'ok', liveMeter = false, releaseStatus = null;
     await context.route('**/api/state', route => route.fulfill({ json: { schema_version: 1, read_only: true,
       status: 'offline', reason: 'MQTT nicht verbunden.', broker_connected: false, availability: null, timestamp: null,
       last_success_at: null, age_seconds: null, fresh_for_seconds: 0, values: null, error: null } }));
@@ -51,11 +52,28 @@ function year(query) {
       const data = raw(Date.now()); data.status = 'disabled'; data.reason = 'Nicht eingerichtet'; data.complete = false; data.samples = [];
       return route.fulfill({ json: data });
     });
-    await context.route('**/api/smartmeter', route => route.fulfill({ json: { schema_version: 1, read_only: true,
+    await context.route('**/api/smartmeter', route => route.fulfill({ json: liveMeter ? { schema_version: 1, read_only: true,
+      status: 'live', reason: 'Aktuell', power_w: 420, fetched_at: iso(Date.now()), age_seconds: 0, fresh_for_seconds: 10 }
+      : { schema_version: 1, read_only: true,
       status: 'offline', reason: 'Nicht verfügbar', power_w: null, fetched_at: null, age_seconds: null, fresh_for_seconds: 0 } }));
     await context.route('**/api/house-history?**', async route => {
       houseRequests++;
       const q = new URL(route.request().url()).searchParams;
+      const fixtureMode = houseMode;
+      if (fixtureMode === 'loading') await new Promise(resolve => { releaseStatus = resolve; });
+      if (fixtureMode === 'http') return route.fulfill({ status: 500, body: '' });
+      if (fixtureMode === 'json') return route.fulfill({ status: 200, contentType: 'application/json', body: '{' });
+      if (fixtureMode === 'network') return route.abort('failed');
+      if (['disabled', 'unavailable', 'empty', 'incomplete'].includes(fixtureMode)) {
+        const data = q.has('period') ? year(q) : raw(Date.now());
+        if (['disabled', 'unavailable'].includes(fixtureMode)) data.status = fixtureMode;
+        if (fixtureMode !== 'incomplete') {
+          if (q.has('period')) data.buckets = []; else data.samples = [];
+        }
+        data.complete = fixtureMode === 'empty';
+        if (data.progress) data.progress = { samples_done: data.complete, events_done: data.complete };
+        return route.fulfill({ status: fixtureMode === 'unavailable' ? 503 : 200, json: data });
+      }
       if (holdDate && q.get('date') === holdDate && !releaseHeld) {
         const data = year(q);
         await new Promise(resolve => {
@@ -129,6 +147,43 @@ function year(query) {
     }
     await page.locator('#show-house-power').uncheck(); assert(!await page.locator('#house-chart-svg').isVisible());
     await page.locator('#show-house-power').check(); assert(await page.locator('#house-chart-svg').isVisible());
+    // Exercise the existing description only, with real loader callbacks and
+    // live HTTP values independent from every archive availability state.
+    liveMeter = true;
+    const description = page.locator('#house-chart-description');
+    const expectDescription = async text => {
+      await page.waitForFunction(text => document.getElementById('house-chart-description')?.textContent.includes(text), text);
+      await page.waitForFunction(() => document.getElementById('grid-power')?.textContent.includes('0,42'));
+    };
+    for (const [fixture, text] of [['disabled', 'ist deaktiviert'], ['unavailable', 'ist nicht verfügbar'],
+      ['http', 'ist nicht verfügbar'], ['json', 'ist nicht verfügbar'], ['network', 'ist nicht verfügbar'],
+      ['empty', 'Keine Messpunkte im gewählten Zeitraum'], ['incomplete', 'noch unvollständig']]) {
+      houseMode = fixture; await page.reload(); await expectDescription(text);
+      if (fixture !== 'incomplete') {
+        assert.equal(await curve.count() ? await curve.getAttribute('d') : '', '', 'No invented zero line');
+        assert(!(await description.innerText()).includes('Zuvor geladene'));
+      }
+      if (['disabled', 'empty'].includes(fixture))
+        await page.screenshot({ path: `/artifacts/house-status-${fixture}.png`, fullPage: true, animations: 'disabled' });
+    }
+    houseMode = 'loading'; releaseStatus = null; await page.reload();
+    await expectDescription('wird geladen');
+    await page.waitForFunction(() => document.getElementById('house-chart-svg')?.getAttribute('display') === 'none');
+    assert(releaseStatus, 'Loading fixture holds the request');
+    releaseStatus(); await expectDescription('Messpunkte ·');
+    const retainedPath = await curve.getAttribute('d');
+    const refreshSameSelection = async () => page.locator('#calendar-date').dispatchEvent('change');
+    for (const fixture of ['unavailable', 'disabled', 'http', 'json', 'network']) {
+      houseMode = fixture; await refreshSameSelection();
+      await expectDescription(fixture === 'disabled' ? 'ist deaktiviert' : 'ist nicht verfügbar');
+      assert.match(await description.innerText(), /Zuvor geladene Daten; kein erfolgreicher aktueller Abruf/);
+      assert.equal(await curve.getAttribute('d'), retainedPath, 'Failures retain the matching historical curve');
+      assert(await page.locator('#house-chart-svg').isVisible());
+      if (fixture === 'unavailable')
+        await page.screenshot({ path: '/artifacts/house-status-retained-error.png', fullPage: true, animations: 'disabled' });
+      houseMode = 'ok'; await refreshSameSelection(); await expectDescription('Messpunkte ·');
+      assert.doesNotMatch(await description.innerText(), /nicht verfügbar|deaktiviert|Zuvor geladene/);
+    }
     assert.deepEqual(errors, []); await context.close();
     console.log('House history browser checks passed');
   } finally { await browser.close(); }

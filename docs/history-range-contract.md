@@ -124,6 +124,18 @@ werden nicht nachträglich vom Browser umgedeutet; gezielter optionaler
 Session-Resets bleiben sichtbar/erklärbar, nicht künstlich konstante Kurven.
 Stunden-/Tagkombination verwendet Summen/Counts statt Mittelwerte von Mittelwerten.
 
+Die PHP-Projektion erhält diese Trennung: unabhängige NULL-Metriken dürfen
+`has_gap` nicht global verschärfen. Eine schlechte Readkante, die ausschließlich
+vor dem halb offenen Bucket liegt und genau an dessen Anfang endet, belegt dort
+keine Lücke; bereits eine positive Überlappung bleibt dagegen relevant.
+Initialer Sample-/Event-Backfill bleibt global unbereit. Nach nachweislich
+abgearbeiteten Initialcursorn sperrt eine spätere Eventinvalidierung erst ab
+`invalidate_from` statt sämtliche älteren Perioden. Der Bereich bleibt bis zur
+vollständigen Invalidierung gesperrt, unabhängig von deren Fortsetzungscursor;
+Pending-Arbeit an Minuten/Stunden bleibt zusätzlich eine Sperre. Globale
+`progress.events_done=false` kann deshalb mit einer bereits vollständigen älteren
+Auswahl zusammenfallen. Keine Laufzeit-DDL oder Änderung gespeicherter Aggregate.
+
 ## HTTP-Vertrag
 
 Legacy-Minutenform bleibt Schema 1 und dessen bestehende Grenzen.

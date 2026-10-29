@@ -40,6 +40,9 @@ mobil unten links fixiert. **Settings mit Zahnrad unter Diagramme** öffnet
 `/einstellungen`, einen ausdrücklich gekennzeichneten
 Platzhalter ohne Lade-/Hardwareeinstellungen. Dort setzt **Systemdarstellung
 verwenden** die lokale Wahl zurück; die WebApp-Karte wurde auf Wunsch entfernt.
+Später sollen alle bisherigen `.env`-Projektkonfigurationen zentral unter Settings
+verwaltbar sein. Diese geschützte Administration ist noch nicht implementiert;
+die aktuelle Website bleibt lesend und schreibt keine Konfigurationsdateien.
 Die HTTPS-/Handyeinrichtung ist vorerst zurückgestellt, die optionale Infrastruktur
 bleibt erhalten. Der Schalter wird schon vor dem ersten Render passend zur
 gespeicherten Wahl gezeichnet, ohne Seitenwechsel-Sprung. Default System folgt live der

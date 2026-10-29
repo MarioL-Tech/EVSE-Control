@@ -94,6 +94,52 @@ $test(static function () use ($range, $start): void {
     archiveAssert($m['session_energy_wh']['last'] === 2000.0 && $m['session_energy_wh']['mean'] === null);
 });
 $test(static function () use ($hour, $start): void {
+    $rows = [];
+    for ($i = 0; $i < 60; ++$i) {
+        $rows[] = archiveMutate(archiveFixture($start + $i * 60, 60, 2, 0), static function (&$d) use ($i): void {
+            $d['metrics']['charging'] = ['n' => 0, 'nulls' => 2, 'sum' => null,
+                'min' => null, 'max' => null, 'first' => null, 'last' => null, 'mixed' => false];
+            foreach (['current_l1_a', 'current_l2_a', 'current_l3_a', 'voltage_l1_v', 'voltage_l2_v', 'voltage_l3_v'] as $field) {
+                $value = str_starts_with($field, 'voltage_') ? '230' : '0';
+                $d['metrics'][$field] = ['n' => 2, 'nulls' => 0, 'sum' => $value === '0' ? '0' : '460',
+                    'min' => $value, 'max' => $value, 'first' => $value, 'last' => $value, 'mixed' => false];
+            }
+            if ($i === 20) {
+                $d['metrics']['current_l1_a']['n'] = 1;
+                $d['metrics']['current_l1_a']['nulls'] = 1;
+                $d['metrics']['current_l1_a']['last'] = null;
+            }
+        });
+    }
+    $p = HistoryArchive::project($hour, $rows);
+    archiveAssert($p['complete']);
+    foreach ($p['buckets'] as $i => $bin) {
+        archiveAssert($bin['complete'] && !$bin['has_gap'] && $bin['coverage_seconds'] === 60.0);
+        $m = $bin['metrics'];
+        archiveAssert($m['charging']['count'] === 0 && $m['charging']['nulls'] === 2 && $m['charging']['last'] === null);
+        archiveAssert($m['active_power_w']['mean'] === 0.0 && $m['current_limit_a']['last'] === 6.0);
+        foreach (['voltage_l1_v', 'voltage_l2_v', 'voltage_l3_v'] as $field) {
+            archiveAssert($m[$field]['mean'] === 230.0 && $m[$field]['nulls'] === 0);
+        }
+        archiveAssert($m['current_l1_a']['nulls'] === ($i === 20 ? 1 : 0));
+        archiveAssert($m['current_l1_a']['last'] === ($i === 20 ? null : 0.0));
+        archiveAssert($m['current_l1_a']['mean'] === 0.0);
+        archiveAssert($m['current_l2_a']['nulls'] === 0 && $m['current_l3_a']['nulls'] === 0);
+    }
+    foreach (['has_gap', 'coverage', 'complete', 'retained'] as $barrier) {
+        $bad = archiveMutate($rows[0], static function (&$d) use ($barrier): void {
+            if ($barrier === 'has_gap') { $d['has_gap'] = true; }
+            if ($barrier === 'coverage') { $d['coverage_seconds'] = '58'; }
+            if ($barrier === 'complete') { $d['complete'] = false; }
+            if ($barrier === 'retained') { $d['retained_samples'] = 1; }
+        });
+        archiveAssert(HistoryArchive::project($hour, [$bad])['buckets'][0]['has_gap']);
+    }
+    $dirty = HistoryArchive::project($hour, $rows, [[$start, $start + 60]])['buckets'][0];
+    archiveAssert($dirty['has_gap'] && !$dirty['complete'] && $dirty['metrics']['active_power_w']['mean'] === null);
+    archiveAssert(HistoryArchive::project($hour, $rows, [], false)['buckets'][0]['has_gap']);
+});
+$test(static function () use ($hour, $start): void {
     $null = archiveMutate(archiveFixture($start), static function (&$d): void {
         $d['error_samples'] = 2; $d['valid_samples'] = 0; $d['has_gap'] = true; $d['coverage_seconds'] = '0';
         foreach ($d['metrics'] as &$s) {
@@ -193,14 +239,90 @@ final class ArchivePDO extends PDO
     public function commit(): bool { $this->committed = true; return true; }
     public function rollBack(): bool { $this->rolledBack = true; return true; }
 }
-$mock = static function () use ($start): ArchivePDO {
+$mock = static function (array $changes = [], ?array $rows = null, array $pending = []) use ($start): ArchivePDO {
     $row = archiveFixture($start); $row['updated_at'] = '2026-01-01 12:59:00.000000';
     return new ArchivePDO([[['version' => '1'], ['version' => '2']], [['server_now' => '2026-01-01 13:00:00.000000']],
-        [['algorithm_version' => '1', 'sample_cursor' => '18446744073709551615', 'sample_highwater' => '18446744073709551615',
-            'samples_done' => '1', 'events_done' => '1', 'updated_at' => '2026-01-01 12:59:00.000000']], [], [$row]]);
+        [array_replace(['algorithm_version' => '1', 'sample_cursor' => '18446744073709551615', 'sample_highwater' => '18446744073709551615',
+            'samples_done' => '1', 'events_done' => '1', 'updated_at' => '2026-01-01 12:59:00.000000', 'initialized' => '1',
+            'event_cursor_at' => '2026-01-01 11:00:00.000000', 'event_highwater_at' => '2026-01-01 11:00:00.000000',
+            'event_cursor_id' => str_repeat('0', 32), 'event_highwater_id' => str_repeat('0', 32),
+            'invalidate_from' => null, 'invalidate_cursor' => null], $changes)], $pending, $rows ?? [$row]]);
 };
 $config = new HistoryConfig(true, password: 'isolated-dummy');
 $clock = static fn() => new DateTimeImmutable('2026-01-01T13:00:00Z');
+$fullRows = [];
+for ($i = 0; $i < 60; ++$i) {
+    $row = archiveFixture($start + $i * 60);
+    $row['updated_at'] = '2026-01-01 12:59:00.000000';
+    $fullRows[] = $row;
+}
+$test(static function () use ($mock, $hour, $config, $clock, $fullRows): void {
+    $pdo = $mock(['events_done' => '0', 'invalidate_from' => '2026-01-01 13:00:00.000000'], $fullRows);
+    $v = (new HistoryArchive($config, static fn() => $pdo, $clock))->snapshot($hour);
+    archiveAssert($v['status'] === 'ok' && $v['complete'] && !$v['progress']['events_done']);
+    foreach ($v['buckets'] as $bin) { archiveAssert($bin['complete'] && !$bin['has_gap'] && $bin['samples'] === 2); }
+    archiveAssert($pdo->statements[2]->parameters === ['evse/wallbox']);
+    archiveAssert($pdo->statements[3]->parameters === ['evse/wallbox', '60', '2026-01-01 11:59:01', '2026-01-01 13:00:00']);
+});
+$test(static function () use ($mock, $hour, $config, $clock, $fullRows): void {
+    foreach (['2026-01-01 12:20:00.000000', '2026-01-01 12:50:00.000000'] as $cursor) {
+        $pdo = $mock(['events_done' => '0', 'invalidate_from' => '2026-01-01 12:20:00.000000', 'invalidate_cursor' => $cursor], $fullRows);
+        $v = (new HistoryArchive($config, static fn() => $pdo, $clock))->snapshot($hour);
+        archiveAssert($v['status'] === 'ok' && !$v['complete']);
+        foreach ($v['buckets'] as $i => $bin) {
+            archiveAssert($bin['complete'] === ($i < 20) && $bin['has_gap'] === ($i >= 20));
+            archiveAssert($bin['samples'] === ($i < 20 ? 2 : 0));
+            if ($i >= 20) { archiveAssert($bin['metrics']['active_power_w']['mean'] === null); }
+        }
+    }
+});
+foreach ([['initialized' => '0', 'events_done' => '0'],
+    ['samples_done' => '0', 'sample_cursor' => '0', 'events_done' => '0'],
+    ['event_cursor_at' => '2026-01-01 10:59:59.999999', 'event_cursor_id' => str_repeat('F', 32), 'events_done' => '0'],
+    ['event_cursor_id' => str_repeat('0', 31) . '1', 'event_highwater_id' => str_repeat('0', 31) . '2', 'events_done' => '0'],
+    ['events_done' => '0', 'invalidate_from' => null]] as $changes) {
+    $test(static function () use ($mock, $hour, $config, $clock, $fullRows, $changes): void {
+        $pdo = $mock(array_replace(['invalidate_from' => '2026-01-01 13:00:00.000000'], $changes), $fullRows);
+        $v = (new HistoryArchive($config, static fn() => $pdo, $clock))->snapshot($hour);
+        archiveAssert($v['status'] === 'ok' && !$v['complete']);
+        foreach ($v['buckets'] as $bin) { archiveAssert(!$bin['complete'] && $bin['has_gap']); }
+    });
+}
+$test(static function () use ($mock, $hour, $config, $clock, $fullRows): void {
+    foreach (['2026-01-01 11:00:00.000000', '2026-01-01 11:00:00.000001'] as $at) {
+        $pdo = $mock(['events_done' => '0', 'event_cursor_at' => $at,
+            'event_cursor_id' => str_repeat('F', 32), 'invalidate_from' => '2026-01-01 13:00:00.000000'], $fullRows);
+        archiveAssert((new HistoryArchive($config, static fn() => $pdo, $clock))->snapshot($hour)['complete']);
+    }
+    $pending = [['bucket_start' => '2026-01-01 12:10:00.000000', 'resolution_seconds' => '60']];
+    foreach ([['events_done' => '0', 'invalidate_from' => '2026-01-01 12:20:00.000000', 'invalidate_cursor' => '2026-01-01 12:50:00.000000'], []] as $changes) {
+        $pdo = $mock($changes, $fullRows, $pending);
+        $v = (new HistoryArchive($config, static fn() => $pdo, $clock))->snapshot($hour);
+        archiveAssert($v['status'] === 'ok' && !$v['complete'] && !$v['buckets'][10]['complete']);
+        archiveAssert($v['buckets'][10]['metrics']['active_power_w']['mean'] === null);
+        archiveAssert($v['buckets'][9]['complete'] && !$v['buckets'][9]['has_gap']);
+        archiveAssert($v['buckets'][40]['complete'] === ($changes === []));
+    }
+    $pdo = $mock([], $fullRows);
+    archiveAssert((new HistoryArchive($config, static fn() => $pdo, $clock))->snapshot($hour)['complete']);
+});
+foreach ([['initialized' => '2'], ['event_cursor_id' => str_repeat('A', 31)],
+    ['event_highwater_id' => str_repeat('G', 32)], ['event_cursor_id' => null],
+    ['event_cursor_at' => '2026-02-30 00:00:00.000000'], ['event_highwater_at' => '2026-01-01 13:01:00.000000'],
+    ['events_done' => '0', 'invalidate_from' => '2026-01-01 12:00:01.000000'],
+    ['events_done' => '0', 'invalidate_from' => '2026-01-01 12:00:00.000001'],
+    ['events_done' => '0', 'invalidate_from' => '1000-01-01 00:00:00.000001'],
+    ['events_done' => '0', 'invalidate_from' => '1000-01-01 00:00:00.000000', 'invalidate_cursor' => '1000-01-01 00:00:00.000001'],
+    ['events_done' => '0', 'invalidate_from' => '2026-01-01 12:20:00.000000', 'invalidate_cursor' => '2026-01-01 12:19:00.000000'],
+    ['events_done' => '0', 'invalidate_cursor' => '2026-01-01 12:20:00.000000'],
+    ['invalidate_from' => '2026-01-01 12:20:00.000000'],
+    ['event_cursor_id' => str_repeat('0', 32), 'event_highwater_id' => str_repeat('F', 32)]] as $changes) {
+    $test(static function () use ($mock, $hour, $config, $clock, $fullRows, $changes): void {
+        $pdo = $mock($changes, $fullRows);
+        $v = (new HistoryArchive($config, static fn() => $pdo, $clock))->snapshot($hour);
+        archiveAssert($v['status'] === 'unavailable' && $v['buckets'] === [] && $pdo->rolledBack);
+    });
+}
 $test(static function () use ($mock, $hour, $config, $clock): void {
     $pdo = $mock();
     $factory = static function ($dsn, $user, $password, $options) use ($pdo): PDO {

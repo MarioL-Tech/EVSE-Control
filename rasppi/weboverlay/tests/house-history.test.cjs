@@ -41,6 +41,22 @@ test('signed zero/NULL survive raw reload; no synthetic preactivation values; tw
   const fresh = house.createStore(); assert(fresh.importHistory(raw(), epoch));
   assert.deepEqual(fresh.points([], epoch, 15), s.points([], epoch, 15));
 });
+test('HOUSE immutable render views keep public copy ownership and ignore timestamp-only refreshes', () => {
+  const s = house.createStore(), b = raw();
+  assert(s.importHistory(b, epoch));
+  const view = s.rawView(), revision = s.revision;
+  assert(Object.isFrozen(view.samples[0]));
+  assert.throws(() => { view.samples[0].power_w = 999; }, TypeError);
+  const copy = s.raw(); copy.samples.length = 0;
+  assert.equal(s.rawView().samples.length, 4);
+  b.generated_at = iso(epoch + 1000);
+  assert(s.importHistory(b, epoch + 1000)); assert.equal(s.revision, revision); assert.equal(s.rawView(), view);
+  const archive = calendar(), selection = { period: 'year', date: '2024', tz: 'UTC' };
+  assert(s.importHistory(archive, epoch, selection));
+  assert(Object.isFrozen(s.archiveView().range));
+  const a = s.archive(); a.range.from = 'invalid';
+  assert.notEqual(s.archiveView().range.from, 'invalid');
+});
 test('raw and calendar validation rejects malformed values, mixed metrics, excess slots and foreign fields', () => {
   for (const value of [NaN, Infinity, '0', true, Number.MAX_SAFE_INTEGER + 1]) assert.equal(house.validate(raw([value]), epoch), null);
   for (const mutate of [b => b.samples.push(...Array(1200).fill(b.samples[0])), b => b.samples[0].power_w = null,
@@ -80,13 +96,14 @@ test('archive curves/bands connect only fully covered adjacent intervals; NULL/g
 });
 function harness() {
   let wall = epoch, mono = 0, calls = [], timers = new Map(), timerID = 0;
+  const states = [];
   const store = house.createStore();
   const loader = house.createLoader({ fetch: (url, init) => new Promise(resolve => calls.push({ url, init, resolve })),
     clock: () => ({ wall, mono }), setTimer: f => { timers.set(++timerID, f); return timerID; }, clearTimer: id => timers.delete(id),
     importHistory: (b, now) => store.importHistory(b, now), importArchive: (b, now, s) => store.importHistory(b, now, s),
-    onReset: () => store.clearRaw() });
+    onState: state => states.push(state), onReset: () => store.clearRaw() });
   const response = b => ({ status: b.status === 'unavailable' ? 503 : 200, headers: { get: () => null }, text: async () => JSON.stringify(b) });
-  return { loader, store, calls, timers, response, advance(ms) { wall += ms; mono += ms; }, rollback() { wall--; } };
+  return { loader, store, calls, timers, states, response, advance(ms) { wall += ms; mono += ms; }, rollback() { wall--; } };
 }
 const settle = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
 test('independent HOUSE loader uses one request, hidden cancellation and late replies cannot import', async () => {
@@ -124,4 +141,38 @@ test('unavailable backoff is 10/30/60 seconds; success refreshes at 60 seconds',
   h.calls[3].resolve(h.response(b)); await settle(); assert(h.store.raw());
   h.advance(59999); h.loader.tick(); assert.equal(h.calls.length, 4);
   h.advance(1); h.loader.tick(); assert.equal(h.calls.length, 5);
+});
+test('existing description distinguishes loading, disabled, failure, empty success and incomplete processing', () => {
+  const base = { archive: true, count: 0, complete: true, hasSnapshot: false, checked: true };
+  for (const [status, text] of [['loading', /wird geladen/], ['disabled', /ist deaktiviert/],
+    ['unavailable', /ist nicht verfügbar/], ['ok', /Keine Messpunkte im gewählten Zeitraum/]]) {
+    const description = chart.historyDescription({ ...base, status });
+    assert.match(description, text); assert.doesNotMatch(description, /Zuvor geladene|0 Messpunkte/);
+  }
+  assert.match(chart.historyDescription({ ...base, status: 'ok', complete: false }), /noch unvollständig/);
+  assert.match(chart.historyDescription({ ...base, status: 'ok', count: 3, complete: false }), /^3 Messpunkte.*noch unvollständig/);
+  for (const status of ['disabled', 'unavailable', 'loading']) {
+    assert.match(chart.historyDescription({ ...base, status, hasSnapshot: true, count: 3 }),
+      /Zuvor geladene Daten; kein erfolgreicher aktueller Abruf/);
+  }
+  assert.match(chart.historyDescription({ ...base, status: 'unavailable', checked: false }), /nicht verfügbar.*Kurve ausgeblendet/);
+  assert.equal(chart.buildPlot([], epoch - 900000, epoch).path, '');
+  assert.equal(chart.buildArchivePlot(calendar()).path, '', 'Empty history never becomes a zero line');
+});
+test('loader status survives HTTP/payload errors after success and recovers without discarding baseline', async () => {
+  for (const failure of ['503', '500', 'json', 'timeout']) {
+    const h = harness(); h.loader.tick();
+    h.calls[0].resolve(h.response(raw())); await settle();
+    assert.equal(h.states.at(-1).status, 'ok');
+    h.advance(60000); h.loader.tick();
+    if (failure === 'timeout') [...h.timers.values()][0]();
+    else h.calls[1].resolve(failure === '503' ? h.response({ ...raw([], epoch + 60000), status: 'unavailable' })
+      : { status: failure === '500' ? 500 : 200, headers: { get: () => null }, text: async () => '{' });
+    await settle();
+    assert.equal(h.states.at(-1).status, 'unavailable', failure);
+    assert.equal(h.store.raw().samples.length, 4, 'Retain baseline, not successful status');
+    h.advance(10000); h.loader.tick();
+    h.calls[2].resolve(h.response(raw([], epoch + 70000))); await settle();
+    assert.equal(h.states.at(-1).status, 'ok'); assert.equal(h.store.raw().samples.length, 0);
+  }
 });

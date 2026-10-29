@@ -59,6 +59,7 @@
   function createHistory() {
     let points = [], edges = [], barriers = [], lastStamp = null, lastClock = null, broken = true, revision = 0;
     let hardGap = false;
+    let lastValues = null, lastPrune = null;
     const overlaps = (a, b, c, d) => a < d && b > c;
     function edge(from, to, blocked = false) {
       if (from === null || to <= from) return;
@@ -66,16 +67,21 @@
       if (!list.some(e => e[0] === from && e[1] === to)) list.push([from, to]);
     }
     function prune(now) {
-      const retained = points.filter(p => p.t >= now - RETENTION_MS).slice(-MAX_POINTS);
-      if (retained.length !== points.length) { points = retained; revision++; }
-      edges = edges.filter(e => e[1] >= now - RETENTION_MS).slice(-MAX_POINTS * 2);
-      barriers = barriers.filter(e => e[1] >= now - RETENTION_MS).slice(-MAX_POINTS * 2);
+      if (points.length && points[0].t < now - RETENTION_MS) {
+        points = points.filter(p => p.t >= now - RETENTION_MS).slice(-MAX_POINTS); revision++;
+      }
+      if (lastPrune === null || now < lastPrune || now - lastPrune >= 1000 ||
+          edges.length > MAX_POINTS * 2 || barriers.length > MAX_POINTS * 2) {
+        edges = edges.filter(e => e[1] >= now - RETENTION_MS).slice(-MAX_POINTS * 2);
+        barriers = barriers.filter(e => e[1] >= now - RETENTION_MS).slice(-MAX_POINTS * 2);
+        lastPrune = now;
+      }
     }
     function gap(hard = true) {
       hardGap ||= hard;
       if (!broken) { broken = true; revision++; }
     }
-    function clear() { points = []; edges = []; barriers = []; lastStamp = null; lastClock = null; broken = true; hardGap = false; revision++; }
+    function clear() { points = []; edges = []; barriers = []; lastStamp = null; lastClock = null; lastValues = null; lastPrune = null; broken = true; hardGap = false; revision++; }
     return {
       gap, clear,
       importHistory(batch, now = Date.now()) {
@@ -121,6 +127,11 @@
           gap(!transportOnly); return;
         }
         if (lastStamp !== null && t < lastStamp) { gap(); return; }
+        // API envelopes are replaced, never mutated, by the poller. A 100ms
+        // freshness tick with the identical values object is not a new read.
+        // Clock/pruning/failure checks above still run on every tick.
+        if (!broken && t === lastStamp && view.values === lastValues) return;
+        lastValues = view.values;
         const values = readings(view.values);
         if (t === lastStamp) {
           // Repeated HTTP polls don't create new measurements. At subsecond
@@ -283,7 +294,7 @@
     let prefs = loadPreferences(storage), lastDraw = 0, lastRevision = -1, lastArchiveDraw = null;
     // Calendar mount publishes the initial selection synchronously. Its
     // onChange callback may schedule a frame before mount itself returns.
-    let frame = null, pendingNow = null;
+    let frame = null, pendingNow = null, layoutRevision = 0;
     const controls = new Map(), figures = new Map();
     const svgNS = 'http://www.w3.org/2000/svg';
     const fmt = new Intl.NumberFormat('de-DE', { maximumSignificantDigits: 4, notation: 'compact' });
@@ -316,14 +327,18 @@
       function inspect(index) {
         const series = entry.plot?.paths || [];
         const count = entry.plot?.bucketCount || entry.plot?.points?.length || 1;
-        entry.inspection = Math.max(0, Math.min(count - 1, index));
+        const next = Math.max(0, Math.min(count - 1, index));
+        if (entry.inspectedPlot === entry.plot && next === entry.inspection) return;
+        entry.inspection = next; entry.inspectedPlot = entry.plot;
         const point = entry.plot?.points?.[entry.inspection];
-        const titles = series.map(s => s.bucketLabels?.[entry.inspection] ||
+        const titles = series.map(s => (s.labelAt ? s.labelAt(entry.inspection) : s.bucketLabels?.[entry.inspection]) ||
           (point ? `${s.metric.label}: ${point.values[s.metric.id] === null ? 'unbekannt' : point.values[s.metric.id]} ${g.unit} · ${timeFmt.format(point.t)}` : null)).filter(Boolean);
         const title = entry.nodes.get('title');
         if (title) {
-          title.textContent = titles.length ? titles.join('\n') : `Intervall ${entry.inspection + 1}: keine Messwerte`;
-          svg.setAttribute('aria-label', `${g.label}: ${title.textContent}`);
+          const text = titles.length ? titles.join('\n') : `Intervall ${entry.inspection + 1}: keine Messwerte`;
+          if (title.textContent !== text) title.textContent = text;
+          const aria = `${g.label}: ${text}`;
+          if (svg.getAttribute('aria-label') !== aria) svg.setAttribute('aria-label', aria);
         }
       }
       svg.addEventListener('keydown', event => {
@@ -354,12 +369,12 @@
         // ticks (including a paused clock or currently unavailable live API).
         draw(Date.now()); return true;
       },
-      onReset: () => { history.clear(); archive?.clear(); calendar?.reset(); },
+      onReset: () => { history.clear(); archive?.clear(); calendar?.reset(); lastArchiveDraw = null; draw(Date.now()); },
       onState: state => {
         if (!source || !detail) return;
         source.dataset.historyStatus = state.status;
         if (calendar?.selection) {
-          const snapshot = archive?.snapshot();
+          const snapshot = archive?.view();
           source.textContent = snapshot ? `Kalenderarchiv · ${snapshot.buckets.reduce((n, b) => n + b.samples, 0)} Messwerte` : 'Kalenderarchiv';
           detail.textContent = `${state.status === 'ok' ? state.complete ? 'Archiv geladen.' : 'Archiv enthält Lücken oder ist noch nicht vollständig verdichtet.'
             : state.status === 'browser' ? 'Zeitraum wird geladen.' : snapshot ? 'Archiv derzeit nicht verfügbar; geladene Daten bleiben erhalten.' : 'Archiv derzeit nicht verfügbar.'} Historisch, nicht live. Stichprobenmittel / Min–Max; Sessionenergie ist der letzte Sessionzähler, kein Zeitraumverbrauch.`;
@@ -384,7 +399,7 @@
     }
     const range = document.getElementById('chart-range');
     if (loader && archive) calendar = root.OverlayCalendar.mount({ document, loader, archive, storage,
-      onChange: () => { lastRevision = -1; draw(Date.now()); } });
+      onChange: () => { layoutRevision++; lastRevision = -1; draw(Date.now()); } });
     if (range) {
       range.value = String(prefs.minutes);
       range.addEventListener('change', () => { prefs.minutes = Number(range.value); loader?.invalidate(); apply(); });
@@ -405,7 +420,7 @@
       const empty = document.getElementById('display-empty');
       if (empty) empty.hidden = Object.values(prefs.selected).some(Boolean);
       savePreferences(storage, prefs);
-      lastRevision = -1; draw(Date.now());
+      layoutRevision++; lastRevision = -1; draw(Date.now());
     }
     function draw(now) {
       pendingNow = now;
@@ -417,20 +432,26 @@
     }
     function render(now) {
       const archiveMode = !!calendar?.selection;
-      const archiveKey = archiveMode ? `${archive?.revision}:${JSON.stringify(calendar.selection)}:${JSON.stringify(prefs.selected)}` : null;
+      const archiveKey = archiveMode ? `${archive?.revision}:${layoutRevision}` : null;
       if (archiveMode && archiveKey === lastArchiveDraw) { lastDraw = now; lastRevision = history.revision; return; }
       lastArchiveDraw = archiveKey;
-      const archived = archiveMode ? archive?.snapshot() : null;
+      const archived = archiveMode ? archive?.view() : null;
       const points = archiveMode ? [] : history.window(now, prefs.minutes);
       const start = archived ? Date.parse(archived.range.from) : now - prefs.minutes * 60000;
       const end = archived ? Date.parse(archived.range.to) : now;
+      // Read card geometry together, before any SVG writes cause layout work.
+      const widths = new Map();
+      for (const [id, { figure }] of figures) {
+        if (METRICS.some(m => m.group === id && prefs.selected[m.id]) && !figure.closest('details:not([open])'))
+          widths.set(id, Math.max(240, Math.round(figure.getBoundingClientRect().width - 40)));
+      }
       for (const g of GROUPS.filter(g => figures.has(g.id))) {
         const entry = figures.get(g.id), { figure, svg, description } = entry;
         const enabled = METRICS.some(m => m.group === g.id && prefs.selected[m.id]);
         svg.toggleAttribute('hidden', !enabled);
         figure.hidden = false;
         if (!enabled || figure.closest('details:not([open])')) continue;
-        const width = Math.max(240, Math.round(figure.getBoundingClientRect().width - 40));
+        const width = widths.get(g.id);
         const height = Math.max(230, Math.min(280, Math.round(width * .5)));
         const geometry = { width, height, left: 54, right: width - 18, top: 20, bottom: height - 42 };
         const plot = archived ? root.OverlayCalendar.buildSummaryPlot(archived, g, prefs.selected, api, geometry)
@@ -487,7 +508,7 @@
       lastDraw = now; lastRevision = history.revision;
     }
     apply();
-    function resize() { lastRevision = -1; lastArchiveDraw = null; draw(Date.now()); }
+    function resize() { layoutRevision++; lastRevision = -1; lastArchiveDraw = null; draw(Date.now()); }
     root.addEventListener('resize', resize);
     const diagnostics = document.querySelector('.history-diagnostics');
     diagnostics?.addEventListener('toggle', resize);
@@ -516,7 +537,9 @@
       update(view, now = Date.now()) {
         loader?.tick();
         if (figures.size) history.observe(view, now);
-        if (history.revision !== lastRevision || now - lastDraw >= 1000 || now < lastDraw) draw(now);
+        // Calendar frames are driven by archive/selection/layout changes only.
+        // Live freshness and the SQL loader still advance independently.
+        if (!calendar?.selection && (history.revision !== lastRevision || now - lastDraw >= 1000 || now < lastDraw)) draw(now);
       }
     };
   };

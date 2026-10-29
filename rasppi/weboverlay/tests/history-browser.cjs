@@ -59,6 +59,7 @@ const { FIELDS } = require('../static/newcalendar.js');
       const duration = Date.parse(to) - Date.parse(from); from = url.searchParams.get('at'); to = iso(Date.parse(from) + duration);
     }
     const now = await page.evaluate(() => Date.now());
+    const weekHours = Math.max(1, Math.min(168, Math.floor((now - Date.parse(from)) / 3600000)));
     const statistics = Object.fromEntries(FIELDS.map((field, i) => [field, { count: 30, nulls: 0,
       mean: i === 0 || i >= 3 && i <= 8 ? 0 : null, min: i === 2 ? 6 : 0, max: i === 2 ? 6 : 0,
       last: i >= 9 && i <= 11 ? false : i === 2 ? 6 : 0, mixed: false }]));
@@ -66,7 +67,8 @@ const { FIELDS } = require('../static/newcalendar.js');
       const date = iso(Date.UTC(2024, 0, i + 1)).slice(0, 10);
       // Known fixture boundaries, including the 23/25-hour days of 2024.
       return iso(Date.parse(date + 'T00:00:00Z') - (date >= '2024-04-01' && date <= '2024-10-27' ? 2 : 1) * 3600000);
-    }) : period === 'hour' ? Array.from({ length: 61 }, (_, i) => iso(Date.parse(from) + i * 60000)) : [from, to];
+    }) : period === 'hour' ? Array.from({ length: 61 }, (_, i) => iso(Date.parse(from) + i * 60000))
+      : period === 'week' ? Array.from({ length: 169 }, (_, i) => iso(Date.parse(from) + i * 3600000)) : [from, to];
     const json = { schema_version: 2, read_only: true, status: calendarFail ? 'unavailable' : 'ok', reason: '<img src=x>',
       generated_at: iso(now), range: { from, to, timezone: 'Europe/Vienna' },
       selection: { period, date: selected && selected !== 'now' ? selected : dates[period], timezone: 'Europe/Vienna' },
@@ -74,18 +76,29 @@ const { FIELDS } = require('../static/newcalendar.js');
         next: { period, at: to, tz: 'Europe/Vienna' }, now: { period, date: 'now', tz: 'Europe/Vienna' } },
       aggregation: 'sample_mean', complete: true, progress: { samples_done: true, events_done: true },
       buckets: calendarFail ? [] : bounds.slice(0, -1).map((a, i) => {
-        const empty = period === 'hour' && i >= 20 && i < 44;
+        const empty = period === 'hour' && i >= 20 && i < 44 || period === 'week' && i >= weekHours;
         const metrics = JSON.parse(JSON.stringify(statistics));
+        const samples = period === 'week' ? Math.floor(81478 / weekHours) + (i < 81478 % weekHours ? 1 : 0) : 30;
+        if (period === 'week') {
+          for (const stat of Object.values(metrics)) stat.count = samples;
+          Object.assign(metrics.charging, { count: 0, nulls: samples, min: null, max: null, last: null });
+          for (const [phase, field] of ['voltage_l1_v', 'voltage_l2_v', 'voltage_l3_v'].entries())
+            Object.assign(metrics[field], { min: 228 + phase, max: 242 + phase,
+              mean: 235 + phase + Math.sin(i / 8), last: 235 + phase, mixed: true });
+          const power = i >= 20 && i < 26 ? 4000 : i === 26 ? 2000 : 0;
+          Object.assign(metrics.active_power_w, { min: power ? power - 500 : 0, max: power + (power ? 500 : 0), mean: power, last: power, mixed: power > 0 });
+        }
         if (empty) {
-          for (const stat of Object.values(metrics)) Object.assign(stat, { count: 0, mean: null, min: null, max: null, last: null });
+          for (const stat of Object.values(metrics)) Object.assign(stat, { count: 0, nulls: 0, mean: null, min: null, max: null, last: null });
         } else if (period === 'hour') {
           for (const [phase, field] of ['voltage_l1_v', 'voltage_l2_v', 'voltage_l3_v'].entries()) {
             const mean = 236 + phase + Math.sin(i / 4);
             Object.assign(metrics[field], { mean, min: mean - .8, max: mean + 1, last: mean });
           }
         }
-        return { from: a, to: bounds[i + 1], samples: empty ? 0 : 30,
-          has_gap: period === 'hour', complete: true, coverage_seconds: empty ? 0 : 58, metrics };
+        return { from: a, to: bounds[i + 1], samples: empty ? 0 : samples,
+          has_gap: period === 'hour' || period === 'week' && (empty || i === Math.floor(weekHours / 2)), complete: true,
+          coverage_seconds: empty ? 0 : period === 'week' ? i === Math.floor(weekHours / 2) ? 0 : 3600 : 58, metrics };
       }) };
     if (period === 'custom') json.navigation = { previous: null, next: null, now: null };
     if (calendarHold) { heldCalendar.push({ route, json }); return; }
@@ -203,7 +216,11 @@ const { FIELDS } = require('../static/newcalendar.js');
       assert.equal(await page.locator(`[data-calendar-period="${period}"]`).getAttribute('aria-pressed'), 'true');
       assert.equal(await page.locator('[data-calendar-period][aria-pressed="true"]').count(), 1);
       assert(!await page.locator('#house-chart-svg').isVisible(), 'Calendar cannot imply a house archive');
-      assert.match(await page.locator('#house-chart-description').innerText(), /keine? Haus-?Archiv/i);
+      // This suite has a virtual date and no house fixture. A disabled server
+      // response outside that clock's freshness window is unavailable, never
+      // a fabricated house curve. Exact status cases have their own suite.
+      await page.waitForFunction(() => /Hausarchiv ist (deaktiviert|nicht verfügbar)/i.test(
+        document.getElementById('house-chart-description')?.textContent || ''));
       assert.equal(await page.locator('#chart-range').isDisabled(), true);
       assert.equal(await page.locator('#chart-range').isVisible(), false, 'Minute picker is not presented as the archive window');
       assert((await page.locator('#calendar-label').innerText()).includes('Europe/Vienna'));
@@ -219,6 +236,38 @@ const { FIELDS } = require('../static/newcalendar.js');
         throw error;
       }
       assert(await page.locator('[data-summary-series="power"]').count() > 0);
+      if (period === 'week') {
+        assert.equal(await page.locator('#chart-power svg').getAttribute('data-bucket-count'), '168');
+        assert.match(await page.locator('#chart-power .chart-description').innerText(), /81478 Messwerte/);
+        for (const id of ['power', 'current', 'voltage', 'energy'])
+          assert(await page.locator(`#chart-${id} svg *`).count() < 100);
+        const curve = await page.locator('#chart-voltage .summary-value:not(.summary-gap)').first().getAttribute('d');
+        assert.equal((curve.match(/M/g) || []).length, 2, 'A genuine gap separates two connected numeric runs');
+        assert((curve.match(/L/g) || []).length > 50, 'Unknown charging must not isolate known voltages');
+        await page.evaluate(() => {
+          window.__archiveWork = { plots: 0, layouts: 0, mutations: 0 };
+          const original = OverlayCalendar.buildSummaryPlot;
+          OverlayCalendar.buildSummaryPlot = (...args) => { window.__archiveWork.plots++; return original(...args); };
+          const measure = Element.prototype.getBoundingClientRect;
+          Element.prototype.getBoundingClientRect = function () {
+            if (this.matches('#chart-grid figure, #chart-diagnostics-grid figure')) window.__archiveWork.layouts++;
+            return measure.call(this);
+          };
+          const observer = new MutationObserver(records => window.__archiveWork.mutations += records.length);
+          for (const svg of document.querySelectorAll('#chart-grid svg')) observer.observe(svg, { subtree: true, attributes: true, childList: true });
+        });
+        await page.clock.runFor(10000);
+        assert.deepEqual(await page.evaluate(() => window.__archiveWork), { plots: 0, layouts: 0, mutations: 0 },
+          '100 freshness ticks cause no archive builds, layouts or SVG writes');
+        const viewport = page.viewportSize();
+        for (const [width, colorScheme, label] of [[1440, 'dark', 'desktop'], [390, 'light', 'mobile']]) {
+          await page.setViewportSize({ width, height: 1050 });
+          await page.emulateMedia({ colorScheme });
+          await page.clock.runFor(32);
+          await page.screenshot({ path: `/artifacts/calendar-week-connected-${label}.png`, fullPage: true, animations: 'disabled' });
+        }
+        await page.setViewportSize(viewport); await page.clock.runFor(32);
+      }
       if (period === 'hour') {
         assert.equal(await page.locator('#chart-power .summary-value').count(), 1, '36 isolated aggregate marks share one path');
         assert.equal(await page.locator('#chart-power .summary-range').count(), 1);

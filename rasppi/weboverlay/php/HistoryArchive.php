@@ -286,9 +286,8 @@ final class HistoryArchive
                 $metrics[$key] = ['count' => $s['n'], 'nulls' => $s['nulls'],
                     'mean' => in_array($key, self::MEANS, true) && $s['n'] > 0 ? $s['sum'] / $s['n'] : null,
                     'min' => $s['min'], 'max' => $s['max'], 'last' => $last, 'mixed' => $s['mixed']];
-                if ($s['nulls'] > 0) {
-                    $o['has_gap'] = true;
-                }
+                // NULLs are per-metric evidence, not a loss of reception for
+                // every other series. Global coverage/dirty barriers stay above.
             }
             $o['metrics'] = $metrics;
             $complete = $complete && $o['complete'];
@@ -352,9 +351,10 @@ final class HistoryArchive
                 throw new \UnexpectedValueException('Invalid archive clock');
             }
             $now = (new \DateTimeImmutable('@' . (int) self::timestamp($time[0]['server_now'], true)));
-            $state = iterator_to_array($select('SELECT algorithm_version, sample_cursor, sample_highwater, samples_done, events_done, updated_at FROM evse_history_state WHERE source = CAST(? AS BINARY) LIMIT 2', [$c->prefix]));
+            $state = iterator_to_array($select('SELECT algorithm_version, sample_cursor, sample_highwater, samples_done, events_done, updated_at, initialized, event_cursor_at, event_highwater_at, HEX(event_cursor_id) AS event_cursor_id, HEX(event_highwater_id) AS event_highwater_id, invalidate_from, invalidate_cursor FROM evse_history_state WHERE source = CAST(? AS BINARY) LIMIT 2', [$c->prefix]));
             if (count($state) !== 1 || $state[0]['algorithm_version'] !== '1' ||
-                !in_array($state[0]['samples_done'], ['0', '1'], true) || !in_array($state[0]['events_done'], ['0', '1'], true)) {
+                !in_array($state[0]['samples_done'], ['0', '1'], true) || !in_array($state[0]['events_done'], ['0', '1'], true) ||
+                !in_array($state[0]['initialized'] ?? null, ['0', '1'], true)) {
                 throw new \UnexpectedValueException('Archive not initialized');
             }
             foreach (['sample_cursor', 'sample_highwater'] as $key) {
@@ -370,6 +370,49 @@ final class HistoryArchive
                 throw new \UnexpectedValueException('Invalid archive progress');
             }
             $progress = ['samples_done' => $state[0]['samples_done'] === '1', 'events_done' => $state[0]['events_done'] === '1'];
+            $s = $state[0];
+            $eventTimes = [];
+            foreach (['event_cursor_at', 'event_highwater_at'] as $key) {
+                if (self::timestamp($s[$key] ?? null, true) > $now->getTimestamp() + 5) {
+                    throw new \UnexpectedValueException('Future event progress');
+                }
+                // Compare canonical date strings, not float timestamps: retain
+                // microsecond ordering even near the supported date limits.
+                $eventTimes[$key] = strlen($s[$key]) === 19 ? $s[$key] . '.000000' : $s[$key];
+            }
+            foreach (['event_cursor_id', 'event_highwater_id'] as $key) {
+                if (!is_string($s[$key] ?? null) || !preg_match('/\A[0-9A-Fa-f]{32}\z/D', $s[$key])) {
+                    throw new \UnexpectedValueException('Invalid event progress');
+                }
+                $s[$key] = strtoupper($s[$key]);
+            }
+            // UUID order is traversal evidence only, never event chronology.
+            $eventOrder = strcmp($eventTimes['event_cursor_at'], $eventTimes['event_highwater_at']);
+            $eventsScanned = $eventOrder > 0 || ($eventOrder === 0 && strcmp($s['event_cursor_id'], $s['event_highwater_id']) >= 0);
+            $invalid = [];
+            foreach (['invalidate_from', 'invalidate_cursor'] as $key) {
+                if (!array_key_exists($key, $s)) { throw new \UnexpectedValueException('Missing invalidation state'); }
+                // Validate minute alignment as text before float conversion:
+                // microseconds near the year-1000 SQL epoch can round away.
+                if ($s[$key] !== null && (!is_string($s[$key]) ||
+                    !preg_match('/\A[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:00(?:\.000000)?\z/D', $s[$key]))) {
+                    throw new \UnexpectedValueException('Invalid invalidation boundary');
+                }
+                $invalid[$key] = $s[$key] === null ? null : self::timestamp($s[$key], true);
+                if ($invalid[$key] !== null && (floor($invalid[$key]) !== $invalid[$key] || (int) $invalid[$key] % 60 !== 0 ||
+                    $invalid[$key] > $now->getTimestamp() + 5)) {
+                    throw new \UnexpectedValueException('Invalid invalidation boundary');
+                }
+            }
+            $invalidateFrom = $invalid['invalidate_from'];
+            if (($invalid['invalidate_cursor'] !== null && ($invalidateFrom === null || $invalid['invalidate_cursor'] < $invalidateFrom)) ||
+                ($progress['events_done'] && ($invalidateFrom !== null || $invalid['invalidate_cursor'] !== null || !$eventsScanned))) {
+                throw new \UnexpectedValueException('Inconsistent invalidation state');
+            }
+            // initialized alone precedes backfill. Only completed initial
+            // cursors permit range-local readiness during later invalidations.
+            $initialDone = $s['initialized'] === '1' && $progress['samples_done'] && $cursor === $high && $eventsScanned;
+            $ready = $initialDone && ($progress['events_done'] || $invalidateFrom !== null);
             // Long custom selections use minute edges and whole UTC hours in the interior.
             $start = $range->from->getTimestamp();
             $end = $range->to->getTimestamp();
@@ -432,7 +475,12 @@ final class HistoryArchive
                     } while ($page === 256);
                 }
             })();
-            $projection = self::project($range, $rows, $dirty, $progress['samples_done'] && $progress['events_done'], $guard, (float) $now->format('U.u'));
+            // Do not shorten to invalidate_cursor: already traversed jobs can
+            // still be pending. Also mask jobs not yet discovered by the worker.
+            if ($ready && !$progress['events_done'] && $invalidateFrom < $end) {
+                $dirty[] = [max($start, $invalidateFrom), $end];
+            }
+            $projection = self::project($range, $rows, $dirty, $ready, $guard, (float) $now->format('U.u'));
             $result = array_replace($range->envelope('ok', $now), $projection, ['progress' => $progress]);
             $guard();
             if (strlen(json_encode($result, JSON_THROW_ON_ERROR)) > 2097152) {
