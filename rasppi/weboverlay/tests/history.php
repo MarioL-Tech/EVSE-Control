@@ -86,7 +86,11 @@ final class HistoryPDO extends PDO
     public bool $committed = false;
     public bool $rolledBack = false;
     public ?Closure $step = null;
-    public function __construct(private array $results, private bool $fail = false) {}
+    public function __construct(private array $results, private bool $fail = false)
+    {
+        // Optional minutes registry is absent in these legacy installations.
+        if (count($results) >= 2) { array_splice($this->results, 2, 0, [[]]); }
+    }
     public function exec(string $statement): int|false
     {
         $this->commands[] = $statement;
@@ -361,11 +365,11 @@ try {
             historyCheck(str_starts_with($query, 'SELECT ') && !str_contains($query, '*'));
             historyCheck(!preg_match('/payload|details_json|communication_error|T_ELECTRICITY/i', $query));
         }
-        [$query, $statement] = $pdo->statements[2];
+        [$query, $statement] = $pdo->statements[3];
         historyCheck(str_contains($query, 'FORCE INDEX (source_measurement)') && str_ends_with($query, 'LIMIT 1201'));
         historyCheck($statement->parameters === ['evse/wallbox', '2026-10-26 11:59:59.000000', historyDate(59)]);
-        historyCheck(str_contains($pdo->statements[3][0], 'LIMIT 2401'));
-        historyCheck(str_ends_with($pdo->statements[4][0], 'LIMIT 2'));
+        historyCheck(str_contains($pdo->statements[4][0], 'LIMIT 2401'));
+        historyCheck(str_ends_with($pdo->statements[5][0], 'LIMIT 2'));
     });
     foreach ([true, false] as $tied) {
         $test(static function () use ($config, $tied): void {
@@ -381,7 +385,7 @@ try {
             historyCheck($result['status'] === 'ok' && $result['complete']);
             historyCheck(historyBreaks($result) === ($tied ? [true, true] : [true, false]));
             historyCheck($pdo->committed && !$pdo->rolledBack);
-            historyCheck(str_ends_with($pdo->statements[4][0], 'LIMIT 2'));
+            historyCheck(str_ends_with($pdo->statements[5][0], 'LIMIT 2'));
         });
     }
     foreach ([[], [['version' => '2']], [['version' => '1'], ['version' => '3']], [['version' => '1'], ['version' => '2'], ['version' => '3']]] as $versions) {
@@ -448,7 +452,7 @@ try {
     });
     // Expire after every individual driver stage, without sleeping or opening a socket.
     foreach (['exec', 'prepare', 'execute', 'fetch'] as $stage) {
-        for ($occurrence = 1; $occurrence <= 5; ++$occurrence) {
+        for ($occurrence = 1; $occurrence <= ($stage === 'exec' ? 5 : 6); ++$occurrence) {
             $test(static function () use ($config, $stage, $occurrence): void {
                 $time = (object) ['now' => 0];
                 $counts = ['exec' => 0, 'prepare' => 0, 'execute' => 0, 'fetch' => 0];
@@ -479,7 +483,7 @@ try {
         $fetches = 0;
         $pdo = new HistoryPDO([[['version' => '1']], [['server_now' => historyDate(59)]], [], [], []]);
         $pdo->step = static function (string $operation) use ($time, &$fetches): void {
-            if ($operation === 'fetch' && ++$fetches === 5) {
+            if ($operation === 'fetch' && ++$fetches === 6) {
                 // Let the post-fetch guard pass, then expire at the pre-commit guard.
                 $time->remainingReads = 1;
             }
@@ -491,7 +495,7 @@ try {
             return $time->now;
         };
         $result = (new HistoryStore($config, static fn() => $pdo, null, $mono))->snapshot();
-        historyCheck($fetches === 5 && count($pdo->statements) === 5);
+        historyCheck($fetches === 6 && count($pdo->statements) === 6);
         historyCheck($result['status'] === 'unavailable' && !$pdo->committed && $pdo->rolledBack);
     });
     $test(static function () use ($config): void {
@@ -501,7 +505,7 @@ try {
             $time->now += 100000000;
         };
         $result = (new HistoryStore($config, static fn() => $pdo, null, static fn(): int => $time->now))->snapshot();
-        historyCheck($time->now === 2000000000 && $result['status'] === 'ok');
+        historyCheck($time->now === 2300000000 && $result['status'] === 'ok');
         historyCheck($pdo->committed && !$pdo->rolledBack);
     });
     print('History: ' . $cases . " isolated cases passed\n");

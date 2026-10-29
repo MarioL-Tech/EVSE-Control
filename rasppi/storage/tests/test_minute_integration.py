@@ -12,7 +12,7 @@ from storage.database import Database
 from storage.history import HistoryWorker, migrate_history
 from storage.house_database import HouseDatabase
 from storage.house_rollup import HouseWorker
-from storage.minutes import Recorder, captured, migrate, verify
+from storage.minutes import Recorder, captured, migrate, verify, require_raw_source
 from test_minute_unit import START, SOURCE, observation, online
 
 
@@ -159,6 +159,9 @@ class MinuteIntegration(unittest.TestCase):
         from storage.minutes import IntakeRejected
         with self.assertRaises(IntakeRejected):
             restarted.write(observation(30))
+        with self.assertRaises(ValueError):
+            require_raw_source(self.db, 'wallbox')
+        require_raw_source(self.house, 'house')  # independent kind has no cutover
 
     def test_bad_registry_checksum_blocks_both_intake_and_housekeeping(self):
         migrate(self.db)

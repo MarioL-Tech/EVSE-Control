@@ -71,6 +71,9 @@ def run(config, stop):
                     db.verify()
                     if recorder:
                         recorder.acquire()
+                    else:
+                        from .minutes import require_raw_source
+                        require_raw_source(db, 'wallbox')
                     ready, last_ping = True, time.monotonic()
                 except (pymysql.MySQLError, OSError, ValueError):
                     db.close()

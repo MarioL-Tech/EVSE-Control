@@ -198,14 +198,34 @@ def captured(db, c, kind, source, start):
               ' WHERE source=%s AND received_at>=%s AND received_at<=%s ORDER BY received_at LIMIT 129',
               (source, start - timedelta(seconds=10), start + timedelta(seconds=70)))
     events = c.fetchall()
+    c.execute('SELECT received_at,kind,availability,retained FROM ' + table +
+              ' WHERE source=%s AND received_at<%s ORDER BY received_at DESC LIMIT 2',
+              (source, start - timedelta(seconds=10)))
+    preceding = c.fetchall()
+    baseline_bad = bool(preceding) and (
+        len(preceding) > 1 and preceding[0]['received_at'] == preceding[1]['received_at'] or
+        preceding[0]['kind'] != 'availability' or preceding[0]['availability'] != 'online' or preceding[0]['retained'])
     if (len(events) > 128 or len({e['received_at'] for e in events}) != len(events) or
-            any(e['kind'] != 'availability' or e['availability'] != 'online' or e['retained'] for e in events)):
+            baseline_bad or any(e['kind'] != 'availability' or e['availability'] != 'online' or e['retained'] for e in events)):
         data['has_gap'] = True
         if kind == 'wallbox':
             data['coverage_seconds'] = '0'
         else:
             data['coverage_ms'] = 0
     return data
+
+
+def require_raw_source(db, kind):
+    """A one-way cutover cannot be silently rolled back to hidden raw writes."""
+    if not getattr(db, '_minute_present', False):
+        return
+    with db.connection.cursor() as c:
+        c.execute('SELECT started_at FROM evse_minute_sources WHERE kind=%s AND source=%s',
+                  (kind, db.config.prefix))
+        present = c.fetchone() is not None
+    db.connection.commit()
+    if present:
+        raise ValueError('Minute source cannot resume raw intake')
 
 
 class IntakeRejected(ValueError):

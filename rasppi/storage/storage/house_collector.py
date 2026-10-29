@@ -138,6 +138,9 @@ def run(config, stop, http_config=None):
                     worker.acquire()  # HOUSE registry only, and exclusive source lock.
                     if recorder:
                         recorder.acquire()
+                    else:
+                        from .minutes import require_raw_source
+                        require_raw_source(db, 'house')
                     ready, work_ready = True, False
                     watch = WorkWatch()
                 if recorder:

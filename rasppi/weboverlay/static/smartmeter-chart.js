@@ -1,6 +1,7 @@
 (function (root) {
   'use strict';
   const RETENTION_MS = 900000, MAX_POINTS = 1200, MAX_GAP_MS = 10000;
+  const houseHistory = root.OverlayHouseHistory || (typeof require === 'function' ? require('./house-history.js') : null);
   function timestamp(value) {
     if (typeof value !== 'string' || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?(?:Z|\+00:00)$/.test(value)) return NaN;
     const ms = Date.parse(value);
@@ -59,7 +60,9 @@
     for (const p of points) {
       if (!isValid(p)) { if (segmentLength === 1) markers.push(last); previous = null; segmentLength = 0; continue; }
       const px = x(p.t).toFixed(2), py = y(p.power_w / 1000).toFixed(2);
-      const connect = previous && !p.breakBefore && p.t > previous.t && p.t - previous.t <= MAX_GAP_MS;
+      const connect = previous && !p.breakBefore && !p.seriesBreak && !previous.seriesBreak && p.t > previous.t &&
+        (p.recordType === 'minute') === (previous.recordType === 'minute') &&
+        (p.recordType === 'minute' ? houseHistory?.minuteAdjacent(previous, p) : p.t - previous.t <= MAX_GAP_MS);
       if (!connect) { if (segmentLength === 1) markers.push(last); segmentLength = 1; }
       else segmentLength++;
       path += `${connect ? 'L' : 'M'}${px},${py}`;

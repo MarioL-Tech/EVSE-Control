@@ -7,6 +7,7 @@ import hashlib
 import json
 from types import SimpleNamespace
 import unittest
+import uuid
 from unittest.mock import MagicMock, patch
 
 import pymysql
@@ -31,7 +32,8 @@ def observation(second, kind='wallbox', retained=False, received=None, **values)
         sample = wallbox_decode(sample_payload(stamp, values=values))
     else:
         sample = house_decode(json.dumps(dict(schema_version=1, device='house_grid',
-            publisher_id='12345678-1234-4234-8234-123456789012', sequence=second // 2 + 100,
+            # Deterministic synthetic epoch, not a credential/access token.
+            publisher_id=str(uuid.UUID(int=1, version=4)), sequence=second // 2 + 100,
             timestamp=stamp, last_success_at=stamp, status='ok', power_w=values.get('power_w', -10),
             error=None)).encode())
     return dict(kind='sample', sample=sample, source=SOURCE,
@@ -341,6 +343,15 @@ class MinutePublication(unittest.TestCase):
         data = captured(db, c, 'wallbox', SOURCE, START)
         self.assertTrue(data['has_gap'])
         self.assertEqual(data['coverage_seconds'], '0')
+        # A late, persistent offline baseline outside the local event window
+        # invalidates even an originally full immutable capture.
+        c.fetchone.side_effect = [{'started_at': START}, {'data_json': frozen[1], 'digest': frozen[2]}]
+        c.fetchall.side_effect = [(), [dict(received_at=START - timedelta(seconds=20), kind='availability',
+            availability='offline', retained=False)]]
+        data = captured(db, c, 'wallbox', SOURCE, START)
+        self.assertTrue(data['has_gap'])
+        self.assertEqual(data['coverage_seconds'], '0')
+        c.fetchall.side_effect = None
         c.fetchone.side_effect = [{'started_at': START}]
         self.assertIsNone(captured(db, c, 'wallbox', SOURCE, START - timedelta(minutes=1)))
 

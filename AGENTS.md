@@ -18,7 +18,20 @@ Minutenpipeline und quellgebundene Bereinigung inzwischen implementiert, neue
 Docker-/MariaDB-Tests noch nicht abgenommen. Drei unabhängige Minutentabellen,
 explizites `--migrate-minutes`; bisherige Compose-Deployments bleiben raw bis
 bewusster Umstellung. Minutenworker verwenden validierte Captures statt Raw;
-kurzer Website-SQL-Vertrag wird separat angepasst, keine stillen Rohmittelwerte.
+kurze SQL-Fenster verwenden nach Cutover ausdrücklich Schema3 mit Intervallen,
+Legacyraw bleibt Schema1 und Kalender Schema2. Keine stillen Rohmittelwerte.
+Storage-Matrizen40923140703/40923130796 für69caa0c bestanden auf10.11/11.8.8/11.8;
+nachfolgende Reviewkorrekturen und Schema3 benötigen neuen Dockerabschluss.
+Unabhängiger Review fand versteckten Raw-Rückwechsel und fehlende vorangehende
+Lifecycle-Baseline: Rawaufnahme nach Cutover jetzt ablehnen, Worker dürfen mit
+Rawkonfiguration Captures lesen; nachträgliche Offline-/Unknown-Baseline sperrt
+auch immutable Captures. Env-Review: Testfixture-Reihenfolge korrigiert und
+Dateirevision direkt nach fsync vor Rename erneut prüfen. Keine CAS-Zusage für
+fremde Dateieditoren ohne gemeinsamen Lock.
+GitHub-Secretscanningwarnungen1/2 als OpenVSX-Format wurden auf UUID-Beispiele
+in Dokumentation/Minutentest eingegrenzt; Warnung2 direkt mit deterministischer
+Testfixture verglichen, kein echter Zugangsschlüssel. Keine echten `.env`-/
+Secretdateien committed, Warnungen nicht durch Agent geschlossen/Token rotiert.
 Automatische Löschung älterer EVSE-Werte jetzt ausdrücklich autorisiert:
 `STORAGE_RETENTION_MINUTE_DAYS/HOUR_DAYS/DAY_DAYS`, Default0=unbegrenzt. Quellen-
 gebundene begrenzte Löschungen einschließlich Legacyraw/Ereignissen; fremde

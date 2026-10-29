@@ -26,11 +26,33 @@ Installation und Freigabeschritte stehen ausschließlich in
 
 ## Speicherung und Verlustgrenze
 
+Kurze SQL-Fenster (`/api/history?minutes=15` beziehungsweise
+`/api/house-history?minutes=15`) verwenden nach Cutover den neuen Antwortvertrag
+`schema_version=3`. Legacyantworten bleiben Schema 1; Kalender bleibt Schema 2.
+Schema-3-Samples haben zusätzlich `interval`: bei Legacyraw `null`, bei einem
+Minutenprodukt `{from,to,complete,has_gap,break_fields}`. `timestamp` bezeichnet
+hier ausdrücklich die Intervallmitte, `received_at` den Intervallabschluss,
+`id` ist Minutenidentität und keine Raw-SQL-ID. Es wird keine Geräte-Einzelmessung
+vorgetäuscht. Nur ganze abgeschlossene Minuten innerhalb des Fensters kommen
+zurück; fehlende/abgeschnittene Minuten werden nicht aufgefüllt.
+
+Eigene NULL-/Mehrdeutigkeitsbarrieren bleiben über `break_fields` erhalten,
+auch wenn ein gültiger Mittelwert existiert. Nur validierte, vollständige,
+gapfreie und direkt angrenzende Minutenintervalle können eine Minutenlinie
+belegen. Tatsächliche schnelle Raw-/Livepunkte behalten die 10-s-Grenze.
+Legacy-/Minuten- und SQL-/Liveübergänge bleiben ausdrücklich getrennt; kein
+Archivwert erneuert Live-Frische. Nachträgliche Offline-/Lifecycle-Ereignisse
+einschließlich vorausgehender Baseline dürfen auch immutable Captures sperren.
+
 Additive unabhängige Tabellen `evse_minute_schema_versions`,
 `evse_minute_sources` und `evse_minute_records`; explizites `--migrate-minutes`.
 Bestehende Wallboxversionen 1/2 und HOUSE-Version 1 bleiben unverändert.
 Quellkennung und persistierter Umschaltzeitpunkt trennen alte Rohdaten von neuen
 Minutenprodukten. Vorhandene Rohdaten werden nicht in Minutenwerte umetikettiert.
+Nach einmaligem Cutover ist ein Rückwechsel dieser Quelle auf Rawaufnahme nicht
+unterstützt und wird vor Intake abgelehnt; vorhandene Captures dürfen neue
+Rohzeilen nicht still verdecken. Rawkonfigurierte Kalenderworker dürfen dagegen
+weiterhin Captures lesen. Topologierückbau wäre ein eigener Migrationsauftrag.
 
 Ein eingefrorener Record erhält eine feste Identität und Prüfsumme. Ungewisser
 Commit wird mit demselben Inhalt wiederholt, widersprüchliche Identitäten werden

@@ -219,15 +219,6 @@ try {
     envCheck($store->read('weboverlay')['status'] === 'unavailable');
     envCheck($store->update('weboverlay', null, [], true)['status'] === 'unavailable');
     envCheck(file_get_contents($target) === 'target-marker');
-    foreach ([['STORAGE_RETENTION_MINUTE_DAYS' => '2', 'STORAGE_RETENTION_HOUR_DAYS' => '1'],
-        ['STORAGE_RETENTION_MINUTE_DAYS' => '0', 'STORAGE_RETENTION_HOUR_DAYS' => '2'],
-        ['STORAGE_RETENTION_MINUTE_DAYS' => '1', 'STORAGE_RETENTION_HOUR_DAYS' => '0', 'STORAGE_RETENTION_DAY_DAYS' => '2'],
-        ['STORAGE_RETENTION_MINUTE_DAYS' => '36501']] as $bad) {
-        envCheck($store->update('storage', $storage['revision'], $bad)['status'] === 'invalid');
-    }
-    envCheck($store->update('storage', $storage['revision'], ['STORAGE_RECORDING_MODE' => 'minute',
-        'STORAGE_RETENTION_MINUTE_DAYS' => '365', 'STORAGE_RETENTION_HOUR_DAYS' => '730',
-        'STORAGE_RETENTION_DAY_DAYS' => '0'])['status'] === 'ok');
     unlink($path); link($target, $path);
     envCheck($store->read('weboverlay')['status'] === 'unavailable');
     unlink($path); mkdir($path, 0700);
@@ -276,6 +267,15 @@ try {
         envCheck($store->update('storage', $storage['revision'], [$key => $bad])['status'] === 'invalid');
     }
     envCheck(file_get_contents($target) === 'target-marker');
+    foreach ([['STORAGE_RETENTION_MINUTE_DAYS' => '2', 'STORAGE_RETENTION_HOUR_DAYS' => '1'],
+        ['STORAGE_RETENTION_MINUTE_DAYS' => '0', 'STORAGE_RETENTION_HOUR_DAYS' => '2'],
+        ['STORAGE_RETENTION_MINUTE_DAYS' => '1', 'STORAGE_RETENTION_HOUR_DAYS' => '0', 'STORAGE_RETENTION_DAY_DAYS' => '2'],
+        ['STORAGE_RETENTION_MINUTE_DAYS' => '36501']] as $bad) {
+        envCheck($store->update('storage', $storage['revision'], $bad)['status'] === 'invalid');
+    }
+    envCheck($store->update('storage', $storage['revision'], ['STORAGE_RECORDING_MODE' => 'minute',
+        'STORAGE_RETENTION_MINUTE_DAYS' => '365', 'STORAGE_RETENTION_HOUR_DAYS' => '730',
+        'STORAGE_RETENTION_DAY_DAYS' => '0'])['status'] === 'ok');
     foreach (glob($root . '/*/.env.tmp-*') as $temp) { envCheck(false); }
 } finally {
     envRemove($base);

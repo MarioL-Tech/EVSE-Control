@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace EvseOverlay;
 
+require_once __DIR__ . '/MinuteHistory.php';
+
 final class HistoryStore
 {
     private \Closure $factory;
@@ -315,7 +317,14 @@ final class HistoryStore
             $to = str_replace('T', ' ', $to);
             $from = str_replace('T', ' ', $from);
             $params = [$c->prefix, $from, $to];
-            $rows = $select('SELECT id, measured_at, received_at, retained, status, error_code, socket_lock_state, charging_state_raw, charging_state, below_commanded_current, plugged_in, charging, current_limit_a, current_l1_a, current_l2_a, current_l3_a, voltage_l1_v, voltage_l2_v, voltage_l3_v, active_power_w, session_energy_wh FROM evse_wallbox_samples FORCE INDEX (source_measurement) WHERE source = CAST(? AS BINARY) AND measured_at >= ? AND measured_at <= ? ORDER BY measured_at DESC, id DESC LIMIT 1201', $params);
+            $capture = MinuteHistory::read($select, 'wallbox', $c->prefix, MinuteHistory::date($from), MinuteHistory::date($to));
+            $rawParams = $params;
+            $cutoverSql = '';
+            if ($capture !== null) {
+                $cutoverSql = ' AND measured_at < ?';
+                $rawParams[] = $capture['cutover']->format('Y-m-d H:i:s.u');
+            }
+            $rows = $select('SELECT id, measured_at, received_at, retained, status, error_code, socket_lock_state, charging_state_raw, charging_state, below_commanded_current, plugged_in, charging, current_limit_a, current_l1_a, current_l2_a, current_l3_a, voltage_l1_v, voltage_l2_v, voltage_l3_v, active_power_w, session_energy_wh FROM evse_wallbox_samples FORCE INDEX (source_measurement) WHERE source = CAST(? AS BINARY) AND measured_at >= ? AND measured_at <= ?' . $cutoverSql . ' ORDER BY measured_at DESC, id DESC LIMIT 1201', $rawParams);
             $eventColumns = 'kind, availability, retained, received_at, event_id';
             $events = $select('SELECT ' . $eventColumns . ' FROM evse_ingest_events FORCE INDEX (source_receipt) WHERE source = CAST(? AS BINARY) AND received_at >= ? AND received_at <= ? ORDER BY received_at DESC, event_id DESC LIMIT 2401', $params);
             $baseline = $select('SELECT ' . $eventColumns . ' FROM evse_ingest_events FORCE INDEX (source_receipt) WHERE source = CAST(? AS BINARY) AND received_at < ? ORDER BY received_at DESC, event_id DESC LIMIT 2', [$c->prefix, $from]);
@@ -325,7 +334,7 @@ final class HistoryStore
                 // Coverage remains complete, but availability starts unknown until a definite event.
                 $base = null;
             }
-            $projection = self::project($rows, $events, $base, $from, $to);
+            $projection = MinuteHistory::merge(self::project($rows, $events, $base, $from, $to), $capture);
             $guard();
             $pdo->commit();
             $result = array_replace(self::envelope($minutes, 'ok', $now), $projection);

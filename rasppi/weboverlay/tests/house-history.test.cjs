@@ -21,6 +21,58 @@ function bucket(from, to, value, options = {}) {
     metrics: { power_w: { count: value === null ? 0 : 1, nulls: value === null ? 1 : 0,
       mean: value, min: value, max: value, last: value, mixed: false } }, ...options };
 }
+function minuteRaw() {
+  const b = raw([], epoch + 180000); b.schema_version = 3;
+  b.samples = [-1000, 0, 500].map((power_w, i) => ({ id: String(epoch / 60000 + i + 1),
+    timestamp: iso(epoch + i * 60000 + 30000), received_at: iso(epoch + (i + 1) * 60000),
+    status: 'ok', power_w, break_before: i === 0,
+    interval: { from: iso(epoch + i * 60000), to: iso(epoch + (i + 1) * 60000), complete: true, has_gap: false, break_fields: [] } }));
+  return b;
+}
+test('HOUSE schema 3 joins only validated adjacent complete minutes and retains intra-minute NULL evidence', () => {
+  const now = epoch + 180000, s = house.createStore(), b = minuteRaw();
+  assert(s.importHistory(b, now));
+  assert.equal((chart.buildPlot(s.points([], now, 15), epoch, now).path.match(/L/g) || []).length, 2);
+  const revision = s.revision;
+  assert(s.importHistory(JSON.parse(JSON.stringify(b)), now)); assert.equal(s.revision, revision);
+  assert(Object.isFrozen(s.rawView().samples[0].interval.break_fields));
+  b.samples[1].interval.break_fields = ['power_w'];
+  assert(s.importHistory(b, now));
+  assert.equal((chart.buildPlot(s.points([], now, 15), epoch, now).path.match(/M/g) || []).length, 3);
+  assert.deepEqual(s.points([], now, 15).map(p => p.power_w), [-1000, 0, 500]);
+  b.samples[1].interval.break_fields = []; b.samples[1].interval.has_gap = true;
+  assert(s.importHistory(b, now)); assert(!chart.buildPlot(s.points([], now, 15), epoch, now).path.includes('L'));
+  b.samples[1].power_w = null; b.samples[1].interval.break_fields = ['power_w'];
+  assert(s.importHistory(b, now)); assert.equal(s.points([], now, 15)[1].power_w, null);
+  assert(!chart.buildPlot(s.points([], now, 15), epoch, now).path.includes('L'));
+});
+test('HOUSE schema 3 missing/partial minutes, raw seam and SQL/live tail cannot reconnect', () => {
+  const now = epoch + 180000;
+  for (const cause of ['missing', 'partial']) {
+    const s = house.createStore(), b = minuteRaw();
+    if (cause === 'missing') b.samples.splice(1, 1); else b.samples[1].interval.complete = false;
+    assert(s.importHistory(b, now)); assert(!chart.buildPlot(s.points([], now, 15), epoch, now).path.includes('L'));
+  }
+  const s = house.createStore(), b = minuteRaw();
+  b.samples.unshift({ id: '99', timestamp: iso(epoch - 2000), received_at: iso(epoch - 1000), status: 'ok', power_w: 0, break_before: true, interval: null });
+  b.samples[1].break_before = false;
+  assert(s.importHistory(b, now));
+  const points = s.points([{ t: now - 2000, power_w: 1 }, { t: now + 1000, power_w: 2 }], now + 1000, 15);
+  assert.equal(points.length, 5); assert(points[1].breakBefore); assert(points.at(-1).breakBefore);
+  assert.equal(points.at(-1).source, 'live'); assert.equal(points[1].recordType, 'minute');
+});
+test('HOUSE schema 3 rejects unsupported evidence and cloned/forged minute parameters do not grant continuity', () => {
+  for (const mutate of [b => delete b.samples[0].interval, b => b.samples[0].interval.extra = true,
+    b => b.samples[0].interval.break_fields = ['active_power_w'], b => b.samples[0].interval.break_fields = ['power_w', 'power_w'],
+    b => b.samples[0].interval.complete = 1, b => b.samples[0].id = '1', b => b.samples[0].timestamp = b.samples[0].interval.from,
+    b => b.samples[0].received_at = b.samples[0].timestamp]) {
+    const b = minuteRaw(); mutate(b); assert.equal(house.validate(b, epoch + 180000), null);
+  }
+  const s = house.createStore(); assert(s.importHistory(minuteRaw(), epoch + 180000));
+  const copied = JSON.parse(JSON.stringify(s.points([], epoch + 180000, 15)));
+  assert(!chart.buildPlot(copied, epoch, epoch + 180000).path.includes('L'));
+  assert(s.importHistory({ ...raw([]), status: 'unavailable' }, epoch + 180000), 'Current schema 1 failures stay accepted');
+});
 test('microsecond raw range includes a valid zero from the current fractional second', () => {
   const batch = raw([0]);
   batch.generated_at = '2026-10-29T12:00:00.900000Z';

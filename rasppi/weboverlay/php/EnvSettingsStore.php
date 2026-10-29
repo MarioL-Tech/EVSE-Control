@@ -258,6 +258,9 @@ final class EnvSettingsStore
                 }
                 if (!@fflush($stream) || !@fsync($stream)) { self::fail(); }
             } finally { fclose($stream); }
+            // Also check after potentially slow writes/fsync. Editors not using
+            // our lock still have no atomic-CAS guarantee; never claim otherwise.
+            if ($this->content($path) !== $content) { self::fail('conflict'); }
             if (!@rename($temp, $path)) { self::fail(); }
             $temp = null;
             return $this->snapshot($service, $next, $catalog, $nextKnown);

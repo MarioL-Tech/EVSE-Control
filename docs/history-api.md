@@ -1,5 +1,11 @@
 # Lesende Wallbox-Historie der Website
 
+Erweiterung PR #57 (Abnahme offen): Nach bewusstem Minuten-Cutover liefern die
+kurzen Fenster Schema 3 mit expliziter Intervallevidenz statt falscher Rawpunkte.
+Legacyantworten bleiben Schema 1, Kalender Schema 2. Neuer Vertrag in
+[minute-recording.md](minute-recording.md); die folgenden Rohregeln gelten
+unverändert für echte schnelle Legacy-/Livewerte.
+
 Die SQL-Historie ergänzt ausschließlich die vorhandene Diagrammseite. Sie ist
 kein Live-Snapshot, keine Steuerung und keine Preis-/Hauszähler-API. `/api/state`
 und seine MQTT-/Frischelogik bleiben unabhängig. Einrichtung ausschließlich im
