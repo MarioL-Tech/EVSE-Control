@@ -7,6 +7,11 @@ Aktivierung aufzeichnen, keine früheren Hausmessungen erfinden.
 
 ## Datenfluss
 
+Rohunterbrechungen gelten kantenbezogen: ein alter Retained-/Clock-Ausreißer
+bleibt getrennt, isoliert aber nicht automatisch alle späteren, unabhängig
+belegten Nachbarn. `complete=false` bleibt als Qualitätsangabe erhalten;
+fehlender/trunkierter Ereigniskontext darf dadurch keine falsche Verbindung erhalten.
+
 Separater `house-publisher` im bestehenden Website-Compose, Profil
 `house-history`, verwendet dasselbe PHP-Image, SmartmeterClient und bestehende
 SMARTMETER_URL, aber eigenen CLI-Entrypoint/Healthcheck/MQTT-Client. Website

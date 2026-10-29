@@ -262,16 +262,21 @@ final class HouseHistoryStore
             }
         }
         usort($rows, static fn($a, $b) => self::compareUint($a['id'], $b['id']));
-        $prior = null;
+        $prior = null; $clockBad = [];
         foreach ($rows as $row) {
             self::uint($row['id'], '18446744073709551615');
             $at = self::date($row['fetched_at']); $receipt = self::date($row['received_at']);
             // The requested window bounds HTTP fetch times, not the independent
             // collector receipt clock. A small transport/clock offset must not
             // turn the entire otherwise valid response into isolated points.
-            if ($at < $from || $at > $to || abs((float) $at->format('U.u') - (float) $receipt->format('U.u')) > 10 ||
-                ($prior !== null && ($at <= $prior[0] || $receipt < $prior[1]))) { $complete = false; }
-            $prior = [$at, $receipt];
+            if ($at < $from || $at > $to) { $complete = false; }
+            if (abs((float) $at->format('U.u') - (float) $receipt->format('U.u')) > 10) {
+                $clockBad[$row['id']] = true;
+            }
+            if ($prior !== null && ($at <= $prior[0] || $receipt < $prior[1])) {
+                $clockBad[$row['id']] = $clockBad[$prior[2]] = true;
+            }
+            $prior = [$at, $receipt, $row['id']];
         }
         usort($rows, static fn($a, $b) => strcmp($a['fetched_at'], $b['fetched_at']) ?:
             strcmp($a['received_at'], $b['received_at']) ?: self::compareUint($a['id'], $b['id']));
@@ -309,7 +314,8 @@ final class HouseHistoryStore
             }
             // A clock_error can legitimately precede the last successful fetch.
             if ($row['last_success_at'] !== null) { self::date($row['last_success_at']); }
-            $eligible = $online === true && !$ambiguous && !self::flag($row['retained']) && $row['status'] === 'ok';
+            $eligible = $online === true && !$ambiguous && !isset($clockBad[$row['id']])
+                && !self::flag($row['retained']) && $row['status'] === 'ok';
             $break = !$complete || !$eligible || $previous === null || !$previous['eligible'] || $barrier !== $previous['barrier'] ||
                 $previous['publisher'] !== $row['publisher_id'] || $previous['sequence'] + 1 !== $sequence ||
                 $at <= $previous['at'] || (float) $at->format('U.u') - (float) $previous['at']->format('U.u') > 10 ||
@@ -318,7 +324,7 @@ final class HouseHistoryStore
                 'status' => $row['status'], 'power_w' => $power, 'break_before' => $break];
             $previous = ['at' => $at, 'receipt' => $receipt, 'publisher' => $row['publisher_id'], 'sequence' => $sequence, 'eligible' => $eligible, 'barrier' => $barrier];
         }
-        return ['complete' => $complete, 'samples' => $samples];
+        return ['complete' => $complete && !$clockBad, 'samples' => $samples];
     }
 
     public function snapshot(int $minutes = 15): array

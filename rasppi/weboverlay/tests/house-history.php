@@ -93,6 +93,11 @@ check($lifecycle['samples'][1]['break_before'] && $lifecycle['samples'][2]['brea
     $lifecycle['samples'][3]['break_before'] && !$lifecycle['samples'][4]['break_before'], 'simultaneous lifecycle group stays unknown until unique availability');
 $rollback = [$rows[0], $rows[1]]; $rollback[0]['id'] = '9';
 check(!$project($rollback)['complete'] && $project($rollback)['samples'][1]['break_before'], 'clock rollback in insertion order');
+$oldRetained = [sample('1', '02'), sample('2', '24'), sample('3', '26'), sample('4', '28')];
+$oldRetained[0]['retained'] = '1'; $oldRetained[0]['received_at'] = '2026-10-29 00:00:22.010000';
+$rejoined = $project($oldRetained);
+check(!$rejoined['complete'] && $rejoined['samples'][0]['break_before'] && $rejoined['samples'][1]['break_before'] &&
+    !$rejoined['samples'][2]['break_before'] && !$rejoined['samples'][3]['break_before'], 'old retained/clock barrier does not poison subsequent independently proved edges');
 $epoch = [$rows[0], $rows[1]]; $epoch[1]['publisher_id'] = str_repeat('b',16);
 check($project($epoch)['samples'][1]['break_before'], 'epoch boundary');
 $jump = [$rows[0], $rows[1]]; $jump[1]['sequence'] = '8';
