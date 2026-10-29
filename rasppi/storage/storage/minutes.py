@@ -72,6 +72,7 @@ def migrate(db):
             if existing:
                 Database.verify_shape(db, names=existing, tables=TABLES)
             checksum = hashlib.sha256(MIGRATION.read_bytes()).digest()
+            versions = ()
             if 'evse_minute_schema_versions' in existing:
                 c.execute('SELECT version,checksum FROM evse_minute_schema_versions ORDER BY version LIMIT 2')
                 versions = c.fetchall()
@@ -83,8 +84,9 @@ def migrate(db):
                 if statement.strip():
                     c.execute(statement)
             Database.verify_shape(db, tables=TABLES)
-            c.execute('INSERT INTO evse_minute_schema_versions (version,checksum,applied_at) '
-                      'VALUES (1,%s,UTC_TIMESTAMP(6)) ON DUPLICATE KEY UPDATE version=version', (checksum,))
+            if not versions:
+                c.execute('INSERT INTO evse_minute_schema_versions (version,checksum,applied_at) '
+                          'VALUES (1,%s,UTC_TIMESTAMP(6))', (checksum,))
             db.connection.commit()
             db._minute_present = True
             verify(db, True)
@@ -375,10 +377,16 @@ class Recorder:
             c.execute('SELECT GET_LOCK(%s,0)', (lock,))
             if c.fetchone()[0] != 1:
                 raise ValueError('Minute source already active')
-            c.execute('INSERT INTO evse_minute_sources (kind,source,started_at) VALUES (%s,%s,%s) '
-                      'ON DUPLICATE KEY UPDATE started_at=started_at', (kind, source, history.floor(UTC())))
             c.execute('SELECT started_at FROM evse_minute_sources WHERE kind=%s AND source=%s', (kind, source))
-            started = c.fetchone()[0]
+            existing = c.fetchone()
+            if existing is None:
+                # The source advisory lock serializes conforming writers. No
+                # no-op UPDATE: immutable cutovers need SELECT/INSERT only.
+                started = history.floor(UTC())
+                c.execute('INSERT INTO evse_minute_sources (kind,source,started_at) VALUES (%s,%s,%s)',
+                          (kind, source, started))
+            else:
+                started = existing[0]
             if history.floor(started) != started:
                 raise ValueError('Invalid minute cutover')
             c.execute('SELECT bucket_start FROM evse_minute_records WHERE kind=%s AND source=%s '

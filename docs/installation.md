@@ -1720,8 +1720,9 @@ isolierten Wegwerfserver testen; keine Produktionswiederherstellung oder Löschu
 
 ### Minutenaufzeichnung und Aufbewahrung
 
-**PR #57 in Arbeit, noch nicht als Docker-abgenommen oder produktiv aktiviert
-behandeln.** Bestehende Daten und Quellen erhalten. Details zum neuen Daten- und
+**PR #57: Codehead979b148 Docker-geprüft, nicht produktiv aktiviert.**
+Web40927845891/40927833069 und Storage40927845966 erfolgreich; Merge beim
+Projektinhaber, Pi-Abnahme offen. Bestehende Daten und Quellen erhalten. Details zum neuen Daten- und
 Verlustvertrag: [minute-recording.md](minute-recording.md).
 
 Der bestehende Compose-Default bleibt für Updates `STORAGE_RECORDING_MODE=raw`,
@@ -1738,7 +1739,12 @@ Website SELECT an den neuen Tabellen. Für ausdrücklich konfigurierte Bereinigu
 zusätzlich DELETE ausschließlich an betroffenen eigenen Mess-/Ereignis-/Bucket-/
 Worktabellen. Keine Accountreparatur oder Erweiterung auf Preise/Provider.
 
-Nach erfolgreicher Docker-Freigabe, aus dem Repository-Hauptverzeichnis und mit
+Vor der Storage-Umschaltung zuerst die kompatible Website aktualisieren, damit
+sie Schema3 versteht. Falls `history-rollup` bereits läuft, ihn vor der
+Umschaltung stoppen und anschließend aus dem neuen Image neu erstellen;
+keinen alten Rawworker über den Cutover weiterlaufen lassen.
+
+Nach Merge/Freigabe, aus dem Repository-Hauptverzeichnis und mit
 **derselben bisherigen Auth-/Compose-Dateiauswahl**:
 
 ```bash
@@ -1757,8 +1763,8 @@ die Wallbox-Kalenderhistorie bereits aktiviert ist; nicht ungefragt aktivieren:
 docker compose up -d --no-deps history-rollup
 ```
 
-Website ebenfalls aktualisieren, damit sowohl Kalender- als auch kurze SQL-
-Historienfenster den neuen Vertrag verstehen. Nachlauf und einen vollständigen
+Die zuvor aktualisierte Website muss sowohl Kalender- als auch kurze SQL-
+Historienfenster verstehen. Nachlauf und einen vollständigen
 Minutenabschluss abwarten. Geprüfte Minuten-/Stundenwerte, echte Unterbrechungen,
 Reload, zwei unabhängige Quellen und unveränderte Livefrische abnehmen. Die
 Stopphase kann Records verlieren; retained ersetzt keinen Verlauf. Keine

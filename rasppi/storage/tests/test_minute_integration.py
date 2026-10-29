@@ -97,6 +97,43 @@ class MinuteIntegration(unittest.TestCase):
         self.assertEqual(snapshots['schema'], self.query('SELECT version,applied_at FROM evse_schema_versions ORDER BY version LIMIT 3'))
         self.assertEqual(snapshots['house_schema'], self.query('SELECT version,checksum,applied_at FROM evse_house_schema_versions ORDER BY version LIMIT 3'))
 
+    def test_minute_writer_needs_no_update_grant_for_cutover_or_reconnect(self):
+        username = 'minute_writer_' + uuid.uuid4().hex[:12]
+        with self.root.cursor() as c:
+            c.execute('CREATE USER %s@%s IDENTIFIED BY %s', (username, '%', 'dummy-minute-writer'))
+            for table in ('evse_minute_schema_versions', 'evse_minute_sources', 'evse_minute_records'):
+                c.execute('GRANT SELECT,INSERT,CREATE ON ' + self.config.db_name + '.' + table + ' TO %s@%s',
+                          (username, '%'))
+            c.execute('GRANT SELECT,INSERT ON ' + self.config.db_name + '.evse_ingest_events TO %s@%s',
+                      (username, '%'))
+            for table in ('evse_schema_versions', 'evse_wallbox_samples'):
+                c.execute('GRANT SELECT ON ' + self.config.db_name + '.' + table + ' TO %s@%s',
+                          (username, '%'))
+        limited = Database(replace(self.config, db_user=username, db_password='dummy-minute-writer',
+                                   recording_mode='minute'))
+        try:
+            for restart in range(2):
+                limited.connect()
+                if restart == 0:
+                    migrate(limited)
+                    migrate(limited)
+                limited.verify()
+                recorder = Recorder(limited, 'wallbox')
+                with patch('storage.minutes.UTC', return_value=START + timedelta(seconds=1 + restart * 120)):
+                    recorder.acquire()
+                if restart == 0:
+                    self.feed(recorder)
+                else:
+                    self.assertEqual(recorder.accumulator.started_at, START)
+                    self.assertEqual(recorder.accumulator.closed, START)
+                with limited.connection.cursor() as c:
+                    with self.assertRaises(pymysql.OperationalError) as denied:
+                        c.execute('UPDATE evse_minute_sources SET started_at=started_at')
+                    self.assertEqual(denied.exception.args[0], 1142)
+                limited.close()
+        finally:
+            limited.close()
+
     def test_wallbox_without_schema2_one_capture_zero_raw_and_exact_duplicate(self):
         migrate(self.db)
         recorder = self.recorder()

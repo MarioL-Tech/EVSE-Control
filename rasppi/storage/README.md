@@ -25,7 +25,7 @@ docker compose logs --tail 50 storage
 
 ## Vertrag und Grenzen
 
-### Neue Minutenaufzeichnung (PR #57, Abnahme offen)
+### Neue Minutenaufzeichnung (PR #57, Docker-geprüft; Pi-Abnahme offen)
 
 `STORAGE_RECORDING_MODE=minute` speichert je Quelle/UTC-Minute einen begrenzten
 Minutenrecord statt jedes Zwei-Sekunden-Rohsamples. Mittelwerte nur für W/A/V;
@@ -33,7 +33,9 @@ Zustände, Limits und Sessionzähler nicht mitteln. Neue unabhängige additive
 Migration `--migrate-minutes` ist ausdrücklich nötig, alter Compose-Default raw
 bleibt für bestehende Installationen erhalten. Live und HTTP-/MQTT-Erfassung
 bleiben unverändert schnell. Rawmodus verwendet weiterhin Commit-vor-ACK;
-Minutenmodus quittiert bounded RAM-Aufnahme, Crash kann die offene Minute verlieren.
+Minutenmodus quittiert bounded RAM-Aufnahme; Crash kann offene Minuten samt
+Randkontext verlieren. Codehead979b148 besteht Storage40927845966 auf
+MariaDB10.11/11.8.8/11.8 und Web40927845891 einschließlich echter Schema3-SQL-/HTTP-Prüfungen.
 
 Getrennte `STORAGE_RETENTION_MINUTE_DAYS`, `STORAGE_RETENTION_HOUR_DAYS` und
 `STORAGE_RETENTION_DAY_DAYS`: `0` = unbegrenzt/keine automatische Löschung.

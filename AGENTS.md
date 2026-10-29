@@ -4,7 +4,7 @@ Stand: 2026-10-29. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
-Aktueller Auftrag (2026-10-29, Umsetzung/Abnahme offen): Stunde/Tag/Woche sollen
+Aktueller Auftrag (2026-10-29, implementiert/Docker-geprüft, Pi-Abnahme offen): Stunde/Tag/Woche sollen
 dieselbe einfache Linienoptik wie Live bekommen. Echte Offline-/NULL-/Clock-/
 Lifecycle-Unterbrechungen bleiben getrennt; Min-Max-Bänder entfallen in diesen
 drei Ansichten. Wallbox- und Hauswerte sollen nur noch minutenweise als
@@ -14,14 +14,25 @@ Minutenprodukte brauchen eigene Coverage und explizite additive Migration;
 Bestandsrohdaten/Preise/Provider bleiben unangetastet. RAM-Zwischenpuffer kann
 bei Crash offene Minuten samt Randkontext verlieren, kein Commit-vor-ACK-Versprechen
 für diesen neuen Aufzeichnungsmodus. Legacy-Rawmodus bleibt getrennt.
-Minutenpipeline und quellgebundene Bereinigung inzwischen implementiert, neue
-Docker-/MariaDB-Tests noch nicht abgenommen. Drei unabhängige Minutentabellen,
+Minutenpipeline und quellgebundene Bereinigung implementiert und in isolierten
+Docker-/MariaDB-Tests geprüft. Drei unabhängige Minutentabellen,
 explizites `--migrate-minutes`; bisherige Compose-Deployments bleiben raw bis
 bewusster Umstellung. Minutenworker verwenden validierte Captures statt Raw;
 kurze SQL-Fenster verwenden nach Cutover ausdrücklich Schema3 mit Intervallen,
 Legacyraw bleibt Schema1 und Kalender Schema2. Keine stillen Rohmittelwerte.
-Storage-Matrizen40923140703/40923130796 für69caa0c bestanden auf10.11/11.8.8/11.8;
-nachfolgende Reviewkorrekturen und Schema3 benötigen neuen Dockerabschluss.
+Codehead979b148 besteht Web40927845891/40927833069 und Storage40927845966
+auf10.11/11.8.8/11.8:168 JS-Fälle,182 PHP-Minuten-/209 Envprüfungen,
+zehn neue echte Schema3-SQL-/HTTP-Szenarien,35 Theme-/Settings-Browserfälle
+einschließlich aktiviertem synthetischem Editor sowie bestehende SQL-/TLS-/PWA-/
+Chromium-/Runtimeprüfungen. Simulierte Desktop-/Mobil-Wochenbilder, Hauskurve
+und deaktivierte Settings angesehen. Zusätzlicher finaler Modellreview wegen
+Kontingent nicht gestartet; frühere unabhängige Reviews und Korrekturen erhalten,
+abschließende eigene statische Prüfung ohne weiteren bestätigten Befund.
+Keine Pi-Migration, Retentionlöschung, Schreibmounts oder Produktionsabnahme.
+Abschließender Rechteabgleich fand unnötige No-op-UPDATEs bei Minutenregistry/
+Cutover: unter bestehenden Advisorylocks durch SELECT und gegebenenfalls INSERT
+ersetzt. Neuer echter SQL-Fall mit CREATE/SELECT/INSERT ohne UPDATE prüft explizite
+Migration, Wiederholung, Aufnahme und Reconnect; dessen neuer CI-Abschluss offen.
 Unabhängiger Review fand versteckten Raw-Rückwechsel und fehlende vorangehende
 Lifecycle-Baseline: Rawaufnahme nach Cutover jetzt ablehnen, Worker dürfen mit
 Rawkonfiguration Captures lesen; nachträgliche Offline-/Unknown-Baseline sperrt
