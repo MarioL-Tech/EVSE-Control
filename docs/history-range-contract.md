@@ -110,9 +110,17 @@ Keine Bool-/Codemittel und keine Summierung von Session-Wh über Sessions.
 
 `complete`: Kontext/bounded computation vollständig; nicht Garantie lückenlosen
 Gerätebetriebs. `has_gap` konservativ bei Ausfall, unklarem Kontext, Retained,
-Zeitfehler, Fehler-/Nullsample oder fehlender Abdeckung. `coverage_seconds` nur
+Zeitfehler, Fehler- oder fehlenden Samples und fehlender Abdeckung. `coverage_seconds` nur
 belegte Dauer zwischen gültigen, passend verfügbaren Nachbarreads <=10 s;
-niemals allein aus Sampleanzahl Vollabdeckung ableiten. Gemischte Zustände und
+niemals allein aus Sampleanzahl Vollabdeckung ableiten. Abdeckung gilt für
+gültige Beobachtungen, nicht zwingend jedes unabhängige Feld: unbekanntes Laden
+zerreißt keine bekannten Spannungen; `nulls` unterbricht weiterhin genau die
+betroffene Serie. Eindeutige nicht-retained Online-Refreshevents sind keine
+Ausfälle; Lifecycle-/Offline-/Retained-/gleichzeitige mehrdeutige Ereignisse bleiben
+Barrieren. Numerische Min/Max-Variation ist kein mehrdeutiger Codezustand und
+unterbindet keine belegte Mittelwertlinie. Bestehende gespeicherte Aggregate
+werden nicht nachträglich vom Browser umgedeutet; gezielter optionaler
+`--refresh-history`-Auftrag siehe zentralen Installationsguide. Gemischte Zustände und
 Session-Resets bleiben sichtbar/erklärbar, nicht künstlich konstante Kurven.
 Stunden-/Tagkombination verwendet Summen/Counts statt Mittelwerte von Mittelwerten.
 

@@ -132,10 +132,24 @@ def minute(start, rows, events, context_complete=True):
                 m["sum"] = decimal_string(sum(observed, Decimal(0)))
         def usable(row):
             return (row["status"] == "ok" and not row["retained"]
-                    and all(row[f] is not None for f in FIELDS)
                     and abs(row["received_at"] - row["measured_at"]) <= timedelta(seconds=10))
+        # Coverage describes reception of valid observations, not knowledge of
+        # every independent field. An unknown charging state must not break a
+        # measured voltage curve. Per-metric null counts still break that
+        # metric's plot; errors/retained/events/time gaps remain global barriers.
         coverage = Decimal(0)
         ambiguous = False
+        event_counts = {}
+        for event in events:
+            at = event["received_at"]
+            event_counts[at] = event_counts.get(at, 0) + 1
+        def barrier(event):
+            # The reader refreshes `online` alongside each new measurement.
+            # Such a refresh does not constitute a physical outage. Ties,
+            # retained messages and lifecycle/offline events remain barriers.
+            return (event_counts[event["received_at"]] != 1
+                    or event["kind"] != "availability" or event["retained"]
+                    or event.get("availability") != "online")
         for left, right in zip(ordered, ordered[1:]):
             a, b = left["measured_at"], right["measured_at"]
             if b < start or a >= end:
@@ -143,8 +157,9 @@ def minute(start, rows, events, context_complete=True):
             delta = b - a
             ra, rb = left["received_at"], right["received_at"]
             edge_ok = (context_complete and timedelta(0) < delta <= timedelta(seconds=10) and ra < rb
-                       and usable(left) and usable(right) and online_at(events, ra)
-                       and not any(ra <= e["received_at"] <= rb for e in events))
+                       and usable(left) and usable(right)
+                       and online_at(events, ra - timedelta(microseconds=1))
+                       and not any(ra <= e["received_at"] <= rb and barrier(e) for e in events))
             if not edge_ok:
                 ambiguous = True
                 continue

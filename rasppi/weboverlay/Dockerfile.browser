@@ -10,6 +10,7 @@ COPY tests/layout-browser.cjs ./
 COPY tests/theme-browser.cjs ./
 COPY tests/smartmeter-browser.cjs ./
 COPY tests/history-browser.cjs ./
+COPY tests/house-history-browser.cjs ./
 COPY tests/pwa*.cjs ./
 COPY tests/generate-icons.cjs tests/run-pwa-browser.sh ./
 COPY static/icon.svg /static/icon.svg
@@ -17,4 +18,5 @@ COPY static/service-worker.js /static/service-worker.js
 COPY static/charts.js /static/charts.js
 COPY static/newcalendar.js /static/newcalendar.js
 COPY static/history.js /static/history.js
-CMD ["sh", "-c", "node browser.cjs && node charts-browser.cjs && node layout-browser.cjs && node theme-browser.cjs && node smartmeter-browser.cjs && node history-browser.cjs"]
+COPY static/house-history.js /static/house-history.js
+CMD ["sh", "-c", "status=0; for suite in browser.cjs charts-browser.cjs layout-browser.cjs theme-browser.cjs smartmeter-browser.cjs history-browser.cjs house-history-browser.cjs; do echo Browser-suite: $suite; node \"$suite\" || status=1; done; exit \"$status\""]

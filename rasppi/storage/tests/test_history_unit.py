@@ -34,6 +34,33 @@ def online(second=-60, **changes):
 
 
 class HistoryStatistics(unittest.TestCase):
+    def test_online_refreshes_do_not_break_continuous_measurements(self):
+        reads = [row(s, s + 3) for s in range(-2, 62, 2)]
+        events = [online()] + [online(s, received_at=START + timedelta(seconds=s, microseconds=1))
+                               for s in range(-2, 62, 2)]
+        data = minute(START, reads, events)
+        self.assertEqual(data["coverage_seconds"], "60")
+        self.assertFalse(data["has_gap"])
+        for change in (dict(availability="offline"), dict(retained=True), dict(kind="broker_disconnected")):
+            with self.subTest(change=change):
+                broken = minute(START, reads, events + [online(15, **change)])
+                self.assertTrue(broken["has_gap"])
+                self.assertLess(Decimal(broken["coverage_seconds"]), 60)
+        tied = minute(START, reads, events + [online(15), online(15)])
+        self.assertTrue(tied["has_gap"])
+
+    def test_unknown_state_does_not_destroy_independent_measurement_coverage(self):
+        rows = [row(s, s + 3, charging=None, voltage_l1_v=Decimal(230 + s))
+                for s in range(-2, 62, 2)]
+        rows[10]["current_l1_a"] = None
+        data = minute(START, rows, [online()])
+        self.assertEqual(data["coverage_seconds"], "60")
+        self.assertFalse(data["has_gap"])
+        self.assertEqual(data["metrics"]["charging"]["nulls"], 30)
+        self.assertEqual(data["metrics"]["current_l1_a"]["nulls"], 1)
+        self.assertEqual(data["metrics"]["voltage_l1_v"]["nulls"], 0)
+        self.assertTrue(data["metrics"]["voltage_l1_v"]["mixed"])
+
     def test_exact_shape_and_decimal_strings(self):
         data = minute(START, [row(s, s + 3, current_l1_a=Decimal("0.123")) for s in range(-2, 62, 2)], [online()])
         self.assertEqual(set(data["metrics"]), set(FIELDS))

@@ -1,0 +1,55 @@
+name: evse-house-api-test
+
+# Disposable test-only server and namespace. No host ports or production secrets.
+services:
+  house-db:
+    image: mariadb:11.8.8
+    command: [--character-set-server=utf8mb4, --collation-server=utf8mb4_bin, --skip-name-resolve]
+    environment:
+      MARIADB_ROOT_PASSWORD: dummy-only-house-root
+      MARIADB_ROOT_HOST: '127.0.0.1'
+    tmpfs:
+      - /var/lib/mysql:rw,size=512m
+    healthcheck:
+      test: [CMD, healthcheck.sh, --connect, --innodb_initialized]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+      start_period: 10s
+    networks: [house-test]
+
+  house-api-tests:
+    build:
+      context: .
+      target: test
+    network_mode: 'service:house-db'
+    entrypoint: [/bin/sh, -ec]
+    command: ['umask 077; php /app/tests/house-history-fixture.php; exec node /app/tests/house-history-integration.cjs']
+    user: '10001:10001'
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m,mode=1777
+    volumes:
+      - ../storage/migrations/003_house.sql:/fixtures/003_house.sql:ro
+    environment:
+      HOUSE_TEST_ISOLATED: '1'
+      HOUSE_TEST_DB: evse_house_test
+      HOUSE_TEST_EMPTY_DB: evse_house_test_empty
+      HOUSE_TEST_ROOT_PASSWORD: dummy-only-house-root
+      HOUSE_TEST_ADMIN_FILE: /tmp/house-admin.cnf
+      HOUSE_TEST_READER_FILE: /tmp/house-reader.cnf
+      HISTORY_DB_HOST: '127.0.0.1'
+      HISTORY_DB_PORT: '3306'
+      HISTORY_DB_NAME: evse_house_test
+      HISTORY_DB_USERNAME: house_reader
+      HISTORY_DB_PASSWORD_FILE: /tmp/house-reader-password
+    depends_on:
+      house-db:
+        condition: service_healthy
+
+networks:
+  house-test:
+    internal: true

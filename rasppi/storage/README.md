@@ -67,6 +67,30 @@ docker compose logs --tail 50 storage
 
 ## Optionale Kalenderverdichtung (Schema 2)
 
+### Zusätzlich unabhängiges HOUSE-Archiv
+
+Neu implementiert, Quellstand 9aea000 Docker-geprüft, Pi-Abnahme offen:
+Profil `house-history` ergänzt
+`house-storage` im bestehenden Compose. Es abonniert eigene Haus-Topics am
+vorhandenen Broker; der separate PHP-Publisher im Website-Compose liest dieselbe
+konfigurierte HTTP-Quelle unabhängig vom Live-Worker. Keine zweite Produktions-DB.
+
+`--migrate-house` legt explizit fünf additive `evse_house_*`-Tabellen mit eigener
+Registry 1 an. Globale Schema-1-/2-Prüfungen bleiben unverändert. Runtime führt
+keine DDL/Löschung aus. Signed W/0/NULL, UUID-/Sequenzidentität, Raw+Dirty vor ACK,
+begrenzte Minuten-/Stunden-/Tagesverdichtung; Website weiterhin SELECT-only.
+House-Präfix und IDs stammen aus `HOUSE_MQTT_TOPIC_PREFIX` beziehungsweise
+`HOUSE_STORAGE_CLIENT_ID`, nicht aus den Wallboxidentitäten. Health verlangt
+DB-/Subscription-Liveness und fortschreitende Materialisierung, keine zugesicherte
+vollständige Vergangenheit. Keine automatische Aufbewahrungsgrenze.
+
+Aktivierung, Konten-/ACL-Anforderungen und vorhandene Secret-/Dateiauswahl nur
+im [zentralen Installationsguide](../../docs/installation.md#haus-netzleistung-dauerhaft-aufzeichnen-separates-house-schema);
+Vertrag [hier](../../docs/house-history-contract.md). Keiner dieser Schritte wurde
+durch Agent auf dem Pi ausgeführt.
+
+### Wallboxverdichtung
+
 Neu implementiert und Docker-geprüft: explizites
 `--migrate-history` ergänzt drei eigene Tabellen und Metadataversion 2; Version 1
 bleibt erhalten. Kein ALTER/Löschen bestehender Daten oder automatischer DDL-Start.

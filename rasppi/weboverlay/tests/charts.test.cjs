@@ -138,6 +138,15 @@ test('empty and constant charts have finite coordinates and defined axes', () =>
   const h = createHistory(); h.observe(live(epoch, { active_power_w: 0 }), epoch);
   assert(!/NaN|Infinity/.test(plot(h, 'power', epoch).paths[0].path));
 });
+test('bounds-only archive scaling retains extrema without constructing raw paths', () => {
+  const geometry = { width: 320, height: 230, left: 54, right: 302, top: 20, bottom: 188 };
+  const points = [{ t: epoch - 1000, values: { power: 0 } },
+    { t: epoch, values: { power: Number.MAX_SAFE_INTEGER / 1000 } }];
+  const p = buildPlot(points, GROUPS[0], defaults().selected, epoch - 1000, epoch, geometry, true);
+  assert.deepEqual(p.paths, []); assert.equal(p.count, 2); assert.equal(p.points, points);
+  assert.equal(p.lo, 0); assert(p.hi > Number.MAX_SAFE_INTEGER / 1000);
+  assert(Number.isFinite(p.hi), 'Extreme but valid input keeps a finite archive scale');
+});
 test('preferences persist booleans only and whitelist IDs/ranges', () => {
   const normal = normalizePreferences({ minutes: 15, selected: { power: false, charging: 'false', injected: true } });
   assert.equal(normal.minutes, 15); assert.equal(normal.selected.power, false);

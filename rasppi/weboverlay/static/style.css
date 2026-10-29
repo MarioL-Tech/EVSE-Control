@@ -209,8 +209,11 @@ main > .warning-message:not([hidden]) { margin-bottom: 18px; }
 .chart-options li::before { content: none; }
 .chart-options label, .house-choice { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; cursor: pointer; font-size: .75rem; }
 .chart-card .chart-axis { font-size: 11px; }
-.summary-range { opacity: .32; stroke-width: 1.2; }
-.summary-value, .summary-value.summary-gap { opacity: 1; stroke-width: 2.4; stroke-dasharray: none; stroke-linecap: butt; }
+.summary-glyph.summary-range { fill: currentColor; opacity: .13; stroke: none; pointer-events: none; }
+.summary-glyph.summary-range.summary-gap { opacity: .07; }
+.summary-glyph.summary-value { fill: none; opacity: 1; stroke-width: 1.8; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: round; pointer-events: none; }
+.chart-marker { stroke-width: 2; stroke-linecap: butt; stroke-dasharray: none !important; }
+.chart-card svg:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; border-radius: 4px; }
 .house-history { margin-top: 20px; }
 .house-history .chart-card { padding: 14px 0 0; }
 .house-history svg { width: 100%; height: auto; display: block; }

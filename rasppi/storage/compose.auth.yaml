@@ -1,4 +1,9 @@
 services:
+  house-storage:
+    environment:
+      MQTT_PASSWORD_FILE: /run/secrets/mqtt-password
+    volumes:
+      - ${HOUSE_STORAGE_MQTT_PASSWORD_HOST_FILE:-./secrets/mqtt-password.txt}:/run/secrets/mqtt-password:ro
   storage:
     environment:
       MQTT_PASSWORD_FILE: /run/secrets/mqtt-password

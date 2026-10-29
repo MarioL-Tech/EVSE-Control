@@ -222,7 +222,7 @@
     }
     return result;
   }
-  function buildPlot(points, group, selected, start, end, geometry = { width: 500, height: 225, left: 62, right: 482, top: 25, bottom: 180 }) {
+  function buildPlot(points, group, selected, start, end, geometry = { width: 500, height: 225, left: 62, right: 482, top: 25, bottom: 180 }, boundsOnly = false) {
     const metrics = METRICS.filter(m => m.group === group.id && selected[m.id]);
     const numbers = points.flatMap(p => metrics.map(m => p.values[m.id])).filter(v => v !== null);
     let lo = group.zero || group.boolean ? 0 : numbers.length ? Math.min(...numbers) : 0;
@@ -235,7 +235,7 @@
     }
     const x = t => geometry.left + (t - start) / Math.max(1, end - start) * (geometry.right - geometry.left);
     const y = v => geometry.bottom - (v - lo) / (hi - lo) * (geometry.bottom - geometry.top);
-    const paths = metrics.map(m => {
+    const paths = boundsOnly ? [] : metrics.map(m => {
       let path = '', previous = null, last = null, segmentLast = null, segmentLength = 0;
       const markers = [];
       for (const p of points) {
@@ -265,7 +265,7 @@
       }
       return { metric: m, path, last, markers: sparse.reverse() };
     });
-    return { lo, hi, paths, metrics, count: points.length, geometry };
+    return { lo, hi, paths, metrics, count: points.length, geometry, points };
   }
   const api = { METRICS, GROUPS, RETENTION_MS, MAX_POINTS, MAX_GAP_MS, STORAGE_KEY,
     defaults, normalizePreferences, loadPreferences, savePreferences, readings, createHistory, buildPlot };
@@ -281,10 +281,12 @@
     let storage;
     try { storage = root.localStorage; } catch (_) { storage = null; }
     let prefs = loadPreferences(storage), lastDraw = 0, lastRevision = -1, lastArchiveDraw = null;
+    // Calendar mount publishes the initial selection synchronously. Its
+    // onChange callback may schedule a frame before mount itself returns.
+    let frame = null, pendingNow = null;
     const controls = new Map(), figures = new Map();
     const svgNS = 'http://www.w3.org/2000/svg';
     const fmt = new Intl.NumberFormat('de-DE', { maximumSignificantDigits: 4, notation: 'compact' });
-    const valueFmt = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 3 });
     const timeFmt = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const node = (tag, text, attributes = {}, svg = false) => {
       const element = svg ? document.createElementNS(svgNS, tag) : document.createElement(tag);
@@ -309,7 +311,35 @@
       const description = node('p', 'Warte auf erste Messwerte.', { class: 'chart-description' });
       const grid = ['power', 'current', 'voltage', 'energy'].includes(g.id) ? chartGrid : document.getElementById('chart-diagnostics-grid');
       figure.append(legend, svg, description); (grid || chartGrid).append(figure);
-      figures.set(g.id, { figure, svg, legend, description });
+      const entry = { figure, svg, legend, description, nodes: new Map(), plot: null, inspection: 0 };
+      svg.setAttribute('tabindex', '0');
+      function inspect(index) {
+        const series = entry.plot?.paths || [];
+        const count = entry.plot?.bucketCount || entry.plot?.points?.length || 1;
+        entry.inspection = Math.max(0, Math.min(count - 1, index));
+        const point = entry.plot?.points?.[entry.inspection];
+        const titles = series.map(s => s.bucketLabels?.[entry.inspection] ||
+          (point ? `${s.metric.label}: ${point.values[s.metric.id] === null ? 'unbekannt' : point.values[s.metric.id]} ${g.unit} · ${timeFmt.format(point.t)}` : null)).filter(Boolean);
+        const title = entry.nodes.get('title');
+        if (title) {
+          title.textContent = titles.length ? titles.join('\n') : `Intervall ${entry.inspection + 1}: keine Messwerte`;
+          svg.setAttribute('aria-label', `${g.label}: ${title.textContent}`);
+        }
+      }
+      svg.addEventListener('keydown', event => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        inspect(event.key === 'Home' ? 0 : event.key === 'End' ? (entry.plot?.bucketCount || entry.plot?.points?.length || 1) - 1
+          : entry.inspection + (event.key === 'ArrowRight' ? 1 : -1));
+      });
+      svg.addEventListener('pointermove', event => {
+        const p = entry.plot, bounds = svg.getBoundingClientRect();
+        if (!p?.bucketCount || !bounds.width) return;
+        const x = (event.clientX - bounds.left) / bounds.width * p.geometry.width;
+        inspect(Math.floor((x - p.geometry.left) / (p.geometry.right - p.geometry.left) * p.bucketCount));
+      });
+      entry.inspect = inspect;
+      figures.set(g.id, entry);
     }
     const source = document.getElementById('history-source'), detail = document.getElementById('history-detail');
     const browserNote = { source: source?.textContent, detail: detail?.textContent };
@@ -378,6 +408,14 @@
       lastRevision = -1; draw(Date.now());
     }
     function draw(now) {
+      pendingNow = now;
+      if (frame !== null) return;
+      frame = root.requestAnimationFrame(() => {
+        frame = null;
+        if (!document.hidden) render(pendingNow);
+      });
+    }
+    function render(now) {
       const archiveMode = !!calendar?.selection;
       const archiveKey = archiveMode ? `${archive?.revision}:${JSON.stringify(calendar.selection)}:${JSON.stringify(prefs.selected)}` : null;
       if (archiveMode && archiveKey === lastArchiveDraw) { lastDraw = now; lastRevision = history.revision; return; }
@@ -387,58 +425,80 @@
       const start = archived ? Date.parse(archived.range.from) : now - prefs.minutes * 60000;
       const end = archived ? Date.parse(archived.range.to) : now;
       for (const g of GROUPS.filter(g => figures.has(g.id))) {
-        const { figure, svg, legend, description } = figures.get(g.id);
+        const entry = figures.get(g.id), { figure, svg, description } = entry;
+        const enabled = METRICS.some(m => m.group === g.id && prefs.selected[m.id]);
+        svg.toggleAttribute('hidden', !enabled);
+        figure.hidden = false;
+        if (!enabled || figure.closest('details:not([open])')) continue;
         const width = Math.max(240, Math.round(figure.getBoundingClientRect().width - 40));
         const height = Math.max(230, Math.min(280, Math.round(width * .5)));
         const geometry = { width, height, left: 54, right: width - 18, top: 20, bottom: height - 42 };
         const plot = archived ? root.OverlayCalendar.buildSummaryPlot(archived, g, prefs.selected, api, geometry)
           : buildPlot(points, g, prefs.selected, start, end, geometry);
         // Keep the card/checkboxes reachable even if every series is off.
-        svg.hidden = plot.metrics.length === 0;
-        svg.toggleAttribute('hidden', plot.metrics.length === 0);
-        figure.hidden = false;
-        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-        svg.replaceChildren();
-        svg.append(node('title', `${g.label}: historischer Verlauf, ${plot.count} Messzeitpunkte`, {}, true));
+        entry.plot = plot;
+        if (svg.getAttribute('viewBox') !== `0 0 ${width} ${height}`) svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+        if (svg.getAttribute('data-bucket-count') !== String(plot.bucketCount || 0))
+          svg.setAttribute('data-bucket-count', String(plot.bucketCount || 0));
+        const used = new Set();
+        const put = (key, tag, text, attributes = {}) => {
+          used.add(key);
+          let element = entry.nodes.get(key);
+          if (!element) { element = node(tag, null, {}, true); entry.nodes.set(key, element); svg.append(element); }
+          for (const [name, value] of Object.entries(attributes))
+            if (element.getAttribute(name) !== String(value)) element.setAttribute(name, String(value));
+          if (text !== null && element.textContent !== text) element.textContent = text;
+          return element;
+        };
+        put('title', 'title', `${g.label}: historischer Verlauf, ${plot.count} Messzeitpunkte`);
         for (let tick = 0; tick <= 4; tick++) {
           const value = plot.lo + (plot.hi - plot.lo) * tick / 4;
           if (g.boolean && tick !== 0 && tick !== 4) continue;
           const yPos = geometry.bottom - (geometry.bottom - geometry.top) * tick / 4;
-          svg.append(node('line', null, { x1: geometry.left, x2: geometry.right, y1: yPos, y2: yPos, class: 'chart-gridline' }, true));
-          svg.append(node('text', g.boolean ? (value === 0 ? 'Nein' : 'Ja') : fmt.format(value),
-            { x: geometry.left - 9, y: yPos + 4, 'text-anchor': 'end', class: 'chart-axis' }, true));
+          put(`grid-${tick}`, 'line', null, { x1: geometry.left, x2: geometry.right, y1: yPos, y2: yPos, class: 'chart-gridline' });
+          put(`axis-${tick}`, 'text', g.boolean ? (value === 0 ? 'Nein' : 'Ja') : fmt.format(value),
+            { x: geometry.left - 9, y: yPos + 4, 'text-anchor': 'end', class: 'chart-axis' });
         }
         for (const [t, px, anchor] of [[start, geometry.left, 'start'], [end, geometry.right, 'end']])
-          svg.append(node('text', archived ? root.OverlayCalendar.axisLabel(t, archived.selection.period, archived.range.timezone, true) : timeFmt.format(t),
-            { x: px, y: height - 12, 'text-anchor': anchor, class: 'chart-axis' }, true));
+          put(`time-${anchor}`, 'text', archived ? root.OverlayCalendar.axisLabel(t, archived.selection.period, archived.range.timezone, true) : timeFmt.format(t),
+            { x: px, y: height - 12, 'text-anchor': anchor, class: 'chart-axis' });
         plot.paths.forEach(series => {
           const css = colorClass(series.metric, g);
-          svg.append(node('path', null, { d: series.path, class: `chart-line ${css}`, 'data-series': series.metric.id }, true));
-          for (const glyph of series.glyphs || []) {
-            const path = node('path', null, { d: glyph.path, class: `summary-glyph summary-${glyph.kind || 'range'} ${css}${glyph.gap ? ' summary-gap' : ''}`,
-              'data-summary-series': series.metric.id }, true);
-            path.append(node('title', glyph.label, {}, true)); svg.append(path);
-          }
-          for (const marker of series.markers) {
-            const dot = node('circle', null, { cx: marker.x, cy: marker.y, r: 3, class: `chart-dot ${css}`,
-              'data-series-marker': series.metric.id }, true);
-            const valueText = g.boolean ? (marker.value ? 'Ja' : 'Nein') : `${valueFmt.format(marker.value)} ${g.unit}`;
-            dot.append(node('title', `${series.metric.label}: ${valueText} · ${timeFmt.format(marker.t)}`, {}, true));
-            svg.append(dot);
-          }
+          put(`line-${series.metric.id}`, 'path', null, { d: series.path, class: `chart-line ${css}`, 'data-series': series.metric.id });
+          // Keep every translucent envelope behind every solid value line,
+          // independent of whether the first bucket happened to be uncertain.
+          for (const kind of ['range', 'value']) for (const glyph of (series.renderPaths || []).filter(item => item.kind === kind))
+            put(`${series.metric.id}-${glyph.kind}-${glyph.gap}`, 'path', null, { d: glyph.path,
+              class: `summary-glyph summary-${glyph.kind} ${css}${glyph.gap ? ' summary-gap' : ''}`,
+              'data-summary-series': series.metric.id });
+          const marks = series.markers.map(p => `M${Number(p.x) - 1.5},${p.y}h3`).join('');
+          if (marks) put(`markers-${series.metric.id}`, 'path', null, { d: marks,
+            class: `chart-line chart-marker ${css}`, 'data-series-marker': series.metric.id });
         });
-        description.textContent = !plot.metrics.length ? 'Keine Kurve ausgewählt. Oben wieder einschalten.' : archiveMode ? archived
-          ? `${plot.count} Messwerte · ${archived.buckets.length} Intervalle · ${g.id === 'energy' ? 'Letzter Sessionzähler, kein Zeitraumverbrauch' : g.step ? 'Spanne / letzter Zustand; gemischt bleibt sichtbar' : 'Mittelwertmarke / Min–Max-Spanne'} · gestrichelte Spanne: Lücken / unvollständig.`
+        for (const [key, element] of entry.nodes) if (!used.has(key)) { element.remove(); entry.nodes.delete(key); }
+        entry.inspect(entry.inspection);
+        const descriptionText = !plot.metrics.length ? 'Keine Kurve ausgewählt. Oben wieder einschalten.' : archiveMode ? archived
+          ? `${plot.count} Messwerte · ${archived.buckets.length} Intervalle · ${g.id === 'energy' ? 'Letzter Sessionzähler' : g.step ? 'Spanne / letzter Zustand' : 'Stichprobenmittel / Min–Max'}`
           : 'Keine Archivmesswerte geladen. Live-Anzeige bleibt unabhängig.'
           : plot.count ? `${plot.count} Messzeitpunkte im Fenster · Lücken bleiben unverbunden.`
             : 'Noch keine Messwerte in diesem Zeitfenster. Verlauf beginnt mit Seitenöffnung.';
+        if (description.textContent !== descriptionText) description.textContent = descriptionText;
       }
       lastDraw = now; lastRevision = history.revision;
     }
     apply();
     function resize() { lastRevision = -1; lastArchiveDraw = null; draw(Date.now()); }
     root.addEventListener('resize', resize);
-    document.querySelector('.history-diagnostics')?.addEventListener('toggle', resize);
+    const diagnostics = document.querySelector('.history-diagnostics');
+    diagnostics?.addEventListener('toggle', resize);
+    if (diagnostics && typeof root.MutationObserver === 'function') {
+      // `toggle` is a deferred/coalesced task. Observe the actual open state
+      // so opening already-selected curves schedules its first paint promptly,
+      // without waiting for another telemetry response or browser timer.
+      new root.MutationObserver(resize).observe(diagnostics, { attributes: true, attributeFilter: ['open'] });
+    }
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) resize(); });
+    root.addEventListener('pageshow', resize);
     return {
       restore() {
         // Another page may have changed the shared settings while this page

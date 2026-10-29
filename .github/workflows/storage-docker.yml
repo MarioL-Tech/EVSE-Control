@@ -28,12 +28,12 @@ jobs:
           docker compose config --quiet
           docker compose -f compose.yaml -f compose.auth.yaml config --quiet
           docker compose -f compose.test.yaml config --quiet
-      - name: Unit and isolated MariaDB/MQTT integration tests
+      - name: Wallbox/calendar/HOUSE units and isolated MariaDB/MQTT integrations
         working-directory: rasppi/storage
         run: |
-          trap 'docker compose -f compose.test.yaml down --volumes' EXIT
-          docker compose -f compose.test.yaml build tests
-          docker compose -f compose.test.yaml up --abort-on-container-exit --exit-code-from tests
+          project="evse-storage-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${MARIADB_TEST_VERSION//./-}"
+          trap 'docker compose -p "$project" -f compose.test.yaml down --volumes --remove-orphans' EXIT
+          docker compose -p "$project" -f compose.test.yaml up --build --abort-on-container-exit --exit-code-from tests
       - name: Hardened runtime with absent database
         working-directory: rasppi/storage
         run: |

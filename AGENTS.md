@@ -1,10 +1,78 @@
 # Arbeitskontext für Agents: EVSE-Control
 
-Stand: 2026-10-28. Diese Datei beschreibt den geprüften Repositoryzustand und
+Stand: 2026-10-29. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
 ## Projekt und Ziele
+
+Aktueller Folgeauftrag (2026-10-29): Archivdiagramme wegen hoher Renderlast und
+weiterhin unbefriedigender Darstellung erneut überarbeiten; Haus-Netzleistung
+nun ausdrücklich dauerhaft speichern und in Stunde/Tag/weiteren Kalenderansichten
+anzeigen, oberhalb von „Diagnose“. Hausarchivierung ist als opt-in implementiert,
+für Quellstand 9aea000 Docker-abgenommen, Pi-Abnahme offen; bisheriger Live-RAM-Verlauf allein ist
+kein SQL-Hausarchiv. Vorgabe zusätzlich: belegte Datenpunkte als Linien verbinden.
+Website bleibt SELECT-only, vorhandene Raw-/Preis-/Providerdaten erhalten,
+keine Produktionsmigration durch Agent. Main-Build 40782985667 scheiterte nach
+drei Hauswertprüfungen in der MQTT-Unabhängigkeitsphase; Hotfix ersetzt deren
+einmalige Folgebeobachtung durch begrenztes gemeinsames Warten bei unveränderten
+Anwendungsgrenzen und ergänzt redigierte Phasendiagnostik. Zusätzliche unabhängige
+Live-/Archiv-Readiness im Historienbrowsertest getrennt synchronisiert.
+Hotfix-PR #53 für 6d976fc ist reviewbereit: vollständige Docker-CI
+40846713475 und 40846704139 erfolgreich. Merge durch Projektinhaber.
+
+Aktuelle Haus-/Diagrammimplementierung (Freigabehead über PR #54 prüfen): bestehender
+Website-Compose enthält optionalen separaten PHP-`house-publisher`, bestehender
+Storage-Compose einen `house-storage`, beide Profil `house-history`. Bestehender
+Broker, eigene HOUSE-Präfix-/ID-Variablen mit Default `evse/house`; Websitecontainer
+bleibt Apache plus bisherige zwei Worker und SELECT-only. `--migrate-house`
+legt ausschließlich fünf `evse_house_*`-Tabellen und unabhängige Registry 1 an;
+globale Wallboxversionen bleiben `{1}`/`{1,2}`. Signed W, echte 0/NULL, UUID/Sequenz-
+Dedupe, Raw+Dirty vor ACK, begrenzte materialisierte Minute/Stunde/Tag. Keine
+Produktionsmigration, Hauswerte vor Aktivierung oder bestehende Daten erfinden.
+Readonly `/api/house-history` unabhängig von Wallboxhistorie/deren Schema;
+Rohgrenzen mikrosekundengenau wie SQL, reine Online-Refreshereignisse bei bereits
+bekanntem Onlinezustand unterbrechen keine Kurve. Abrufzeitfenster nicht als
+identisches Empfangszeitfenster behandeln; 10-s-Clock-/Transportgrenzen bleiben.
+`WEB_HOUSE_HISTORY_ENABLED=0` Default, vorhandene HISTORY_DB-Lesekonfiguration.
+Eigener Browserstore mit Kalenderkoordinator, kein Import von Archivwerten in
+Live-Frische. Unabhängige HTTP-Poller nicht zu abwechselnden Live-/SQL-Punkten
+vermischen; SQL-Basis mit separat unterbrochenem, strikt neuerem Live-Endstück.
+Hausdiagramm oberhalb von Diagnose, keine zusätzlichen Erklärungskarten.
+
+Archivrenderer bündelt Werte/Bänder je Serie statt DOM-Knoten je Bucket, zeichnet
+geschlossene Diagnosegruppen erst bei Bedarf und verwendet Revisions-/RAF-
+Koaleszierung. Variable numerische Mittelwerte sind kein mehrdeutiger Codezustand
+und dürfen verbunden werden. Wallboxrollups werten bekannte Online-Refreshevents
+nicht als Ausfall und unbekannte andere Felder nicht als Verlust aller Messungen.
+NULLs bleiben pro Serie sichtbar; echte Offline-/Retained-/Clock-/Eventbarrieren
+bleiben erhalten. Bereits gespeicherte Aggregate werden nicht still neu gedeutet:
+optionales `--refresh-history --history-from ... --history-to ...` markiert nur
+vorhandene Minutenbuckets eines expliziten UTC-Bereichs (max. Kalenderjahr) in
+256er-Seiten erneut dirty, keine Raw-/Fremddaten-/DDL-/Versionsänderung. Kein
+automatischer Refresh beim Start; regulärer Worker verdichtet anschließend.
+Vertrag `docs/house-history-contract.md`, vollständige Einrichtung zentral in
+`docs/installation.md`. Neue Docker-/SQL-/Publisher-/Browser-/E2E-Tests bestanden
+für 9aea000: Web 40872083844 und 40872078880, Storage-Matrix 40872083855/40872078806 (MariaDB
+10.11, exakt 11.8.8 und rollendes 11.8). Acht Browsersuiten einschließlich PWA und
+unabhängigem Hausarchiv, echter PHP→MQTT→Python→SQL-Pfad mit laufender Aufnahme,
+SELECT-only-/Checksum-/Pending-/Dedupe-/Frische-/Lifecycle-/Gap-/DOM-Budgetfällen.
+Simulierte 320-/1440-px-Hausjahresbilder in Hell/Dunkel aus 40872083844 vollständig
+angesehen: kein unterer Bildabschnitt mehr abgeschnitten, stabile Themes,
+verbundene signierte Stresskurve mit echter Unterbrechung oberhalb Diagnose.
+Der bestehende Schema-1-Beispieldump enthält keine optionalen Archive;
+Installationsguide verlangt deren Tabellen ausdrücklich im privaten Backup.
+Aktuellen Freigabehead über PR #54 kontrollieren; Merge durch Projektinhaber.
+Erneute unabhängige Abschlussprüfung: API/Diagramme und Betriebsanleitung ohne
+konkreten Befund. Datenpipeline fand fehlende Invalidierung einer bereits
+materialisierten Folgeminute bei verspätetem linken Kontext. Korrektur markiert
+nur bereits vorhandene Folge-Minutenwork samt Eltern in derselben Transaktion;
+keine unbegrenzte Zukunftsarbeit. Korrektur a682f7c nochmals unabhängig gezielt
+geprüft, ohne weitere konkrete Befunde. Neue Unit-/MariaDB-Fälle für zurückdatierte
+Clockfehler und Retainedwerte bestanden in beiden Storage-Matrizen
+40877155840/40877144752; erneute vollständige Web-/E2E-Abschlussnachweise und
+aktueller Freigabehead stehen in PR #54. Keine Agent-Mergefreigabe für Produktion.
+Keine lokalen Hosttests und kein Pi-/ARM-/Dauerbetriebsnachweis oder Deployment.
 
 EVSE-Control ist eine Diplomarbeit zur Steuerung und Überwachung einer
 Elektrofahrzeug-Ladestation mit RFID-basierter Diebstahlsicherung.
@@ -281,9 +349,9 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
   auf der Übersicht, separat von MQTT, und verwirft abgelaufene/späte Daten.
   Empfangs-/Abruffrische ist kein Nachweis einer neuen Messung im Gerät.
 - Anzeige „Netzleistung Haus“ mit Netzbezug (+)/Einspeisung (−), eigenem Status,
-  letztem HTTP-Abruf und Abrufalter. Keine Hauswerte in MQTT/DB; separat ergänzter
+  letztem HTTP-Abruf und Abrufalter. Ohne neues opt-in keine Hauswerte in MQTT/DB; separat ergänzter
   signierter Browser-RAM-Liveverlauf auf der Diagrammseite (15 Minuten/1200 Abrufe),
-  kein Haus-Kalenderarchiv, bei Archivmodus ausdrücklicher Hinweis statt Kurve;
+  allein kein Haus-Kalenderarchiv; das neue unabhängige opt-in-Archiv ergänzt dieses;
   Wallbox-API, Reader/UART/Collector und 16 Wallbox-Präferenzen unverändert.
   Beziehung zur geplanten DTSU666-Erfassung ungeklärt; kein verfügbarer Strom in A.
   Docker-CI 40486476429 für 3c92398 erfolgreich: 80 PHP-Smartmeterprüfungen,
@@ -870,7 +938,8 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   oder abschließende Healthcheck-Bestätigung. Ursache erster pausierter Aufnahme:
   lokales `DB_NAME=energy_control` statt `energyControl`; `.env` korrigiert und nur
   Storage-Container neu erstellt. Migration nicht wiederholt, keine fremden Daten
-  gelöscht. Haus-Smartmeter bleibt ohne SQL-Archiv; optionale Websitehistorie ist
+  gelöscht. Damals Haus-Smartmeter ohne SQL-Archiv; neues HOUSE-opt-in siehe oben.
+  Optionale Websitehistorie ist
   separat implementiert; deren Aktivierung mit ausdrücklich erlaubtem temporärem
   `smart` wurde danach vom Projektinhaber als „funktioniert“ gemeldet (siehe oben).
 - Pi meldet fehlende Docker-Speicherlimitfähigkeit; angeforderte RAM-Limits werden

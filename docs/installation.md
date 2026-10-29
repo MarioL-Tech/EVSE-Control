@@ -1278,9 +1278,10 @@ kurze Lade-/Fehler-/Unvollständigkeitsmeldungen bleiben erhalten.
 
 **Haus-Netzleistung:** unabhängiger Live-Verlauf seit Öffnen der Diagrammseite,
 signed kW (Bezug + / Einspeisung −), maximal 15 Minuten/1200 HTTP-Abrufe im RAM.
-Neuladen leert diesen Verlauf. Die Hausquelle besitzt kein SQL-Archiv: bei
-Kalenderauswahl wird keine historische Hauskurve behauptet. Eigene Checkbox,
-keine Erweiterung der 16 Wallbox-Präferenzen, keine neue Einrichtung/DB-Migration.
+Neuladen leert ohne die zusätzliche Einrichtung unten diesen Verlauf. Optional
+ergänzt ein getrenntes HOUSE-Archiv dauerhafte SQL-Daten und dieselben Kalenderperioden.
+Eigene Checkbox, keine Erweiterung der 16 Wallbox-Präferenzen. Hausdiagramm oberhalb
+von „Diagnose“; ohne eingerichtetes Archiv keine erfundene Kalenderkurve.
 Ausfälle/Nullwerte/Veraltung/Lifecycle-/Zeitbrüche erzeugen Lücken, keine Nullen.
 
 **„Alle Kurven anzeigen“** setzt Auswahl und Zeitfenster auf die Defaults
@@ -1583,11 +1584,185 @@ docker compose -f compose.history-test.yaml up --abort-on-container-exit \
 docker compose -f compose.history-test.yaml down --volumes
 ```
 
-Nur diese Datei enthält einen flüchtigen MariaDB-11.8.8-Testserver, internes Netz
+Diese reine Testdatei enthält einen flüchtigen MariaDB-11.8.8-Testserver, internes Netz
 und keine Hostports/Produktivnetze. `down --volumes` nie gegen bestehende Infrastruktur
 verwenden. Docker-CI und echte Pi-/Accounttests getrennt berichten.
 
+HOUSE ergänzt zwei **ausschließlich isolierte Testdateien**, keine neuen
+Produktions-Overlays. Sie verwenden temporäre Server, interne Netze ohne Hostports,
+fest begrenzte Dummy-Accounts und niemals die echte `SMARTMETER_URL`/Produktionsdaten:
+
+```bash
+# Aus rasppi/weboverlay, nur für die oben beschriebenen Wegwerftests:
+docker compose -f compose.house-api-test.yaml up --build --abort-on-container-exit --exit-code-from house-api-tests
+docker compose -f compose.house-api-test.yaml down --volumes
+docker compose -f compose.house-e2e-test.yaml build
+docker compose -f compose.house-e2e-test.yaml up -d --wait --wait-timeout 90 publisher collector
+docker compose -f compose.house-e2e-test.yaml up --no-deps --abort-on-container-exit --exit-code-from assertions assertions
+docker compose -f compose.house-e2e-test.yaml down --volumes
+```
+
+E2E prüft den echten PHP→Broker→Python→SQL-Pfad mit HTTP-Simulator, Vorzeichen,
+0/Fehler-NULL, QoS 1, identischem Replay und drei unter laufender Aufzeichnung
+fortschreitenden Rollupebenen. Die ursprünglichen Tests sowie die zusätzlichen
+HOUSE-PHP/JS-/acht Browsersuiten und drei MariaDB-Matrixversionen bleiben erhalten.
+
+### Haus-Netzleistung dauerhaft aufzeichnen (separates HOUSE-Schema)
+
+**Neue optionale Implementierung; Quellstand 9aea000 Docker-geprüft, aktuellen
+Freigabehead über PR #54 prüfen. Pi-Abnahme offen, nicht bereits aktiviert.**
+Sie verwendet dieselbe bestehende MariaDB und denselben Broker,
+aber eigene Topics, Client-IDs und fünf additive `evse_house_*`-Tabellen. Keine
+Wallbox-/Preis-/Provider-/Rawdaten löschen oder umschreiben. Die Website führt
+weiter nur SELECTs aus. Ohne Aktivierung bleibt der bisherige RAM-Liveverlauf.
+Rückwirkend vor der Aktivierung existieren keine Hausmessungen.
+
+Voraussetzungen: aktuelle geprüfte EVSE-Sicherung, bestehende Docker-Netze,
+funktionierender DB-Zugang und eine konfigurierte `SMARTMETER_URL` in der lokalen
+Website-`.env`. Keine private URL oder Passwörter in Git/Chat/Logs übernehmen.
+`smartReader` muss tatsächlich funktionieren; der bekannte 1045-Fehler wird
+hierdurch nicht repariert. Der ausdrücklich erlaubte temporäre `smart`-Zugang
+bleibt möglich, ist aber kein minimal berechtigter Leseaccount.
+
+**1. Rechte/ACLs durch den berechtigten Einrichter ergänzen:**
+
+Bereits vorhandene passende Rechte genügen; der erlaubte temporäre `smart`-Zugang
+erfordert nicht erst einen zusätzlichen GRANT oder wiederhergestellten Rootlogin.
+
+- Migration benötigt CREATE/SELECT/INSERT an den neuen Tabellen; keine globalen
+  Rechte, Fremdtabellenänderungen oder neue Accountprovisionierung durch das Programm.
+- `house-storage`: SELECT auf `evse_house_schema_versions`; SELECT/INSERT auf
+  `evse_house_samples` und `evse_house_events`; SELECT/INSERT/UPDATE auf
+  `evse_house_buckets` und `evse_house_work`. Keine Laufzeit-DDL/DELETE.
+- Websiteaccount: SELECT auf alle fünf neuen Tabellen, keine Writer-Ausweichanmeldung.
+- Publisher-Brokeraccount: QoS-1-Publish einschließlich Retain/LWT auf
+  `evse/house/state` und `evse/house/availability`; House-Collector darf diese
+  beiden Topics abonnieren. Bei eigenem Präfix beide Dienste und Website identisch
+  konfigurieren. Bestehende Wallbox-ACLs nicht verändern/ersetzen.
+
+**2. In vorhandenen lokalen `.env`-Dateien ergänzen:**
+
+Website (`rasppi/weboverlay/.env`):
+
+```dotenv
+COMPOSE_PROFILES=house-history
+HOUSE_MQTT_TOPIC_PREFIX=evse/house
+HOUSE_PUBLISHER_CLIENT_ID=evse-house-publisher
+WEB_HOUSE_HISTORY_ENABLED=1
+```
+
+Storage (`rasppi/storage/.env`):
+
+```dotenv
+COMPOSE_PROFILES=house-history
+HOUSE_MQTT_TOPIC_PREFIX=evse/house
+HOUSE_STORAGE_CLIENT_ID=evse-house-storage
+```
+
+Bereits aktive Profile **beibehalten und nur ergänzen**, etwa
+`COMPOSE_PROFILES=history,house-history` bei bereits eingerichtetem Wallboxrollup.
+HTTPS bleibt wie bisher eingestellt und wird hierfür nicht benötigt/aktiviert.
+MQTT-IDs müssen sich von Reader, Website, Wallboxcollector und anderen Instanzen
+unterscheiden. Brokerhost/-port bleiben die bestehenden.
+
+Bestehende SQL-Historienauswahl `compose.history.yaml`, DB-Netz und
+`HISTORY_DB_*`-Lesekonfiguration wiederverwenden; sie stellt auch dem HOUSE-Endpunkt
+DB-Zugang bereit. HOUSE prüft seine eigene Registry unabhängig vom Wallboxschema.
+Keine DB-Zugangsdaten im Publisher. Bei getrennten Brokeraccounts optional
+`HOUSE_MQTT_USERNAME`/`HOUSE_MQTT_PASSWORD_HOST_FILE` für den Publisher und
+`HOUSE_STORAGE_MQTT_USERNAME`/`HOUSE_STORAGE_MQTT_PASSWORD_HOST_FILE` im Storage setzen.
+Die bestehenden Auth-Overlays mounten weiterhin nur UID-10001-lesbare Passwortdateien.
+Ohne getrennte Konten werden bestehende Brokercredentials wiederverwendet;
+keine Zugangsdaten aus anderen Containern auslesen.
+
+**3. Neues geprüftes Image bauen, dann explizit nur HOUSE migrieren:**
+
+Die Beispiele jeweils vom Repository-Hauptverzeichnis aus ausführen.
+Sie zeigen den Storage-Basisfall. Bei bisherigem Auth-Override
+dieselbe vorhandene `-f`-Auswahl bei **jedem** Befehl beibehalten. Nicht auf einen
+unvollständigen Dateisatz wechseln, keine neuen Betriebs-Compose-Dateien hinzufügen.
+
+```bash
+cd rasppi/storage
+docker compose build house-storage migrate
+docker compose run --no-deps -T --interactive=false migrate --migrate-house
+docker compose up -d house-storage
+docker compose ps house-storage
+docker compose logs --tail=50 house-storage
+```
+
+Die Migration verwendet den vorhandenen Migrationszugang. Sie prüft bestehende
+HOUSE-Tabellen vor weiterer DDL und nimmt eine eigene Registry-Version 1 auf;
+die Wallboxregistry `{1}`/`{1,2}` bleibt unverändert. Dies ersetzt **nicht** die
+separat koordinierte Schema-2-Aktivierung unten. Ein bereits verbundener
+Wallboxcollector muss für diese unabhängige HOUSE-Migration nicht gestoppt werden.
+Bei Fehler nicht mit Runtime-DDL, Passwortreset oder Tabellenlöschung nachhelfen.
+
+**4. Website/Publisher mit der bisherigen Website-Dateiauswahl starten:**
+
+```bash
+cd rasppi/weboverlay
+# Beispiel bei bisheriger SQL-Historie ohne Auth-Override:
+docker compose -f compose.yaml -f compose.history.yaml build weboverlay house-publisher
+docker compose -f compose.yaml -f compose.history.yaml up -d weboverlay house-publisher
+docker compose -f compose.yaml -f compose.history.yaml ps
+```
+
+Ein bisher benutztes `compose.auth.yaml` in diesen Befehlen zusätzlich erhalten.
+Keine bestehenden Dienste herunterfahren und kein `--remove-orphans` verwenden.
+Der Websitecontainer bleibt Apache plus MQTT- und HTTP-Worker; der Publisher ist
+ein separater Container desselben Images. Beide HTTP-Poller lesen unabhängig,
+standardmäßig je zwei Sekunden; ihre Messzeitpunkte sind nicht austauschbar.
+
+**5. Abnahme:** Collector/Publisher gesund, neue SQL-Samples mit echtem Vorzeichen
+und Zeitstempel sowie fortschreitende Minuten-/Stunden-/Tagesverdichtung prüfen.
+`/api/house-history?minutes=15` und
+`/api/house-history?period=day&date=2026-10-29&tz=Europe%2FVienna` enthalten nur
+Hausdaten, keine Credentials/Quelladresse. Browser neu laden, Stunde/Tag/Woche/
+Monat/Jahr wählen und MQTT-/Hausausfälle getrennt prüfen. Hausarchiv darf auch
+bei nicht verfügbarem Wallboxarchiv laden. Historie ersetzt niemals Live-Frische.
+NULL/Fehler/Ausfall/Retained/Neustart/Zeit- oder Sequenzbrüche bleiben Lücken;
+echte 0 ist gültig. Keine Verbrauchsenergie aus Leistungs-Mittelwerten behaupten.
+
+Materialisierte Jahresdaten vermeiden Jahres-Rohscans. Rawdaten und Verdichtungen
+werden ohne automatische Löschfrist gespeichert. Quellenwechsel nicht still unter
+demselben Präfix zusammenführen. Details: [HOUSE-Vertrag](house-history-contract.md).
+
+**Sicherung nach HOUSE-Aktivierung:** Der spätere Schema-1-Beispieldump mit drei
+EVSE-Tabellen enthält noch keine Hausdaten. Im bestehenden privaten Backupablauf
+zusätzlich `evse_house_schema_versions`, `evse_house_samples`, `evse_house_events`,
+`evse_house_buckets` und `evse_house_work` in denselben konsistenten Dump aufnehmen;
+bei aktivem Wallboxschema 2 auch dessen drei `evse_history_*`-Tabellen erhalten.
+Ein bereits schemaweiter Dump schließt diese Tabellen automatisch ein. Nicht
+existierende optionale Tabellen nicht blind an den Schema-1-Befehl anhängen.
+Dump privat aufbewahren, Kopie verifizieren und Restore ausschließlich in einem
+isolierten Wegwerfserver testen; keine Produktionswiederherstellung oder Löschung.
+
 ### Kalender-/Jahresverlauf zusätzlich einrichten (optionales Schema 2)
+
+**Bereits gespeicherte Wallbox-Intervalle bewusst neu verdichten:** Die aktuelle
+Korrektur verhindert unnötige Lücken durch Online-Refreshnachrichten, numerische
+Min/Max-Variation oder unbekannte andere Felder. Alte gespeicherte Gap-Metadaten
+werden nicht vom Browser ignoriert oder beim Start still überschrieben.
+Nach Update des Storageimages und nur bei bereits aktivem Schema 2 kann der
+Betreiber einen konkreten UTC-Bereich erneut vormerken (max. ein Kalenderjahr):
+
+```bash
+cd rasppi/storage
+# Bisherige Auth-/Dateiauswahl auch hier erhalten, UTC-Grenzen bewusst anpassen.
+docker compose run --no-deps -T --interactive=false storage --refresh-history \
+  --history-from 2026-10-28T00:00:00Z --history-to 2026-10-30T00:00:00Z
+docker compose up -d history-rollup
+```
+
+Dies markiert ausschließlich vorhandene Minutenbuckets des konfigurierten
+Wallboxpräfixes in 256er-Seiten erneut dirty, ohne Raw-/Preis-/Provideränderung,
+DDL oder Versionswechsel. Der reguläre Worker berechnet danach daraus Minute/
+Stunde/Tag neu; neue Daten werden nicht erfunden. Wiederholung ist fachlich
+idempotent; Abbruch lässt bereits abgeschlossene Seiten vorgemerkt, aktive Seite
+wird zurückgerollt (Exitcode 130). Bis zum Abschluss bleiben vorhandene Lücken-
+und Fortschrittsanzeigen konservativ. Kein HOUSE-Refresh und keine produktiv
+ausgeführte Anweisung; erst mit freigegebenem, Docker-geprüftem Image anwenden.
 
 **Neue optionale Erweiterung:** Docker-CI 40678971209 für c83b1cc erfolgreich,
 reale Pi-Aktivierung noch offen. Erst nach Merge und Prüfung des freigegebenen
