@@ -288,7 +288,8 @@ final class HouseHistoryStore
                 $group = [];
                 do { $group[] = $events[$index++]; }
                 while (isset($events[$index]) && $events[$index]['received_at'] === $eventTime);
-                $ambiguous = $ambiguous || self::date($group[0]['received_at']) === $receipt;
+                // DateTime objects must compare their instant, not identity.
+                $ambiguous = $ambiguous || self::date($group[0]['received_at']) == $receipt;
                 // A unique online refresh preserves a known online state.
                 // Reconnects, losses and ambiguous groups still break edges;
                 // same-timestamp IDs never prove lifecycle ordering.
