@@ -152,7 +152,7 @@ const { FIELDS } = require('../static/newcalendar.js');
     const retained = await path();
     await page.locator('#chart-range').selectOption('15');
     await page.clock.runFor(200);
-    await page.waitForFunction(() => document.getElementById('history-detail').textContent.includes('bleiben erhalten'));
+    await page.waitForFunction(() => document.getElementById('history-detail').textContent.includes('bisherige Archivdaten'));
     assert.equal(await page.locator('#status').innerText(), 'Live');
     assert((await path()).includes('L') && retained.length > 0, 'SQL failure preserves SQL/local history');
     assert.equal(await page.locator('#chart-range').inputValue(), '15');

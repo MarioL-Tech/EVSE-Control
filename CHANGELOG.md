@@ -6,6 +6,8 @@ Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
 ## 2026-10-30
 
+- **00:21** — **Retained-Historienstatus im Browsertest an gekürzten Text anpassen** — Lauf40971515425 besteht neue Live-/UInt32-/Bool-Geometrie, breite/mobilen Layouts, Theme und Smartmeter, wartet dann noch auf die entfernte Formulierung „bleiben erhalten“. Assertion verwendet jetzt die gleichbedeutende kurze Kennzeichnung „bisherige Archivdaten“; vorhandene Kurve, unabhängiges Live und Abruffehler bleiben separat geprüft. Keine Wartefrist oder Produktgrenze gelockert; Abnahme weiter in PR#62.
+
 - **00:16** — **Gezielte Diagnose-Bildartefakte ergänzen** — CI erzeugt zusätzlich geöffnete Live-Diagnosen bei1920/320px und gesonderte UInt32-Rohcodebilder zur Prüfung vollständiger Achsen/Diagramme. Kalenderdiagnose zeigt unbekannte und gemischte Buckets ohne erfundene Zustände. Prüf-/Freigabestand des gesamten Darstellungsauftrags über PR#62; keine Produktionsausführung.
 
 - **00:14** — **Dichte Diagnosemarken bleiben isoliert** — Auch separate unsichere Letztzustandsmarken nach Pixelabstand reduzieren, damit512 dichte Buckets keine scheinbar konstante Ja-/Nein-Linie aus überlappenden Markern bilden. Qualitätslane und sämtliche Inspektionslabels bleiben vollständig; Regression prüft räumliche Trennung. Keine Zustände interpoliert oder Daten verändert; finaler Dockerabschluss offen.
