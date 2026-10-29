@@ -488,6 +488,9 @@ test('512 categorical buckets batch quality into at most three paths below the p
     assert.equal(s.qualityPaths.length, 3);
     assert.deepEqual(s.qualityPaths.map(p => p.kind).sort(), ['mixed', 'partial', 'unknown']);
     assert.equal(s.qualityPaths.reduce((n, p) => n + (p.path.match(/M/g) || []).length, 0), 512);
+    for (let i = 0; i < s.stateMarkers.length; i++) for (let j = i + 1; j < s.stateMarkers.length; j++)
+      assert(Math.abs(s.stateMarkers[i].x - s.stateMarkers[j].x) >= 7 || Math.abs(s.stateMarkers[i].y - s.stateMarkers[j].y) >= 5,
+        'Dense isolated state marks cannot merge visually into a false constant-state line');
     for (const lane of s.qualityPaths) {
       const strokes = [...lane.path.matchAll(/M([\d.]+),([\d.]+)H([\d.]+)/g)];
       assert(strokes.length > 0); assert.equal(strokes.map(m => m[0]).join(''), lane.path);

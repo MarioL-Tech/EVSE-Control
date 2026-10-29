@@ -236,7 +236,10 @@
         const sparse = [];
         for (const p of markers.slice().reverse())
           if (!sparse.some(q => Math.abs(q.x - p.x) < 7 && Math.abs(q.y - p.y) < 5)) sparse.push(p);
-        return { metric: m, path, markers: sparse.reverse(), stateMarkers,
+        const sparseStates = [];
+        for (const p of stateMarkers.slice().reverse())
+          if (!sparseStates.some(q => Math.abs(q.x - p.x) < 7 && Math.abs(q.y - p.y) < 5)) sparseStates.push(p);
+        return { metric: m, path, markers: sparse.reverse(), stateMarkers: sparseStates.reverse(),
           qualityPaths: [...quality].map(([kind, path]) => ({ kind, path })), renderPaths: [], labelAt,
           get bucketLabels() { return batch.buckets.map((_, i) => labelAt(i)); },
           get glyphs() { return []; } };
