@@ -14,9 +14,11 @@ final class HouseHistoryArchive
     }
 
     /** Minute edges plus bounded hour interiors: a leap year reads at most 8,784 hour rows. */
-    public static function segments(HistoryRange $range): array
+    public static function segments(HistoryRange $range, ?\DateTimeImmutable $now = null): array
     {
         $a = $range->from->getTimestamp(); $b = $range->to->getTimestamp();
+        if ($now !== null) { $b = min($b, $now->getTimestamp()); }
+        if ($b <= $a) { return []; }
         if ($range->resolution() === 60) { return [['minute', $a, $b, 60]]; }
         $left = min($b, $a + (3600 - $a % 3600) % 3600);
         $right = max($left, $b - $b % 3600);
@@ -126,7 +128,7 @@ final class HouseHistoryArchive
     public function snapshot(HistoryRange $range): array
     {
         return $this->reader->read($range, static function ($select, $prefix, $now, $guard) use ($range): array {
-            $start = $range->from->getTimestamp(); $end = $range->to->getTimestamp();
+            $start = $range->from->getTimestamp(); $end = min($range->to->getTimestamp(), $now->getTimestamp());
             $dirty = [];
             foreach (['minute' => 60, 'hour' => 3600, 'day' => 86400] as $level => $res) {
                 $last = null;
@@ -153,7 +155,7 @@ final class HouseHistoryArchive
                 } while (count($page) === 256);
             }
             $rows = (static function () use ($range, $select, $prefix, $now): \Generator {
-                foreach (self::segments($range) as [$level, $a, $b, $res]) {
+                foreach (self::segments($range, $now) as [$level, $a, $b, $res]) {
                     $last = null;
                     do {
                         $sql = 'SELECT level, bucket_start, bucket_end, samples, valid_count, null_count, sum_w, min_w, max_w, first_w, last_w, first_at, last_at, coverage_ms, has_gap, complete FROM evse_house_buckets FORCE INDEX (PRIMARY) WHERE source = CAST(? AS BINARY) AND level = ? AND bucket_start >= ? AND bucket_start <= ?';
@@ -161,7 +163,7 @@ final class HouseHistoryArchive
                         if ($last !== null) { $sql .= ' AND bucket_start > ?'; $parameters[] = $last; }
                         $page = $select($sql . ' ORDER BY bucket_start LIMIT 256', $parameters);
                         foreach ($page as $row) {
-                            if ($row['last_at'] !== null && HouseHistoryStore::date($row['last_at']) > $now->modify('+5 seconds')) {
+                            if ($row['last_at'] !== null && HouseHistoryStore::date($row['last_at']) > $now) {
                                 throw new \UnexpectedValueException('Future house observation');
                             }
                             $last = $row['bucket_start']; yield $row;

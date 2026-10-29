@@ -170,6 +170,9 @@ foreach (['2026-03-29' => 23, '2026-10-25' => 25] as $date => $hours) {
 }
 $year = HistoryRange::parse('period=year&date=2024&tz=Europe%2FVienna');
 $segments = Archive::segments($year);
+foreach (Archive::segments($year, Store::date('2024-07-01 12:30:00')) as $segment) {
+    check($segment[2] <= strtotime('2024-07-01T12:30:00Z'), 'current calendar query cannot read future summaries');
+}
 check(count($segments) === 1 && $segments[0][0] === 'hour' && ($segments[0][2]-$segments[0][1])/3600 === 8784, 'leap year bounded hours');
 check(count(Archive::project($year, [])['buckets']) === 366, 'leap year daily output');
 $week = HistoryRange::parse('period=week&date=2026-W01&tz=UTC');

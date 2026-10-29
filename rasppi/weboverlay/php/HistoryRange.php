@@ -58,6 +58,9 @@ final class HistoryRange
             $from = $utc ? self::utc($q['from']) : self::civil($q['date_from'], 'Y-m-d\TH:i', $tz);
             $to = $utc ? self::utc($q['to']) : self::civil($q['date_to'], 'Y-m-d\TH:i', $tz);
             self::bounds($from, $to, $tz);
+            if ($to > $now) {
+                throw new \InvalidArgumentException('Future history range');
+            }
             return new self($period, 'custom', $zone, $from, $to);
         }
         if (array_diff(array_keys($q), ['period', 'tz', 'date', 'at']) || isset($q['date']) === isset($q['at'])) {
@@ -65,6 +68,9 @@ final class HistoryRange
         }
         if (isset($q['at']) || ($q['date'] ?? '') === 'now') {
             $anchor = isset($q['at']) ? self::utc($q['at']) : $now;
+            if ($anchor > $now) {
+                throw new \InvalidArgumentException('Future history anchor');
+            }
             $local = $anchor->setTimezone($tz);
             $from = self::floor($local, $period);
         } else {
@@ -86,6 +92,9 @@ final class HistoryRange
         }
         $to = self::advance($from, $period, 1);
         self::bounds($from, $to, $tz);
+        if ($from > $now) {
+            throw new \InvalidArgumentException('Future history period');
+        }
         $label = $from->format(match ($period) {
             'hour' => 'Y-m-d\TH:00', 'day' => 'Y-m-d', 'week' => 'o-\WW', 'month' => 'Y-m', 'year' => 'Y',
         });
@@ -177,7 +186,7 @@ final class HistoryRange
         if ($this->period !== 'custom') {
             $nav = [
                 'previous' => ['period' => $this->period, 'at' => self::iso(self::advance($this->from, $this->period, -1)), 'tz' => $this->timezone],
-                'next' => ['period' => $this->period, 'at' => self::iso($this->to), 'tz' => $this->timezone],
+                'next' => $this->to <= $now ? ['period' => $this->period, 'at' => self::iso($this->to), 'tz' => $this->timezone] : null,
                 'now' => ['period' => $this->period, 'date' => 'now', 'tz' => $this->timezone],
             ];
         }

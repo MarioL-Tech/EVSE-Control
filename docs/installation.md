@@ -1828,10 +1828,20 @@ nicht implementiert; Broker und MariaDB sollen dabei weiterhin extern bleiben.
 
 ### Kalender-/Jahresverlauf zusätzlich einrichten (optionales Schema 2)
 
+Die Kalenderoberfläche begrenzt Datum/Stunde/ISO-Woche/Monat/Jahr und eigene
+Zeiträume auf die Gegenwart. Beide Historien-APIs weisen zukünftige Perioden,
+UTC-Anker oder eigene Endzeitpunkte nach jetzt mit400 ab. Der laufende Kalender-
+zeitraum bleibt auswählbar; Weiter ist dort deaktiviert. Sein noch zukünftiger
+Achsenrest enthält keine Messwerte und wird nicht als Datenbereich abgefragt.
+
 **Bereits gespeicherte Wallbox-Intervalle bewusst neu verdichten:** Die aktuelle
 Korrektur verhindert unnötige Lücken durch Online-Refreshnachrichten, numerische
 Min/Max-Variation oder unbekannte andere Felder. Alte gespeicherte Gap-Metadaten
 werden nicht vom Browser ignoriert oder beim Start still überschrieben.
+Ein Tagesdiagramm mit vielen Punkten und `coverage_seconds=0` kann daher trotz
+aktualisierter Software weiterhin alte Gap-Metadaten enthalten. Erst nach
+belegter Neuberechnung und anschließendem API-/Kurvenvergleich beurteilen;
+bekannte Ausfälle oder fehlende Rohdaten dürfen nicht künstlich verbunden werden.
 Nach Update des Storageimages und nur bei bereits aktivem Schema 2 kann der
 Betreiber einen konkreten UTC-Bereich erneut vormerken (max. ein Kalenderjahr):
 

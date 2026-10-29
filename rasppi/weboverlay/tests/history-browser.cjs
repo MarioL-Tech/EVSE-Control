@@ -384,6 +384,15 @@ const { FIELDS } = require('../static/newcalendar.js');
     assert.equal(await page.locator('[data-summary-series="power"]').count(), retainedGlyphs);
     const calendarStored = await page.evaluate(() => localStorage.getItem('evse-calendar-v1'));
     assert.equal(JSON.parse(calendarStored).period, 'year'); assert(!calendarStored.includes('buckets'));
+    // Native limits are not sufficient: scripted/manual future changes must
+    // not issue requests or replace the last accepted preference either.
+    assert.equal(await page.locator('#calendar-date').getAttribute('max'), '2026');
+    const requestCount = calendarRequests.length;
+    await page.locator('#calendar-date').fill('2027');
+    await page.locator('#calendar-date').dispatchEvent('change');
+    assert.equal(calendarRequests.length, requestCount);
+    assert.equal(await page.evaluate(() => localStorage.getItem('evse-calendar-v1')), calendarStored);
+    assert((await page.locator('#calendar-label').innerText()).includes('Zukünftige'));
     await page.locator('[data-calendar-period="live"]').click();
     assert.equal(await page.locator('#chart-range').isDisabled(), false);
     assert.equal(await page.locator('ul.chart-options input').count(), 16);

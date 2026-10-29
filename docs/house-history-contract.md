@@ -1,5 +1,10 @@
 # Haus-Netzleistung: persistente Historie (implementiert, opt-in)
 
+Kalenderauswahl teilt die Zukunftssperre der Wallbox: zukünftige Perioden/Anker
+und benutzerdefinierte Enden nach jetzt sind400, Next am aktuellen Zeitraum null.
+Bei laufenden Kalenderperioden werden nur schon abgeschlossene Summaries bis
+jetzt abgefragt, nicht deren zukünftiger Rest. Neue Docker-Abnahme offen.
+
 Neue Erweiterung PR #57 (Abnahme offen): Minutenmittel im bestehenden Storage,
 neue unabhängige Minutenregistry/-records und Schema-3-Kurzfenster mit expliziter
 Intervallevidenz. Alte Raw-/HOUSE-Tabellen werden nicht umgedeutet. Vertrag und

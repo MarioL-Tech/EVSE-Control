@@ -5,7 +5,7 @@ const calendar = require('../static/newcalendar.js');
 const charts = require('../static/charts.js');
 const { calendarQuery } = require('../static/history.js');
 const now = Date.parse('2026-10-27T12:00:00Z');
-function mountedCalendar(saved = null) {
+function mountedCalendar(saved = null, clock = () => now) {
   class Element extends EventTarget {
     constructor() { super(); this.value = ''; this.hidden = false; this.attributes = {}; this.textContent = ''; }
     setAttribute(key, value) { this.attributes[key] = String(value); }
@@ -24,6 +24,7 @@ function mountedCalendar(saved = null) {
   eventTarget.addEventListener('evse:calendar-change', event => events.push(event.detail));
   const instance = calendar.mount({
     eventTarget,
+    clock,
     document: { hidden: false, getElementById: id => ids[id], querySelectorAll: () => buttons },
     loader: { select: value => calls.push(value), setVisible() {}, tick() {}, suspend() { calls.push('suspend'); } },
     archive: { clear() {} }, onChange() {},
@@ -59,6 +60,34 @@ test('native period buttons reuse hidden mode change selection and synchronize c
   assert(ids['calendar-picker-label'].hidden); assert(ids['calendar-custom'].hidden);
   assert(!ids['chart-range'].disabled); assert(!ids['chart-range'].wrapper.hidden);
   assert.equal(changes, 7);
+});
+test('future calendar selections are bounded in Vienna and UTC, including ISO year and repeated DST hour', () => {
+  const wall = Date.parse('2026-10-29T18:30:00Z');
+  assert.deepEqual(calendar.calendarLimits(wall), { hour: '2026-10-29T19:00', day: '2026-10-29',
+    week: '2026-W44', month: '2026-10', year: '2026', custom: '2026-10-29T19:30' });
+  assert.equal(calendar.calendarLimits(Date.parse('2027-01-01T00:00:00Z'), 'UTC').week, '2026-W53');
+  for (const [period, date] of [['hour', '2026-10-29T20:00'], ['day', '2026-10-30'],
+    ['week', '2026-W45'], ['month', '2026-11'], ['year', '2027']]) {
+    assert(!calendar.selectionAllowed({ period, date, tz: calendar.ZONE }, wall));
+    assert(calendar.selectionAllowed({ period, date: 'now', tz: calendar.ZONE }, wall));
+  }
+  for (const value of [
+    { period: 'custom', from: '2026-10-01T00:00:00Z', to: '2026-10-29T18:30:01Z', tz: 'UTC' },
+    { period: 'custom', date_from: '2026-10-01T00:00', date_to: '2026-10-29T19:31', tz: calendar.ZONE },
+    { period: 'hour', at: '2026-10-25T01:00:00Z', tz: calendar.ZONE }
+  ]) assert(!calendar.selectionAllowed(value, value.at ? Date.parse('2026-10-25T00:30:00Z') : wall));
+  const ui = mountedCalendar({ period: 'year', date: '2027', tz: calendar.ZONE }, () => wall);
+  assert.equal(ui.instance.selection, null, 'Future persisted preference falls back to Live without a request');
+  assert.deepEqual(ui.calls, [null]);
+  ui.click('day');
+  assert.equal(ui.ids['calendar-date'].max, '2026-10-29');
+  assert.equal(ui.ids['calendar-to'].max, '2026-10-29T19:30');
+  const before = ui.calls.length, writes = ui.writes.length;
+  ui.ids['calendar-date'].value = '2026-10-30'; ui.ids['calendar-date'].dispatchEvent(new Event('change'));
+  assert.equal(ui.calls.length, before); assert.equal(ui.writes.length, writes);
+  const b = fixture(); b.navigation.next = { period: 'day', at: '2026-10-30T00:00:00Z', tz: calendar.ZONE };
+  ui.instance.loaded(b); assert(ui.ids['calendar-next'].disabled);
+  ui.ids['calendar-next'].dispatchEvent(new Event('click')); assert.equal(ui.calls.length, before);
 });
 test('restoration, UTC navigation and existing mode/date change handlers keep period buttons in sync', () => {
   const ui = mountedCalendar({ period: 'hour', at: '2026-10-25T01:00:00Z', tz: calendar.ZONE });

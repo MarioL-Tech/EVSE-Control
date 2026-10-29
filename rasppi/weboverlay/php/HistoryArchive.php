@@ -205,7 +205,7 @@ final class HistoryArchive
             }
             $previous = $start + $res;
             $d = self::data($row['data_json'], (int) $start, $res);
-            if ($now !== null && $d['last_at'] !== null && self::timestamp($d['last_at']) > $now + 5) {
+            if ($now !== null && $d['last_at'] !== null && self::timestamp($d['last_at']) > $now) {
                 throw new \UnexpectedValueException('Future summary sample');
             }
             $found = false;
@@ -415,7 +415,7 @@ final class HistoryArchive
             $ready = $initialDone && ($progress['events_done'] || $invalidateFrom !== null);
             // Long custom selections use minute edges and whole UTC hours in the interior.
             $start = $range->from->getTimestamp();
-            $end = $range->to->getTimestamp();
+            $end = min($range->to->getTimestamp(), $now->getTimestamp());
             $segments = [];
             if ($range->resolution() === 60) {
                 $segments[] = [60, $start, $end];

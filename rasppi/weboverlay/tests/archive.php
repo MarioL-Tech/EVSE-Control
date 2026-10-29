@@ -14,7 +14,7 @@ use EvseOverlay\HistoryConfig;
 
 $cases = 0;
 $test = static function (callable $op) use (&$cases): void { $op(); ++$cases; };
-$range = static fn(string $q): HistoryRange => HistoryRange::parse($q);
+$range = static fn(string $q): HistoryRange => HistoryRange::parse($q, new DateTimeImmutable('2030-01-01T00:00:00Z'));
 foreach (['', 'minutes=1', 'minutes=5', 'minutes=15'] as $query) {
     $test(static fn() => archiveAssert(is_int(HistoryRange::parse($query))));
 }
@@ -48,11 +48,33 @@ $test(static function () use ($range): void {
     $a = $range('period=hour&at=2026-10-25T00:30:00Z');
     $b = $range('period=hour&at=2026-10-25T01:30:00Z');
     archiveAssert($a->label === $b->label && $b->from->getTimestamp() - $a->from->getTimestamp() === 3600);
-    $nav = $a->envelope('ok', new DateTimeImmutable('2026-10-25T00:30:00Z'))['navigation'];
+    $nav = $a->envelope('ok', new DateTimeImmutable('2026-10-25T01:30:00Z'))['navigation'];
     archiveAssert($nav['next']['at'] === HistoryRange::iso($b->from));
     archiveAssert($range(http_build_query($nav['next']))->from == $b->from);
     $now = HistoryRange::parse('period=month&date=now', new DateTimeImmutable('2026-12-31T23:30:00Z'));
     archiveAssert($now->label === '2027-01');
+});
+$test(static function (): void {
+    $now = new DateTimeImmutable('2026-10-29T18:30:00Z');
+    foreach (['period=hour&date=2026-10-29T20:00', 'period=day&date=2026-10-30',
+        'period=week&date=2026-W45', 'period=month&date=2026-11', 'period=year&date=2027',
+        'period=hour&at=2026-10-29T18:30:01Z',
+        'period=custom&from=2026-10-28T00:00:00Z&to=2026-10-29T18:30:01Z',
+        'period=custom&date_from=2026-10-28T00:00&date_to=2026-10-29T19:31'] as $future) {
+        archiveReject(static fn() => HistoryRange::parse($future, $now));
+    }
+    foreach (['hour','day','week','month','year'] as $period) {
+        $r = HistoryRange::parse('period=' . $period . '&date=now', $now);
+        archiveAssert($r->from <= $now && $r->envelope('ok', $now)['navigation']['next'] === null);
+    }
+    $today = HistoryRange::parse('period=day&date=2026-10-29', $now);
+    $yesterday = HistoryRange::parse('period=day&date=2026-10-28', $now);
+    archiveAssert($yesterday->envelope('ok', $now)['navigation']['next']['at'] === HistoryRange::iso($today->from));
+    archiveAssert(HistoryRange::parse('period=custom&from=2026-10-28T00:00:00Z&to=2026-10-29T18:30:00Z', $now)->to == $now);
+    $firstHour = new DateTimeImmutable('2026-10-25T00:30:00Z');
+    $r = HistoryRange::parse('period=hour&date=now', $firstHour);
+    archiveAssert($r->envelope('ok', $firstHour)['navigation']['next'] === null);
+    archiveReject(static fn() => HistoryRange::parse('period=hour&at=2026-10-25T01:00:00Z', $firstHour));
 });
 $hour = $range('period=hour&date=2026-01-01T12:00&tz=UTC');
 $start = $hour->from->getTimestamp();

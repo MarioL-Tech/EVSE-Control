@@ -130,7 +130,9 @@ async function simultaneousScenario(firstKind, firstAvailability, secondKind, se
     body(await request('period=year&date=2024&tz=Europe%2FVienna'), 200, 'disabled');
     assert.equal((await request('minutes=15', 'HEAD')).body, ''); ++checks;
     assert.equal((await request('minutes=15', 'POST')).code, 405); ++checks;
-    for (const query of ['minutes=2', 'minutes=1&minutes=5', 'period=day&date=2026-02-30', 'minutes=15&url=x']) {
+    for (const query of ['minutes=2', 'minutes=1&minutes=5', 'period=day&date=2026-02-30', 'minutes=15&url=x',
+      'period=year&date=9998', 'period=hour&at=9998-01-01T00:00:00Z',
+      'period=custom&from=9997-01-01T00:00:00Z&to=9998-01-01T00:00:00Z']) {
       assert.equal((await request(query)).code, 400); ++checks;
     }
     const asset = await requestPath('/static/house-history.js');

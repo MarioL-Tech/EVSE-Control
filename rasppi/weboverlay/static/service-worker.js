@@ -3,7 +3,7 @@
 // Bump this generation whenever the trusted static shell changes. Never store
 // documents with measurement UI, HTTP responses from APIs, or arbitrary URLs.
 const CACHE_PREFIX = 'evse-control-shell-';
-const CACHE_NAME = CACHE_PREFIX + 'v7';
+const CACHE_NAME = CACHE_PREFIX + 'v8';
 const STATIC_PATHS = Object.freeze([
   '/static/app.js', '/static/charts.js', '/static/history.js', '/static/newcalendar.js',
   '/static/theme.js', '/static/smartmeter.js', '/static/smartmeter-chart.js', '/static/house-history.js', '/static/pwa.js', '/static/style.css',

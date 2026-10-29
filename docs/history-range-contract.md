@@ -1,12 +1,20 @@
 # Kalenderhistorie und Verdichtung
 
-Implementierter Vertrag, Stand 2026-10-28. Docker-CI 40678971209 für c83b1cc
+Implementierter Vertrag, Stand 2026-10-29. Historische Docker-CI 40678971209 für c83b1cc
 erfolgreich; kein Pi-Deployment oder produktiver Backfill. Eine Jahres-Fixture
 verwendet 8.784 echte SQL-Stundenzeilen mit künstlichen Read-Countern, nicht
 15 Millionen eingefügte Rohzeilen. Beobachtete CI-Lesezeit 1.278 ms (amd64),
 keine zugesicherte Pi-/ARM-Laufzeit.
 
 ## Unveränderliche Grenzen
+
+- Zukünftige Kalenderperioden oder explizite UTC-Anker nach jetzt liefern400,
+  ebenso benutzerdefinierte Bereiche mit einem Ende nach jetzt. Laufende Stunde/
+  Tag/Woche/Monat/Jahr bleiben auswählbar; deren kalendarische Achse darf noch
+  leere zukünftige Intervalle enthalten, aber Abfragen lesen keine zukünftigen
+  Summaries. `navigation.next` ist am aktuellen Zeitraum `null`. Die Oberfläche
+  begrenzt alle Picker und verwirft zukünftige gespeicherte Auswahlen vor Fetch.
+  Diese neue Regel benötigt gesonderten Dockerabschluss; Live-Frische unverändert.
 
 - Keine Löschung/Änderung bestehender Rohmessungen, Preis-/Providerdaten, Grants,
   Accounts, Server, Hardware, Netzwerke oder Ports. Website nur SELECT/read-only.

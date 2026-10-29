@@ -4,6 +4,20 @@ Stand: 2026-10-29. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
+Aktuelle Nachbesserung (2026-10-29, in Arbeit): Zukünftige Kalenderperioden und
+benutzerdefinierte Enden nach jetzt in UI UND beiden Historien-APIs sperren;
+laufende Kalenderperioden bleiben auswählbar, Next am aktuellen Zeitraum null.
+Kalender-SELECTs dürfen nur bereits abgeschlossene vergangene Summaries lesen.
+Screenshot zeigt weiterhin Punktreihen; Betreiber-API:239 belegte Tagesintervalle,
+237 has_gap,3 incomplete,erste6 coverage_seconds=0. Das passt zu konservativen
+Bestandsverdichtungen des alten Algorithmus (Online-Refresh/all-fields-known),
+beweist aber ohne Neuberechnung keine heutige Raw-Kontinuität. Bestehender
+expliziter begrenzter --refresh-history-Weg empfohlen; regulärer Worker rekonstruiert
+nur aus belegten Daten, keine blanket Verbindungen über gespeicherte Gapflags.
+Regression erweitert um realistische Online-Refreshs hinter jedem Sample und
+unbekanntes charging bei unveränderten Rohdaten/Preisen/Providern. Pi-Refresh-
+Ergebnis und neue Docker-Abnahme offen; kein Agent-Produktionszugriff.
+
 Aktueller Auftrag (2026-10-29, implementiert/Docker-geprüft, Pi-Abnahme offen): Stunde/Tag/Woche sollen
 dieselbe einfache Linienoptik wie Live bekommen. Echte Offline-/NULL-/Clock-/
 Lifecycle-Unterbrechungen bleiben getrennt; Min-Max-Bänder entfallen in diesen
