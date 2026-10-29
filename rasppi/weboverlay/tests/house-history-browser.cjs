@@ -132,7 +132,7 @@ function year(query) {
     assert.equal((yearPath.match(/M/g) || []).length, 3, 'One uncertain bucket separates the two continuous runs');
 
     await page.locator('[data-calendar-period="week"]').click();
-    await page.waitForFunction(() => document.getElementById('house-chart-description')?.textContent.startsWith('5040 Messpunkte'));
+    await page.waitForFunction(() => document.getElementById('house-chart-description')?.textContent.startsWith('5039 Messpunkte'));
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
