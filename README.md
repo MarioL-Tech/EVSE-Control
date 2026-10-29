@@ -196,10 +196,16 @@ mintfarbene Live-Badges. Hell entsprechend neutral-kühl; Design-CI 40499228102
 für acce554 erfolgreich, simulierte Desktop-/Mobilansichten geprüft.
 Das bestehende Layout bleibt unverändert. **Schiebeschalter links unten** mit
 Sonne/Mond wechselt Hell/Dunkel. **Settings mit Zahnrad** steht links unter
-„Diagramme“ und öffnet die Platzhalterseite `/einstellungen`.
+„Diagramme“ und öffnet `/einstellungen` mit dem standardmäßig deaktivierten
+Env-Dateieditor (PR #57, Abnahme noch offen).
 Dort stellt „Systemdarstellung verwenden“ die automatische Browserpräferenz wieder her.
-Geplant ist die zentrale Verwaltung aller bisherigen `.env`-Projektkonfigurationen
-unter Settings; geschützte Administration ist noch nicht implementiert.
+Echte Env-Dateibearbeitung ist beauftragt; der Editor erhält validierte
+dienstbezogene Felder einschließlich Aufbewahrungsfristen. Admin-Login erst nach
+neuer Freigabe, aktuell keine produktive Schreibfreigabe. Speichern allein
+verändert noch keine laufenden Container. SQL-/Messdatenzugriff bleibt lesend.
+Neue optionale Minutenmittelaufzeichnung bei weiterhin zwei Sekunden Live und
+begrenzte, ausdrücklich konfigurierte EVSE-Bereinigung siehe
+[Installationsguide](docs/installation.md#minutenaufzeichnung-und-aufbewahrung).
 Die Theme-Wahl bleibt browserlokal, ohne Messwerte oder Zugangsdaten.
 Die Vorlagen bestimmen nur den Stil, nicht Inhalt oder Anordnung der Website.
 

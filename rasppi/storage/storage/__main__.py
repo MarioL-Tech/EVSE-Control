@@ -42,10 +42,17 @@ def healthcheck(history=False):
 
 
 def run(config, stop):
+    from .retention import Policy, cleanup
+    policy = Policy(os.environ)
+    last_cleanup = time.monotonic()
+    retention_ready = True
     inbox = Inbox(config.prefix, config.queue_size)
     subscriber, db = Subscriber(config, inbox), Database(config)
+    from .minutes import Recorder, IntakeRejected
+    recorder = Recorder(db, 'wallbox') if config.recording_mode == 'minute' else None
     pending = event(config.prefix, "collector_started", coverage="unknown before startup", buffer="RAM only")
     ready, written, duplicates, retry, last_log, last_ping = False, 0, 0, 1, 0, 0
+    admitted = 0
     next_mqtt_start, mqtt_retry = 0, 1
     deadline = None
     health({"database_ready": False, "subscribed": False, "written": 0, "duplicates": 0, **inbox.stats()})
@@ -62,6 +69,8 @@ def run(config, stop):
                 try:
                     db.connect()
                     db.verify()
+                    if recorder:
+                        recorder.acquire()
                     ready, last_ping = True, time.monotonic()
                 except (pymysql.MySQLError, OSError, ValueError):
                     db.close()
@@ -73,6 +82,19 @@ def run(config, stop):
                         last_log = time.monotonic()
                     stop.wait(retry)
                     retry = min(30, retry * 2)
+                    continue
+            # Frozen publication is retried before admitting/ACKing more input.
+            if recorder:
+                try:
+                    if recorder.flush(shutdown=deadline is not None and pending is None and inbox.queue.empty()):
+                        written += 1
+                except (pymysql.MySQLError, OSError, ValueError):
+                    ready = False
+                    db.close()
+                    subscriber.stop()
+                    if deadline is None:
+                        stop.wait(retry)
+                        retry = min(30, retry * 2)
                     continue
             # Reconnect only with available database and after pressure drains.
             if inbox.pressure.is_set():
@@ -89,15 +111,27 @@ def run(config, stop):
                     pending = inbox.queue.get(timeout=0.2)
                 except queue.Empty:
                     if deadline is not None:
+                        if recorder and recorder.accumulator.open:
+                            continue
                         break
             if pending is not None:
                 try:
-                    if db.write(pending):
-                        written += 1
+                    if (recorder.write(pending) if recorder else db.write(pending)):
+                        if recorder and pending['kind'] == 'sample':
+                            admitted += 1
+                        else:
+                            written += 1
                     else:
                         duplicates += 1
                     subscriber.ack(pending.get("ack"))
                     pending, retry = None, 1
+                except IntakeRejected:
+                    # No ACK for failed RAM admission. The gap is durable via
+                    # the normal event path, and the clean session is paused.
+                    inbox.reject()
+                    inbox.pressure.set()
+                    subscriber.stop()
+                    pending = None
                 except (pymysql.MySQLError, OSError):
                     # Unknown COMMIT outcome: retry identical hash/UUID, not a
                     # fresh event. Pause MQTT so broker backlog cannot grow.
@@ -120,10 +154,20 @@ def run(config, stop):
                     subscriber.stop()
             if subscriber.subscribed:
                 mqtt_retry = 1
+            if ready and deadline is None and pending is None and time.monotonic() - last_cleanup >= 30:
+                last_cleanup = time.monotonic()
+                try:
+                    cleanup(db, 'wallbox', policy)
+                    retention_ready = True
+                except (pymysql.MySQLError, OSError, ValueError):
+                    # Rollback is local to this bounded turn. Missing DELETE
+                    # privileges must not disconnect otherwise valid intake.
+                    diagnostic('storage retention: bounded cleanup unavailable; no success assumed')
+                    retention_ready = False
             if ready and deadline is None and subscriber.client is None and not inbox.pressure.is_set() and time.monotonic() >= next_mqtt_start:
                 subscriber.start()
             health({"database_ready": ready, "subscribed": subscriber.subscribed, "written": written,
-                    "duplicates": duplicates, **inbox.stats()})
+                    "duplicates": duplicates, "admitted_ram": admitted, "retention_ready": retention_ready, **inbox.stats()})
             if time.monotonic() - last_log > 30:
                 diagnostic(f"storage: written={written} duplicates={duplicates} queue={inbox.queue.qsize()} invalid={inbox.invalid} dropped={inbox.dropped}")
                 last_log = time.monotonic()
@@ -190,6 +234,7 @@ def main():
     mode.add_argument("--healthcheck", action="store_true")
     mode.add_argument("--history-healthcheck", action="store_true")
     mode.add_argument("--migrate-house", action="store_true", help="Explicit independent HOUSE schema migration")
+    mode.add_argument('--migrate-minutes', action='store_true', help='Explicit independent minute capture migration')
     parser.add_argument("--history-from", help="Inclusive UTC second, YYYY-MM-DDTHH:MM:SSZ; refresh only")
     parser.add_argument("--history-to", help="Exclusive UTC second, YYYY-MM-DDTHH:MM:SSZ; refresh only")
     args = parser.parse_args()
@@ -219,6 +264,17 @@ def main():
                 database.close()
             return 0
         config = Config.from_environment()
+        from .retention import Policy
+        Policy(os.environ)  # Reject invalid expiry configuration before starting threads.
+        if args.migrate_minutes:
+            from .minutes import migrate
+            database = Database(config)
+            try:
+                database.connect()
+                migrate(database)
+            finally:
+                database.close()
+            return 0
         if args.migrate or args.migrate_history:
             database = Database(config)
             try:

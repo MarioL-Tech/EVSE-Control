@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta
 from decimal import Decimal, localcontext
 import hashlib
+import os
 import time
 import pymysql
 from .house_database import BUCKET_TYPES
@@ -143,6 +144,8 @@ def combine(start, level, children):
 class HouseWorker:
     def __init__(self, db):
         self.db, self.source = db, db.config.prefix
+        from .retention import Policy
+        self.retention = Policy(os.environ)
         self.progress = {level: 0 for level in SECONDS}
 
     def acquire(self):
@@ -157,6 +160,10 @@ class HouseWorker:
         self.db.connection.commit()
 
     def raw_minute(self, c, start):
+        from .minutes import captured
+        capture = captured(self.db, c, 'house', self.source, start)
+        if capture is not None:
+            return capture
         end = start + timedelta(minutes=1)
         # Both context sides are bounded by the maximum continuity freshness.
         c.execute('SELECT id,publisher_id,sequence,fetched_at,received_at,status,power_w,retained '
@@ -190,6 +197,22 @@ class HouseWorker:
                 level, start, generation = work['level'], work['bucket_start'], work['generation']
                 if level not in SECONDS or floor(start, level) != start:
                     raise ValueError('Invalid HOUSE work')
+                action = self.retention.action('house', level, start)
+                if action != 'recompute':
+                    c.execute('SELECT generation FROM evse_house_work WHERE source=%s AND level=%s AND bucket_start=%s FOR UPDATE',
+                              (self.source, level, start))
+                    current = c.fetchone()
+                    if current is None or current['generation'] != generation:
+                        connection.rollback()
+                        return True
+                    if action == 'expire':
+                        c.execute('DELETE FROM evse_house_buckets WHERE source=%s AND level=%s AND bucket_start=%s LIMIT 1',
+                                  (self.source, level, start))
+                    c.execute('UPDATE evse_house_work SET processed_generation=%s,pending=0 WHERE source=%s AND level=%s AND bucket_start=%s AND generation=%s',
+                              (generation, self.source, level, start, generation))
+                    connection.commit()
+                    self.progress[level] += 1
+                    return True
                 if level == 'minute':
                     result = self.raw_minute(c, start)
                 else:
@@ -206,7 +229,8 @@ class HouseWorker:
                     result = combine(start, level, c.fetchall())
                 c.execute('SELECT generation FROM evse_house_work WHERE source=%s AND level=%s AND bucket_start=%s FOR UPDATE',
                           (self.source, level, start))
-                if c.fetchone()['generation'] != generation:
+                current = c.fetchone()
+                if current is None or current['generation'] != generation:
                     connection.rollback()
                     return True
                 values = dict(source=self.source, level=level, **result)

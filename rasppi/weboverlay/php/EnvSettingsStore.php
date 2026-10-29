@@ -277,6 +277,14 @@ final class EnvSettingsStore
     {
         $get = static fn(string $key, string $default = ''): string =>
             $changes[$key] ?? ($known[$key]['value'] ?? $default);
+        if ($service === 'storage' && array_intersect(array_keys($changes), [
+            'STORAGE_RETENTION_MINUTE_DAYS', 'STORAGE_RETENTION_HOUR_DAYS', 'STORAGE_RETENTION_DAY_DAYS'])) {
+            $minute = (int) $get('STORAGE_RETENTION_MINUTE_DAYS', '0');
+            $hour = (int) $get('STORAGE_RETENTION_HOUR_DAYS', '0');
+            $day = (int) $get('STORAGE_RETENTION_DAY_DAYS', '0');
+            if (($hour > 0 && ($minute === 0 || $hour < $minute)) ||
+                ($day > 0 && ($hour === 0 || $day < $hour))) { self::fail('invalid'); }
+        }
         if ($service === 'wallbox' &&
             (isset($changes['WALLBOX_INTERVAL_MS']) || isset($changes['WALLBOX_TIMEOUT_MS'])) &&
             (float) $get('WALLBOX_TIMEOUT_MS', '1000') >= (float) $get('WALLBOX_INTERVAL_MS', '2000')) {

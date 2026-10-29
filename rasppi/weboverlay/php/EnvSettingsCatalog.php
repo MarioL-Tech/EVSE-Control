@@ -55,6 +55,9 @@ final class EnvSettingsCatalog
             $add('DB_TIMEOUT_SECONDS', 'integer', 1, 10);
             $add('STORAGE_QUEUE_SIZE', 'integer', 8, 4096);
             $add('STORAGE_RECORDING_MODE', 'enum', null, null, false, false, ['raw', 'minute']);
+            foreach (['MINUTE', 'HOUR', 'DAY'] as $level) {
+                $add('STORAGE_RETENTION_' . $level . '_DAYS', 'integer', 0, 36500);
+            }
         }
         if ($service === 'weboverlay') {
             $add('WEB_PORT', 'integer', 1, 65535);

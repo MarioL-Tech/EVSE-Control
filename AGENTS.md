@@ -14,6 +14,16 @@ Minutenprodukte brauchen eigene Coverage und explizite additive Migration;
 Bestandsrohdaten/Preise/Provider bleiben unangetastet. RAM-Zwischenpuffer kann
 bei Crash bis zu einer offenen Minute verlieren, kein Commit-vor-ACK-Versprechen
 für diesen neuen Aufzeichnungsmodus. Legacy-Rawmodus bleibt getrennt.
+Minutenpipeline und quellgebundene Bereinigung inzwischen implementiert, neue
+Docker-/MariaDB-Tests noch nicht abgenommen. Drei unabhängige Minutentabellen,
+explizites `--migrate-minutes`; bisherige Compose-Deployments bleiben raw bis
+bewusster Umstellung. Minutenworker verwenden validierte Captures statt Raw;
+kurzer Website-SQL-Vertrag wird separat angepasst, keine stillen Rohmittelwerte.
+Automatische Löschung älterer EVSE-Werte jetzt ausdrücklich autorisiert:
+`STORAGE_RETENTION_MINUTE_DAYS/HOUR_DAYS/DAY_DAYS`, Default0=unbegrenzt. Quellen-
+gebundene begrenzte Löschungen einschließlich Legacyraw/Ereignissen; fremde
+Quellen, Preise und Provider nie anfassen. Gröbere Stufen mindestens so lange
+aufbewahren, Eltern mit abgelaufenen Kindern nicht leer neu verdichten.
 Echte `.env`-Dateibearbeitung im Settingsmenü ist jetzt ausdrücklich beauftragt;
 kein reiner Download/JSON-Entwurf. Admin-Login hingegen ausdrücklich erst nach
 neuer gesonderter Freigabe implementieren, nicht automatisch zum Abschluss.

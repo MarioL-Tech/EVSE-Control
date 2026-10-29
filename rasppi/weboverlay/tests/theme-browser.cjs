@@ -258,7 +258,7 @@ function clean(run) {
         await page.waitForFunction(() => document.getElementById('env-status').textContent === 'Konfigurationseditor noch nicht freigeschaltet');
         assert.match(await page.locator('main').innerText(), /Dienstkonfiguration/);
         assert(await page.locator('#env-save').isDisabled());
-        assert(await page.locator('#env-fields').isDisabled());
+        assert.equal(await page.locator('#env-fields').evaluate(fieldset => fieldset.disabled), true);
         assert.equal(await page.locator('#env-fields input:enabled').count(), 0);
         assert.equal(await page.locator('#env-form').count(), 1);
         assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id)), ['env-save', 'env-reload', 'theme-system']);

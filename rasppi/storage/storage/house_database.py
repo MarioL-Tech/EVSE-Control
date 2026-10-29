@@ -62,6 +62,10 @@ class HouseDatabase(Database):
                 raise ValueError('Unsupported HOUSE registry')
         self.connection.commit()
 
+        from .minutes import verify
+        verify(self, self.config.recording_mode == 'minute')
+        self.connection.commit()
+
     def migrate(self):
         lock = 'evse-house-schema-' + hashlib.sha256(self.config.db_name.encode()).hexdigest()[:40]
         with self.connection.cursor() as c:
