@@ -49,6 +49,7 @@ const { METRICS } = require('../static/charts.js');
     assert(await page.locator('#timestamp').isVisible());
     await page.locator('.sidebar nav a[href="/diagramme"]').click();
     await page.waitForURL('**/diagramme', { waitUntil: 'domcontentloaded' });
+    assert.deepEqual(errors, [], 'Initial calendar publication must not access uninitialized renderer state');
     await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Live');
     await paint();
     assert(new URL(page.url()).pathname === '/diagramme');

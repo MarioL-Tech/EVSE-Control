@@ -281,6 +281,9 @@
     let storage;
     try { storage = root.localStorage; } catch (_) { storage = null; }
     let prefs = loadPreferences(storage), lastDraw = 0, lastRevision = -1, lastArchiveDraw = null;
+    // Calendar mount publishes the initial selection synchronously. Its
+    // onChange callback may schedule a frame before mount itself returns.
+    let frame = null, pendingNow = null;
     const controls = new Map(), figures = new Map();
     const svgNS = 'http://www.w3.org/2000/svg';
     const fmt = new Intl.NumberFormat('de-DE', { maximumSignificantDigits: 4, notation: 'compact' });
@@ -403,7 +406,6 @@
       savePreferences(storage, prefs);
       lastRevision = -1; draw(Date.now());
     }
-    let frame = null, pendingNow = null;
     function draw(now) {
       pendingNow = now;
       if (frame !== null) return;

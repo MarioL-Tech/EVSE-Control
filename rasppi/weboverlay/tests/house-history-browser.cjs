@@ -1,6 +1,7 @@
 'use strict';
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const base = process.env.TEST_URL || process.env.WEB_TEST_URL || 'http://127.0.0.1:8080';
 const iso = t => new Date(t).toISOString();
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -16,7 +17,8 @@ function year(query) {
   const date = /^\d{4}$/.test(requestedDate) ? requestedDate
     : new Intl.DateTimeFormat('en', { timeZone: 'Europe/Vienna', year: 'numeric' }).format(at ? new Date(at) : new Date());
   const n = Number(date);
-  // Calendar year in Vienna includes both DST transitions. No 24-hour/day assumption.
+  // Real API tests verify DST boundaries. This renderer fixture uses bounded
+  // daily UTC slots across the requested Vienna year, including a real gap.
   const from = `${n - 1}-12-31T23:00:00Z`, to = `${n}-12-31T23:00:00Z`;
   const nav = date => ({ period: 'year', date: String(date), tz: 'Europe/Vienna' });
   const start = Date.parse(from), count = n % 5 + 1, days = (Date.parse(to) - start) / 86400000;
@@ -95,6 +97,9 @@ function year(query) {
     await page.waitForFunction(() => !!document.querySelector('#house-chart-svg [data-house-band]'));
     assert(houseRequests > yearRequests, 'Reload restores the selected house year while wallbox history stays disabled');
     assert.equal(await page.locator('#calendar-date').inputValue(), '2024');
+    const yearPath = await curve.getAttribute('d');
+    assert(yearPath.includes('L'), 'Daily means are connected as a line, not isolated ticks');
+    assert.equal((yearPath.match(/M/g) || []).length, 3, 'One uncertain bucket separates the two continuous runs');
 
     let ready;
     const readyPromise = new Promise(resolve => { ready = resolve; });
@@ -111,6 +116,14 @@ function year(query) {
       await page.setViewportSize({ width, height: 900 });
       assert(await page.locator('#house-chart-svg *').count() < 15);
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      if ([320, 1440].includes(width)) {
+        fs.mkdirSync('/artifacts', { recursive: true });
+        for (const colorScheme of ['light', 'dark']) {
+          await page.emulateMedia({ colorScheme });
+          await page.waitForFunction(scheme => document.documentElement.dataset.effectiveTheme === scheme, colorScheme);
+          await page.screenshot({ path: `/artifacts/house-year-${width}-${colorScheme}.png`, fullPage: true });
+        }
+      }
     }
     await page.locator('#show-house-power').uncheck(); assert(!await page.locator('#house-chart-svg').isVisible());
     await page.locator('#show-house-power').check(); assert(await page.locator('#house-chart-svg').isVisible());
