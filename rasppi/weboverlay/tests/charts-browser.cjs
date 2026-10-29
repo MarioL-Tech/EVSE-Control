@@ -128,6 +128,7 @@ const { METRICS } = require('../static/charts.js');
     assert(((await page.locator('[data-series="power"]').getAttribute('d')).match(/M/g) || []).length >= 2,
       'Recovery must start a disconnected segment');
     await page.locator('.history-diagnostics > summary').click();
+    assert(await page.locator('.history-diagnostics').evaluate(details => details.open), 'Native diagnostics disclosure opens');
     await page.locator('#show-charging').check();
     await paint();
     assert(await page.locator('#chart-diagnostics-grid .chart-line').count() > 0, 'Diagnostics render lazily on opening');

@@ -489,7 +489,14 @@
     apply();
     function resize() { lastRevision = -1; lastArchiveDraw = null; draw(Date.now()); }
     root.addEventListener('resize', resize);
-    document.querySelector('.history-diagnostics')?.addEventListener('toggle', resize);
+    const diagnostics = document.querySelector('.history-diagnostics');
+    diagnostics?.addEventListener('toggle', resize);
+    if (diagnostics && typeof root.MutationObserver === 'function') {
+      // `toggle` is a deferred/coalesced task. Observe the actual open state
+      // so opening already-selected curves schedules its first paint promptly,
+      // without waiting for another telemetry response or browser timer.
+      new root.MutationObserver(resize).observe(diagnostics, { attributes: true, attributeFilter: ['open'] });
+    }
     document.addEventListener('visibilitychange', () => { if (!document.hidden) resize(); });
     root.addEventListener('pageshow', resize);
     return {
