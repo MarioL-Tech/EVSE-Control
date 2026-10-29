@@ -179,9 +179,14 @@
       },
       get revision() { return revision; },
       get size() { return points.length; },
-      window(now, minutes) {
+      window(now, minutes, includePredecessor = false) {
         const duration = [1, 5, 15].includes(minutes) ? minutes * 60000 : 300000;
-        return points.filter(p => p.t >= now - duration && p.t <= now).map((p, i, list) =>
+        const visible = points.filter(p => p.t >= now - duration && p.t <= now);
+        // Display-only context for an eligible segment crossing the left edge.
+        // Not a new measurement and never permission to bridge an outage/seam.
+        const prior = includePredecessor ? points.findLast(p => p.t < now - duration) : null;
+        if (prior) visible.unshift(prior);
+        return visible.map((p, i, list) =>
           ({ ...p, breakBefore: i === 0 || (() => {
             const prior = list[i - 1], a = prior.t, b = p.t;
             return !sameProduct(prior, p) || (minuteMode && prior.source !== p.source) ||
@@ -268,7 +273,22 @@
   }
   function buildPlot(points, group, selected, start, end, geometry = { width: 500, height: 225, left: 62, right: 482, top: 25, bottom: 180 }, boundsOnly = false) {
     const metrics = METRICS.filter(m => m.group === group.id && selected[m.id]);
-    const numbers = points.flatMap(p => metrics.map(m => p.values[m.id])).filter(v => v !== null);
+    const connects = (previous, p, m) => previous && previous.values[m.id] !== null && p.values[m.id] !== null &&
+      !p.breakBefore && !p.seriesBreak?.[m.id] && !previous.seriesBreak?.[m.id] && sameProduct(previous, p) && p.t > previous.t &&
+      (p.recordType === 'minute' ? minuteAdjacent(previous, p) : p.t - previous.t <= MAX_GAP_MS);
+    const edgeValue = (previous, p, m) => group.step ? previous.values[m.id] : previous.values[m.id] +
+      (p.values[m.id] - previous.values[m.id]) * (start - previous.t) / (p.t - previous.t);
+    const visible = boundsOnly ? points : points.filter(p => p.t >= start && p.t <= end);
+    const intersections = new Map();
+    if (!boundsOnly && visible.length) {
+      const prior = points.findLast(p => p.t < start), first = visible[0];
+      for (const m of metrics) if (connects(prior, first, m)) intersections.set(m.id, edgeValue(prior, first, m));
+    }
+    // An ineligible/old predecessor must not flatten visible data via the axis.
+    // For an eligible edge, include only the displayed intersection, not its
+    // hidden endpoint. Bounds-only archive input has no raw timestamps.
+    const numbers = visible.flatMap(p => metrics.map(m => p.values[m.id])).filter(v => v !== null)
+      .concat([...intersections.values()]);
     let lo = group.zero || group.boolean ? 0 : numbers.length ? Math.min(...numbers) : 0;
     let hi = group.boolean ? 1 : numbers.length ? Math.max(...numbers) : 1;
     if (hi <= lo) { lo = Math.max(0, lo - 1); hi += 1; }
@@ -288,10 +308,14 @@
           if (segmentLength === 1) markers.push(segmentLast);
           previous = null; segmentLength = 0; continue;
         }
+        if (p.t < start) { previous = p; continue; }
+        if (p.t > end) break;
         const px = x(p.t).toFixed(2), py = y(value).toFixed(2);
-        const connect = previous && !p.breakBefore && !p.seriesBreak?.[m.id] &&
-          !previous.seriesBreak?.[m.id] && sameProduct(previous, p) && p.t > previous.t &&
-          (p.recordType === 'minute' ? minuteAdjacent(previous, p) : p.t - previous.t <= MAX_GAP_MS);
+        const connect = connects(previous, p, m);
+        if (connect && previous.t < start) {
+          path += `M${geometry.left.toFixed(2)},${y(edgeValue(previous, p, m)).toFixed(2)}`;
+          segmentLength = 1;
+        }
         if (!connect) {
           if (segmentLength === 1) markers.push(segmentLast);
           segmentLength = 1;
@@ -310,7 +334,7 @@
       }
       return { metric: m, path, last, markers: sparse.reverse() };
     });
-    return { lo, hi, paths, metrics, count: points.length, geometry, points };
+    return { lo, hi, paths, metrics, count: visible.length, geometry, points: visible };
   }
   const api = { METRICS, GROUPS, RETENTION_MS, MAX_POINTS, MAX_GAP_MS, STORAGE_KEY,
     defaults, normalizePreferences, loadPreferences, savePreferences, readings, createHistory, buildPlot };
@@ -332,6 +356,7 @@
     const controls = new Map(), figures = new Map();
     const svgNS = 'http://www.w3.org/2000/svg';
     const fmt = new Intl.NumberFormat('de-DE', { maximumSignificantDigits: 4, notation: 'compact' });
+    const codeFmt = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
     const timeFmt = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const node = (tag, text, attributes = {}, svg = false) => {
       const element = svg ? document.createElementNS(svgNS, tag) : document.createElement(tag);
@@ -409,19 +434,17 @@
         source.dataset.historyStatus = state.status;
         if (calendar?.selection) {
           const snapshot = archive?.view();
-          const representation = ['hour', 'day', 'week'].includes(calendar.selection.period) ? 'Stichprobenmittel' : 'Stichprobenmittel / Min–Max';
           source.textContent = snapshot ? `Kalenderarchiv · ${snapshot.buckets.reduce((n, b) => n + b.samples, 0)} Messwerte` : 'Kalenderarchiv';
-          detail.textContent = `${state.status === 'ok' ? state.complete ? 'Archiv geladen.' : 'Archiv enthält Lücken oder ist noch nicht vollständig verdichtet.'
-            : state.status === 'browser' ? 'Zeitraum wird geladen.' : snapshot ? 'Archiv derzeit nicht verfügbar; geladene Daten bleiben erhalten.' : 'Archiv derzeit nicht verfügbar.'} Historisch, nicht live. ${representation}; Sessionenergie ist der letzte Sessionzähler, kein Zeitraumverbrauch.`;
+          detail.textContent = `${state.status === 'ok' ? state.complete ? 'Historisch.' : 'Historisch · Lücken oder Verarbeitung offen.'
+            : state.status === 'browser' ? 'Wird geladen.' : snapshot ? 'Abruf fehlgeschlagen · bisherige Daten.' : 'Archiv nicht verfügbar.'}`;
         } else if (!state.loaded && ['browser', 'disabled'].includes(state.status)) {
           source.textContent = browserNote.source; detail.textContent = browserNote.detail;
         } else {
           source.textContent = state.loaded ? 'Wallbox-Archiv' : 'Live-Verlauf';
           detail.textContent = state.loaded
-            ? `Historisch, nicht live. ${state.status === 'ok'
-              ? state.complete ? 'Archiv geladen.' : 'Archiv unvollständig.'
-              : 'Archiv derzeit nicht verfügbar; geladene Daten bleiben erhalten.'} Ausfälle bleiben Lücken.`
-            : 'Archiv derzeit nicht verfügbar. Verlauf nur im Browser-RAM seit Seitenöffnung; historisch, nicht live. Ausfälle bleiben Lücken.';
+            ? `${state.status === 'ok' ? state.complete ? 'Archiv geladen.' : 'Archiv unvollständig.'
+              : 'Abruf fehlgeschlagen · bisherige Archivdaten.'}`
+            : 'Archiv nicht verfügbar · nur Browserverlauf seit Seitenöffnung.';
         }
         lastRevision = -1;
       }
@@ -471,7 +494,7 @@
       if (archiveMode && archiveKey === lastArchiveDraw) { lastDraw = now; lastRevision = history.revision; return; }
       lastArchiveDraw = archiveKey;
       const archived = archiveMode ? archive?.view() : null;
-      const points = archiveMode ? [] : history.window(now, prefs.minutes);
+      const points = archiveMode ? [] : history.window(now, prefs.minutes, true);
       const start = archived ? Date.parse(archived.range.from) : now - prefs.minutes * 60000;
       const end = archived ? Date.parse(archived.range.to) : now;
       // Read card geometry together, before any SVG writes cause layout work.
@@ -488,7 +511,10 @@
         if (!enabled || figure.closest('details:not([open])')) continue;
         const width = widths.get(g.id);
         const height = Math.max(230, Math.min(280, Math.round(width * .5)));
-        const geometry = { width, height, left: 54, right: width - 18, top: 20, bottom: height - 42 };
+        // Raw uint32 codes need space for complete integer labels. Uncertain
+        // archive states get a separate lane below, never at a numeric value.
+        const geometry = { width, height, left: g.step && !g.boolean ? 108 : g.boolean ? 54 : 64,
+          right: width - 18, top: 20, bottom: height - (g.step ? 52 : 42) };
         const plot = archived ? root.OverlayCalendar.buildSummaryPlot(archived, g, prefs.selected, api, geometry)
           : buildPlot(points, g, prefs.selected, start, end, geometry);
         // Keep the card/checkboxes reachable even if every series is off.
@@ -507,12 +533,14 @@
           return element;
         };
         put('title', 'title', `${g.label}: historischer Verlauf, ${plot.count} Messzeitpunkte`);
-        for (let tick = 0; tick <= 4; tick++) {
+        const ticks = g.boolean ? [0, 1] : [...new Set(Array.from({ length: 5 }, (_, tick) => {
           const value = plot.lo + (plot.hi - plot.lo) * tick / 4;
-          if (g.boolean && tick !== 0 && tick !== 4) continue;
-          const yPos = geometry.bottom - (geometry.bottom - geometry.top) * tick / 4;
+          return g.step ? Math.min(Math.floor(plot.hi), Math.max(Math.ceil(plot.lo), Math.round(value))) : value;
+        }))];
+        for (const [tick, value] of ticks.entries()) {
+          const yPos = geometry.bottom - (geometry.bottom - geometry.top) * (value - plot.lo) / (plot.hi - plot.lo);
           put(`grid-${tick}`, 'line', null, { x1: geometry.left, x2: geometry.right, y1: yPos, y2: yPos, class: 'chart-gridline' });
-          put(`axis-${tick}`, 'text', g.boolean ? (value === 0 ? 'Nein' : 'Ja') : fmt.format(value),
+          put(`axis-${tick}`, 'text', g.boolean ? (value === 0 ? 'Nein' : 'Ja') : (g.step ? codeFmt : fmt).format(value),
             { x: geometry.left - 9, y: yPos + 4, 'text-anchor': 'end', class: 'chart-axis' });
         }
         for (const [t, px, anchor] of [[start, geometry.left, 'start'], [end, geometry.right, 'end']])
@@ -531,14 +559,21 @@
           const marks = series.markers.map(p => `M${Number(p.x) - 1.5},${p.y}h3`).join('');
           if (marks) put(`markers-${series.metric.id}`, 'path', null, { d: marks,
             class: `chart-line chart-marker ${css}`, 'data-series-marker': series.metric.id });
+          const stateMarks = (series.stateMarkers || []).map(p => `M${Number(p.x) - 2},${p.y}h4`).join('');
+          if (stateMarks) put(`states-${series.metric.id}`, 'path', null, { d: stateMarks,
+            class: `chart-line chart-marker ${css}`, 'data-state-last': series.metric.id });
+          for (const quality of series.qualityPaths || []) put(`quality-${series.metric.id}-${quality.kind}`, 'path', null,
+            { d: quality.path, class: `chart-state-quality ${css}`, 'data-state-quality': quality.kind,
+              'data-state-series': series.metric.id });
         });
         for (const [key, element] of entry.nodes) if (!used.has(key)) { element.remove(); entry.nodes.delete(key); }
         entry.inspect(entry.inspection);
         const descriptionText = !plot.metrics.length ? 'Keine Kurve ausgewählt. Oben wieder einschalten.' : archiveMode ? archived
-          ? `${plot.count} Messwerte · ${archived.buckets.length} Intervalle · ${g.id === 'energy' ? 'Letzter Sessionzähler' : g.step ? plot.lineMode ? 'Letzter Zustand' : 'Spanne / letzter Zustand' : plot.lineMode ? 'Stichprobenmittel' : 'Stichprobenmittel / Min–Max'}`
-          : 'Keine Archivmesswerte geladen. Live-Anzeige bleibt unabhängig.'
-          : plot.count ? `${plot.count} Messzeitpunkte im Fenster · Lücken bleiben unverbunden.`
-            : 'Noch keine Messwerte in diesem Zeitfenster. Verlauf beginnt mit Seitenöffnung.';
+          ? `${plot.count} Messwerte${g.id === 'energy' ? ' · letzter Sessionzähler'
+            : plot.paths.some(p => p.qualityPaths?.length) ? ' · gemischt / unbekannt markiert' : ''}`
+          : 'Keine Archivmesswerte.'
+          : plot.count ? `${plot.count} Messzeitpunkte${g.id === 'energy' ? ' · letzter Sessionzähler' : ''}`
+            : 'Keine Messwerte im Zeitfenster.';
         if (description.textContent !== descriptionText) description.textContent = descriptionText;
       }
       lastDraw = now; lastRevision = history.revision;

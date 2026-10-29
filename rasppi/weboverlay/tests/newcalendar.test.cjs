@@ -418,6 +418,108 @@ function assertIndependentTicks(series, expected) {
     assert(left > previous); assert(right > left); previous = right;
   }
 }
+test('all calendar line periods expose mixed categorical last values only as separate state markers', () => {
+  for (const period of ['hour', 'day', 'week', 'month', 'year']) {
+    for (const field of calendar.FIELDS.slice(9)) {
+      const b = hourSeries(period); b.buckets = b.buckets.slice(0, 5);
+      for (const bin of b.buckets) { bin.has_gap = false; bin.complete = true; bin.coverage_seconds = 60; }
+      const flag = calendar.FIELDS.slice(9, 12).includes(field);
+      Object.assign(b.buckets[2].metrics[field], { mixed: true, min: 0, max: 1, last: flag ? false : 0 });
+      assert(calendar.validate(b, now));
+      const s = summary(b, field);
+      assert.equal((s.path.match(/M/g) || []).length, 2, `${period}/${field}: mixed bucket splits both edges`);
+      assert.equal((s.path.match(/H/g) || []).length, 2, 'Only the two healthy adjacent pairs connect');
+      assert.equal(s.stateMarkers.length, 1);
+      assert(s.stateMarkers[0].x > Number(s.path.match(/^M([^,]+)/)[1])
+        && s.stateMarkers[0].x < s.markers.at(-1).x, 'Marker lies between the disconnected healthy runs');
+      assert(s.markers.every(p => p.x !== s.stateMarkers[0].x), 'Separate marker is not a regular line marker');
+      assert.equal(s.stateMarkers[0].y, 180, 'Known false/zero last is retained, never averaged');
+      assert.deepEqual(s.qualityPaths.map(p => p.kind), ['mixed']);
+      assert.match(s.qualityPaths[0].path, /^M[\d.]+,194\.00H[\d.]+$/);
+      assert.match(s.labelAt(2), /letzter Wert 0.*gemischt/);
+      const isolated = structuredClone(b); isolated.buckets = [isolated.buckets[2]];
+      const single = summary(isolated, field);
+      assert.equal(single.path, ''); assert.deepEqual(single.markers, []);
+      assert.equal(single.stateMarkers.length, 1, 'No regular mixed path/marker is reintroduced');
+    }
+  }
+});
+test('categorical unknown, partial and pre-data intervals stay distinct in every calendar line period', () => {
+  for (const period of ['hour', 'day', 'week', 'month', 'year']) for (const field of ['charging', 'error_code']) {
+    for (const lastKnown of [false, true]) {
+      const b = hourSeries(period); b.buckets = b.buckets.slice(0, 1);
+      const stat = b.buckets[0].metrics[field];
+      Object.assign(stat, { count: 29, nulls: 1, min: 0, max: 1,
+        last: field === 'charging' ? lastKnown : Number(lastKnown) });
+      const partial = summary(b, field);
+      assert.deepEqual(partial.qualityPaths.map(p => p.kind), ['partial']);
+      assert.equal(partial.stateMarkers.length, 1);
+      assert(Number.isFinite(partial.stateMarkers[0].y));
+      assert.equal((partial.path.match(/[HV]/g) || []).length, 0, 'Partial known state has no curve edge');
+      stat.last = null;
+      let unknown = summary(b, field);
+      assert.equal(unknown.path, ''); assert.deepEqual(unknown.markers, []); assert.deepEqual(unknown.stateMarkers, []);
+      assert.deepEqual(unknown.qualityPaths.map(p => p.kind), ['unknown']);
+      assert.match(unknown.labelAt(0), /letzter Wert unbekannt/);
+      Object.assign(stat, { count: 0, nulls: 30, min: null, max: null });
+      unknown = summary(b, field);
+      assert.equal(unknown.path, ''); assert.deepEqual(unknown.stateMarkers, []);
+      assert.deepEqual(unknown.qualityPaths.map(p => p.kind), ['unknown']);
+      assert.match(unknown.labelAt(0), /0 Werte.*letzter Wert unbekannt/);
+      b.buckets[0].samples = 0; b.buckets[0].metrics = metrics(0); b.buckets[0].coverage_seconds = 0;
+      const empty = summary(b, field);
+      assert.equal(empty.labelAt(0), null); assert.equal(empty.path, '');
+      assert.deepEqual(empty.markers, []); assert.deepEqual(empty.stateMarkers, []); assert.deepEqual(empty.qualityPaths, []);
+    }
+  }
+});
+test('512 categorical buckets batch quality into at most three paths below the plot, never numeric data', () => {
+  for (const period of ['hour', 'day', 'week', 'month', 'year']) {
+    const b = hourSeries(period), start = calendar.utc(b.range.from), first = b.buckets[0];
+    b.buckets = Array.from({ length: 512 }, (_, i) => {
+      const bin = { ...first, metrics: metrics(30),
+        from: new Date(start + i * 6000).toISOString(), to: new Date(start + (i + 1) * 6000).toISOString(), coverage_seconds: 6 };
+      if (i % 3 === 0) Object.assign(bin.metrics.charging, { mixed: true, min: 0, max: 1, last: true });
+      if (i % 3 === 1) Object.assign(bin.metrics.charging, { count: 0, nulls: 30, min: null, max: null, last: null });
+      return bin;
+    });
+    assert(calendar.validate(b, now));
+    const s = summary(b, 'charging');
+    assert.equal(s.qualityPaths.length, 3);
+    assert.deepEqual(s.qualityPaths.map(p => p.kind).sort(), ['mixed', 'partial', 'unknown']);
+    assert.equal(s.qualityPaths.reduce((n, p) => n + (p.path.match(/M/g) || []).length, 0), 512);
+    for (let i = 0; i < s.stateMarkers.length; i++) for (let j = i + 1; j < s.stateMarkers.length; j++)
+      assert(Math.abs(s.stateMarkers[i].x - s.stateMarkers[j].x) >= 7 || Math.abs(s.stateMarkers[i].y - s.stateMarkers[j].y) >= 5,
+        'Dense isolated state marks cannot merge visually into a false constant-state line');
+    for (const lane of s.qualityPaths) {
+      const strokes = [...lane.path.matchAll(/M([\d.]+),([\d.]+)H([\d.]+)/g)];
+      assert(strokes.length > 0); assert.equal(strokes.map(m => m[0]).join(''), lane.path);
+      for (const [, left, y, right] of strokes) {
+        assert.equal(Number(y), 194, 'Quality sits at bounds.bottom + 14, not false/zero');
+        assert(Number(right) > Number(left));
+      }
+    }
+    assert(!/[HV]/.test(s.path), 'All uncertain buckets remain disconnected');
+    const numeric = summary(b, 'active_power_w');
+    assert.deepEqual(numeric.stateMarkers, []); assert.deepEqual(numeric.qualityPaths, []);
+    assert.equal((numeric.path.match(/L/g) || []).length, 511, 'Numeric mean-line behavior is unchanged');
+  }
+});
+test('each categorical quality barrier independently isolates a known last without changing regular marker semantics', () => {
+  for (const change of [bin => { bin.has_gap = true; }, bin => { bin.complete = false; },
+    bin => { bin.metrics.charging.count = 29; bin.metrics.charging.nulls = 1; }]) {
+    const b = hourSeries('day'); b.buckets = b.buckets.slice(0, 5);
+    b.buckets.forEach(bin => { bin.has_gap = false; bin.complete = true; bin.coverage_seconds = 60; });
+    change(b.buckets[2]);
+    const s = summary(b, 'charging');
+    assert.equal((s.path.match(/M/g) || []).length, 3, 'Partial bucket is still its own existing move-only path');
+    assert.equal((s.path.match(/H/g) || []).length, 2, 'No incoming/outgoing edge crosses the barrier');
+    assert.deepEqual(s.qualityPaths.map(p => p.kind), ['partial']);
+    assert.equal(s.stateMarkers.length, 1);
+    assert(s.markers.some(p => p.x === s.stateMarkers[0].x && p.y === s.stateMarkers[0].y),
+      'Existing isolated regular marker is preserved rather than rewritten');
+  }
+});
 test('legacy long-range constant zero W and 6 A retain local aggregates despite incomplete/gap context', () => {
   const b = hourSeries(); assert(calendar.validate(b, now));
   for (const field of ['active_power_w', 'current_limit_a']) {

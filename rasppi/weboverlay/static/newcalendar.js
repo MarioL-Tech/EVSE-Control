@@ -155,11 +155,12 @@
     plot.bucketCount = batch.buckets.length;
     plot.lineMode = lineMode;
     plot.paths = plot.metrics.map(m => {
-      const renderPaths = [], runs = [], logical = [], labels = new Map();
+      const renderPaths = [], runs = [], logical = [], labels = new Map(), stateMarkers = [], quality = new Map();
+      const xy = (a, b) => `${a.toFixed(2)},${b.toFixed(2)}`;
       const field = fieldFor(m), isMean = MEANS.includes(field), categorical = FLAGS.includes(field) || CODES.includes(field);
       const labelAt = index => {
         const entry = prepared.bins[index];
-        if (!entry || !entry.bin.metrics[field].count) return null;
+        if (!entry || !entry.bin.samples) return null;
         if (!labels.has(index)) {
           const { bin, from, to } = entry, stat = bin.metrics[field];
           if (!prepared.labels.has(index)) prepared.labels.set(index,
@@ -174,6 +175,18 @@
       const finish = () => { if (run.length) runs.push(run); run = []; };
       for (const [bucketIndex, { bin, from, to }] of prepared.bins.entries()) {
         const stat = bin.metrics[field];
+        if (lineMode && categorical && bin.samples > 0) {
+          const left = x(from), right = x(to), inset = Math.min(3, (right - left) * .2);
+          const uncertain = bin.has_gap || !bin.complete || stat.nulls > 0;
+          // Unknown takes precedence over mixed/partial: no last value is
+          // inferred from earlier observations. Quality has its own lane and
+          // never occupies the numeric/boolean zero coordinate.
+          const kind = !stat.count || stat.last === null ? 'unknown' : stat.mixed ? 'mixed' : uncertain ? 'partial' : null;
+          if (kind) quality.set(kind, (quality.get(kind) || '')
+            + `M${xy(left + inset, bounds.bottom + 14)}H${(right - inset).toFixed(2)}`);
+          if (stat.count && stat.last !== null && (stat.mixed || uncertain))
+            stateMarkers.push({ x: (left + right) / 2, y: y(Number(stat.last) / m.divisor) });
+        }
         if (!stat.count) { finish(); continue; }
         const left = x(from), right = x(to), middle = (left + right) / 2;
         const mean = isMean ? stat.mean : (typeof stat.last === 'boolean' ? Number(stat.last) : stat.last);
@@ -203,7 +216,6 @@
         if (!target) { target = { kind, gap, path: '' }; renderPaths.push(target); }
         target.path += path;
       };
-      const xy = (a, b) => `${a.toFixed(2)},${b.toFixed(2)}`;
       if (lineMode) {
         // Lines interpolate adjacent available mean/last centres only; they
         // do not claim gap-free raw acquisition. Live/raw's 10s/lifecycle
@@ -224,7 +236,11 @@
         const sparse = [];
         for (const p of markers.slice().reverse())
           if (!sparse.some(q => Math.abs(q.x - p.x) < 7 && Math.abs(q.y - p.y) < 5)) sparse.push(p);
-        return { metric: m, path, markers: sparse.reverse(), renderPaths: [], labelAt,
+        const sparseStates = [];
+        for (const p of stateMarkers.slice().reverse())
+          if (!sparseStates.some(q => Math.abs(q.x - p.x) < 7 && Math.abs(q.y - p.y) < 5)) sparseStates.push(p);
+        return { metric: m, path, markers: sparse.reverse(), stateMarkers: sparseStates.reverse(),
+          qualityPaths: [...quality].map(([kind, path]) => ({ kind, path })), renderPaths: [], labelAt,
           get bucketLabels() { return batch.buckets.map((_, i) => labelAt(i)); },
           get glyphs() { return []; } };
       }
@@ -333,7 +349,7 @@
         document.getElementById('calendar-from').value = value.date_from || '';
         document.getElementById('calendar-to').value = value.date_to || '';
       }
-      label.textContent = value ? `Archiv · ${ZONE} · Zeitraum wird geladen` : 'Live-Verlauf · Browser und Roharchiv';
+      label.textContent = value ? `Archiv · ${ZONE} · wird geladen` : 'Live-Verlauf';
       controls(); if (save) persist(); publish(); onChange(); loader.tick(); return true;
     }
     mode.addEventListener('change', () => {

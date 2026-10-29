@@ -3,6 +3,56 @@ const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { METRICS } = require('../static/charts.js');
+// Unsigned 32-bit raw-code boundary fixture: retain the original low bytes/state
+// while exercising billion-scale diagnostic axis labels (not a hardware claim).
+const LIVE_RAW_CODE = 0x80008100;
+
+async function liveChartGeometry(page, width) {
+  const figures = page.locator('#chart-grid > figure, #chart-diagnostics-grid > figure');
+  assert.equal(await figures.count(), 9);
+  for (const figure of await figures.all()) {
+    const id = await figure.getAttribute('id');
+    const svg = figure.locator('svg');
+    assert(await svg.isVisible(), `${width} ${id}: selected chart is visible, including open diagnostics`);
+    const geometry = await svg.evaluate(element => {
+      const view = element.viewBox.baseVal;
+      return {
+        view: { x: view.x, y: view.y, width: view.width, height: view.height },
+        axes: element.querySelectorAll('.chart-axis').length,
+        gridlines: element.querySelectorAll('.chart-gridline').length,
+        series: [...element.querySelectorAll('path[data-series]')].map(path => ({
+          id: path.dataset.series, d: path.getAttribute('d'), dash: getComputedStyle(path).strokeDasharray
+        })),
+        boxes: [...element.querySelectorAll('.chart-gridline, .chart-axis, .chart-line')].map(node => {
+          const box = node.getBBox();
+          return { label: node.getAttribute('data-series') || node.textContent || node.tagName,
+            x: box.x, y: box.y, width: box.width, height: box.height };
+        })
+      };
+    });
+    assert(geometry.view.width > 0 && geometry.view.height > 0, `${width} ${id}: usable viewBox`);
+    assert(geometry.axes >= 4 && geometry.gridlines >= 2, `${width} ${id}: numeric/boolean and time axes plus grid exist`);
+    assert(geometry.series.length > 0, `${width} ${id}: actual data series exist`);
+    for (const series of geometry.series) {
+      assert(series.d && /[LH]/.test(series.d), `${width} ${id}/${series.id}: collected Live samples form a nonempty line or step`);
+      if (id === 'chart-voltage') assert.equal(series.dash, 'none',
+        `${width} ${series.id}: actual Live voltage path is solid (not merely the legend)`);
+    }
+    if (id === 'chart-voltage') assert.equal(geometry.series.length, 3, 'All three voltage phases checked');
+    assert(geometry.boxes.length > geometry.series.length, `${width} ${id}: axes/grid are checked too`);
+    for (const box of geometry.boxes) {
+      assert(Object.values(box).filter(value => typeof value === 'number').every(Number.isFinite),
+        `${width} ${id}/${box.label}: finite SVG geometry`);
+      // One SVG unit tolerates glyph rounding, not an axis label outside the viewport.
+      assert(box.x >= geometry.view.x - 1 && box.y >= geometry.view.y - 1
+        && box.x + box.width <= geometry.view.x + geometry.view.width + 1
+        && box.y + box.height <= geometry.view.y + geometry.view.height + 1,
+      `${width} ${id}/${box.label}: SVG grid/axis/line bounding box stays inside viewBox: ${JSON.stringify(box)}`);
+    }
+  }
+  const flagLabels = await page.locator('#chart-flags .chart-axis').allTextContents();
+  assert(flagLabels.includes('Nein') && flagLabels.includes('Ja'), 'Boolean 0/1 endpoints remain labelled');
+}
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -23,7 +73,7 @@ const { METRICS } = require('../static/charts.js');
       schema_version: 1, read_only: true, status: offline ? 'offline' : 'live', reason: offline ? 'Reader offline' : 'Aktuelle Messwerte',
       broker_connected: true, availability: offline ? 'offline' : 'online', timestamp, last_success_at: timestamp,
       age_seconds: 0, fresh_for_seconds: offline ? 0 : 8, error: null,
-      values: offline ? null : { error_code: 7, socket_lock_state: 273, charging_state_raw: 33024, charging_state: 1,
+      values: offline ? null : { error_code: 7, socket_lock_state: 273, charging_state_raw: LIVE_RAW_CODE, charging_state: 1,
         below_commanded_current: true, plugged_in: true, charging: false, current_limit_a: 6,
         current_a: [2 + Math.sin(sequence / 3), 1 + Math.cos(sequence / 4), 0],
         voltage_v: [235.7 + Math.sin(sequence / 5), 233.4, 235.3],
@@ -106,6 +156,24 @@ const { METRICS } = require('../static/charts.js');
     }
     const line = await page.locator('[data-series="power"]').getAttribute('d');
     assert(line.includes('L'), 'Distinct sample timestamps should form a line');
+    // Reuse the collected HTTP samples; resizing must not need fabricated chart
+    // points or longer polling deadlines. Open the lazy diagnostic renderer first.
+    await page.locator('.history-diagnostics > summary').click();
+    for (const width of [1920, 2560, 320]) {
+      await page.setViewportSize({ width, height: width === 320 ? 844 : 1050 });
+      await paint();
+      await liveChartGeometry(page, width);
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+        `${width}: open diagnostics do not overflow the browser`);
+      if (width === 1920 || width === 320) {
+        fs.mkdirSync('/artifacts', { recursive: true });
+        await page.screenshot({ path: `/artifacts/live-diagnostics-${width}.png`, fullPage: true });
+        await page.locator('#chart-raw').screenshot({ path: `/artifacts/live-raw-code-${width}.png` });
+      }
+    }
+    await page.locator('.history-diagnostics > summary').click();
+    await page.setViewportSize({ width: 1440, height: 1050 });
+    await paint();
     fs.mkdirSync('/artifacts', { recursive: true });
     await page.screenshot({ path: '/artifacts/weboverlay-charts-desktop.png', fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
@@ -177,6 +245,6 @@ const { METRICS } = require('../static/charts.js');
     assert.equal(await page.locator('[data-series="current-1"], [data-legend="current-1"]').count(), 0);
     assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem('evse-display-v1')))).minutes, 15);
     assert.deepEqual(errors, []);
-    console.log('Charts browser: SVG lines, mobile, display/series/column selection, persistence, reset, warnings and outage gaps passed');
+    console.log('Charts browser: solid Live voltage, 1920/2560/320px SVG bounds including billion-scale raw codes and boolean diagnostics, mobile, selection, persistence, reset, warnings and outage gaps passed');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

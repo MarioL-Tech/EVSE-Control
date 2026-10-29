@@ -65,6 +65,27 @@ async function layoutFreeze(page, width, route) {
   assert.equal(layout.sidebar.position, width > 900 ? 'sticky' : 'static', 'Unchanged sidebar positioning');
   if (width > 900) assert.equal(layout.sidebar.width, '224px');
   assert.equal(layout.main.paddingTop, width > 900 ? '36px' : width > 480 ? '28px' : '24px');
+  const bounds = await page.evaluate(() => {
+    const main = document.getElementById('main-content');
+    const box = main.getBoundingClientRect(), style = getComputedStyle(main);
+    const header = main.querySelector('.page-header').getBoundingClientRect();
+    return { left: box.left, right: box.right, width: box.width,
+      viewport: document.documentElement.clientWidth,
+      sidebarRight: document.querySelector('.sidebar').getBoundingClientRect().right,
+      paddingLeft: parseFloat(style.paddingLeft), paddingRight: parseFloat(style.paddingRight),
+      headerLeft: header.left, headerRight: header.right };
+  });
+  const expectedLeft = width > 900 ? bounds.sidebarRight : 0;
+  const expectedPadding = width > 900 ? Math.min(44, Math.max(20, width * 0.03)) : width > 480 ? 24 : 16;
+  const near = (actual, expected, message) => assert(Math.abs(actual - expected) <= 1,
+    `${route} ${width}: ${message} (${actual} vs ${expected})`);
+  near(bounds.left, expectedLeft, 'main begins immediately after sidebar');
+  near(bounds.right, bounds.viewport, 'main reaches available viewport edge without a width cap');
+  near(bounds.width, bounds.viewport - expectedLeft, 'main spans all available width');
+  near(bounds.paddingLeft, expectedPadding, 'left content padding preserved');
+  near(bounds.paddingRight, expectedPadding, 'right content padding preserved');
+  near(bounds.headerLeft, bounds.left + bounds.paddingLeft, 'content respects left padding');
+  near(bounds.headerRight, bounds.right - bounds.paddingRight, 'content respects right padding');
   if (route === '/') {
     // auto-fit reports collapsed empty tracks as 0px; they are not visible columns.
     const columns = grid => grid.gridTemplateColumns.trim().split(/\s+/)
@@ -221,7 +242,7 @@ function clean(run) {
   const browser = await chromium.launch({ headless: true });
   fs.mkdirSync('/artifacts', { recursive: true });
   try {
-    for (const route of routes) for (const scheme of ['light', 'dark']) for (const width of [320, 390, 768, 1440]) {
+    for (const route of routes) for (const scheme of ['light', 'dark']) for (const width of [320, 390, 768, 1440, 1920, 2560]) {
       const run = await setup(browser, { viewport: { width, height: width >= 768 ? 1050 : 844 }, colorScheme: scheme });
       const { page, context } = run;
       try {
@@ -438,6 +459,6 @@ function clean(run) {
       assert(!await failure.page.locator('#wallbox-warning').isVisible(), 'Stale hardware warning not kept as current');
       clean(failure);
     } finally { await failure.context.close(); }
-    console.log('Layout browser: both pages, dark/light, 320/390/768/1440px, navigation, keyboard, CSP, storage and protected status passed');
+    console.log('Layout browser: both pages, dark/light, 320/390/768/1440/1920/2560px full content width, navigation, keyboard, CSP, storage and protected status passed');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

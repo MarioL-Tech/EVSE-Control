@@ -230,6 +230,15 @@ Fehler `unavailable`503/leer, deaktiviert200/leer, feste sichere Gründe.
 
 ## Browservertrag
 
+- Kategoriale Kalenderwerte werden nicht gemittelt: `mixed`/`unknown`/teilweise
+  Belegung bleiben eine separate Qualitätslane unter der Zahlenachse. Ein
+  tatsächlich bekannter letzter Zustand darf isoliert markiert werden, niemals
+  als durchgehender Zustand für ein mehrdeutiges Intervall. Vollständig unbekannte
+  Werte erhalten keine erfundene0/Nein-Position. Inspektion benennt Unknown explizit.
+- Livefenster behalten optional einen vorhandenen Vorgänger ausschließlich als
+  Darstellungsrandkontext; nur bereits belegte Verbindungen dürfen an der linken
+  Fenstergrenze geschnitten werden. Kein neues Sample, unveränderte Raw10s-/NULL-/
+  Lifecycle-/Minutenbeweis-/SQL-Live-Barrieren, keine Archivfrische.
 - Bestehende Live-Karten/Frische/Warnings/Präferenzen nicht aus Archiv erneuern.
 - Live-Modus mit 1/5/15 min erhalten. Unabhängiger begrenzter Archivstore.
 - Toolbar nur Diagrammseite: Kalender mit adaptivem Native-Input, ausgewählter
