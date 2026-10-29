@@ -1822,7 +1822,7 @@ docker compose -f compose.yaml -f compose.history.yaml up -d --build weboverlay
 Das Script baut das bestehende Websiteimage samt Docker-Tests und startet genau
 einen beendeten Docker-Einrichtungsprozess ohne Netzwerk/Docker-Socket; es startet
 oder stoppt keine Projektdienste. Nur dieser ausdrücklich aufgerufene Helfer läuft
-als Containerroot mit CHOWN/FOWNER/DAC_OVERRIDE, niemals `privileged`. Repository
+als Containerroot mit CHOWN/FOWNER/DAC_OVERRIDE/FSETID, niemals `privileged`. Repository
 ist darin read-only, ausschließlich `.evse-settings` schreibbar. Der Website-
 Runtimecontainer bleibt UID10001, read-only/cap-drop, ohne Docker-Socket.
 

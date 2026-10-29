@@ -20,7 +20,7 @@ done
 docker build --target runtime -t evse-settings-setup:local rasppi/weboverlay
 mkdir -p .evse-settings
 docker run --rm --network none --read-only --user 0:0 \
-  --cap-drop ALL --cap-add CHOWN --cap-add FOWNER --cap-add DAC_OVERRIDE \
+  --cap-drop ALL --cap-add CHOWN --cap-add FOWNER --cap-add DAC_OVERRIDE --cap-add FSETID \
   --security-opt no-new-privileges:true --entrypoint php \
   --mount "type=bind,src=$repo,dst=/source,readonly" \
   --mount "type=bind,src=$repo/.evse-settings,dst=/run/evse-settings" \

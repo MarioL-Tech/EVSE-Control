@@ -73,6 +73,14 @@ final class SettingsProvisioner
         if (is_link($path) || !chown($path, $uid) || !chgrp($path, $gid) || !chmod($path, 02750)) {
             throw new RuntimeException('Cannot secure settings directory');
         }
+        // A root helper without CAP_FSETID can silently lose setgid when the
+        // operator group differs from its own. Never report successful setup
+        // without the actual ownership/mode needed by subsequent atomic saves.
+        clearstatcache(true, $path);
+        $s = lstat($path);
+        if (!$s || ($s['mode'] & 07777) !== 02750 || $s['uid'] !== $uid || $s['gid'] !== $gid) {
+            throw new RuntimeException('Settings directory permissions not preserved');
+        }
     }
 }
 
