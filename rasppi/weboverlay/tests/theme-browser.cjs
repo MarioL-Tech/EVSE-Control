@@ -274,7 +274,9 @@ function clean(run) {
         await page.locator('#theme-system').click(); await mode(page, 'system');
         assert.equal(await page.evaluate(key => localStorage.getItem(key), key), null);
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-        assert(!run.requests.some(request => new URL(request.url).pathname.startsWith('/api/')));
+        assert.deepEqual(run.requests.filter(request => new URL(request.url).pathname.startsWith('/api/'))
+          .map(request => [request.method, new URL(request.url).pathname]), [['GET', '/api/settings-env']],
+          'Settings reads only its disabled catalog, never measurement/SQL APIs or commands');
         if (width === 320 || width === 1440) await page.screenshot({
           path: `/artifacts/settings-${scheme}-${width}.png`, fullPage: true
         });
