@@ -77,6 +77,6 @@ final class HouseHistoryConfig
         $password = preg_replace('/(?:\r\n|\n|\r)\z/D', '', $content);
         return new self(true, $env('HISTORY_DB_HOST', 'evse-database'), (int) $port,
             $env('HISTORY_DB_NAME', 'energyControl'), $env('HISTORY_DB_USERNAME', 'smartReader'),
-            $env('HOUSE_MQTT_TOPIC_PREFIX', 'evse/house'), $password);
+            $env('HOUSE_HISTORY_SOURCE', $env('HOUSE_MQTT_TOPIC_PREFIX', 'evse/house')), $password);
     }
 }
