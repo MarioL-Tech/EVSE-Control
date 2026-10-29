@@ -1724,6 +1724,9 @@ isolierten Wegwerfserver testen; keine Produktionswiederherstellung oder Löschu
 Web40927845891/40927833069 und Storage40927845966 erfolgreich; Merge beim
 Projektinhaber, Pi-Abnahme offen. Bestehende Daten und Quellen erhalten. Details zum neuen Daten- und
 Verlustvertrag: [minute-recording.md](minute-recording.md).
+Nachfolgende Minimalrechtekorrektur4a35f26 bestätigt durch Storage40929786439
+(181 Tests je MariaDB-Version, ausdrücklich ohne UPDATE an neuen Registry-/
+Cutovertabellen). Aktuellen Gesamt-/Freigabestand über PR#57 prüfen.
 
 Der bestehende Compose-Default bleibt für Updates `STORAGE_RECORDING_MODE=raw`,
 damit ein Imageupdate nicht heimlich eine noch fehlende Migration voraussetzt.

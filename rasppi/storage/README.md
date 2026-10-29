@@ -36,6 +36,8 @@ bleiben unverändert schnell. Rawmodus verwendet weiterhin Commit-vor-ACK;
 Minutenmodus quittiert bounded RAM-Aufnahme; Crash kann offene Minuten samt
 Randkontext verlieren. Codehead979b148 besteht Storage40927845966 auf
 MariaDB10.11/11.8.8/11.8 und Web40927845891 einschließlich echter Schema3-SQL-/HTTP-Prüfungen.
+Minimalrechtekorrektur4a35f26: Storage40929786439 mit181 Tests je Version,
+einschließlich Erst-/Wiederholungsmigration, Publikation und Reconnect ohne UPDATE.
 
 Getrennte `STORAGE_RETENTION_MINUTE_DAYS`, `STORAGE_RETENTION_HOUR_DAYS` und
 `STORAGE_RETENTION_DAY_DAYS`: `0` = unbegrenzt/keine automatische Löschung.

@@ -2,6 +2,8 @@
 
 Umsetzung in PR #57; Codehead979b148 ist Docker-geprüft
 (Web40927845891/40927833069, Storage40927845966 auf drei MariaDB-Versionen).
+Die nachfolgende Minimalrechtekorrektur4a35f26 besteht Storage40929786439 mit
+181 Tests je Version, einschließlich Migration und Reconnect ohne UPDATE-Recht.
 Betreiberaktivierung und Pi-Abnahme bleiben offen.
 Installation und Freigabeschritte stehen ausschließlich in
 [installation.md](installation.md#minutenaufzeichnung-und-aufbewahrung).

@@ -32,7 +32,10 @@ Keine Pi-Migration, Retentionlöschung, Schreibmounts oder Produktionsabnahme.
 Abschließender Rechteabgleich fand unnötige No-op-UPDATEs bei Minutenregistry/
 Cutover: unter bestehenden Advisorylocks durch SELECT und gegebenenfalls INSERT
 ersetzt. Neuer echter SQL-Fall mit CREATE/SELECT/INSERT ohne UPDATE prüft explizite
-Migration, Wiederholung, Aufnahme und Reconnect; dessen neuer CI-Abschluss offen.
+Migration, Wiederholung, Aufnahme und Reconnect. Storage40929786439 für4a35f26
+bestätigt diesen Fall und insgesamt181 Tests je MariaDB-Version10.11/11.8.8/11.8.
+Frontendcode seit dem vollständig grünen979b148 unverändert; finalen Gesamtstand
+über PR#57 prüfen. Merge ausschließlich beim Projektinhaber.
 Unabhängiger Review fand versteckten Raw-Rückwechsel und fehlende vorangehende
 Lifecycle-Baseline: Rawaufnahme nach Cutover jetzt ablehnen, Worker dürfen mit
 Rawkonfiguration Captures lesen; nachträgliche Offline-/Unknown-Baseline sperrt
