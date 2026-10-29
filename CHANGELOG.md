@@ -6,6 +6,8 @@ Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
 ## 2026-10-30
 
+- **00:16** — **Gezielte Diagnose-Bildartefakte ergänzen** — CI erzeugt zusätzlich geöffnete Live-Diagnosen bei1920/320px und gesonderte UInt32-Rohcodebilder zur Prüfung vollständiger Achsen/Diagramme. Kalenderdiagnose zeigt unbekannte und gemischte Buckets ohne erfundene Zustände. Prüf-/Freigabestand des gesamten Darstellungsauftrags über PR#62; keine Produktionsausführung.
+
 - **00:14** — **Dichte Diagnosemarken bleiben isoliert** — Auch separate unsichere Letztzustandsmarken nach Pixelabstand reduzieren, damit512 dichte Buckets keine scheinbar konstante Ja-/Nein-Linie aus überlappenden Markern bilden. Qualitätslane und sämtliche Inspektionslabels bleiben vollständig; Regression prüft räumliche Trennung. Keine Zustände interpoliert oder Daten verändert; finaler Dockerabschluss offen.
 
 - **00:12** — **Reviewbefund zum Randkontext korrigieren** — Unabhängige statische Gegenprüfung des ersten Darstellungsfixes fand, dass ein korrekt nicht verbundener alter Vorgänger die sichtbare Y-Skala trotzdem verändern konnte. Achsen verwenden jetzt nur sichtbare Messungen und den tatsächlich dargestellten Schnittwert eines zulässigen Randsegments, nie den ausgeblendeten Endwert. Regression mit Spannungsausreißer prüft unveränderte Skala über Rawtimeout, explizite Barriere und Produktwechsel; zulässiger Rand nimmt nur seinen Schnittwert auf. Keine Daten-/Lückenregeln gelockert; Dockerabschluss offen.

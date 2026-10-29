@@ -4,7 +4,7 @@ Stand: 2026-10-30. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
-Aktueller Darstellungsauftrag (2026-10-30, Umsetzung; Dockerabschluss offen):
+Aktueller Darstellungsauftrag (2026-10-30, implementiert; Prüf-/Freigabestand PR#62):
 Live-/Diagnosekurven auf Abschneiden prüfen, Phasenspannungen auch Live voll
 statt gestrichelt; Übersicht/Diagramme wie Settings volle verfügbare Breite.
 Überflüssige Wiederholungen kürzen, Status/Frische/Messzeit/Fehler und wichtige
@@ -22,7 +22,9 @@ Zusätzliche statische Gegenprüfung fand unzulässigen Einfluss eines nicht
 verbindbaren alten Randvorgängers auf die Y-Skalierung. Korrigiert: nur sichtbare
 Werte plus tatsächlicher Schnittwert eines nachgewiesenen Randsegments zählen
 zur Skala. Neue Regressionen für Timeout-/Lifecycle-/Produktbarrieren und
-verbundenen Rand mit altem Ausreißer; Dockerabschluss weiter offen.
+verbundenen Rand mit altem Ausreißer. Zusätzliche breite/mobile Live-Diagnose-
+und UInt32-Screenshots sowie Kalenderdiagnose zur Sichtprüfung; tatsächliche
+Dockerresultate/Abnahme im PR prüfen, keine Produktions- oder ARM-Garantie.
 **Wallboxschreiben und Netzbezugs-Abschaltregeln ausdrücklich erst nach weiterem
 Go des Projektinhabers**, auch Start/Stop/max.Ladestrom jetzt NICHT implementieren.
 Frühere Konfigurationsbeispiele dann wieder heranziehen; keine Schwellen raten.

@@ -165,6 +165,11 @@ async function liveChartGeometry(page, width) {
       await liveChartGeometry(page, width);
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
         `${width}: open diagnostics do not overflow the browser`);
+      if (width === 1920 || width === 320) {
+        fs.mkdirSync('/artifacts', { recursive: true });
+        await page.screenshot({ path: `/artifacts/live-diagnostics-${width}.png`, fullPage: true });
+        await page.locator('#chart-raw').screenshot({ path: `/artifacts/live-raw-code-${width}.png` });
+      }
     }
     await page.locator('.history-diagnostics > summary').click();
     await page.setViewportSize({ width: 1440, height: 1050 });
