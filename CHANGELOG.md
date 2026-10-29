@@ -6,6 +6,8 @@ Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
 ## 2026-10-30
 
+- **00:22** — **Lazy-Diagnoseassertion nach bewusstem Öffnen erhalten** — Erweiterter Kalenderbrowsertest prüft Diagnose-SVGs zunächst leer, öffnet sie gezielt für Unknown/Mixed und hält nach erneutem Schließen ihren exakten SVG-Inhalt fest. Spätere Monats-/Jahreswechsel dürfen diesen nicht verändern; dies ersetzt die danach nicht mehr passende „noch nie gezeichnet“-Annahme durch eine stärkere No-redraw-Prüfung. Keine Produkt-/Zeitgrenze geändert.
+
 - **00:21** — **Retained-Historienstatus im Browsertest an gekürzten Text anpassen** — Lauf40971515425 besteht neue Live-/UInt32-/Bool-Geometrie, breite/mobilen Layouts, Theme und Smartmeter, wartet dann noch auf die entfernte Formulierung „bleiben erhalten“. Assertion verwendet jetzt die gleichbedeutende kurze Kennzeichnung „bisherige Archivdaten“; vorhandene Kurve, unabhängiges Live und Abruffehler bleiben separat geprüft. Keine Wartefrist oder Produktgrenze gelockert; Abnahme weiter in PR#62.
 
 - **00:16** — **Gezielte Diagnose-Bildartefakte ergänzen** — CI erzeugt zusätzlich geöffnete Live-Diagnosen bei1920/320px und gesonderte UInt32-Rohcodebilder zur Prüfung vollständiger Achsen/Diagramme. Kalenderdiagnose zeigt unbekannte und gemischte Buckets ohne erfundene Zustände. Prüf-/Freigabestand des gesamten Darstellungsauftrags über PR#62; keine Produktionsausführung.

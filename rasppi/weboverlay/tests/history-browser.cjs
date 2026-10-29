@@ -14,7 +14,7 @@ const { FIELDS } = require('../static/newcalendar.js');
   let heldReady = null;
   const pending = [];
   const calendarRequests = [], heldCalendar = [];
-  let calendarFail = false, calendarHold = false;
+  let calendarFail = false, calendarHold = false, closedDiagnostics = null;
   const values = { error_code: 0, socket_lock_state: 273, charging_state_raw: 33024, charging_state: 1,
     below_commanded_current: false, plugged_in: true, charging: false, current_limit_a: 6,
     current_a: [0, 0, 0], voltage_v: [235, 234, 236], active_power_w: 1500, session_energy_wh: 2 };
@@ -267,6 +267,7 @@ const { FIELDS } = require('../static/newcalendar.js');
         const curve = await page.locator('#chart-voltage .archive-line').first().getAttribute('d');
         assert.equal((curve.match(/M/g) || []).length, 2, 'An entirely unknown interval separates two connected numeric runs');
         assert((curve.match(/L/g) || []).length > 50, 'Unknown charging must not isolate known voltages');
+        assert.equal(await page.locator('#chart-diagnostics-grid svg > *').count(), 0, 'Closed diagnostics are not drawn before first opening');
         await page.locator('.history-diagnostics > summary').click();
         await page.clock.runFor(32);
         const unknown = page.locator('#chart-flags [data-state-quality="unknown"][data-state-series="charging"]');
@@ -289,6 +290,7 @@ const { FIELDS } = require('../static/newcalendar.js');
         await page.screenshot({ path: '/artifacts/calendar-diagnostics-week.png', fullPage: true });
         await page.locator('.history-diagnostics > summary').click();
         await page.clock.runFor(32);
+        closedDiagnostics = await page.locator('#chart-diagnostics-grid svg').evaluateAll(nodes => nodes.map(svg => svg.innerHTML));
         await page.evaluate(() => {
           window.__archiveWork = { plots: 0, layouts: 0, mutations: 0 };
           const original = OverlayCalendar.buildSummaryPlot;
@@ -353,7 +355,8 @@ const { FIELDS } = require('../static/newcalendar.js');
     assert.equal(await page.locator('#chart-power .archive-line').evaluate(el => getComputedStyle(el).strokeDasharray), 'none',
       'The aggregate trend remains a calm solid line in the active theme');
     assert(await page.locator('#chart-power *').count() <= 100, 'DOM budget is independent of 366 buckets');
-    assert.equal(await page.locator('#chart-diagnostics-grid svg > *').count(), 0, 'Closed diagnostics have not been drawn');
+    assert.deepEqual(await page.locator('#chart-diagnostics-grid svg').evaluateAll(nodes => nodes.map(svg => svg.innerHTML)),
+      closedDiagnostics, 'Previously opened but now closed diagnostics are not redrawn during later calendar selections');
     await page.locator('#chart-power svg').focus();
     await page.keyboard.press('End');
     assert.match(await page.locator('#chart-power svg > title').textContent(), /30 Werte/);
