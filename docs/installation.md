@@ -1584,9 +1584,28 @@ docker compose -f compose.history-test.yaml up --abort-on-container-exit \
 docker compose -f compose.history-test.yaml down --volumes
 ```
 
-Nur diese Datei enthält einen flüchtigen MariaDB-11.8.8-Testserver, internes Netz
+Diese reine Testdatei enthält einen flüchtigen MariaDB-11.8.8-Testserver, internes Netz
 und keine Hostports/Produktivnetze. `down --volumes` nie gegen bestehende Infrastruktur
 verwenden. Docker-CI und echte Pi-/Accounttests getrennt berichten.
+
+HOUSE ergänzt zwei **ausschließlich isolierte Testdateien**, keine neuen
+Produktions-Overlays. Sie verwenden temporäre Server, interne Netze ohne Hostports,
+fest begrenzte Dummy-Accounts und niemals die echte `SMARTMETER_URL`/Produktionsdaten:
+
+```bash
+# Aus rasppi/weboverlay, nur für die oben beschriebenen Wegwerftests:
+docker compose -f compose.house-api-test.yaml up --build --abort-on-container-exit --exit-code-from house-api-tests
+docker compose -f compose.house-api-test.yaml down --volumes
+docker compose -f compose.house-e2e-test.yaml build
+docker compose -f compose.house-e2e-test.yaml up -d --wait --wait-timeout 90 publisher collector
+docker compose -f compose.house-e2e-test.yaml up --no-deps --abort-on-container-exit --exit-code-from assertions assertions
+docker compose -f compose.house-e2e-test.yaml down --volumes
+```
+
+E2E prüft den echten PHP→Broker→Python→SQL-Pfad mit HTTP-Simulator, Vorzeichen,
+0/Fehler-NULL, QoS 1, identischem Replay und drei unter laufender Aufzeichnung
+fortschreitenden Rollupebenen. Die ursprünglichen Tests sowie die zusätzlichen
+HOUSE-PHP/JS-/acht Browsersuiten und drei MariaDB-Matrixversionen bleiben erhalten.
 
 ### Haus-Netzleistung dauerhaft aufzeichnen (separates HOUSE-Schema)
 

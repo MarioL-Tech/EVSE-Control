@@ -5,11 +5,11 @@ const house = require('../static/house-history.js');
 const chart = require('../static/smartmeter-chart.js');
 const epoch = Date.parse('2026-10-29T12:00:00Z');
 const iso = t => new Date(t).toISOString();
-function raw(values = [-1000, 0, null, 500]) {
-  return { schema_version: 1, read_only: true, status: 'ok', reason: 'Hausverlauf', generated_at: iso(epoch),
-    minutes: 15, range: { from: iso(epoch - 900000), to: iso(epoch) }, complete: true,
-    samples: values.map((v, i) => ({ id: String(i + 1), timestamp: iso(epoch - 10000 + i * 1000),
-      received_at: iso(epoch - 9000 + i * 1000), status: v === null ? 'error' : 'ok', power_w: v, break_before: i === 0 })) };
+function raw(values = [-1000, 0, null, 500], at = epoch) {
+  return { schema_version: 1, read_only: true, status: 'ok', reason: 'Hausverlauf', generated_at: iso(at),
+    minutes: 15, range: { from: iso(at - 900000), to: iso(at) }, complete: true,
+    samples: values.map((v, i) => ({ id: String(i + 1), timestamp: iso(at - 10000 + i * 1000),
+      received_at: iso(at - 9000 + i * 1000), status: v === null ? 'error' : 'ok', power_w: v, break_before: i === 0 })) };
 }
 function calendar(from = '2024-01-01T00:00:00Z', to = '2025-01-01T00:00:00Z', period = 'year', date = '2024', tz = 'UTC') {
   return { schema_version: 2, read_only: true, status: 'ok', reason: 'Hausverlauf', generated_at: iso(epoch),
@@ -115,12 +115,12 @@ test('year request never depends on wallbox schema or endpoint; selection change
 test('unavailable backoff is 10/30/60 seconds; success refreshes at 60 seconds', async () => {
   const h = harness(); h.loader.tick();
   for (const [i, delay] of [10000, 30000, 60000].entries()) {
-    const b = raw([]); b.status = 'unavailable'; b.generated_at = iso(epoch + [0, 10000, 40000][i]);
+    const b = raw([], epoch + [0, 10000, 40000][i]); b.status = 'unavailable';
     h.calls[i].resolve(h.response(b)); await settle();
     h.advance(delay - 1); h.loader.tick(); assert.equal(h.calls.length, i + 1);
     h.advance(1); h.loader.tick(); assert.equal(h.calls.length, i + 2);
   }
-  const b = raw(); b.generated_at = iso(epoch + 100000);
+  const b = raw(undefined, epoch + 100000);
   h.calls[3].resolve(h.response(b)); await settle(); assert(h.store.raw());
   h.advance(59999); h.loader.tick(); assert.equal(h.calls.length, 4);
   h.advance(1); h.loader.tick(); assert.equal(h.calls.length, 5);
