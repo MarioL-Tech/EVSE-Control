@@ -80,8 +80,8 @@ test('HOUSE hour/day/week use signed mean centre lines without bands; raw 10s li
         metrics: { power_w: { count: 30, nulls: 0, mean: value, min: value, max: value, last: value, mixed: false } } })) };
     const p = house.buildArchivePlot(b);
     assert.equal((p.path.match(/L/g) || []).length, 3); assert.equal((p.path.match(/M/g) || []).length, 1);
-    assert.equal(p.band === '', ['hour', 'day', 'week'].includes(period));
-    if (['hour', 'day', 'week'].includes(period)) {
+    assert.equal(p.band === '', period !== 'custom');
+    if (period !== 'custom') {
       for (const reason of ['has_gap', 'complete', 'nulls', 'coverage']) {
         const copy = JSON.parse(JSON.stringify(b)), bin = copy.buckets[1];
         if (reason === 'has_gap') bin.has_gap = true;
@@ -90,13 +90,8 @@ test('HOUSE hour/day/week use signed mean centre lines without bands; raw 10s li
         if (reason === 'coverage') bin.coverage_seconds = 59;
         const broken = house.buildArchivePlot(copy);
         assert.equal(broken.band, '');
-        if (reason === 'nulls') {
-          assert.equal((broken.path.match(/M/g) || []).length, 3);
-          assert.equal(broken.markers.length, 2);
-        } else {
-          assert.equal(broken.path, p.path, 'Coarse quality changes cannot turn known aggregate values back into dots');
-          assert.equal(broken.markers.length, 0);
-        }
+        assert.equal(broken.path, p.path, 'Partial NULL and coarse quality changes cannot erase known aggregate means');
+        assert.equal(broken.markers.length, 0);
         assert(!broken.path.includes('H'), 'No short aggregate ticks');
       }
     }

@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace EvseOverlay;
 
-/** Development-only file editor. CSRF is not authentication. Default: disabled. */
+/** Explicitly provisioned trusted-LAN editor, without login. CSRF is NOT authentication. */
 final class EnvSettingsHttp
 {
     public static function handle(): void

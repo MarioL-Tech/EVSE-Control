@@ -4,7 +4,27 @@ Stand: 2026-10-29. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
-Aktueller Fehlerauftrag (2026-10-29): Stundenarchiv zeigt zunächst nur Punkte,
+Aktueller Folgeauftrag (2026-10-29, Umsetzung/Tests laufen): Monat maximal ein
+lokales Tagesmittel pro Tag, Jahr ISO-Wochenmittel an Jahresgrenzen gekürzt.
+Read-only-Projektion vorhandener Stundensummen/Counts, keine DB-Neuverdichtung,
+Migration, Rawdatenänderung oder erfundene Null. Stunde bis Jahr als Linien
+benachbarter bekannter numerischer Aggregate; einzelne NULL-Beobachtungen löschen
+einen existierenden Mittelwert nicht, vollständig unbekannte/leere/fehlende
+Intervalle und mehrdeutige Bool-/Codezustände trennen. Custom behält Min/Max.
+Nutzer meldet zusätzlich Punkte in Tagesansicht (Screenshot22:15); dieselbe
+Korrektur gilt auch dort. Netzbezug/Einspeisung jetzt größer/kräftiger darstellen.
+Settingskarten auf ganze verfügbare Browserbreite. Konfigurationseditor ist jetzt
+ausdrücklich OHNE Admin-Login freigegeben: Compose durchreichen, config-only
+Schreibmount, bewusste Operatorbereitstellung mit Envbackups und Links statt
+Scheinkopien. Keine Agent-Pi-/Secretzugriffe. CSRF/Host-/Originprüfung erhalten,
+jeder erreichbare Nutzer darf schreiben: nur vertrauenswürdiges LAN/VPN, keine
+öffentliche Freigabe. Kein Docker-Socket/Restart/Autorecreate, Speichern≠Anwenden.
+Setup ausschließlich Docker, Runtime UID10001/cap-drop. Dedizierte Verzeichnisse
+2750/setgid + Env0640 für lesende private Operatorgruppe (Legacytestroot0600).
+PWA-Shell v11. Gewünschte unabhängige Modellrecherche scheitert erneut am
+Kontingent, null Tools/keine Ergebnisse; keine solche Prüfung behaupten.
+
+Historischer Fehlerauftrag (2026-10-29, PR#60 gemergt): Stundenarchiv zeigt zunächst nur Punkte,
 neuere Intervalle werden ohne Update später Linien (Nutzerscreenshots21:05/21:07,
 119 bzw208 Messwerte). Auf ausdrücklichen Auftrag jetzt reine Renderer-
 Korrektur: Stunde/Tag/Woche verbinden vorhandene benachbarte Intervallmittel/
@@ -104,8 +124,9 @@ aufbewahren, Eltern mit abgelaufenen Kindern nicht leer neu verdichten.
 Echte `.env`-Dateibearbeitung im Settingsmenü ist jetzt ausdrücklich beauftragt;
 kein reiner Download/JSON-Entwurf. Admin-Login hingegen ausdrücklich erst nach
 neuer gesonderter Freigabe implementieren, nicht automatisch zum Abschluss.
-Editor standardmäßig deaktiviert, keine produktiven Schreibmounts oder Freigabe
-durch Agent. Dateispeicherung ist nicht Containerneuerstellung; kein Docker-Socket
+Frühere Default-Deaktivierung jetzt durch ausdrückliche LAN-Freigabe ohne Login
+ersetzt, mit bewusster Operator-Dateibereitstellung (siehe aktueller Auftrag).
+Keine produktiven Schreibmounts/Deployment durch Agent. Dateispeicherung ist nicht Containerneuerstellung; kein Docker-Socket
 oder privilegierter Verwaltungscontainer implizit erlaubt. Nächster gewünschter
 Architekturschritt ist ein gemeinsamer Compose-Einstieg, sodass ein Befehl alle
 Projektdienste baut/startet; weiterhin getrennte Container und bestehender

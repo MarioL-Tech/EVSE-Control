@@ -274,6 +274,11 @@ function clean(run) {
         await page.locator('#theme-system').click(); await mode(page, 'system');
         assert.equal(await page.evaluate(key => localStorage.getItem(key), key), null);
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+        const cardWidths = await page.locator('.settings-placeholder > .card').evaluateAll(cards => cards.map(el => {
+          const main = el.closest('main'), css = getComputedStyle(main);
+          return Math.abs(el.getBoundingClientRect().width - (main.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight))) < 2;
+        }));
+        assert(cardWidths.every(Boolean), 'Settings cards use the full available browser content width');
         assert.deepEqual(run.requests.filter(request => new URL(request.url).pathname.startsWith('/api/'))
           .map(request => [request.method, new URL(request.url).pathname]), [['GET', '/api/settings-env']],
           'Settings reads only its disabled catalog, never measurement/SQL APIs or commands');

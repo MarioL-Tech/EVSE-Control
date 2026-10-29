@@ -67,7 +67,9 @@ const { FIELDS } = require('../static/newcalendar.js');
       const date = iso(Date.UTC(2024, 0, i + 1)).slice(0, 10);
       // Known fixture boundaries, including the 23/25-hour days of 2024.
       return iso(Date.parse(date + 'T00:00:00Z') - (date >= '2024-04-01' && date <= '2024-10-27' ? 2 : 1) * 3600000);
-    }) : period === 'hour' ? Array.from({ length: 61 }, (_, i) => iso(Date.parse(from) + i * 60000))
+    }).filter((_, i) => i === 0 || i === 366 || new Date(Date.UTC(2024, 0, i + 1)).getUTCDay() === 1)
+      : period === 'hour' ? Array.from({ length: 61 }, (_, i) => iso(Date.parse(from) + i * 60000))
+      : period === 'day' ? Array.from({ length: 301 }, (_, i) => iso(Date.parse(from) + i * 300000))
       : period === 'week' ? Array.from({ length: 169 }, (_, i) => iso(Date.parse(from) + i * 3600000)) : [from, to];
     const json = { schema_version: 2, read_only: true, status: calendarFail ? 'unavailable' : 'ok', reason: '<img src=x>',
       generated_at: iso(now), range: { from, to, timezone: 'Europe/Vienna' },
@@ -88,15 +90,17 @@ const { FIELDS } = require('../static/newcalendar.js');
           const power = i >= 20 && i < 26 ? 4000 : i === 26 ? 2000 : 0;
           Object.assign(metrics.active_power_w, { min: power ? power - 500 : 0, max: power + (power ? 500 : 0), mean: power, last: power, mixed: power > 0 });
           if (!empty && i === Math.floor(weekHours / 2)) for (const field of FIELDS.slice(0, 9))
-            Object.assign(metrics[field], { count: samples - 1, nulls: 1 });
+            Object.assign(metrics[field], { count: 0, nulls: samples, mean: null, min: null, max: null, last: null });
         }
         if (empty) {
           for (const stat of Object.values(metrics)) Object.assign(stat, { count: 0, nulls: 0, mean: null, min: null, max: null, last: null });
-        } else if (period === 'hour') {
+        } else if (period === 'hour' || period === 'day') {
           for (const [phase, field] of ['voltage_l1_v', 'voltage_l2_v', 'voltage_l3_v'].entries()) {
             const mean = 236 + phase + Math.sin(i / 4);
             Object.assign(metrics[field], { mean, min: mean - .8, max: mean + 1, last: mean });
           }
+          if (period === 'day') for (const field of FIELDS.slice(0, 9))
+            Object.assign(metrics[field], { count: 29, nulls: 1 });
         }
         return { from: a, to: bounds[i + 1], samples: empty ? 0 : samples,
           has_gap: period === 'hour' || period === 'week' && (empty || i === Math.floor(weekHours / 2)), complete: period !== 'hour',
@@ -241,7 +245,7 @@ const { FIELDS } = require('../static/newcalendar.js');
       try {
         await page.waitForFunction(short => (document.querySelector(short
           ? '#chart-power .archive-line' : '#chart-power .summary-value')?.getAttribute('d') || '').length > 0,
-        ['hour', 'day', 'week'].includes(period), { timeout: 5000 });
+        period !== 'custom', { timeout: 5000 });
       } catch (error) {
         console.error('Calendar render readiness', JSON.stringify({ period, requests: calendarRequests.slice(-6),
           state: await page.evaluate(() => ({ mode: document.getElementById('calendar-mode').value,
@@ -249,7 +253,7 @@ const { FIELDS } = require('../static/newcalendar.js');
             label: document.getElementById('calendar-label').textContent })), errors }));
         throw error;
       }
-      if (['hour', 'day', 'week'].includes(period)) {
+      if (period !== 'custom') {
         assert.equal(await page.locator('#chart-grid .summary-glyph').count(), 0, 'No min/max bands or bucket ticks in short periods');
         assert.equal(await page.locator('#chart-power .archive-line').evaluate(el => getComputedStyle(el).strokeWidth), '2px');
         assert.equal(await page.locator('#chart-power .archive-line').evaluate(el => getComputedStyle(el).strokeDasharray), 'none');
@@ -260,7 +264,7 @@ const { FIELDS } = require('../static/newcalendar.js');
         for (const id of ['power', 'current', 'voltage', 'energy'])
           assert(await page.locator(`#chart-${id} svg *`).count() < 100);
         const curve = await page.locator('#chart-voltage .archive-line').first().getAttribute('d');
-        assert.equal((curve.match(/M/g) || []).length, 3, 'A genuine gap isolates its value between two connected numeric runs');
+        assert.equal((curve.match(/M/g) || []).length, 2, 'An entirely unknown interval separates two connected numeric runs');
         assert((curve.match(/L/g) || []).length > 50, 'Unknown charging must not isolate known voltages');
         await page.evaluate(() => {
           window.__archiveWork = { plots: 0, layouts: 0, mutations: 0 };
@@ -307,8 +311,12 @@ const { FIELDS } = require('../static/newcalendar.js');
         await page.evaluate(() => dispatchEvent(new Event('resize')));
         await page.clock.runFor(32);
       }
-      if (['month', 'year'].includes(period))
-        assert.equal(await page.locator('[data-series-marker]').count(), 0, 'Legacy summaries keep their previous glyph renderer');
+      if (period === 'day') {
+        const curve = await page.locator('#chart-voltage .archive-line').first().getAttribute('d');
+        assert.equal((curve.match(/M/g) || []).length, 1, 'Partial NULLs in every day bucket retain a continuous known mean trend');
+        assert.equal((curve.match(/L/g) || []).length, 299);
+        await page.screenshot({ path: '/artifacts/calendar-day-partial-means.png', fullPage: true });
+      }
       assert.equal(await page.locator('img').count(), 1, 'DTO reasons cannot add images');
       await page.locator('#calendar-date').fill(pickerDates[period]);
       await page.locator('#calendar-date').dispatchEvent('change');
@@ -316,11 +324,10 @@ const { FIELDS } = require('../static/newcalendar.js');
       await page.clock.runFor(32);
       assert.equal(new URLSearchParams(calendarRequests.at(-1)).get('date'), pickerDates[period]);
     }
-    assert.equal(await page.locator('#chart-power svg').getAttribute('data-bucket-count'), '366');
-    assert.equal(await page.locator('[data-summary-series="power"]').count(), 2, '366 days share one band and one trend');
-    assert.notEqual(await page.locator('#chart-power .summary-range').evaluate(el => getComputedStyle(el).fill), 'none',
-      'Min/max is a filled band rather than a vertical stroke forest');
-    assert.equal(await page.locator('#chart-power .summary-value').evaluate(el => getComputedStyle(el).strokeDasharray), 'none',
+    assert.equal(await page.locator('#chart-power svg').getAttribute('data-bucket-count'), '53');
+    assert.equal(await page.locator('#chart-power .summary-range').count(), 0, 'Weekly year means have no min/max band');
+    assert.equal(await page.locator('#chart-power .archive-line').count(), 1);
+    assert.equal(await page.locator('#chart-power .archive-line').evaluate(el => getComputedStyle(el).strokeDasharray), 'none',
       'The aggregate trend remains a calm solid line in the active theme');
     assert(await page.locator('#chart-power *').count() <= 100, 'DOM budget is independent of 366 buckets');
     assert.equal(await page.locator('#chart-diagnostics-grid svg > *').count(), 0, 'Closed diagnostics have not been drawn');
@@ -364,7 +371,7 @@ const { FIELDS } = require('../static/newcalendar.js');
     await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok');
     await page.clock.runFor(32);
     assert.equal(await page.locator('#calendar-mode').inputValue(), 'year');
-    assert.equal(await page.locator('#chart-power svg').getAttribute('data-bucket-count'), '366');
+    assert.equal(await page.locator('#chart-power svg').getAttribute('data-bucket-count'), '53');
     assert(await page.locator('[data-summary-series="power"]').count() <= 4);
     await page.setViewportSize({ width: 320, height: 844 });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));

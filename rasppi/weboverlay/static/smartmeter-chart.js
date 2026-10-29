@@ -72,9 +72,9 @@
     return { path, markers, lo, hi, zeroY: y(0), count: valid.length };
   }
   function buildArchivePlot(batch, geometry = { width: 500, height: 225, left: 62, right: 482, top: 25, bottom: 180 }) {
-    const lineMode = ['hour', 'day', 'week'].includes(batch.selection.period), markers = [];
+    const lineMode = batch.selection.period !== 'custom', markers = [];
     const bins = batch.buckets, start = timestamp(batch.range.from), end = timestamp(batch.range.to);
-    const bounds = bins.flatMap(b => [b.metrics.power_w.min, b.metrics.power_w.max])
+    const bounds = bins.flatMap(b => lineMode ? [b.metrics.power_w.mean] : [b.metrics.power_w.min, b.metrics.power_w.max])
       .filter(v => typeof v === 'number' && Number.isFinite(v));
     const scale = buildPlot(bounds.map((v, i) => ({ t: start + i, power_w: v })), start, end, geometry);
     const x = t => geometry.left + (t - start) / (end - start) * (geometry.right - geometry.left);
@@ -106,8 +106,10 @@
     };
     for (const b of bins) {
       const m = b.metrics.power_w, a = timestamp(b.from), z = timestamp(b.to), mid = (a + z) / 2;
-      const proven = !m.nulls && !m.mixed && m.last !== null && (lineMode ||
-        b.complete && !b.has_gap && b.coverage_seconds >= (z - a) / 1000);
+      // Mean interpolation is not raw continuity. Partial NULLs remain quality
+      // metadata; a missing mean/empty interval below always breaks the line.
+      const proven = lineMode || !m.nulls && !m.mixed && m.last !== null &&
+        b.complete && !b.has_gap && b.coverage_seconds >= (z - a) / 1000;
       if (!m.count || m.mean === null) { finish(); continue; }
       count += m.count;
       const point = { proven, from: a, to: z, mid, mean: m.mean, min: m.min, max: m.max };

@@ -174,7 +174,7 @@ foreach (Archive::segments($year, Store::date('2024-07-01 12:30:00')) as $segmen
     check($segment[2] <= strtotime('2024-07-01T12:30:00Z'), 'current calendar query cannot read future summaries');
 }
 check(count($segments) === 1 && $segments[0][0] === 'hour' && ($segments[0][2]-$segments[0][1])/3600 === 8784, 'leap year bounded hours');
-check(count(Archive::project($year, [])['buckets']) === 366, 'leap year daily output');
+check(count(Archive::project($year, [])['buckets']) === 53, 'leap year weekly output');
 $week = HistoryRange::parse('period=week&date=2026-W01&tz=UTC');
 check($week->from->format('Y-m-d') === '2025-12-29', 'ISO year crossing');
 rejects(static fn() => HistoryRange::parse('period=custom&from=2024-01-01T00%3A00%3A00Z&to=2025-01-02T00%3A00%3A00Z&tz=UTC'), 'one calendar year maximum');

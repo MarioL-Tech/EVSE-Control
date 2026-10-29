@@ -22,6 +22,12 @@ services:
       SMARTMETER_POLL_SECONDS: "${SMARTMETER_POLL_SECONDS:-2}"
       SMARTMETER_TIMEOUT_SECONDS: "${SMARTMETER_TIMEOUT_SECONDS:-2}"
       SMARTMETER_STALE_SECONDS: "${SMARTMETER_STALE_SECONDS:-10}"
+      SETTINGS_EDITOR_ENABLED: "${SETTINGS_EDITOR_ENABLED:-1}"
+      SETTINGS_EDITOR_ORIGIN: "${SETTINGS_EDITOR_ORIGIN:-http://${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-8080}}"
+    volumes:
+      # Dedicated config-only tree. Never mount project/service/secret directories writable.
+      # Until explicit setup-settings.sh provisioning the editor fails closed.
+      - ../../.evse-settings:/run/evse-settings
     networks:
       - mqtt
       - web

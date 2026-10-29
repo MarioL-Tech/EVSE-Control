@@ -118,18 +118,18 @@ function year(query) {
     assert(houseRequests > beforeReload, 'Reload fetches persistent SQL baseline');
     await page.locator('[data-calendar-period="year"]').click();
     await page.locator('#calendar-date').fill('2024'); await page.locator('#calendar-date').dispatchEvent('change');
-    await page.waitForFunction(() => !!document.querySelector('#house-chart-svg [data-house-band]'));
+    await page.waitForFunction(() => (document.querySelector('#house-chart-svg [data-house-series]')?.getAttribute('d') || '').includes('L'));
     assert(await page.locator('#house-chart-svg').isVisible(), 'House year archive is independent of disabled wallbox');
     assert.equal(await page.locator('#calendar-prev').isEnabled(), true, 'Validated house metadata supplies navigation fallback');
     assert.equal(await page.locator('#grid-power').innerText(), '—');
     const yearRequests = houseRequests;
     await page.reload();
-    await page.waitForFunction(() => !!document.querySelector('#house-chart-svg [data-house-band]'));
+    await page.waitForFunction(() => (document.querySelector('#house-chart-svg [data-house-series]')?.getAttribute('d') || '').includes('L'));
     assert(houseRequests > yearRequests, 'Reload restores the selected house year while wallbox history stays disabled');
     assert.equal(await page.locator('#calendar-date').inputValue(), '2024');
     const yearPath = await curve.getAttribute('d');
     assert(yearPath.includes('L'), 'Daily means are connected as a line, not isolated ticks');
-    assert.equal((yearPath.match(/M/g) || []).length, 3, 'One uncertain bucket separates the two continuous runs');
+    assert.equal((yearPath.match(/M/g) || []).length, 1, 'A quality-only change cannot erase a known mean');
 
     await page.locator('[data-calendar-period="week"]').click();
     await page.waitForFunction(() => document.getElementById('house-chart-description')?.textContent.startsWith('5039 Messpunkte'));
@@ -137,8 +137,8 @@ function year(query) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       const d = await curve.getAttribute('d');
-      assert.equal((d.match(/M/g) || []).length, 3, 'Real gap isolates the uncertain mean');
-      assert.equal((d.match(/L/g) || []).length, 165, 'Varying signed means connect across healthy hourly intervals');
+      assert.equal((d.match(/M/g) || []).length, 1, 'Partial NULL keeps the existing signed mean');
+      assert.equal((d.match(/L/g) || []).length, 167, 'Known signed means connect without claiming raw continuity');
       assert(!/[HVZ]/.test(d));
       assert.equal(await page.locator('#house-chart-svg [data-house-band]').count(), 0);
       const zero = page.locator('#house-chart-svg [data-house-zero]');
@@ -146,7 +146,7 @@ function year(query) {
       assert.equal(await zero.getAttribute('y1'), await zero.getAttribute('y2'));
       assert.equal(await zero.getAttribute('stroke-dasharray'), '4 5');
       assert.equal(await page.locator('#house-chart-svg [data-house-zero-label]').textContent(), '0');
-      assert((await page.locator('#house-chart-svg [data-house-markers]').getAttribute('d')).includes('a2,2'));
+      assert.equal(await page.locator('#house-chart-svg [data-house-markers]').getAttribute('d'), '');
       assert.equal(await curve.evaluate(el => getComputedStyle(el).strokeWidth), '2px');
       assert(await page.locator('#house-chart-svg *').count() < 15);
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -155,7 +155,7 @@ function year(query) {
     }
     await page.locator('[data-calendar-period="year"]').click();
     await page.locator('#calendar-date').fill('2024'); await page.locator('#calendar-date').dispatchEvent('change');
-    await page.waitForFunction(() => !!document.querySelector('#house-chart-svg [data-house-band]'));
+    await page.waitForFunction(() => (document.querySelector('#house-chart-svg [data-house-series]')?.getAttribute('d') || '').includes('L'));
 
     let ready;
     const readyPromise = new Promise(resolve => { ready = resolve; });

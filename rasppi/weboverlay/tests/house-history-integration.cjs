@@ -183,7 +183,7 @@ async function simultaneousScenario(firstKind, firstAvailability, secondKind, se
       SELECT '${prefix}','hour',DATE_ADD('2024-01-01 00:00:00', INTERVAL seq HOUR),DATE_ADD('2024-01-01 00:00:00', INTERVAL seq+1 HOUR),
       2,2,0,-4,-2,-2,-2,-2,DATE_ADD('2024-01-01 00:00:00', INTERVAL seq HOUR),DATE_ADD('2024-01-01 00:00:00', INTERVAL seq HOUR),0,1,1 FROM seq_0_to_8783;`);
     const year = body(await request('period=year&date=2024&tz=UTC'));
-    assert.equal(year.schema_version, 2); assert.equal(year.buckets.length, 366); assert.equal(year.complete, true);
+    assert.equal(year.schema_version, 2); assert.equal(year.buckets.length, 53); assert.equal(year.complete, true);
     assert.deepEqual(Object.keys(year), ['schema_version','read_only','status','reason','generated_at','range','selection','navigation','aggregation','complete','progress','buckets']);
     assert.deepEqual(Object.keys(year.buckets[0]), ['from','to','samples','has_gap','complete','coverage_seconds','metrics']);
     assert.deepEqual(Object.keys(year.buckets[0].metrics.power_w), ['count','nulls','mean','min','max','last','mixed']);
