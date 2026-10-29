@@ -236,8 +236,10 @@ Fehler `unavailable`503/leer, deaktiviert200/leer, feste sichere Gründe.
   Zeitraum, Jetzt, Zurück/Weiter, Auswahl Live/Stunde/Tag/Woche/Monat/Jahr/Zeitraum.
   Zeitraum/Timezone klar beschriften, native Tastaturbedienung. Auswahl nur
   Präferenzen; keine Daten in localStorage. Server berechnet Zonen-/Kalendergrenzen.
-- Summarydaten als Intervall-Min/Max + Mittel/Letzter-Wert darstellen; Lücken
-  innerhalb eines Buckets nicht durch eine durchgehende Linie verschweigen.
+- Summarydaten in Stunde bis Jahr als Mittel-/Letzter-Wert-Linien darstellen,
+  nicht als durchgehende Rohaufnahme ausgeben; Lücken-/NULL-/Coveragequalität in
+  API und Inspektionslabels behalten. Vollständig fehlende Intervalle trennen;
+  Custom behält konservative Intervall-Min/Max-Spannen.
   Keine Marker-Pillen. Für Sessionenergie explizit letzter Sessionzähler,
   kein Tages-/Jahresverbrauch; gemischte Flags/Codes nicht als konstant darstellen.
 - Raw-Graphfehler: `gapFloor`/globale Unvollständigkeit/Source-Wechsel nicht

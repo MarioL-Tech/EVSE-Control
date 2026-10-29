@@ -197,13 +197,21 @@ mintfarbene Live-Badges. Hell entsprechend neutral-kühl; Design-CI 40499228102
 für acce554 erfolgreich, simulierte Desktop-/Mobilansichten geprüft.
 Das bestehende Layout bleibt unverändert. **Schiebeschalter links unten** mit
 Sonne/Mond wechselt Hell/Dunkel. **Settings mit Zahnrad** steht links unter
-„Diagramme“ und öffnet `/einstellungen` mit dem standardmäßig deaktivierten
-Env-Dateieditor (PR #57, Docker-geprüft; produktive Freigabe offen).
+„Diagramme“ und öffnet `/einstellungen` mit breiten Konfigurationskarten und
+dem Env-Dateieditor (PR#61, Docker-geprüft; Pi-Einrichtung durch Betreiber offen).
 Dort stellt „Systemdarstellung verwenden“ die automatische Browserpräferenz wieder her.
 Echte Env-Dateibearbeitung ist beauftragt; der Editor erhält validierte
 dienstbezogene Felder einschließlich Aufbewahrungsfristen. Admin-Login erst nach
-neuer Freigabe, aktuell keine produktive Schreibfreigabe. Speichern allein
+neuer Freigabe; separat ausdrücklich freigegeben ist jetzt der Editor **ohne
+Anmeldung im vertrauenswürdigen LAN**. Jeder erreichbare Client kann nach
+Einrichtung schreiben, CSRF ist kein Zugriffsschutz. Dedizierte Konfigurations-
+verzeichnisse mit privaten Backups/Links statt schreibbarem Repository; Einrichtung
+im [Installationsguide](docs/installation.md#settings-echte-env-dateibearbeitung-ohne-anmeldung-im-vertrauenswürdigen-lan).
+Speichern allein
 verändert noch keine laufenden Container. SQL-/Messdatenzugriff bleibt lesend.
+Archivlinien zeigen in Monat lokale Tagesmittel, in Jahr lokale ISO-Wochenmittel
+aus vorhandenen Summen/Counts, ohne DB-Neuverdichtung. Einzelne NULL-Beobachtungen
+löschen bekannte numerische Aggregate nicht; fehlende Intervalle bleiben Lücken.
 Neue optionale Minutenmittelaufzeichnung bei weiterhin zwei Sekunden Live und
 begrenzte, ausdrücklich konfigurierte EVSE-Bereinigung siehe
 [Installationsguide](docs/installation.md#minutenaufzeichnung-und-aufbewahrung).
