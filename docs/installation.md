@@ -1611,8 +1611,8 @@ HOUSE-API/JS-/acht Browsersuiten und drei MariaDB-Matrixversionen bleiben erhalt
 ### Haus-Netzleistung dauerhaft aufzeichnen (separates HOUSE-Schema)
 
 **Vereinfachte Implementierung: ein vorhandener `storage`-Container übernimmt
-HTTP-Erfassung, SQL-Speicherung und Hausverdichtung. Erneute Docker-/Pi-Abnahme
-offen; keine Agent-Aktivierung.** Kein Hausprofil, kein Hauspublisher oder neuer
+HTTP-Erfassung, SQL-Speicherung und Hausverdichtung. Freigabehead und neue
+Docker-Prüfnachweise: PR #55. Pi-Abnahme offen; keine Agent-Aktivierung.** Kein Hausprofil, kein Hauspublisher oder neuer
 Brokerclient. Bestehende fünf `evse_house_*`-Tabellen und ihre Prüfsumme bleiben
 unverändert; keine Wallbox-/Preis-/Provider-/Rawdaten ändern oder löschen.
 Website weiterhin SELECT-only, frühere Hausmessungen werden nicht erfunden.

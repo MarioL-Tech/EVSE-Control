@@ -181,7 +181,7 @@ def run_combined(config, stop):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Subscribe-only wallbox history collector")
+    parser = argparse.ArgumentParser(description="Wallbox MQTT and optional house HTTP storage")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--migrate", action="store_true", help="Explicit schema initialization using DDL account")
     mode.add_argument("--migrate-history", action="store_true", help="Explicit additive schema-2 migration")
@@ -211,14 +211,13 @@ def main():
             from .house_collector import configuration
             from .house_database import HouseDatabase
             house_config = configuration()
-            if args.migrate_house:
-                database = HouseDatabase(house_config)
-                try:
-                    database.connect()
-                    database.migrate()
-                finally:
-                    database.close()
-                return 0
+            database = HouseDatabase(house_config)
+            try:
+                database.connect()
+                database.migrate()
+            finally:
+                database.close()
+            return 0
         config = Config.from_environment()
         if args.migrate or args.migrate_history:
             database = Database(config)

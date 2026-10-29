@@ -121,7 +121,7 @@ keine zusätzlichen Hauscontainer oder MQTT-Topics. Website bleibt SELECT-only.
 `/api/house-history` ist unabhängig
 vom Wallboxschema, Default `WEB_HOUSE_HISTORY_ENABLED=0`. Einrichtung ausschließlich
 im [Installationsguide](../../docs/installation.md#haus-netzleistung-dauerhaft-aufzeichnen-separates-house-schema).
-Die vereinfachte Storageintegration muss erneut Docker-geprüft werden;
+Freigabehead und Docker-Prüfnachweise der vereinfachten Integration: PR #55.
 Pi-Abnahme offen. Bestehende Live-/History-APIs und Diagramme bleiben erhalten.
 HTTP-Abrufzeit ist weiterhin keine Gerätemesszeit.
 

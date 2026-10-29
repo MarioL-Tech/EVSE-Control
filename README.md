@@ -20,8 +20,8 @@ direkt am Diagramm und einen gesonderten Haus-Liveverlauf. Neu implementiertes
 opt-in ergänzt ein dauerhaftes Haus-SQL-Archiv im bestehenden MariaDB-System,
 verbundene belegte Mittelwertlinien und begrenztes SVG-Rendering. Auf Wunsch
 vereinfacht: Erfassung und Archivierung direkt im vorhandenen Storagecontainer,
-keine eigenen Hauscontainer oder Haus-MQTT-Topics. Erneute Docker-/Pi-Abnahme
-offen; explizite additive Aktivierung erforderlich.
+keine eigenen Hauscontainer oder Haus-MQTT-Topics. Freigabehead und neue
+Docker-Prüfnachweise: PR #55. Pi-Abnahme offen; explizite additive Aktivierung erforderlich.
 Docker-CI 40777926455/40777919496 für 296074c ist erfolgreich; Pi-Prüfung steht
 noch aus, aktuellen Freigabestand über PR #52 prüfen. Der Fahrzeuganschluss-Fix
 benötigt zusätzlich das aktualisierte Readerimage, keine Datenbankmigration.

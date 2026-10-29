@@ -63,7 +63,10 @@ Vertrag `docs/house-history-contract.md`, vollständige Einrichtung zentral in
 Finalhead d727aed bestand Web 40878353419 und Storage-Matrix 40878353418. Diese
 Nachweise ersetzen nicht die neue Prüfung des direkten Storage-HTTP-Pfads.
 Neue HTTP-/kombinierte Laufzeit-/E2E-Prüfung samt bisheriger API-/Browser-/PWA-
-und MariaDB-10.11/11.8.8/11.8-Matrix vorbereitet, Dockerabschluss noch offen.
+und MariaDB-10.11/11.8.8/11.8-Matrix integriert. Aktueller Freigabehead und
+Abschlussnachweise in PR #55, bis dahin kein neuer Abnahmeanspruch. Gezielter
+unabhängiger Review von HTTP-/kombiniertem Runtimepfad ohne konkreten Befund;
+keine dadurch ersetzte Laufzeitprüfung.
 Der bestehende Schema-1-Beispieldump enthält keine optionalen Archive;
 Installationsguide verlangt deren Tabellen ausdrücklich im privaten Backup.
 Beim Umstieg alte bereits laufende Hausdienste vor Update bewusst stoppen,

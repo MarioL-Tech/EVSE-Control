@@ -2,7 +2,8 @@
 
 Auftrag 2026-10-29, anschließend ausdrücklich vereinfacht: Hausarchivierung im
 bestehenden Storageprozess statt eigener Publisher-/Collectorcontainer.
-Neue Dockerprüfung offen; frühere PR-54-Nachweise gelten für die alte Aufteilung.
+Aktueller Freigabehead und neue Docker-Prüfnachweise: PR #55.
+Frühere PR-54-Nachweise gelten für die alte Aufteilung.
 Noch keine produktive Migration/Aktivierung durch Agent.
 Vorhandene MariaDB weiterverwenden; Preis-, Provider-, Wallbox- und Rawdaten
 niemals löschen/umschreiben. Website bleibt SELECT-only. Nur vorwärts ab

@@ -84,7 +84,8 @@ einen Legacy-Fallback bestehende Hausdatenzuordnungen. Der interne HTTP-/DB-Thre
 und Wallbox-MQTT-Pfad arbeiten unabhängig. Health berücksichtigt bei Aktivierung
 auch Haus-DB/Worker/Materialisierungsfortschritt, nicht Erfolg jedes HTTP-Abrufs.
 Keine zugesicherte vollständige Vergangenheit oder automatische Aufbewahrungsgrenze.
-Neue Docker-/Pi-Abnahme offen; alte PR-54-Prüfungen ersetzen diese nicht.
+Freigabehead und neue Docker-Prüfnachweise in PR #55; Pi-Abnahme offen.
+Alte PR-54-Prüfungen ersetzen die neue Prüfung nicht.
 
 Aktivierung, DB-Rechte und vorhandene Secret-/Dateiauswahl nur
 im [zentralen Installationsguide](../../docs/installation.md#haus-netzleistung-dauerhaft-aufzeichnen-separates-house-schema);
