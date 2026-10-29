@@ -1,7 +1,10 @@
 # Haus-Netzleistung: persistente Historie (implementiert, opt-in)
 
-Auftrag 2026-10-29. Quellstand 9aea000 Docker-geprüft, aktuellen Freigabestand
-über PR #54 prüfen. Noch keine produktive Migration/Aktivierung.
+Auftrag 2026-10-29, anschließend ausdrücklich vereinfacht: Hausarchivierung im
+bestehenden Storageprozess statt eigener Publisher-/Collectorcontainer.
+Aktueller Freigabehead und neue Docker-Prüfnachweise: PR #55.
+Frühere PR-54-Nachweise gelten für die alte Aufteilung.
+Noch keine produktive Migration/Aktivierung durch Agent.
 Vorhandene MariaDB weiterverwenden; Preis-, Provider-, Wallbox- und Rawdaten
 niemals löschen/umschreiben. Website bleibt SELECT-only. Nur vorwärts ab
 Aktivierung aufzeichnen, keine früheren Hausmessungen erfinden.
@@ -13,21 +16,24 @@ bleibt getrennt, isoliert aber nicht automatisch alle späteren, unabhängig
 belegten Nachbarn. `complete=false` bleibt als Qualitätsangabe erhalten;
 fehlender/trunkierter Ereigniskontext darf dadurch keine falsche Verbindung erhalten.
 
-Separater `house-publisher` im bestehenden Website-Compose, Profil
-`house-history`, verwendet dasselbe PHP-Image, SmartmeterClient und bestehende
-SMARTMETER_URL, aber eigenen CLI-Entrypoint/Healthcheck/MQTT-Client. Website
-weiter Apache plus genau zwei bisherige Worker. Beide HTTP-Poller bleiben
-zunächst unabhängig; kein Zugriff des Browsers auf die echte Quelle.
+Der bestehende Dienst `storage` liest die konfigurierte `SMARTMETER_URL` direkt
+per HTTP und speichert Hauswerte samt Minuten-/Stunden-/Tagesverdichtung in der
+vorhandenen MariaDB. Ein interner Thread mit eigener DB-Verbindung verhindert,
+dass HTTP-Ausfälle die Wallbox-MQTT-Aufzeichnung blockieren oder umgekehrt.
+Keine zusätzlichen Hauscontainer, Haus-MQTT-Topics/Client-IDs oder Profile.
+Die Website bleibt Apache plus bisherige zwei Worker und SELECT-only. Ihr
+bisheriger HTTP-Livepoller bleibt unabhängig; kein Browserzugriff auf die Quelle.
 
-Vorhandener Broker, standardmäßig `evse/house/state` und
-`evse/house/availability`, retained/QoS 1; eigene Client-IDs. Neuer
-`house-storage` im bestehenden Storage-Compose/Profil `house-history`, dasselbe
-Python-Image und vorhandene DB-Secrets. Keine neuen Server/Hostports/Hardware-
-oder Docker-Sockets. Kein Container verwaltet andere Container.
+Leere `SMARTMETER_URL` in Storage deaktiviert die Hausarchivierung. Polling 1–60 s
+(Default 2), Timeout 1–5 s (Default 2), HTTP 200, kein Redirect/Proxy, TLS geprüft,
+maximal 8 KiB Header/4 KiB Body. Alle ASCII-Zahlentokens validieren, exakt Wert 7
+als signed W verwenden; keine NaN/Inf/Subnormals/Unterläufe oder Fake-Nullen.
+I/O-Gesamtbudget umfasst langsame Header/Bodys; OS-DNS kann Fristen überschreiten.
+Compose bleibt die äußere Prozessfrist. Keine neuen Pythonabhängigkeiten.
 
-## MQTT-Vertrag 1
+## Interne Beobachtungsidentität (kein MQTT-Transport)
 
-State ist UTF-8-JSON, maximal 8192 Bytes, exakt folgende Schlüssel:
+Das bisherige Format bleibt intern zur identischen Validierung und Deduplizierung:
 
 ```json
 {"schema_version":1,"device":"house_grid","publisher_id":"00000000-0000-4000-8000-000000000001","sequence":1,"timestamp":"2026-10-29T00:00:00.000000Z","status":"ok","last_success_at":"2026-10-29T00:00:00.000000Z","power_w":-800.5,"error":null}
@@ -44,10 +50,10 @@ State ist UTF-8-JSON, maximal 8192 Bytes, exakt folgende Schlüssel:
   `read_failed|startup|stale|clock_error`; keine URLs/Bodys/Credentials/Exceptions.
 - Rückwärtszeit/Verbindungswechsel/Sequenzsprünge/Fehler dürfen keine
   Kontinuität erzeugen. Keine künstlichen Live-Beobachtungen beim Reconnect.
-- Availability `online|offline`, Offline-LWT und Shutdown; online bedeutet
-  frischen erfolgreichen HTTP-Abruf, nicht neue physische Messung.
-- Maximal letzte Beobachtung plus begrenzte ausstehende Nachrichten, PUBACK-
-  Frist und Reconnect. Kein dauerhaftes Publisher-Outbox-/Replayversprechen.
+- Lifecycle-/Availabilityereignisse werden direkt gespeichert. Online bedeutet
+  erfolgreichen HTTP-Abruf, nicht neue physische Messung. Kein LWT/PUBACK nötig.
+- Maximal eine ausstehende Beobachtung, bei unklarem Commit identisch wiederholen;
+  während DB-Recovery keine nachgeholten fiktiven Messungen oder unbeschränkte Queue.
 
 ## HOUSE-Schema 1 (separate Registry)
 
@@ -57,7 +63,9 @@ Migration des Wallboxcollectors erforderlich. DDL wiederanlaufbar, unter eigenem
 Migration-Lock; vorhandene falsche Tabellenformen strikt ablehnen statt ändern.
 Haus-Runtime besitzt nur SELECT/INSERT/UPDATE auf ihren Tabellen, kein DDL.
 
-Gemeinsame Regeln: `source VARBINARY(240)` exakt der UTF-8-Topicpräfix;
+Gemeinsame Regeln: `source VARBINARY(240)` exakt der UTF-8-Quellschlüssel
+`HOUSE_HISTORY_SOURCE` (Default `evse/house`). Legacy `HOUSE_MQTT_TOPIC_PREFIX`
+bleibt als Fallback nur für bestehende SQL-Identitäten erhalten, ohne MQTT;
 alle DateTime-Spalten UTC/DATETIME(6); IDs BIGINT UNSIGNED werden in API Strings.
 Wattwerte DECIMAL(24,6), Summen DECIMAL(38,6), keine Energieintegration.
 Nur unten genannte feste Tabellen-/Spaltennamen im lesenden API verwenden.
@@ -81,8 +89,8 @@ Nur unten genannte feste Tabellen-/Spaltennamen im lesenden API verwenden.
   `processed_generation`, `pending`; Primary Key `(source,level,bucket_start)`.
   Pending-Index, keine automatische Löschung erledigter Work-Zeilen.
 
-Raw/Event plus Dirty-Markierung atomar VOR ACK. Generation-/Delivery-MID-Schutz,
-begrenzte Inbox/Backpressure/Retry wie Wallboxcollector; kein SQL im Callback.
+Raw/Event plus Dirty-Markierung atomar committen, Retry mit unveränderter Identität.
+Wallbox-ACK-/Delivery-MID-/Inboxverhalten bleibt unverändert und unabhängig.
 Eigener HOUSE-Worker materialisiert begrenzte Work-Turns, nicht im Callback.
 Roheintrag markiert aktuelle/vorherige Minute und betroffene Stunde/Tag dirty;
 eine bereits bekannte Folgeminute wird samt Eltern ebenfalls invalidiert, weil
@@ -102,7 +110,7 @@ und noch nicht materialisierte Arbeit getrennt behandeln. Kein Löschen/Retentio
 ## Lesende Website-API
 
 `WEB_HOUSE_HISTORY_ENABLED=0` Default. Vorhandene HISTORY_DB_*-Konfiguration und
-readonly Secret-Mount, Source separat `HOUSE_MQTT_TOPIC_PREFIX=evse/house`.
+readonly Secret-Mount, Source separat `HOUSE_HISTORY_SOURCE=evse/house`.
 House-Aktivierung darf nicht global Schema 2/Wallbox-Rollups voraussetzen.
 `GET|HEAD /api/house-history`, sonst 405; no-store, keine SQL-/Host-/Secretdetails.
 HistoryRange wiederverwenden (Vienna/UTC, DST, ISO-Wochen, maximal ein Kalenderjahr).

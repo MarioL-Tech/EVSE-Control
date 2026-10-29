@@ -30,7 +30,13 @@ def health(data, history=False):
 def healthcheck(history=False):
     try:
         state = json.loads(Path("/tmp/evse-history-health.json" if history else "/tmp/evse-storage-health.json").read_text())
-        return 0 if 0 <= time.monotonic() - state["tick"] < 30 and state["database_ready"] and (history or state["subscribed"]) else 1
+        ready = 0 <= time.monotonic() - state["tick"] < 30 and state["database_ready"] and (history or state["subscribed"])
+        if ready and not history:
+            from .house_http import HouseConfig
+            if HouseConfig.from_environment().enabled:
+                from .house_collector import healthcheck as house_healthcheck
+                ready = house_healthcheck() == 0
+        return 0 if ready else 1
     except (OSError, ValueError, KeyError, TypeError):
         return 1
 
@@ -152,8 +158,30 @@ def run_history(config, stop):
         retry = min(30, retry * 2)
 
 
+def run_combined(config, stop):
+    """Keep HOUSE DB/HTTP waits independent of the Wallbox DB retry loop."""
+    from dataclasses import replace
+    from .house_http import HouseConfig
+    from .house_collector import run as run_house
+    house = HouseConfig.from_environment()
+    thread = None
+    if house.enabled:
+        thread = threading.Thread(target=run_house,
+            args=(replace(config, prefix=house.source), stop, house),
+            name='house-history', daemon=True)
+        thread.start()
+    try:
+        run(config, stop)
+    finally:
+        stop.set()
+        if thread is not None:
+            thread.join(timeout=10)
+            if thread.is_alive():
+                diagnostic('house storage: thread shutdown deadline; in-flight I/O may remain')
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Subscribe-only wallbox history collector")
+    parser = argparse.ArgumentParser(description="Wallbox MQTT and optional house HTTP storage")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--migrate", action="store_true", help="Explicit schema initialization using DDL account")
     mode.add_argument("--migrate-history", action="store_true", help="Explicit additive schema-2 migration")
@@ -162,8 +190,6 @@ def main():
     mode.add_argument("--healthcheck", action="store_true")
     mode.add_argument("--history-healthcheck", action="store_true")
     mode.add_argument("--migrate-house", action="store_true", help="Explicit independent HOUSE schema migration")
-    mode.add_argument("--house", action="store_true", help="HOUSE collector and bounded materialization")
-    mode.add_argument("--house-healthcheck", action="store_true")
     parser.add_argument("--history-from", help="Inclusive UTC second, YYYY-MM-DDTHH:MM:SSZ; refresh only")
     parser.add_argument("--history-to", help="Exclusive UTC second, YYYY-MM-DDTHH:MM:SSZ; refresh only")
     args = parser.parse_args()
@@ -175,31 +201,22 @@ def main():
             parser.error("--refresh-history requires valid --history-from/--history-to UTC seconds, at most one calendar year")
     elif args.history_from is not None or args.history_to is not None:
         parser.error("--history-from/--history-to require --refresh-history")
-    if args.house_healthcheck:
-        from .house_collector import healthcheck as house_healthcheck
-        return house_healthcheck()
     if args.healthcheck:
         return healthcheck()
     if args.history_healthcheck:
         return healthcheck(history=True)
     try:
         os.set_blocking(2, False)
-        if args.migrate_house or args.house:
-            from .house_collector import configuration, run as run_house
+        if args.migrate_house:
+            from .house_collector import configuration
             from .house_database import HouseDatabase
             house_config = configuration()
-            if args.migrate_house:
-                database = HouseDatabase(house_config)
-                try:
-                    database.connect()
-                    database.migrate()
-                finally:
-                    database.close()
-                return 0
-            stop = threading.Event()
-            signal.signal(signal.SIGTERM, lambda *_: stop.set())
-            signal.signal(signal.SIGINT, lambda *_: stop.set())
-            run_house(house_config, stop)
+            database = HouseDatabase(house_config)
+            try:
+                database.connect()
+                database.migrate()
+            finally:
+                database.close()
             return 0
         config = Config.from_environment()
         if args.migrate or args.migrate_history:
@@ -233,7 +250,7 @@ def main():
                 return 0
             finally:
                 database.close()
-        (run_history if args.history_worker else run)(config, stop)
+        (run_history if args.history_worker else run_combined)(config, stop)
         return 0
     except (ValueError, ArithmeticError, OSError, pymysql.MySQLError):
         diagnostic("storage: configuration, migration or database error; check local configuration/grants")

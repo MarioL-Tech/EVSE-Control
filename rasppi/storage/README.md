@@ -69,22 +69,25 @@ docker compose logs --tail 50 storage
 
 ### Zusätzlich unabhängiges HOUSE-Archiv
 
-Neu implementiert, Quellstand 9aea000 Docker-geprüft, Pi-Abnahme offen:
-Profil `house-history` ergänzt
-`house-storage` im bestehenden Compose. Es abonniert eigene Haus-Topics am
-vorhandenen Broker; der separate PHP-Publisher im Website-Compose liest dieselbe
-konfigurierte HTTP-Quelle unabhängig vom Live-Worker. Keine zweite Produktions-DB.
+Auf ausdrücklichen Wunsch vereinfacht: Der bestehende `storage`-Container liest
+die Hausquelle direkt per HTTP und übernimmt Speicherung und Verdichtung selbst.
+Kein zusätzlicher Hauscontainer, Publisher, MQTT-Client oder Compose-Profil.
+`SMARTMETER_URL` leer = deaktiviert; ansonsten dieselbe private Quelle wie beim
+unabhängigen Website-Livepoller konfigurieren. Keine zweite Produktions-DB.
 
 `--migrate-house` legt explizit fünf additive `evse_house_*`-Tabellen mit eigener
 Registry 1 an. Globale Schema-1-/2-Prüfungen bleiben unverändert. Runtime führt
-keine DDL/Löschung aus. Signed W/0/NULL, UUID-/Sequenzidentität, Raw+Dirty vor ACK,
+keine DDL/Löschung aus. Signed W/0/NULL, UUID-/Sequenzidentität, Raw+Dirty atomar,
 begrenzte Minuten-/Stunden-/Tagesverdichtung; Website weiterhin SELECT-only.
-House-Präfix und IDs stammen aus `HOUSE_MQTT_TOPIC_PREFIX` beziehungsweise
-`HOUSE_STORAGE_CLIENT_ID`, nicht aus den Wallboxidentitäten. Health verlangt
-DB-/Subscription-Liveness und fortschreitende Materialisierung, keine zugesicherte
-vollständige Vergangenheit. Keine automatische Aufbewahrungsgrenze.
+Der SQL-Quellschlüssel `HOUSE_HISTORY_SOURCE` (Default `evse/house`) behält über
+einen Legacy-Fallback bestehende Hausdatenzuordnungen. Der interne HTTP-/DB-Thread
+und Wallbox-MQTT-Pfad arbeiten unabhängig. Health berücksichtigt bei Aktivierung
+auch Haus-DB/Worker/Materialisierungsfortschritt, nicht Erfolg jedes HTTP-Abrufs.
+Keine zugesicherte vollständige Vergangenheit oder automatische Aufbewahrungsgrenze.
+Freigabehead und neue Docker-Prüfnachweise in PR #55; Pi-Abnahme offen.
+Alte PR-54-Prüfungen ersetzen die neue Prüfung nicht.
 
-Aktivierung, Konten-/ACL-Anforderungen und vorhandene Secret-/Dateiauswahl nur
+Aktivierung, DB-Rechte und vorhandene Secret-/Dateiauswahl nur
 im [zentralen Installationsguide](../../docs/installation.md#haus-netzleistung-dauerhaft-aufzeichnen-separates-house-schema);
 Vertrag [hier](../../docs/house-history-contract.md). Keiner dieser Schritte wurde
 durch Agent auf dem Pi ausgeführt.

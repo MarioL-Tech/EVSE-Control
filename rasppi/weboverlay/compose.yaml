@@ -17,7 +17,7 @@ services:
       WEB_STALE_SECONDS: "${WEB_STALE_SECONDS:-10}"
       WEB_HISTORY_ENABLED: "${WEB_HISTORY_ENABLED:-0}"
       WEB_HOUSE_HISTORY_ENABLED: "${WEB_HOUSE_HISTORY_ENABLED:-0}"
-      HOUSE_MQTT_TOPIC_PREFIX: "${HOUSE_MQTT_TOPIC_PREFIX:-evse/house}"
+      HOUSE_HISTORY_SOURCE: "${HOUSE_HISTORY_SOURCE:-${HOUSE_MQTT_TOPIC_PREFIX:-evse/house}}"
       SMARTMETER_URL: "${SMARTMETER_URL:-}"
       SMARTMETER_POLL_SECONDS: "${SMARTMETER_POLL_SECONDS:-2}"
       SMARTMETER_TIMEOUT_SECONDS: "${SMARTMETER_TIMEOUT_SECONDS:-2}"
@@ -32,44 +32,6 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-  # Separate telemetry publisher: no Apache/website workers or DB credentials.
-  house-publisher:
-    profiles: [house-history]
-    build: .
-    entrypoint: [php, /app/php/house-publisher.php]
-    user: "10001:10001"
-    init: true
-    restart: unless-stopped
-    stop_grace_period: 20s
-    environment:
-      SMARTMETER_URL: "${SMARTMETER_URL:-}"
-      SMARTMETER_POLL_SECONDS: "${SMARTMETER_POLL_SECONDS:-2}"
-      SMARTMETER_TIMEOUT_SECONDS: "${SMARTMETER_TIMEOUT_SECONDS:-2}"
-      SMARTMETER_STALE_SECONDS: "${SMARTMETER_STALE_SECONDS:-10}"
-      MQTT_HOST: "${MQTT_HOST:-mqtt-broker}"
-      MQTT_PORT: "${MQTT_PORT:-1883}"
-      HOUSE_MQTT_TOPIC_PREFIX: "${HOUSE_MQTT_TOPIC_PREFIX:-evse/house}"
-      HOUSE_PUBLISHER_CLIENT_ID: "${HOUSE_PUBLISHER_CLIENT_ID:-evse-house-publisher}"
-      MQTT_USERNAME: "${HOUSE_MQTT_USERNAME:-${MQTT_USERNAME:-}}"
-      MQTT_PASSWORD: "${HOUSE_MQTT_PASSWORD:-${MQTT_PASSWORD:-}}"
-      MQTT_PASSWORD_FILE: "${HOUSE_MQTT_PASSWORD_FILE:-}"
-    networks: [mqtt]
-    read_only: true
-    tmpfs:
-      - /tmp:size=16m,mode=1777
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    healthcheck:
-      test: [CMD, php, /app/docker/house-healthcheck.php]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
     logging:
       driver: json-file
       options:

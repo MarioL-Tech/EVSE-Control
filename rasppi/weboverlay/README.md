@@ -115,13 +115,14 @@ Fehlerwarnungen bleiben außerhalb der einklappbaren Bereiche sichtbar.
 Wert 7 wird aus W nach kW umgerechnet. Die 16 Wallbox-Präferenzen blenden ihn
 nicht aus. Auf der Diagrammseite gibt es einen eigenen signierten Haus-Liveverlauf
 im Browser-RAM (maximal 15 Minuten/1200 Abrufe). Ohne zusätzliche Aktivierung
-keine MQTT-/MariaDB-Speicherung und keine erfundene Kalenderkurve. Das neue opt-in
-`house-history` ergänzt separaten PHP-Publisher, vorhandenen Broker und eigenen
-Storage-Collector; Website bleibt SELECT-only. `/api/house-history` ist unabhängig
+keine MariaDB-Speicherung und keine erfundene Kalenderkurve. Der vorhandene
+Storagecontainer kann dieselbe private Quelle direkt abfragen und archivieren;
+keine zusätzlichen Hauscontainer oder MQTT-Topics. Website bleibt SELECT-only.
+`/api/house-history` ist unabhängig
 vom Wallboxschema, Default `WEB_HOUSE_HISTORY_ENABLED=0`. Einrichtung ausschließlich
 im [Installationsguide](../../docs/installation.md#haus-netzleistung-dauerhaft-aufzeichnen-separates-house-schema).
-Quellstand 9aea000 Docker-geprüft (acht Browsersuiten einschließlich PWA),
-aktuellen Freigabestand über PR #54 prüfen; Pi-Abnahme offen.
+Freigabehead und Docker-Prüfnachweise der vereinfachten Integration: PR #55.
+Pi-Abnahme offen. Bestehende Live-/History-APIs und Diagramme bleiben erhalten.
 HTTP-Abrufzeit ist weiterhin keine Gerätemesszeit.
 
 **Diagramme `/diagramme`:** über die gemeinsame Navigation öffnen. Vier

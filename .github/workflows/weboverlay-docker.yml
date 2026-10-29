@@ -81,16 +81,31 @@ jobs:
           project="evse-house-api-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           trap 'docker compose -p "$project" -f compose.house-api-test.yaml down --volumes --remove-orphans' EXIT
           docker compose -p "$project" -f compose.house-api-test.yaml up --build --abort-on-container-exit --exit-code-from house-api-tests
-      - name: Real HOUSE PHP publisher to Python collector and SQL
+      - name: Direct HOUSE HTTP and Wallbox MQTT in existing storage runtime
         working-directory: rasppi/weboverlay
         run: |
           project="evse-house-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          trap 'docker compose -p "$project" -f compose.house-e2e-test.yaml down --volumes --remove-orphans' EXIT
+          trap 'docker compose -p "$project" -f compose.house-e2e-test.yaml logs --tail 60 collector; docker compose -p "$project" -f compose.house-e2e-test.yaml down --volumes --remove-orphans' EXIT
           docker compose -p "$project" -f compose.house-e2e-test.yaml build
           # Complete one-shot migration before attaching the assertion runner:
           # --abort-on-container-exit must not treat migrate's success as test end.
-          docker compose -p "$project" -f compose.house-e2e-test.yaml up -d --wait --wait-timeout 90 publisher collector
-          docker compose -p "$project" -f compose.house-e2e-test.yaml up --no-deps --abort-on-container-exit --exit-code-from assertions assertions
+          docker compose -p "$project" -f compose.house-e2e-test.yaml up -d --wait --wait-timeout 90 collector
+          docker compose -p "$project" -f compose.house-e2e-test.yaml run --rm --no-deps -T assertions
+          # Real broker outage, controlled only by CI host. No Docker socket in
+          # any helper container and no restart of the default storage runtime.
+          collector=$(docker compose -p "$project" -f compose.house-e2e-test.yaml ps -q collector)
+          docker compose -p "$project" -f compose.house-e2e-test.yaml stop broker
+          docker compose -p "$project" -f compose.house-e2e-test.yaml run --rm --no-deps -T assertions broker-outage
+          docker compose -p "$project" -f compose.house-e2e-test.yaml up -d --wait --wait-timeout 60 broker
+          docker compose -p "$project" -f compose.house-e2e-test.yaml run --rm --no-deps -T assertions recovery
+          test "$collector" = "$(docker compose -p "$project" -f compose.house-e2e-test.yaml ps -q collector)"
+          test "$(docker inspect -f '{{.RestartCount}}' "$collector")" = 0
+          # init + one Python runtime; HOUSE polling must be a thread, not a
+          # second --house collector or PHP publisher process.
+          docker compose -p "$project" -f compose.house-e2e-test.yaml exec -T collector python -c 'from pathlib import Path; import os; commands=[p.read_bytes().split(b"\0") for p in Path("/proc").glob("[0-9]*/cmdline") if p.parent.name != str(os.getpid())]; assert sum(c[:3] == [b"python", b"-m", b"storage"] for c in commands) == 1; assert not any(b"--house" in c or any(b"house-publisher.php" in a for a in c) for c in commands)'
+          docker compose -p "$project" -f compose.house-e2e-test.yaml stop -t 20 collector
+          test "$(docker inspect -f '{{.State.ExitCode}}' "$collector")" = 0
+          test "$(docker inspect -f '{{.State.OOMKilled}}' "$collector")" = false
       - name: Extract resolved Composer lock for verification
         run: |
           docker create --name web-dependencies evse-weboverlay:test

@@ -1,6 +1,6 @@
 name: evse-house-e2e-test
 
-# Disposable PHP -> MQTT -> Python -> SQL path, never a deployment stack.
+# Disposable HTTP + Wallbox MQTT -> single default storage runtime -> SQL.
 x-storage-build: &storage-build
   context: ../storage
   target: test
@@ -16,8 +16,12 @@ x-house-environment: &house-environment
   MQTT_PORT: '1883'
   MQTT_USERNAME: house_e2e
   MQTT_PASSWORD: dummy-only-house-mqtt
-  HOUSE_MQTT_TOPIC_PREFIX: evse/house-e2e
-  HOUSE_STORAGE_CLIENT_ID: evse-house-e2e-storage
+  MQTT_TOPIC_PREFIX: evse/wallbox-e2e
+  MQTT_CLIENT_ID: evse-combined-e2e-storage
+  HOUSE_HISTORY_SOURCE: evse/house-e2e
+  SMARTMETER_URL: http://source:8089/dev/powerValue.txt
+  SMARTMETER_POLL_SECONDS: '1'
+  SMARTMETER_TIMEOUT_SECONDS: '1'
 
 services:
   db:
@@ -84,8 +88,8 @@ services:
 
   migrate:
     build: *storage-build
-    entrypoint: [python, -m, storage]
-    command: [--migrate-house]
+    entrypoint: [/bin/sh, -ec]
+    command: ['python -m storage --migrate && python -m storage --migrate-house']
     environment: *house-environment
     user: '10001:10001'
     read_only: true
@@ -101,7 +105,7 @@ services:
   collector:
     build: *storage-build
     entrypoint: [python, -m, storage]
-    command: [--house]
+    command: []
     environment: *house-environment
     user: '10001:10001'
     init: true
@@ -112,7 +116,7 @@ services:
       - /tmp:rw,nosuid,nodev,size=16m,mode=1777
     stop_grace_period: 20s
     healthcheck:
-      test: [CMD, python, -m, storage, --house-healthcheck]
+      test: [CMD, python, -m, storage, --healthcheck]
       interval: 2s
       timeout: 3s
       retries: 30
@@ -121,39 +125,6 @@ services:
         condition: service_completed_successfully
       broker:
         condition: service_healthy
-    networks: [house-e2e]
-
-  publisher:
-    build:
-      context: .
-      target: test
-    entrypoint: [php, /app/php/house-publisher.php]
-    environment:
-      HOUSE_MQTT_TOPIC_PREFIX: evse/house-e2e
-      HOUSE_PUBLISHER_CLIENT_ID: evse-house-e2e-publisher
-      MQTT_HOST: broker
-      MQTT_PORT: '1883'
-      MQTT_USERNAME: house_e2e
-      MQTT_PASSWORD: dummy-only-house-mqtt
-      SMARTMETER_URL: http://source:8089/dev/powerValue.txt
-      SMARTMETER_POLL_SECONDS: '1'
-      SMARTMETER_TIMEOUT_SECONDS: '1'
-      SMARTMETER_STALE_SECONDS: '5'
-    user: '10001:10001'
-    init: true
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    tmpfs:
-      - /tmp:rw,nosuid,nodev,size=16m,mode=1777
-    healthcheck:
-      test: [CMD, php, /app/docker/house-healthcheck.php]
-      interval: 2s
-      timeout: 3s
-      retries: 30
-    depends_on:
-      collector:
-        condition: service_healthy
       source:
         condition: service_healthy
     networks: [house-e2e]
@@ -161,7 +132,9 @@ services:
   assertions:
     build: *storage-build
     entrypoint: [python, /app/tests/house_e2e.py]
-    environment: *house-environment
+    environment:
+      <<: *house-environment
+      PYTHONPATH: /app
     user: '10001:10001'
     init: true
     read_only: true
@@ -171,8 +144,6 @@ services:
       - /tmp:rw,nosuid,nodev,size=16m,mode=1777
     depends_on:
       collector:
-        condition: service_healthy
-      publisher:
         condition: service_healthy
     networks: [house-e2e]
 

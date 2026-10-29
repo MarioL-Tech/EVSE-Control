@@ -5,14 +5,12 @@ import json
 from pathlib import Path
 import tempfile
 import threading
-from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, patch
 import uuid
 import pymysql
 from storage import __main__ as runtime
 from storage import house_collector
-from storage.collector import Inbox, Subscriber, event
 from storage.house_collector import WorkWatch, configuration
 from storage.house_database import HouseDatabase
 from storage.house_protocol import decode
@@ -170,35 +168,17 @@ class HouseIntakeTests(unittest.TestCase):
     def config(self):
         return configuration({'DB_HOST': 'database', 'DB_PASSWORD': 'private'})
 
-    def test_default_and_optional_decoder_mid_reuse(self):
-        cfg = self.config()
-        self.assertEqual((cfg.prefix, cfg.client_id), ('evse/house', 'evse-house-storage'))
-        isolated = configuration({'DB_HOST': 'database', 'DB_PASSWORD': 'private',
-                                  'MQTT_TOPIC_PREFIX': 'evse/wallbox', 'MQTT_CLIENT_ID': 'evse-storage',
-                                  'MQTT_USERNAME': 'shared-reader', 'MQTT_PASSWORD': 'shared-secret'})
-        self.assertEqual((isolated.prefix, isolated.client_id), ('evse/house', 'evse-house-storage'))
-        self.assertEqual((isolated.mqtt_user, isolated.mqtt_password), ('shared-reader', 'shared-secret'))
+    def test_source_is_not_generic_wallbox_namespace(self):
+        cfg = configuration({'DB_HOST': 'database', 'DB_PASSWORD': 'private',
+                             'MQTT_TOPIC_PREFIX': 'evse/wallbox', 'MQTT_CLIENT_ID': 'evse-storage'})
+        self.assertEqual(cfg.prefix, 'evse/house')
+        legacy = configuration({'DB_HOST': 'database', 'DB_PASSWORD': 'private',
+                                'HOUSE_MQTT_TOPIC_PREFIX': 'site/legacy'})
+        self.assertEqual(legacy.prefix, 'site/legacy')
         named = configuration({'DB_HOST': 'database', 'DB_PASSWORD': 'private',
-                               'HOUSE_MQTT_TOPIC_PREFIX': 'site/house',
-                               'HOUSE_STORAGE_CLIENT_ID': 'site-house-storage'})
-        self.assertEqual((named.prefix, named.client_id), ('site/house', 'site-house-storage'))
-        inbox = Inbox(cfg.prefix, 8)
-        sub = Subscriber(cfg, inbox, decoder=decode)
-        client = MagicMock()
-        sub.client, sub.connected = client, True
-        message = SimpleNamespace(topic=cfg.prefix + '/state', payload=payload(), retain=False, qos=1, mid=8)
-        sub.on_message(client, None, message)
-        first = inbox.queue.get_nowait()
-        sub.on_message(client, None, message)
-        second = inbox.queue.get_nowait()
-        client.ack.return_value = 0
-        sub.ack(first['ack'])
-        client.ack.assert_not_called()
-        sub.ack(second['ack'])
-        client.ack.assert_called_once_with(8, 1)
-        sub.generation += 1
-        sub.ack(second['ack'])
-        client.ack.assert_called_once()
+                               'HOUSE_HISTORY_SOURCE': 'site/house',
+                               'HOUSE_MQTT_TOPIC_PREFIX': 'site/legacy'})
+        self.assertEqual(named.prefix, 'site/house')
 
     def test_dirty_is_bounded_and_in_same_transaction(self):
         db = HouseDatabase(self.config())
@@ -254,7 +234,7 @@ class HouseIntakeTests(unittest.TestCase):
         self.assertTrue(watch.update({'minute': START + timedelta(minutes=1), 'day': START}, now=59))
         self.assertTrue(watch.update({}, now=1000))
 
-    def test_house_health_requires_fresh_database_mqtt_and_rollup(self):
+    def test_house_health_requires_fresh_database_thread_and_rollup(self):
         with tempfile.TemporaryDirectory() as directory, \
                 patch.object(house_collector, 'HEALTH', Path(directory) / 'health.json'), \
                 patch('storage.house_collector.time.monotonic', return_value=10):
@@ -268,44 +248,6 @@ class HouseIntakeTests(unittest.TestCase):
             house_collector.health(True, True, True)
             self.assertEqual(house_collector.healthcheck(), 1)
 
-    def test_shutdown_full_inbox_keeps_gap_boundary_and_commit_identity(self):
-        cfg = self.config()
-        inbox = Inbox(cfg.prefix, 8)
-        for index in range(8):
-            self.assertTrue(inbox.put(event(cfg.prefix, 'availability', measurement_time=str(index))))
-        self.assertFalse(inbox.put(event(cfg.prefix, 'availability', measurement_time='overflow')))
-        stop = threading.Event()
-        stop.set()
-        subscriber = MagicMock()
-        subscriber.client = None
-        subscriber.subscribed = True
-        subscriber.accepting = True
-        database = MagicMock()
-        attempts = []
-
-        def write(item):
-            attempts.append(item)
-            if len(attempts) == 1:
-                raise pymysql.OperationalError(2013, 'ambiguous fixture commit')
-            return True
-
-        database.write.side_effect = write
-        worker = MagicMock()
-        with patch('storage.house_collector.Inbox', return_value=inbox), \
-                patch('storage.house_collector.Subscriber', return_value=subscriber), \
-                patch('storage.house_collector.HouseDatabase', return_value=database), \
-                patch('storage.house_collector.HouseWorker', return_value=worker), \
-                patch('storage.house_collector.health'), \
-                patch('storage.house_collector.time.sleep'):
-            house_collector.run(cfg, stop)
-        self.assertIs(attempts[0], attempts[1])
-        kinds = [item['kind'] for item in attempts[1:]]
-        self.assertEqual(kinds[0], 'collector_started')
-        self.assertIn('ingestion_gap', kinds)
-        self.assertEqual(kinds[-1], 'collector_stopping')
-        self.assertEqual(kinds.count('availability'), 8)
-        subscriber.ack.assert_called()
-
     def test_dispatch_before_wallbox_verify(self):
         with patch('sys.argv', ['storage', '--migrate-house']), patch.object(runtime.Database, 'verify') as wallbox:
             with patch('storage.house_collector.configuration', return_value=self.config()), \
@@ -314,13 +256,16 @@ class HouseIntakeTests(unittest.TestCase):
                 cls.return_value.migrate.assert_called_once()
                 wallbox.assert_not_called()
 
-    def test_house_healthcheck_cli_needs_no_database_configuration(self):
-        with patch('sys.argv', ['storage', '--house-healthcheck']), \
-                patch('storage.house_collector.healthcheck', return_value=1) as check, \
-                patch.object(runtime.Config, 'from_environment') as generic:
-            self.assertEqual(runtime.main(), 1)
-            check.assert_called_once_with()
-            generic.assert_not_called()
+    def test_disabled_normal_healthcheck_needs_no_database_configuration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'health.json'
+            path.write_text(json.dumps(dict(tick=10, database_ready=True, subscribed=True)))
+            with patch('storage.__main__.Path', return_value=path), \
+                    patch('storage.__main__.time.monotonic', return_value=10), \
+                    patch.dict('os.environ', {'SMARTMETER_URL': ''}, clear=True), \
+                    patch.object(runtime.Config, 'from_environment') as generic:
+                self.assertEqual(runtime.healthcheck(), 0)
+                generic.assert_not_called()
 
     def test_generation_mismatch_does_not_publish(self):
         db = HouseDatabase(self.config())

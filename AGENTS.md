@@ -10,7 +10,7 @@ Aktueller Folgeauftrag (2026-10-29): Archivdiagramme wegen hoher Renderlast und
 weiterhin unbefriedigender Darstellung erneut überarbeiten; Haus-Netzleistung
 nun ausdrücklich dauerhaft speichern und in Stunde/Tag/weiteren Kalenderansichten
 anzeigen, oberhalb von „Diagnose“. Hausarchivierung ist als opt-in implementiert,
-für Quellstand 9aea000 Docker-abgenommen, Pi-Abnahme offen; bisheriger Live-RAM-Verlauf allein ist
+alte Aufteilung Docker-geprüft, vereinfachter Storagepfad noch nicht; Pi-Abnahme offen. Bisheriger Live-RAM-Verlauf allein ist
 kein SQL-Hausarchiv. Vorgabe zusätzlich: belegte Datenpunkte als Linien verbinden.
 Website bleibt SELECT-only, vorhandene Raw-/Preis-/Providerdaten erhalten,
 keine Produktionsmigration durch Agent. Main-Build 40782985667 scheiterte nach
@@ -21,14 +21,21 @@ Live-/Archiv-Readiness im Historienbrowsertest getrennt synchronisiert.
 Hotfix-PR #53 für 6d976fc ist reviewbereit: vollständige Docker-CI
 40846713475 und 40846704139 erfolgreich. Merge durch Projektinhaber.
 
-Aktuelle Haus-/Diagrammimplementierung (Freigabehead über PR #54 prüfen): bestehender
-Website-Compose enthält optionalen separaten PHP-`house-publisher`, bestehender
-Storage-Compose einen `house-storage`, beide Profil `house-history`. Bestehender
-Broker, eigene HOUSE-Präfix-/ID-Variablen mit Default `evse/house`; Websitecontainer
-bleibt Apache plus bisherige zwei Worker und SELECT-only. `--migrate-house`
+Neuer ausdrücklicher Vereinfachungsauftrag (2026-10-29): keine eigenen Haus-
+Container. HTTP-Erfassung, SQL-Speicherung und Hausverdichtung gehören in den
+bestehenden `storage`-Container. Implementierter Ersatz: ein interner HTTP-/DB-
+Thread mit eigener Verbindung/Retryverwaltung neben unverändertem Wallbox-MQTT-
+Pfad, gemeinsames Stop-Event und aggregierter Healthcheck. Keine Haus-MQTT-
+Topics/Client-IDs, separaten Publisher oder zusätzlichen Compose-Profile.
+`SMARTMETER_URL` in Storage leer = Hausarchivierung deaktiviert; konfiguriert =
+direkte HTTP-Erfassung. Bestehende Website-Liveabfrage bleibt unabhängig.
+Websitecontainer weiterhin Apache plus bisherige zwei Worker, SELECT-only.
+`HOUSE_HISTORY_SOURCE` ist nur SQL-Quellkennung (Default `evse/house`), Legacy
+`HOUSE_MQTT_TOPIC_PREFIX` bleibt Fallback, um alte Datenzuordnungen zu erhalten.
+`--migrate-house`
 legt ausschließlich fünf `evse_house_*`-Tabellen und unabhängige Registry 1 an;
 globale Wallboxversionen bleiben `{1}`/`{1,2}`. Signed W, echte 0/NULL, UUID/Sequenz-
-Dedupe, Raw+Dirty vor ACK, begrenzte materialisierte Minute/Stunde/Tag. Keine
+Dedupe, Raw+Dirty atomar, begrenzte materialisierte Minute/Stunde/Tag. Keine
 Produktionsmigration, Hauswerte vor Aktivierung oder bestehende Daten erfinden.
 Readonly `/api/house-history` unabhängig von Wallboxhistorie/deren Schema;
 Rohgrenzen mikrosekundengenau wie SQL, reine Online-Refreshereignisse bei bereits
@@ -52,26 +59,26 @@ vorhandene Minutenbuckets eines expliziten UTC-Bereichs (max. Kalenderjahr) in
 256er-Seiten erneut dirty, keine Raw-/Fremddaten-/DDL-/Versionsänderung. Kein
 automatischer Refresh beim Start; regulärer Worker verdichtet anschließend.
 Vertrag `docs/house-history-contract.md`, vollständige Einrichtung zentral in
-`docs/installation.md`. Neue Docker-/SQL-/Publisher-/Browser-/E2E-Tests bestanden
-für 9aea000: Web 40872083844 und 40872078880, Storage-Matrix 40872083855/40872078806 (MariaDB
-10.11, exakt 11.8.8 und rollendes 11.8). Acht Browsersuiten einschließlich PWA und
-unabhängigem Hausarchiv, echter PHP→MQTT→Python→SQL-Pfad mit laufender Aufnahme,
-SELECT-only-/Checksum-/Pending-/Dedupe-/Frische-/Lifecycle-/Gap-/DOM-Budgetfällen.
-Simulierte 320-/1440-px-Hausjahresbilder in Hell/Dunkel aus 40872083844 vollständig
-angesehen: kein unterer Bildabschnitt mehr abgeschnitten, stabile Themes,
-verbundene signierte Stresskurve mit echter Unterbrechung oberhalb Diagnose.
+`docs/installation.md`. Die alte Aufteilung aus PR #54 ist gemergt (fff4efa),
+Finalhead d727aed bestand Web 40878353419 und Storage-Matrix 40878353418. Diese
+Nachweise ersetzen nicht die neue Prüfung des direkten Storage-HTTP-Pfads.
+Neue HTTP-/kombinierte Laufzeit-/E2E-Prüfung samt bisheriger API-/Browser-/PWA-
+und MariaDB-10.11/11.8.8/11.8-Matrix integriert. Aktueller Freigabehead und
+Abschlussnachweise in PR #55, bis dahin kein neuer Abnahmeanspruch. Gezielter
+unabhängiger Review von HTTP-/kombiniertem Runtimepfad ohne konkreten Befund;
+keine dadurch ersetzte Laufzeitprüfung.
 Der bestehende Schema-1-Beispieldump enthält keine optionalen Archive;
 Installationsguide verlangt deren Tabellen ausdrücklich im privaten Backup.
-Aktuellen Freigabehead über PR #54 kontrollieren; Merge durch Projektinhaber.
+Beim Umstieg alte bereits laufende Hausdienste vor Update bewusst stoppen,
+keine automatische Container-/Volumeentfernung. Zentralen Installationsguide
+beachten; Merge durch Projektinhaber.
 Erneute unabhängige Abschlussprüfung: API/Diagramme und Betriebsanleitung ohne
 konkreten Befund. Datenpipeline fand fehlende Invalidierung einer bereits
 materialisierten Folgeminute bei verspätetem linken Kontext. Korrektur markiert
 nur bereits vorhandene Folge-Minutenwork samt Eltern in derselben Transaktion;
 keine unbegrenzte Zukunftsarbeit. Korrektur a682f7c nochmals unabhängig gezielt
-geprüft, ohne weitere konkrete Befunde. Neue Unit-/MariaDB-Fälle für zurückdatierte
-Clockfehler und Retainedwerte bestanden in beiden Storage-Matrizen
-40877155840/40877144752; erneute vollständige Web-/E2E-Abschlussnachweise und
-aktueller Freigabehead stehen in PR #54. Keine Agent-Mergefreigabe für Produktion.
+geprüft, ohne weitere konkrete Befunde. Unit-/MariaDB-Fälle für zurückdatierte
+Clockfehler und Retainedwerte bleiben erhalten. Keine Agent-Mergefreigabe für Produktion.
 Keine lokalen Hosttests und kein Pi-/ARM-/Dauerbetriebsnachweis oder Deployment.
 
 EVSE-Control ist eine Diplomarbeit zur Steuerung und Überwachung einer
