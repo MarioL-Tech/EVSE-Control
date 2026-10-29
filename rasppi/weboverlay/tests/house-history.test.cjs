@@ -71,7 +71,7 @@ test('HOUSE schema 3 rejects unsupported evidence and cloned/forged minute param
   const s = house.createStore(); assert(s.importHistory(minuteRaw(), epoch + 180000));
   const copied = JSON.parse(JSON.stringify(s.points([], epoch + 180000, 15)));
   assert(!chart.buildPlot(copied, epoch, epoch + 180000).path.includes('L'));
-  assert(s.importHistory({ ...raw([]), status: 'unavailable' }, epoch + 180000), 'Current schema 1 failures stay accepted');
+  assert(s.importHistory({ ...raw([], epoch + 180000), status: 'unavailable' }, epoch + 180000), 'Current schema 1 failures stay accepted');
 });
 test('microsecond raw range includes a valid zero from the current fractional second', () => {
   const batch = raw([0]);

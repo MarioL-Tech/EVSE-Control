@@ -12,7 +12,7 @@ Stichprobenmittel für W/A/V dauerhaft aufgezeichnet werden; Zustände, Limits u
 Sessionzähler nicht mitteln. Erfassung/Live bleiben bei zwei Sekunden. Neue
 Minutenprodukte brauchen eigene Coverage und explizite additive Migration;
 Bestandsrohdaten/Preise/Provider bleiben unangetastet. RAM-Zwischenpuffer kann
-bei Crash bis zu einer offenen Minute verlieren, kein Commit-vor-ACK-Versprechen
+bei Crash offene Minuten samt Randkontext verlieren, kein Commit-vor-ACK-Versprechen
 für diesen neuen Aufzeichnungsmodus. Legacy-Rawmodus bleibt getrennt.
 Minutenpipeline und quellgebundene Bereinigung inzwischen implementiert, neue
 Docker-/MariaDB-Tests noch nicht abgenommen. Drei unabhängige Minutentabellen,

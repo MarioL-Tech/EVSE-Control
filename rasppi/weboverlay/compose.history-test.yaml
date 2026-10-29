@@ -27,9 +27,11 @@ services:
       target: test
     entrypoint: [bash, -c]
     # Keep all 18 schema-1 real SQL scenarios BEFORE additive schema-2 migration.
-    command: ["php /app/tests/archive.php && node /app/tests/history-integration.cjs && php /app/tests/archive-integration.php"]
+    command: ["php /app/tests/archive.php && node /app/tests/history-integration.cjs && php /app/tests/archive-integration.php && php /app/tests/minute-integration.php"]
     volumes:
       - ../storage/migrations/002_newhistory.sql:/fixtures/002_newhistory.sql:ro
+      - ../storage/migrations/003_house.sql:/fixtures/003_house.sql:ro
+      - ../storage/migrations/004_minutes.sql:/fixtures/004_minutes.sql:ro
     user: "10001:10001"
     init: true
     read_only: true

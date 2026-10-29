@@ -217,7 +217,7 @@ def captured(db, c, kind, source, start):
 
 def require_raw_source(db, kind):
     """A one-way cutover cannot be silently rolled back to hidden raw writes."""
-    if not getattr(db, '_minute_present', False):
+    if getattr(db, '_minute_present', False) is not True:
         return
     with db.connection.cursor() as c:
         c.execute('SELECT started_at FROM evse_minute_sources WHERE kind=%s AND source=%s',

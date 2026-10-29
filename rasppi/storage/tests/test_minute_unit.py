@@ -17,7 +17,7 @@ from storage.history import combine
 from storage.house_protocol import decode as house_decode
 from storage.house_rollup import combine as house_combine
 from storage.minutes import (Accumulator, IntakeRejected, Recorder, MAX_ROWS,
-                             captured, decode, encode, verify)
+                             captured, decode, encode, verify, require_raw_source)
 from storage.protocol import decode as wallbox_decode
 from test_unit import sample_payload, config
 
@@ -228,6 +228,19 @@ class MinuteAdmission(unittest.TestCase):
 
 
 class MinutePublication(unittest.TestCase):
+    def test_raw_cutover_guard_uses_verified_boolean_and_source_kind(self):
+        db = SimpleNamespace(_minute_present=False, connection=MagicMock(), config=config())
+        require_raw_source(db, 'wallbox')
+        db.connection.cursor.assert_not_called()
+        db._minute_present = True
+        cursor = db.connection.cursor.return_value.__enter__.return_value
+        cursor.fetchone.return_value = None
+        require_raw_source(db, 'wallbox')
+        cursor.fetchone.return_value = (START,)
+        with self.assertRaises(ValueError):
+            require_raw_source(db, 'wallbox')
+        self.assertEqual(cursor.execute.call_args.args[1], ('wallbox', db.config.prefix))
+
     def setup_recorder(self):
         db = MagicMock()
         db.config = replace(config(), prefix=SOURCE)
