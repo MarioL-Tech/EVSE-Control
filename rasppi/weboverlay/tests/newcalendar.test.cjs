@@ -89,11 +89,13 @@ test('future calendar selections are bounded in Vienna and UTC, including ISO ye
   ui.instance.loaded(b); assert(ui.ids['calendar-next'].disabled);
   ui.ids['calendar-next'].dispatchEvent(new Event('click')); assert.equal(ui.calls.length, before);
 });
-test('restored UTC selection sets native maxima in UTC, not the Vienna next day', () => {
+test('Vienna-only UI rejects stored UTC selection; API helpers still distinguish both calendar days', () => {
   const wall = Date.parse('2026-10-28T23:30:00Z');
   const ui = mountedCalendar({ period: 'hour', at: '2026-10-28T23:00:00Z', tz: 'UTC' }, () => wall);
-  assert.equal(ui.ids['calendar-date'].max, '2026-10-28T23:00');
-  assert.equal(ui.ids['calendar-to'].max, '2026-10-28T23:30');
+  assert.equal(ui.instance.selection, null);
+  assert.deepEqual(ui.calls, [null]);
+  assert.equal(ui.ids['calendar-to'].max, '2026-10-29T00:30');
+  assert.equal(calendar.calendarLimits(wall, 'UTC').custom, '2026-10-28T23:30');
 });
 test('restoration, UTC navigation and existing mode/date change handlers keep period buttons in sync', () => {
   const ui = mountedCalendar({ period: 'hour', at: '2026-10-25T01:00:00Z', tz: calendar.ZONE });

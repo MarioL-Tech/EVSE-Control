@@ -292,7 +292,7 @@
     }
     const persist = () => { try { storage?.setItem(KEY, JSON.stringify(selection)); } catch (_) { /* page-only */ } };
     function controls() {
-      const limits = calendarLimits(clock(), selection?.tz || ZONE);
+      const limits = calendarLimits(clock());
       picker.hidden = ['live', 'custom'].includes(mode.value); custom.hidden = mode.value !== 'custom';
       if (pickerLabel) pickerLabel.hidden = picker.hidden;
       const caption = ({ hour: 'Stunde', day: 'Datum', week: 'Kalenderwoche', month: 'Monat', year: 'Jahr' })[mode.value] || 'Datum';
