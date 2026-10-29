@@ -45,6 +45,26 @@ test('boolean boundary clipping uses a held step, never a fractional state', () 
   assert.equal(p.count, 1);
 });
 
+test('hidden outliers cannot flatten visible axes across a timeout, explicit barrier or product seam', () => {
+  const group = GROUPS.find(g => g.id === 'voltage'), selected = { 'voltage-0': true };
+  const visible = [{ t: epoch + 4000, values: { 'voltage-0': 230 } }, { t: epoch + 8000, values: { 'voltage-0': 231 } }];
+  const reference = buildPlot(visible, group, selected, epoch, epoch + 60000);
+  for (const [time, block] of [
+    [epoch - 40000, () => {}],
+    [epoch - 4000, p => { p.breakBefore = true; }],
+    [epoch - 4000, (p, prior) => { prior.recordType = 'minute'; }],
+    [epoch - 4000, (p, prior) => { prior.seriesBreak = { 'voltage-0': true }; }]
+  ]) {
+    const prior = { t: time, values: { 'voltage-0': 1000 } }, list = structuredClone(visible);
+    block(list[0], prior);
+    const p = buildPlot([prior, ...list], group, selected, epoch, epoch + 60000);
+    assert.equal(p.lo, reference.lo); assert.equal(p.hi, reference.hi);
+  }
+  const p = buildPlot([{ t: epoch - 4000, values: { 'voltage-0': 1000 } }, ...visible], group, selected, epoch, epoch + 60000);
+  assert(p.hi >= 615 && p.hi < 1000, 'Only the actual interpolated boundary value belongs to the visible scale');
+  assert.match(p.paths[0].path, /^M62\.00,[\d.]+L/);
+});
+
 function minuteBatch() {
   const iso = t => new Date(t).toISOString(), now = epoch + 180000;
   return { schema_version: 3, read_only: true, status: 'ok', reason: 'fixture', generated_at: iso(now),

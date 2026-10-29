@@ -18,6 +18,11 @@ in separater Qualitätslane unterhalb der Zahlenachse und bekannten letzten Wert
 isoliert markieren, niemals einen durchgehenden Zustand oder NULL=Nein erfinden.
 Subagents für Analyse und gezielte Browser-/Diagnoseimplementierung verwendet;
 Änderungen vom Hauptagent prüfen. PWA-Shell v12. Keine Pi-Aktion/Hardwarewrites.
+Zusätzliche statische Gegenprüfung fand unzulässigen Einfluss eines nicht
+verbindbaren alten Randvorgängers auf die Y-Skalierung. Korrigiert: nur sichtbare
+Werte plus tatsächlicher Schnittwert eines nachgewiesenen Randsegments zählen
+zur Skala. Neue Regressionen für Timeout-/Lifecycle-/Produktbarrieren und
+verbundenen Rand mit altem Ausreißer; Dockerabschluss weiter offen.
 **Wallboxschreiben und Netzbezugs-Abschaltregeln ausdrücklich erst nach weiterem
 Go des Projektinhabers**, auch Start/Stop/max.Ladestrom jetzt NICHT implementieren.
 Frühere Konfigurationsbeispiele dann wieder heranziehen; keine Schwellen raten.

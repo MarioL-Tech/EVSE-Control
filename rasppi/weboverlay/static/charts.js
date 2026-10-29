@@ -273,7 +273,22 @@
   }
   function buildPlot(points, group, selected, start, end, geometry = { width: 500, height: 225, left: 62, right: 482, top: 25, bottom: 180 }, boundsOnly = false) {
     const metrics = METRICS.filter(m => m.group === group.id && selected[m.id]);
-    const numbers = points.flatMap(p => metrics.map(m => p.values[m.id])).filter(v => v !== null);
+    const connects = (previous, p, m) => previous && previous.values[m.id] !== null && p.values[m.id] !== null &&
+      !p.breakBefore && !p.seriesBreak?.[m.id] && !previous.seriesBreak?.[m.id] && sameProduct(previous, p) && p.t > previous.t &&
+      (p.recordType === 'minute' ? minuteAdjacent(previous, p) : p.t - previous.t <= MAX_GAP_MS);
+    const edgeValue = (previous, p, m) => group.step ? previous.values[m.id] : previous.values[m.id] +
+      (p.values[m.id] - previous.values[m.id]) * (start - previous.t) / (p.t - previous.t);
+    const visible = boundsOnly ? points : points.filter(p => p.t >= start && p.t <= end);
+    const intersections = new Map();
+    if (!boundsOnly && visible.length) {
+      const prior = points.findLast(p => p.t < start), first = visible[0];
+      for (const m of metrics) if (connects(prior, first, m)) intersections.set(m.id, edgeValue(prior, first, m));
+    }
+    // An ineligible/old predecessor must not flatten visible data via the axis.
+    // For an eligible edge, include only the displayed intersection, not its
+    // hidden endpoint. Bounds-only archive input has no raw timestamps.
+    const numbers = visible.flatMap(p => metrics.map(m => p.values[m.id])).filter(v => v !== null)
+      .concat([...intersections.values()]);
     let lo = group.zero || group.boolean ? 0 : numbers.length ? Math.min(...numbers) : 0;
     let hi = group.boolean ? 1 : numbers.length ? Math.max(...numbers) : 1;
     if (hi <= lo) { lo = Math.max(0, lo - 1); hi += 1; }
@@ -296,13 +311,9 @@
         if (p.t < start) { previous = p; continue; }
         if (p.t > end) break;
         const px = x(p.t).toFixed(2), py = y(value).toFixed(2);
-        const connect = previous && !p.breakBefore && !p.seriesBreak?.[m.id] &&
-          !previous.seriesBreak?.[m.id] && sameProduct(previous, p) && p.t > previous.t &&
-          (p.recordType === 'minute' ? minuteAdjacent(previous, p) : p.t - previous.t <= MAX_GAP_MS);
+        const connect = connects(previous, p, m);
         if (connect && previous.t < start) {
-          const edgeValue = group.step ? previous.values[m.id] : previous.values[m.id] +
-            (value - previous.values[m.id]) * (start - previous.t) / (p.t - previous.t);
-          path += `M${geometry.left.toFixed(2)},${y(edgeValue).toFixed(2)}`;
+          path += `M${geometry.left.toFixed(2)},${y(edgeValue(previous, p, m)).toFixed(2)}`;
           segmentLength = 1;
         }
         if (!connect) {
@@ -323,7 +334,6 @@
       }
       return { metric: m, path, last, markers: sparse.reverse() };
     });
-    const visible = points.filter(p => p.t >= start && p.t <= end);
     return { lo, hi, paths, metrics, count: visible.length, geometry, points: visible };
   }
   const api = { METRICS, GROUPS, RETENTION_MS, MAX_POINTS, MAX_GAP_MS, STORAGE_KEY,
