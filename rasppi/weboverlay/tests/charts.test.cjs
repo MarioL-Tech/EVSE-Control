@@ -12,6 +12,39 @@ const live = (t, overrides = {}) => ({ status: 'live', envelope: { timestamp: ne
 const plot = (history, id, now, selected = defaults().selected) => buildPlot(history.window(now, 15),
   GROUPS.find(g => g.id === id), selected, now - RETENTION_MS, now);
 
+test('window-edge display context clips a proven raw segment, without counting or inventing a measurement', () => {
+  const h = createHistory();
+  h.observe(live(epoch - 4000, { active_power_w: 1000 }), epoch - 4000);
+  h.observe(live(epoch + 4000, { active_power_w: 3000 }), epoch + 4000);
+  const now = epoch + 60000;
+  assert.equal(h.window(now, 1).length, 1, 'Public measurement window remains unchanged');
+  const context = h.window(now, 1, true);
+  assert.equal(context.length, 2); assert.equal(context[1].breakBefore, false);
+  const p = buildPlot(context, GROUPS[0], defaults().selected, epoch, now);
+  assert.equal(p.count, 1); assert.equal(p.points.length, 1);
+  assert.match(p.paths[0].path, /^M62\.00,[\d.]+L/);
+  assert(p.paths[0].markers.every(m => Number(m.x) >= 62));
+  for (const change of [
+    list => { list[1].breakBefore = true; },
+    list => { list[0].values.power = null; },
+    list => { list[0].seriesBreak.power = true; },
+    list => { list[1].t = epoch + 8000; }, // More than the raw 10s limit.
+    list => { list[0].recordType = 'minute'; }
+  ]) {
+    const list = h.window(now, 1, true); change(list);
+    const q = buildPlot(list, GROUPS[0], defaults().selected, epoch, now);
+    assert(!q.paths[0].path.includes('L'), 'NULL, explicit barrier, raw timeout and product seam cannot acquire a boundary connection');
+  }
+});
+
+test('boolean boundary clipping uses a held step, never a fractional state', () => {
+  const points = [{ t: epoch - 4000, values: { plugged: 0 } }, { t: epoch + 4000, values: { plugged: 1 } }];
+  const group = GROUPS.find(g => g.id === 'flags');
+  const p = buildPlot(points, group, { plugged: true }, epoch, epoch + 60000);
+  assert.match(p.paths[0].path, /^M62\.00,180\.00H[\d.]+V25\.00$/);
+  assert.equal(p.count, 1);
+});
+
 function minuteBatch() {
   const iso = t => new Date(t).toISOString(), now = epoch + 180000;
   return { schema_version: 3, read_only: true, status: 'ok', reason: 'fixture', generated_at: iso(now),

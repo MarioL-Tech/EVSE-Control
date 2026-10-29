@@ -1,10 +1,28 @@
 # Arbeitskontext für Agents: EVSE-Control
 
-Stand: 2026-10-29. Diese Datei beschreibt den geprüften Repositoryzustand und
+Stand: 2026-10-30. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
-Aktueller Folgeauftrag (2026-10-29, implementiert/Docker-geprüft; PR#61): Monat maximal ein
+Aktueller Darstellungsauftrag (2026-10-30, Umsetzung; Dockerabschluss offen):
+Live-/Diagnosekurven auf Abschneiden prüfen, Phasenspannungen auch Live voll
+statt gestrichelt; Übersicht/Diagramme wie Settings volle verfügbare Breite.
+Überflüssige Wiederholungen kürzen, Status/Frische/Messzeit/Fehler und wichtige
+Unknown-/Archivinformationen erhalten. Screenshot23:55 zeigt auch eine innere
+Unterbrechung, keinen belegten SVG-Clip: Raw10s-/NULL-/Lifecycle-/Minuten-/SQL-
+Live-Barrieren NICHT pauschal lockern. Linken Fensterrand nur mit vorhandenem,
+nach denselben Regeln nachweislich verbundenem Vorgänger visuell schneiden;
+kein neuer Messwert/Frischenachweis. Diagnosecodes ganzzahlige Achsen mit Platz
+für UInt32, Boolwerte niemals mitteln. Gemischte/teilweise/unknown Archivzustände
+in separater Qualitätslane unterhalb der Zahlenachse und bekannten letzten Wert
+isoliert markieren, niemals einen durchgehenden Zustand oder NULL=Nein erfinden.
+Subagents für Analyse und gezielte Browser-/Diagnoseimplementierung verwendet;
+Änderungen vom Hauptagent prüfen. PWA-Shell v12. Keine Pi-Aktion/Hardwarewrites.
+**Wallboxschreiben und Netzbezugs-Abschaltregeln ausdrücklich erst nach weiterem
+Go des Projektinhabers**, auch Start/Stop/max.Ladestrom jetzt NICHT implementieren.
+Frühere Konfigurationsbeispiele dann wieder heranziehen; keine Schwellen raten.
+
+Vorheriger Folgeauftrag (2026-10-29, implementiert/Docker-geprüft; PR#61 gemergt): Monat maximal ein
 lokales Tagesmittel pro Tag, Jahr ISO-Wochenmittel an Jahresgrenzen gekürzt.
 Read-only-Projektion vorhandener Stundensummen/Counts, keine DB-Neuverdichtung,
 Migration, Rawdatenänderung oder erfundene Null. Stunde bis Jahr als Linien

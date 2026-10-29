@@ -4,6 +4,10 @@ All notable changes to the EVSE-Control project. This file is **actively maintai
 
 Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
+## 2026-10-30
+
+- **00:07** — **Livefenster, Diagnosezustände und volle Seitenbreite nachbessern** — Übersicht/Diagramme nutzen wie Settings die gesamte verfügbare Breite, Phasenspannungen auch Live solide statt gestrichelt. Wiederholte Archiv-/Ram-/Lückenhinweise gekürzt, relevante Status-/Frische-/Fehlerinformation erhalten. Sichtbarer Fensterrand wird nur anhand eines vorhandenen und nach unveränderten Raw-/NULL-/Lifecycle-/Produktregeln verbundenen Vorgängers geschnitten, ohne Samples zu erzeugen oder SQL-/Live-Lücken zu heilen. Diagnosecodes erhalten ganzzahlige Achsen und ausreichend Labelplatz; gemischte/unknown Archivzustände separate Qualitätslane und bekannte letzte Werte isolierte Marken, keine erfundenen Zustandslinien oder NULL=Nein. Subagents für vollständige Datenpfadanalyse und gezielte Test-/Diagnoseänderungen, Hauptagent integriert/prüft. Neue 1920-/2560-/320px-Browsergrenzen, UInt32-/Bool-/Archiv-/Fensterrandregressionen. PWA-Shell v12; Dockerabschluss offen. Wallboxschreiben, Laden/Stop/max.Ladestrom und Netzbezugsautomationen bleiben ausdrücklich bis weiterem Go gesperrt, keine Produktionsaktion.
+
 ## 2026-10-29
 
 - **23:35** — **Kalender-/Editorcode vollständig Docker-grün** — Head531c8f9 besteht40965775294/40965769367:173 JS-Fälle,80 HOUSE- und bestehende PHP-/SQL-/HTTP-/TLS-/PWA-/acht Chromium-/Runtimeprüfungen.20 reine Provisioningfälle plus realer Wegwerfablauf mit privater fremder Operatorgruppe, Backups/Links, atomarem cap-drop-UID10001-Speichern, Compose-Lesezugriff auf exakt dieselbe Datei und unverändertem Wiederaufruf. SQL-Schaltjahr aus8784 materialisierten Stunden liefert53 Wochen/15.811.200 künstliche Readcounter in beobachteten1206ms; kein Pi-/ARM-Beweis. Simulierte Tages-/mobile Jahreslinien, dunkles Hausjahr, größere Richtungsanzeige und volle Settingsbreite visuell geprüft. Screenshot23:30 gehört noch zum bisherigen Produktivstand; neue Korrektur noch nicht installiert. Keine Agent-Produktionsaktion; aktuellen finalen Freigabestand in PR#61 prüfen.
