@@ -106,7 +106,7 @@ final class EnvSettingsStore
             $opened = fstat($stream); $current = self::stat($path);
             if (!self::regular($opened) || !self::regular($current) || !self::same($opened, $current) ||
                 ($before !== false && !self::same($before, $opened)) ||
-                $opened['uid'] !== posix_geteuid() || !@fchmod($stream, 0600)) { self::fail(); }
+                $opened['uid'] !== posix_geteuid() || !@chmod($path, 0600)) { self::fail(); }
             $deadline = hrtime(true) + self::LOCK_NS;
             do {
                 if (@flock($stream, LOCK_EX | LOCK_NB)) { return $stream; }
@@ -249,7 +249,7 @@ final class EnvSettingsStore
             try { $stream = @fopen($temp, 'x+b'); } finally { umask($old); }
             if ($stream === false) { self::fail(); }
             try {
-                if (!@fchmod($stream, 0600)) { self::fail(); }
+                if (!@chmod($temp, 0600)) { self::fail(); }
                 $offset = 0;
                 while ($offset < strlen($next)) {
                     $written = @fwrite($stream, substr($next, $offset));

@@ -9,6 +9,11 @@ use EvseOverlay\EnvSettingsCatalog;
 use EvseOverlay\EnvSettingsStore;
 
 $checks = 0;
+set_exception_handler(static function (Throwable $error): void {
+    global $checks;
+    fwrite(STDERR, 'Env settings failure after check ' . $checks . ': ' . get_class($error) . ' at line ' . $error->getLine() . PHP_EOL);
+    exit(1);
+});
 function envCheck(bool $condition): void
 {
     global $checks;
