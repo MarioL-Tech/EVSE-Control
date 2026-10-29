@@ -159,7 +159,7 @@ test('archive remains independent of raw/live buffer, has copy ownership and pre
   first.buckets.length = 0; assert.equal(store.size, 1);
   store.clear(); assert.equal(store.snapshot(), null); assert.equal(store.size, 0);
 });
-test('explicitly rebuilt zero-coverage summaries replace cached dots with lines, but retain a real gap', () => {
+test('existing aggregates draw lines without rebuilding zero-coverage data; missing intervals remain gaps', () => {
   const b = fixture(), start = calendar.utc(b.range.from), store = calendar.createArchiveStore();
   b.buckets = Array.from({ length: 5 }, (_, i) => {
     const bin = { from: new Date(start + i * 300000).toISOString(), to: new Date(start + (i + 1) * 300000).toISOString(),
@@ -170,14 +170,19 @@ test('explicitly rebuilt zero-coverage summaries replace cached dots with lines,
   });
   const group = charts.GROUPS.find(g => g.id === 'voltage');
   const plot = () => calendar.buildSummaryPlot(store.view(), group, charts.defaults().selected, charts).paths[0].path;
-  assert(store.importHistory(b, now)); assert(!plot().includes('L'));
+  b.buckets[2].samples = 0; b.buckets[2].metrics = metrics(0);
+  assert(store.importHistory(b, now));
+  assert.equal((plot().match(/L/g) || []).length, 2);
+  assert.equal((plot().match(/M/g) || []).length, 2);
+  assert.equal(store.view().buckets[0].coverage_seconds, 0);
+  assert.match(calendar.buildSummaryPlot(store.view(), group, charts.defaults().selected, charts).paths[0].labelAt(0), /Lücken/);
   const revision = store.revision;
-  // Only an independently rebuilt API response changes this evidence. The
-  // browser must neither reinterpret the old flags nor retain the stale path.
+  // Metadata updates cannot make these same aggregate values flash back
+  // into isolated dots; no DB refresh or quality rewrite is required.
   for (const [i, bin] of b.buckets.entries()) if (i !== 2) { bin.has_gap = false; bin.coverage_seconds = 300; }
   assert(store.importHistory(b, now)); assert.equal(store.revision, revision + 1);
   assert.equal((plot().match(/L/g) || []).length, 2);
-  assert.equal((plot().match(/M/g) || []).length, 3);
+  assert.equal((plot().match(/M/g) || []).length, 2);
   assert.equal(store.view().buckets[2].has_gap, true);
 });
 test('immutable render views and unchanged data revisions avoid archive copies and duplicate rebuilding', () => {
@@ -355,11 +360,28 @@ test('hour/day/week draw only mean/last centre lines, with live-style steps and 
     assert.equal(summary(b, 'charging').path, '', 'Unrelated NULL has no global effect');
   }
 });
-test('short-period own NULL, empty, missing, offline/clock/lifecycle gaps and incomplete bins stay disconnected', () => {
+test('119 measurements in four pending minutes already form aggregate lines and do not flash with quality updates', () => {
+  for (const period of ['hour', 'day', 'week']) {
+    const b = hourSeries(period); b.buckets = b.buckets.slice(0, 4);
+    for (const [i, bin] of b.buckets.entries()) {
+      bin.samples = i === 2 ? 29 : 30; bin.metrics = metrics(bin.samples);
+      bin.coverage_seconds = 0; // Keep the original quality metadata.
+      Object.assign(bin.metrics.voltage_l1_v, { mean: 230 + i, min: 229 + i, max: 232 + i, last: 230 + i });
+      bin.metrics.charging = { count: 0, nulls: bin.samples, mean: null, min: null, max: null, last: null, mixed: false };
+    }
+    assert.equal(b.buckets.reduce((n, bin) => n + bin.samples, 0), 119);
+    const path = summary(b, 'voltage_l1_v').path;
+    assert.equal((path.match(/M/g) || []).length, 1);
+    assert.equal((path.match(/L/g) || []).length, 3);
+    assert.equal((summary(b, 'active_power_w').path.match(/L/g) || []).length, 3, 'Real zero means remain a line');
+    assert.equal(summary(b, 'charging').path, '', 'Unknown charging never becomes false');
+    for (const bin of b.buckets) { bin.has_gap = false; bin.complete = true; bin.coverage_seconds = 60; }
+    assert.equal(summary(b, 'voltage_l1_v').path, path);
+  }
+});
+test('short-period field-local NULL, empty and missing intervals stay disconnected', () => {
   for (const change of [
     b => { b.buckets[20].metrics.active_power_w.nulls = 1; b.buckets[20].metrics.active_power_w.count = 29; },
-    b => { b.buckets[20].has_gap = true; },
-    b => { b.buckets[20].complete = false; },
     b => { b.buckets[20].samples = 0; b.buckets[20].metrics = metrics(0); },
     b => { b.buckets.splice(20, 1); }
   ]) {

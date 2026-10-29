@@ -5,6 +5,14 @@ und benutzerdefinierte Enden nach jetzt sind400, Next am aktuellen Zeitraum null
 Bei laufenden Kalenderperioden werden nur schon abgeschlossene Summaries bis
 jetzt abgefragt, nicht deren zukünftiger Rest. Prüf-/Freigabestand: PR#58.
 
+Stunde/Tag/Woche zeigen eine Linie durch vorhandene benachbarte Aggregatmittel,
+nicht die Zusicherung einer unterbrechungsfreien Rohmessung. Übergeordnete
+Coverage-/Verarbeitungsflags bleiben erhalten und machen solche Mittelwerte
+nicht mehr automatisch zu isolierten Punkten. Fehlende/leere Intervalle und
+feldlokale NULL bleiben Trennungen; Livefrische und Raw-/Minuten-Kurvenregeln
+sowie die konservativen Min/Max-Spannen längerer Zeiträume ändern sich nicht.
+Weder DB-Neuberechnung noch Aufzeichnungsänderung dafür erforderlich.
+
 Erweiterung PR #57 (Docker-geprüft, Pi-Minutenabnahme offen): Minutenmittel im bestehenden Storage,
 neue unabhängige Minutenregistry/-records und Schema-3-Kurzfenster mit expliziter
 Intervallevidenz. Alte Raw-/HOUSE-Tabellen werden nicht umgedeutet. Vertrag und

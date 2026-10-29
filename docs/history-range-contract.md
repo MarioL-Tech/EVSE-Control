@@ -135,6 +135,18 @@ werden nicht nachträglich vom Browser umgedeutet; gezielter optionaler
 Session-Resets bleiben sichtbar/erklärbar, nicht künstlich konstante Kurven.
 Stunden-/Tagkombination verwendet Summen/Counts statt Mittelwerte von Mittelwerten.
 
+**Darstellung in Stunde/Tag/Woche:** Linien verbinden vorhandene benachbarte
+Intervallmittel bzw zulässige letzte Werte. Dies ist eine Interpolation von
+Aggregaten, kein Nachweis durchgehend verfügbarer Rohmessungen. Die übergeordneten
+Qualitätsflags `has_gap`, `coverage_seconds` und `complete` bleiben unverändert
+in API und Inspektionslabels, isolieren aber nicht jeden bekannten Aggregatwert
+während eines Verarbeitungsnachlaufs. Fehlende/leere Intervalle, feldlokale NULL,
+unbekannte letzte Werte und gemischte kategoriale Zustände trennen weiterhin.
+Für Bool-/Code-Stufen bleiben auch die bisherigen globalen Qualitätsbarrieren
+erforderlich; eine unsichere Aggregatperiode wird nicht als konstanter Zustand ausgegeben.
+Live-/Rohkurven behalten ihre10s-/Lifecycle-Regeln; die konservativen Langzeit-
+Min/Max-Spannen bleiben davon getrennt. Keine Neuverdichtung als Voraussetzung.
+
 Die PHP-Projektion erhält diese Trennung: unabhängige NULL-Metriken dürfen
 `has_gap` nicht global verschärfen. Eine schlechte Readkante, die ausschließlich
 vor dem halb offenen Bucket liegt und genau an dessen Anfang endet, belegt dort

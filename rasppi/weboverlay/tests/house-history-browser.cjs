@@ -21,8 +21,9 @@ function year(query) {
       navigation: { previous: null, next: null, now: { period: 'week', date: 'now', tz: 'Europe/Vienna' } },
       aggregation: 'sample_mean', complete: true, progress: { samples_done: true, events_done: true },
       buckets: Array.from({ length: count }, (_, i) => ({ from: iso(start + i * 3600000), to: iso(start + (i + 1) * 3600000),
-        samples: 30, has_gap: i === 84, complete: true, coverage_seconds: 3600,
-        metrics: { power_w: { count: 30, nulls: 0, mean: (i % 9 - 4) * 125, min: -1000, max: 1000, last: 0, mixed: false } } })) };
+        samples: 30, has_gap: true, complete: false, coverage_seconds: 0,
+        metrics: { power_w: { count: i === 84 ? 29 : 30, nulls: i === 84 ? 1 : 0,
+          mean: (i % 9 - 4) * 125, min: -1000, max: 1000, last: 0, mixed: false } } })) };
   }
   const requestedDate = query.get('date'), at = query.get('at');
   const date = /^\d{4}$/.test(requestedDate) ? requestedDate

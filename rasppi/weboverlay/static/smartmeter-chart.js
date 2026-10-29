@@ -106,8 +106,8 @@
     };
     for (const b of bins) {
       const m = b.metrics.power_w, a = timestamp(b.from), z = timestamp(b.to), mid = (a + z) / 2;
-      const proven = b.complete && !b.has_gap && !m.nulls && !m.mixed &&
-        b.coverage_seconds >= (z - a) / 1000 && m.last !== null;
+      const proven = !m.nulls && !m.mixed && m.last !== null && (lineMode ||
+        b.complete && !b.has_gap && b.coverage_seconds >= (z - a) / 1000);
       if (!m.count || m.mean === null) { finish(); continue; }
       count += m.count;
       const point = { proven, from: a, to: z, mid, mean: m.mean, min: m.min, max: m.max };
