@@ -253,7 +253,7 @@ const { FIELDS } = require('../static/newcalendar.js');
     assert.equal(await page.locator('#chart-diagnostics-grid svg > *').count(), 0, 'Closed diagnostics have not been drawn');
     await page.locator('#chart-power svg').focus();
     await page.keyboard.press('End');
-    assert.match(await page.locator('#chart-power svg > title').innerText(), /30 Werte/);
+    assert.match(await page.locator('#chart-power svg > title').textContent(), /30 Werte/);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.evaluate(() => window.dispatchEvent(new Event('resize')));
     await page.clock.runFor(32);

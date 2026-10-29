@@ -212,7 +212,7 @@ function clean(run) {
     const url = new URL(request.url);
     assert.equal(url.origin, new URL(base).origin, 'No external resources');
     if (url.pathname === '/api/history') assert.equal(url.search, '?minutes=15');
-    assert(routes.includes(url.pathname) || ['/api/state', '/api/smartmeter', '/api/history'].includes(url.pathname)
+    assert(routes.includes(url.pathname) || ['/api/state', '/api/smartmeter', '/api/history', '/api/house-history'].includes(url.pathname)
       || url.pathname.startsWith('/static/') || ['/favicon.ico', '/manifest.webmanifest', '/service-worker.js'].includes(url.pathname), request.url);
   }
 }

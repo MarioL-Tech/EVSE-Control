@@ -218,7 +218,10 @@
     if (history.revision !== revision) schedule();
   };
   root.OverlayHouseChart = api;
-  for (const control of [range, mode, checkbox]) control?.addEventListener('change', schedule);
+  // Explicit user choices apply immediately; only automatic updates are
+  // frame-coalesced. Do not show an old curve under a newly selected period.
+  for (const control of [range, checkbox]) control?.addEventListener('change', () => draw());
+  mode?.addEventListener('change', schedule);
   root.addEventListener('evse:calendar-change', event => {
     selection = event.detail?.selection || null; selectedRange = event.detail?.range || null;
     // A range update for the same query must not restart an in-flight request.
@@ -228,7 +231,7 @@
       if (!loader?.select(selection)) loader?.suspend();
       loader?.tick();
     }
-    schedule();
+    draw();
   });
   document.addEventListener('visibilitychange', () => { history.gap(); loader?.setVisible(!document.hidden); loader?.tick(); schedule(); });
   root.addEventListener('pagehide', () => { history.gap(); loader?.setVisible(false); });
