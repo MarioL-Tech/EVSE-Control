@@ -10,7 +10,7 @@ Aktueller Folgeauftrag (2026-10-29): Archivdiagramme wegen hoher Renderlast und
 weiterhin unbefriedigender Darstellung erneut überarbeiten; Haus-Netzleistung
 nun ausdrücklich dauerhaft speichern und in Stunde/Tag/weiteren Kalenderansichten
 anzeigen, oberhalb von „Diagnose“. Hausarchivierung ist als opt-in implementiert,
-für Quellstand 3f3257f Docker-abgenommen, Pi-Abnahme offen; bisheriger Live-RAM-Verlauf allein ist
+für Quellstand 9aea000 Docker-abgenommen, Pi-Abnahme offen; bisheriger Live-RAM-Verlauf allein ist
 kein SQL-Hausarchiv. Vorgabe zusätzlich: belegte Datenpunkte als Linien verbinden.
 Website bleibt SELECT-only, vorhandene Raw-/Preis-/Providerdaten erhalten,
 keine Produktionsmigration durch Agent. Main-Build 40782985667 scheiterte nach
@@ -53,13 +53,16 @@ vorhandene Minutenbuckets eines expliziten UTC-Bereichs (max. Kalenderjahr) in
 automatischer Refresh beim Start; regulärer Worker verdichtet anschließend.
 Vertrag `docs/house-history-contract.md`, vollständige Einrichtung zentral in
 `docs/installation.md`. Neue Docker-/SQL-/Publisher-/Browser-/E2E-Tests bestanden
-für 3f3257f: Web 40870615802 und 40870609085, Storage-Matrix 40870615878 (MariaDB
+für 9aea000: Web 40872083844 und 40872078880, Storage-Matrix 40872083855/40872078806 (MariaDB
 10.11, exakt 11.8.8 und rollendes 11.8). Acht Browsersuiten einschließlich PWA und
 unabhängigem Hausarchiv, echter PHP→MQTT→Python→SQL-Pfad mit laufender Aufnahme,
 SELECT-only-/Checksum-/Pending-/Dedupe-/Frische-/Lifecycle-/Gap-/DOM-Budgetfällen.
-Simulierte 320-/1440-px-Hausjahresbilder in Hell/Dunkel angesehen; erstes mobiles
-Fullpagebild nach Resize zu früh gemessen, reine Capturefixture wartet deshalb
-zusätzlich zwei RAFs. Diesen letzten Prüf-/Bildstand über PR #54 kontrollieren.
+Simulierte 320-/1440-px-Hausjahresbilder in Hell/Dunkel aus 40872083844 vollständig
+angesehen: kein unterer Bildabschnitt mehr abgeschnitten, stabile Themes,
+verbundene signierte Stresskurve mit echter Unterbrechung oberhalb Diagnose.
+Der bestehende Schema-1-Beispieldump enthält keine optionalen Archive;
+Installationsguide verlangt deren Tabellen ausdrücklich im privaten Backup.
+Aktuellen Freigabehead über PR #54 kontrollieren; Merge durch Projektinhaber.
 Keine lokalen Hosttests und kein Pi-/ARM-/Dauerbetriebsnachweis oder Deployment.
 
 EVSE-Control ist eine Diplomarbeit zur Steuerung und Überwachung einer

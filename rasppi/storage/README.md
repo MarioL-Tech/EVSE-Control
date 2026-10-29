@@ -69,7 +69,7 @@ docker compose logs --tail 50 storage
 
 ### Zusätzlich unabhängiges HOUSE-Archiv
 
-Neu implementiert, Quellstand 3f3257f Docker-geprüft, Pi-Abnahme offen:
+Neu implementiert, Quellstand 9aea000 Docker-geprüft, Pi-Abnahme offen:
 Profil `house-history` ergänzt
 `house-storage` im bestehenden Compose. Es abonniert eigene Haus-Topics am
 vorhandenen Broker; der separate PHP-Publisher im Website-Compose liest dieselbe

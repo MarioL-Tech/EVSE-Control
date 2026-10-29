@@ -1609,7 +1609,7 @@ HOUSE-PHP/JS-/acht Browsersuiten und drei MariaDB-Matrixversionen bleiben erhalt
 
 ### Haus-Netzleistung dauerhaft aufzeichnen (separates HOUSE-Schema)
 
-**Neue optionale Implementierung; Quellstand 3f3257f Docker-geprüft, aktuellen
+**Neue optionale Implementierung; Quellstand 9aea000 Docker-geprüft, aktuellen
 Freigabehead über PR #54 prüfen. Pi-Abnahme offen, nicht bereits aktiviert.**
 Sie verwendet dieselbe bestehende MariaDB und denselben Broker,
 aber eigene Topics, Client-IDs und fünf additive `evse_house_*`-Tabellen. Keine
@@ -1727,6 +1727,16 @@ echte 0 ist gültig. Keine Verbrauchsenergie aus Leistungs-Mittelwerten behaupte
 Materialisierte Jahresdaten vermeiden Jahres-Rohscans. Rawdaten und Verdichtungen
 werden ohne automatische Löschfrist gespeichert. Quellenwechsel nicht still unter
 demselben Präfix zusammenführen. Details: [HOUSE-Vertrag](house-history-contract.md).
+
+**Sicherung nach HOUSE-Aktivierung:** Der spätere Schema-1-Beispieldump mit drei
+EVSE-Tabellen enthält noch keine Hausdaten. Im bestehenden privaten Backupablauf
+zusätzlich `evse_house_schema_versions`, `evse_house_samples`, `evse_house_events`,
+`evse_house_buckets` und `evse_house_work` in denselben konsistenten Dump aufnehmen;
+bei aktivem Wallboxschema 2 auch dessen drei `evse_history_*`-Tabellen erhalten.
+Ein bereits schemaweiter Dump schließt diese Tabellen automatisch ein. Nicht
+existierende optionale Tabellen nicht blind an den Schema-1-Befehl anhängen.
+Dump privat aufbewahren, Kopie verifizieren und Restore ausschließlich in einem
+isolierten Wegwerfserver testen; keine Produktionswiederherstellung oder Löschung.
 
 ### Kalender-/Jahresverlauf zusätzlich einrichten (optionales Schema 2)
 

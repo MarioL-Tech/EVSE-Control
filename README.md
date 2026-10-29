@@ -19,7 +19,7 @@ Oberflächenüberarbeitung verlagert Datenstatus nach unten, bietet Kurvenauswah
 direkt am Diagramm und einen gesonderten Haus-Liveverlauf. Neu implementiertes
 opt-in ergänzt ein dauerhaftes Haus-SQL-Archiv im bestehenden MariaDB-System,
 verbundene belegte Mittelwertlinien und begrenztes SVG-Rendering. Quellstand
-3f3257f Docker-geprüft; aktuellen Freigabehead über PR #54 prüfen. Pi-Abnahme
+9aea000 Docker-geprüft; aktuellen Freigabehead über PR #54 prüfen. Pi-Abnahme
 offen; explizite additive Aktivierung erforderlich.
 Docker-CI 40777926455/40777919496 für 296074c ist erfolgreich; Pi-Prüfung steht
 noch aus, aktuellen Freigabestand über PR #52 prüfen. Der Fahrzeuganschluss-Fix

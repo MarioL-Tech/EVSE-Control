@@ -1,6 +1,6 @@
 # Haus-Netzleistung: persistente Historie (implementiert, opt-in)
 
-Auftrag 2026-10-29. Quellstand 3f3257f Docker-geprüft, aktuellen Freigabestand
+Auftrag 2026-10-29. Quellstand 9aea000 Docker-geprüft, aktuellen Freigabestand
 über PR #54 prüfen. Noch keine produktive Migration/Aktivierung.
 Vorhandene MariaDB weiterverwenden; Preis-, Provider-, Wallbox- und Rawdaten
 niemals löschen/umschreiben. Website bleibt SELECT-only. Nur vorwärts ab
