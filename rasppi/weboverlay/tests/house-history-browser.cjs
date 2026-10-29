@@ -13,6 +13,17 @@ function raw(now) {
       break_before: true })) };
 }
 function year(query) {
+  if (query.get('period') === 'week') {
+    const start = Date.parse('2024-01-01T00:00:00Z'), count = 168;
+    return { schema_version: 2, read_only: true, status: 'ok', reason: 'Hausverlauf', generated_at: iso(Date.now()),
+      range: { from: iso(start), to: iso(start + count * 3600000), timezone: 'Europe/Vienna' },
+      selection: { period: 'week', date: !query.get('date') || query.get('date') === 'now' ? '2024-W01' : query.get('date'), timezone: 'Europe/Vienna' },
+      navigation: { previous: null, next: null, now: { period: 'week', date: 'now', tz: 'Europe/Vienna' } },
+      aggregation: 'sample_mean', complete: true, progress: { samples_done: true, events_done: true },
+      buckets: Array.from({ length: count }, (_, i) => ({ from: iso(start + i * 3600000), to: iso(start + (i + 1) * 3600000),
+        samples: 30, has_gap: i === 84, complete: true, coverage_seconds: 3600,
+        metrics: { power_w: { count: 30, nulls: 0, mean: (i % 9 - 4) * 125, min: -1000, max: 1000, last: 0, mixed: false } } })) };
+  }
   const requestedDate = query.get('date'), at = query.get('at');
   const date = /^\d{4}$/.test(requestedDate) ? requestedDate
     : new Intl.DateTimeFormat('en', { timeZone: 'Europe/Vienna', year: 'numeric' }).format(at ? new Date(at) : new Date());
@@ -118,6 +129,27 @@ function year(query) {
     const yearPath = await curve.getAttribute('d');
     assert(yearPath.includes('L'), 'Daily means are connected as a line, not isolated ticks');
     assert.equal((yearPath.match(/M/g) || []).length, 3, 'One uncertain bucket separates the two continuous runs');
+
+    await page.locator('[data-calendar-period="week"]').click();
+    await page.waitForFunction(() => document.getElementById('house-chart-description')?.textContent.startsWith('5040 Messpunkte'));
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const d = await curve.getAttribute('d');
+      assert.equal((d.match(/M/g) || []).length, 3, 'Real gap isolates the uncertain mean');
+      assert.equal((d.match(/L/g) || []).length, 165, 'Varying signed means connect across healthy hourly intervals');
+      assert(!/[HVZ]/.test(d));
+      assert.equal(await page.locator('#house-chart-svg [data-house-band]').count(), 0);
+      assert((await page.locator('#house-chart-svg [data-house-markers]').getAttribute('d')).includes('a2,2'));
+      assert.equal(await curve.evaluate(el => getComputedStyle(el).strokeWidth), '2px');
+      assert(await page.locator('#house-chart-svg *').count() < 15);
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      fs.mkdirSync('/artifacts', { recursive: true });
+      await page.screenshot({ path: `/artifacts/house-week-line-${width}.png`, fullPage: true, animations: 'disabled' });
+    }
+    await page.locator('[data-calendar-period="year"]').click();
+    await page.locator('#calendar-date').fill('2024'); await page.locator('#calendar-date').dispatchEvent('change');
+    await page.waitForFunction(() => !!document.querySelector('#house-chart-svg [data-house-band]'));
 
     let ready;
     const readyPromise = new Promise(resolve => { ready = resolve; });

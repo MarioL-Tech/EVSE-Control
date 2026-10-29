@@ -184,11 +184,12 @@ betrifft nur den Websiteport. Reader, UART-Brücke und Speichercollector bleiben
 
 **Übersicht** zeigt aktuelle Werte; **Diagramme** ist eine eigene Seite
 (`/diagramme`). Default: bis zu 15 Minuten seit Öffnen der Diagrammseite im RAM;
-optional lädt SQL diese Rohhistorie nach Neuladen nach. Zusätzlich implementiert:
+optional lädt SQL gespeicherte Rohdaten oder explizite Minutenprodukte nach Neuladen nach. Zusätzlich implementiert:
 Kalenderarchiv für Stunde, Tag, ISO-Woche,
 Monat, Jahr und eigenen Zeitraum bis ein Jahr, mit additiver Speicherverdichtung.
-„Anzeige auswählen“ gilt auf beiden Seiten; nur Präferenzen werden lokal gespeichert.
-Docker-CI 40678971209 erfolgreich; Kalender auf dem Pi noch nicht aktiviert.
+Kurvenauswahl gilt nur auf der Diagrammseite; Übersichtswerte bleiben unabhängig.
+Nur Präferenzen werden lokal gespeichert. Codehead979b148 besteht Web40927845891
+und Storage40927845966; neue Minuten-/Retention-Pi-Abnahme offen.
 
 Das Theme folgt Entwurf Nr. 8 „Compact / Dense“: dunkle Graphitflächen, feine
 blau-graue Rahmen, dezente Verläufe/Schatten, cyanfarbene Leistung und gefüllte
@@ -196,10 +197,16 @@ mintfarbene Live-Badges. Hell entsprechend neutral-kühl; Design-CI 40499228102
 für acce554 erfolgreich, simulierte Desktop-/Mobilansichten geprüft.
 Das bestehende Layout bleibt unverändert. **Schiebeschalter links unten** mit
 Sonne/Mond wechselt Hell/Dunkel. **Settings mit Zahnrad** steht links unter
-„Diagramme“ und öffnet die Platzhalterseite `/einstellungen`.
+„Diagramme“ und öffnet `/einstellungen` mit dem standardmäßig deaktivierten
+Env-Dateieditor (PR #57, Docker-geprüft; produktive Freigabe offen).
 Dort stellt „Systemdarstellung verwenden“ die automatische Browserpräferenz wieder her.
-Geplant ist die zentrale Verwaltung aller bisherigen `.env`-Projektkonfigurationen
-unter Settings; geschützte Administration ist noch nicht implementiert.
+Echte Env-Dateibearbeitung ist beauftragt; der Editor erhält validierte
+dienstbezogene Felder einschließlich Aufbewahrungsfristen. Admin-Login erst nach
+neuer Freigabe, aktuell keine produktive Schreibfreigabe. Speichern allein
+verändert noch keine laufenden Container. SQL-/Messdatenzugriff bleibt lesend.
+Neue optionale Minutenmittelaufzeichnung bei weiterhin zwei Sekunden Live und
+begrenzte, ausdrücklich konfigurierte EVSE-Bereinigung siehe
+[Installationsguide](docs/installation.md#minutenaufzeichnung-und-aufbewahrung).
 Die Theme-Wahl bleibt browserlokal, ohne Messwerte oder Zugangsdaten.
 Die Vorlagen bestimmen nur den Stil, nicht Inhalt oder Anordnung der Website.
 

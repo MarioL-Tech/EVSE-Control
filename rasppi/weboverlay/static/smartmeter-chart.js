@@ -1,6 +1,7 @@
 (function (root) {
   'use strict';
   const RETENTION_MS = 900000, MAX_POINTS = 1200, MAX_GAP_MS = 10000;
+  const houseHistory = root.OverlayHouseHistory || (typeof require === 'function' ? require('./house-history.js') : null);
   function timestamp(value) {
     if (typeof value !== 'string' || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?(?:Z|\+00:00)$/.test(value)) return NaN;
     const ms = Date.parse(value);
@@ -59,7 +60,9 @@
     for (const p of points) {
       if (!isValid(p)) { if (segmentLength === 1) markers.push(last); previous = null; segmentLength = 0; continue; }
       const px = x(p.t).toFixed(2), py = y(p.power_w / 1000).toFixed(2);
-      const connect = previous && !p.breakBefore && p.t > previous.t && p.t - previous.t <= MAX_GAP_MS;
+      const connect = previous && !p.breakBefore && !p.seriesBreak && !previous.seriesBreak && p.t > previous.t &&
+        (p.recordType === 'minute') === (previous.recordType === 'minute') &&
+        (p.recordType === 'minute' ? houseHistory?.minuteAdjacent(previous, p) : p.t - previous.t <= MAX_GAP_MS);
       if (!connect) { if (segmentLength === 1) markers.push(last); segmentLength = 1; }
       else segmentLength++;
       path += `${connect ? 'L' : 'M'}${px},${py}`;
@@ -69,6 +72,7 @@
     return { path, markers, lo, hi, zeroY: y(0), count: valid.length };
   }
   function buildArchivePlot(batch, geometry = { width: 500, height: 225, left: 62, right: 482, top: 25, bottom: 180 }) {
+    const lineMode = ['hour', 'day', 'week'].includes(batch.selection.period), markers = [];
     const bins = batch.buckets, start = timestamp(batch.range.from), end = timestamp(batch.range.to);
     const bounds = bins.flatMap(b => [b.metrics.power_w.min, b.metrics.power_w.max])
       .filter(v => typeof v === 'number' && Number.isFinite(v));
@@ -78,6 +82,11 @@
     const coord = (t, v) => `${x(t).toFixed(2)},${y(v).toFixed(2)}`;
     let path = '', band = '', count = 0, run = [];
     const local = point => {
+      if (lineMode) {
+        path += `M${coord(point.mid, point.mean)}`;
+        markers.push({ x: x(point.mid).toFixed(2), y: y(point.mean).toFixed(2) });
+        return;
+      }
       const half = Math.max(.75, Math.min(4, (x(point.to) - x(point.from)) * .35));
       const middle = x(point.mid), py = y(point.mean).toFixed(2);
       path += `M${(middle - half).toFixed(2)},${py}H${(middle + half).toFixed(2)}`;
@@ -91,7 +100,7 @@
       if (run.length === 1) local(run[0]);
       else {
         path += `M${run.map(p => coord(p.mid, p.mean)).join('L')}`;
-        band += `M${run.map(p => coord(p.mid, p.min)).join('L')}L${run.slice().reverse().map(p => coord(p.mid, p.max)).join('L')}Z`;
+        if (!lineMode) band += `M${run.map(p => coord(p.mid, p.min)).join('L')}L${run.slice().reverse().map(p => coord(p.mid, p.max)).join('L')}Z`;
       }
       run = [];
     };
@@ -107,7 +116,7 @@
       run.push(point);
     }
     finish();
-    return { ...scale, path, band, markers: [], count };
+    return { ...scale, path, band, markers, count };
   }
   function historyDescription({ status, archive, count, complete, hasSnapshot, checked }) {
     const label = archive ? 'Hausarchiv' : 'SQL-Hausverlauf';

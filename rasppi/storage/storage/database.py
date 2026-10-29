@@ -59,6 +59,9 @@ class Database:
             from .history import verify_history_shape
             verify_history_shape(self)
             self.connection.commit()
+        from .minutes import verify
+        verify(self, self.config.recording_mode == 'minute')
+        self.connection.commit()
 
     def verify_shape(self, names=None, tables=None):
         # IF NOT EXISTS alone must not bless a foreign/incomplete table. In

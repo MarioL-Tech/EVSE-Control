@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal, localcontext
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import time
@@ -376,6 +377,8 @@ class HistoryWorker:
     def __init__(self, db):
         self.db = db
         self.source = db.config.prefix
+        from .retention import Policy
+        self.retention = Policy(os.environ)
         self.lock = "evse-history-" + hashlib.sha256(
             db.config.db_name.encode() + b"\0" + self.source.encode()).hexdigest()[:48]
 
@@ -477,6 +480,10 @@ class HistoryWorker:
         connection.commit()
 
     def raw_minute(self, c, start):
+        from .minutes import captured
+        capture = captured(self.db, c, 'wallbox', self.source, start)
+        if capture is not None:
+            return capture
         end = shifted(start, 60)
         c.execute("SELECT id,measured_at,received_at,status,retained," + ",".join(FIELDS) +
                   " FROM evse_wallbox_samples WHERE source=%s AND measured_at>=%s AND measured_at<%s "
@@ -514,6 +521,21 @@ class HistoryWorker:
                 seconds, start, generation = work["resolution_seconds"], work["bucket_start"], work["generation"]
                 if seconds not in RESOLUTIONS:
                     raise ValueError("Invalid work resolution")
+                action = self.retention.action('wallbox', seconds, start)
+                if action != 'recompute':
+                    c.execute('SELECT generation FROM evse_history_work WHERE source=%s AND resolution_seconds=%s AND bucket_start=%s FOR UPDATE',
+                              (self.source, seconds, start))
+                    current = c.fetchone()
+                    if current is None or current['generation'] != generation:
+                        connection.rollback()
+                        return True
+                    if action == 'expire':
+                        c.execute('DELETE FROM evse_history_buckets WHERE source=%s AND resolution_seconds=%s AND bucket_start=%s LIMIT 1',
+                                  (self.source, seconds, start))
+                    c.execute('UPDATE evse_history_work SET done_generation=%s,pending=0 WHERE source=%s AND resolution_seconds=%s AND bucket_start=%s AND generation=%s',
+                              (generation, self.source, seconds, start, generation))
+                    connection.commit()
+                    return True  # Never dirty retained parents from expired children.
                 if seconds == 60:
                     result = self.raw_minute(c, start)
                 else:
@@ -540,7 +562,8 @@ class HistoryWorker:
                 # generation with a current locking read just before publication.
                 c.execute("SELECT generation FROM evse_history_work WHERE source=%s AND resolution_seconds=%s AND bucket_start=%s FOR UPDATE",
                           (self.source, seconds, start))
-                if c.fetchone()["generation"] != generation:
+                current = c.fetchone()
+                if current is None or current["generation"] != generation:
                     connection.rollback()
                     return True
                 c.execute("INSERT INTO evse_history_buckets (source,resolution_seconds,bucket_start,data_json,updated_at) "

@@ -49,6 +49,11 @@ class Config:
     mqtt_password: str = field(default="", repr=False)
     queue_size: int = 256
     timeout: int = 3
+    recording_mode: str = 'raw'
+
+    def __post_init__(self):
+        if self.recording_mode not in ('raw', 'minute'):
+            raise ValueError('Invalid STORAGE_RECORDING_MODE')
 
     @classmethod
     def from_environment(cls, env=None):
@@ -70,4 +75,5 @@ class Config:
                    number(env, "DB_PORT", 3306, 1, 65535), mqtt_host,
                    number(env, "MQTT_PORT", 1883, 1, 65535), prefix, cid,
                    mqtt_user, password, number(env, "STORAGE_QUEUE_SIZE", 256, 8, 4096),
-                   number(env, "DB_TIMEOUT_SECONDS", 3, 1, 10))
+                   number(env, "DB_TIMEOUT_SECONDS", 3, 1, 10),
+                   env.get('STORAGE_RECORDING_MODE', 'raw'))

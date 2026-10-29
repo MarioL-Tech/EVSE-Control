@@ -1,5 +1,10 @@
 # Haus-Netzleistung: persistente Historie (implementiert, opt-in)
 
+Neue Erweiterung PR #57 (Abnahme offen): Minutenmittel im bestehenden Storage,
+neue unabhängige Minutenregistry/-records und Schema-3-Kurzfenster mit expliziter
+Intervallevidenz. Alte Raw-/HOUSE-Tabellen werden nicht umgedeutet. Vertrag und
+konfigurierbare Aufbewahrung siehe [minute-recording.md](minute-recording.md).
+
 Auftrag 2026-10-29, anschließend ausdrücklich vereinfacht: Hausarchivierung im
 bestehenden Storageprozess statt eigener Publisher-/Collectorcontainer.
 Aktueller Freigabehead und neue Docker-Prüfnachweise: PR #55.

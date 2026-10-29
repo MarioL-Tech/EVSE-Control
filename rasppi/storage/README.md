@@ -25,6 +25,34 @@ docker compose logs --tail 50 storage
 
 ## Vertrag und Grenzen
 
+### Neue Minutenaufzeichnung (PR #57, Docker-geprüft; Pi-Abnahme offen)
+
+`STORAGE_RECORDING_MODE=minute` speichert je Quelle/UTC-Minute einen begrenzten
+Minutenrecord statt jedes Zwei-Sekunden-Rohsamples. Mittelwerte nur für W/A/V;
+Zustände, Limits und Sessionzähler nicht mitteln. Neue unabhängige additive
+Migration `--migrate-minutes` ist ausdrücklich nötig, alter Compose-Default raw
+bleibt für bestehende Installationen erhalten. Live und HTTP-/MQTT-Erfassung
+bleiben unverändert schnell. Rawmodus verwendet weiterhin Commit-vor-ACK;
+Minutenmodus quittiert bounded RAM-Aufnahme; Crash kann offene Minuten samt
+Randkontext verlieren. Codehead979b148 besteht Storage40927845966 auf
+MariaDB10.11/11.8.8/11.8 und Web40927845891 einschließlich echter Schema3-SQL-/HTTP-Prüfungen.
+Minimalrechtekorrektur4a35f26: Storage40929786439 mit181 Tests je Version,
+einschließlich Erst-/Wiederholungsmigration, Publikation und Reconnect ohne UPDATE.
+
+Getrennte `STORAGE_RETENTION_MINUTE_DAYS`, `STORAGE_RETENTION_HOUR_DAYS` und
+`STORAGE_RETENTION_DAY_DAYS`: `0` = unbegrenzt/keine automatische Löschung.
+Minutenfrist umfasst alte Rawdaten/Ereignisse. Bereinigung ausschließlich eigener
+Source/EVSE-Tabellen, höchstens 128 Zeilen je Transaktion, kooperativ 250 ms
+zwischen SQL-Aufrufen; laufende DB-I/O kann bis zur Treiberfrist dauern. Fehlende
+DELETE-Rechte erscheinen als `retention_ready=false`, Aufnahme bleibt unabhängig.
+Preise/Provider bleiben unangetastet. Elternaggregate mit abgelaufenen Kindern
+werden nicht aus leerer Kindermenge überschrieben. Kein automatisches OPTIMIZE.
+Vollständiger Aktivierungs-/Sicherungsablauf zentral im
+[Installationsguide](../../docs/installation.md#minutenaufzeichnung-und-aufbewahrung),
+Vertrag [minute-recording.md](../../docs/minute-recording.md).
+
+Die folgenden Rohdaten-/ACK-Angaben beschreiben den weiter unterstützten Rawmodus:
+
 - `evse_wallbox_samples`: Originalmesszeit und Empfangszeit UTC, erfolgreicher
   Read oder Kommunikationsfehler, unveränderte `null`-Zustände, typisierte Werte
   (A/V/W/Wh), bereinigtes Schema-1-JSON, Herkunft und erstes Retained-Flag.
@@ -49,7 +77,7 @@ docker compose logs --tail 50 storage
   verwirft Zustellungen. Gap-Zähler/Startgrenzen kennzeichnen unbestimmte Abdeckung,
   nicht die exakte Anzahl fehlender Messungen. Queue-Zähler enthalten auch verworfene
   Collector-Ereignisse, Invalid-Zähler nur abgelehnte MQTT-Payloads. Bei Ausfall bleiben Lücken.
-- Keine automatische Löschung, Sessionerkennung oder RFID-/UART-/Zählerdaten.
+- Ohne aktivierte Aufbewahrungsfristen keine automatische Löschung; keine Sessionerkennung oder RFID-/UART-/Zählerdaten.
   Optionale Verdichtung für den getrennten lesenden Website-Kalender siehe unten. Speicherplatz
   und Backups überwachen; default 2 s ergeben etwa 43.200 Samples **plus** wiederholte
   Availability-Beobachtungen pro Tag. Daten wachsen ohne vereinbarte Aufbewahrungsfrist.

@@ -4,6 +4,67 @@ Stand: 2026-10-29. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
+Aktueller Auftrag (2026-10-29, implementiert/Docker-geprüft, Pi-Abnahme offen): Stunde/Tag/Woche sollen
+dieselbe einfache Linienoptik wie Live bekommen. Echte Offline-/NULL-/Clock-/
+Lifecycle-Unterbrechungen bleiben getrennt; Min-Max-Bänder entfallen in diesen
+drei Ansichten. Wallbox- und Hauswerte sollen nur noch minutenweise als
+Stichprobenmittel für W/A/V dauerhaft aufgezeichnet werden; Zustände, Limits und
+Sessionzähler nicht mitteln. Erfassung/Live bleiben bei zwei Sekunden. Neue
+Minutenprodukte brauchen eigene Coverage und explizite additive Migration;
+Bestandsrohdaten/Preise/Provider bleiben unangetastet. RAM-Zwischenpuffer kann
+bei Crash offene Minuten samt Randkontext verlieren, kein Commit-vor-ACK-Versprechen
+für diesen neuen Aufzeichnungsmodus. Legacy-Rawmodus bleibt getrennt.
+Minutenpipeline und quellgebundene Bereinigung implementiert und in isolierten
+Docker-/MariaDB-Tests geprüft. Drei unabhängige Minutentabellen,
+explizites `--migrate-minutes`; bisherige Compose-Deployments bleiben raw bis
+bewusster Umstellung. Minutenworker verwenden validierte Captures statt Raw;
+kurze SQL-Fenster verwenden nach Cutover ausdrücklich Schema3 mit Intervallen,
+Legacyraw bleibt Schema1 und Kalender Schema2. Keine stillen Rohmittelwerte.
+Codehead979b148 besteht Web40927845891/40927833069 und Storage40927845966
+auf10.11/11.8.8/11.8:168 JS-Fälle,182 PHP-Minuten-/209 Envprüfungen,
+zehn neue echte Schema3-SQL-/HTTP-Szenarien,35 Theme-/Settings-Browserfälle
+einschließlich aktiviertem synthetischem Editor sowie bestehende SQL-/TLS-/PWA-/
+Chromium-/Runtimeprüfungen. Simulierte Desktop-/Mobil-Wochenbilder, Hauskurve
+und deaktivierte Settings angesehen. Zusätzlicher finaler Modellreview wegen
+Kontingent nicht gestartet; frühere unabhängige Reviews und Korrekturen erhalten,
+abschließende eigene statische Prüfung ohne weiteren bestätigten Befund.
+Keine Pi-Migration, Retentionlöschung, Schreibmounts oder Produktionsabnahme.
+Abschließender Rechteabgleich fand unnötige No-op-UPDATEs bei Minutenregistry/
+Cutover: unter bestehenden Advisorylocks durch SELECT und gegebenenfalls INSERT
+ersetzt. Neuer echter SQL-Fall mit CREATE/SELECT/INSERT ohne UPDATE prüft explizite
+Migration, Wiederholung, Aufnahme und Reconnect. Storage40929786439 für4a35f26
+bestätigt diesen Fall und insgesamt181 Tests je MariaDB-Version10.11/11.8.8/11.8.
+Frontendcode seit dem vollständig grünen979b148 unverändert; finalen Gesamtstand
+über PR#57 prüfen. Merge ausschließlich beim Projektinhaber.
+Unabhängiger Review fand versteckten Raw-Rückwechsel und fehlende vorangehende
+Lifecycle-Baseline: Rawaufnahme nach Cutover jetzt ablehnen, Worker dürfen mit
+Rawkonfiguration Captures lesen; nachträgliche Offline-/Unknown-Baseline sperrt
+auch immutable Captures. Env-Review: Testfixture-Reihenfolge korrigiert und
+Dateirevision direkt nach fsync vor Rename erneut prüfen. Keine CAS-Zusage für
+fremde Dateieditoren ohne gemeinsamen Lock.
+GitHub-Secretscanningwarnungen1/2 als OpenVSX-Format wurden auf UUID-Beispiele
+in Dokumentation/Minutentest eingegrenzt; Warnung2 direkt mit deterministischer
+Testfixture verglichen, kein echter Zugangsschlüssel. Keine echten `.env`-/
+Secretdateien committed, Warnungen nicht durch Agent geschlossen/Token rotiert.
+Automatische Löschung älterer EVSE-Werte jetzt ausdrücklich autorisiert:
+`STORAGE_RETENTION_MINUTE_DAYS/HOUR_DAYS/DAY_DAYS`, Default0=unbegrenzt. Quellen-
+gebundene begrenzte Löschungen einschließlich Legacyraw/Ereignissen; fremde
+Quellen, Preise und Provider nie anfassen. Gröbere Stufen mindestens so lange
+aufbewahren, Eltern mit abgelaufenen Kindern nicht leer neu verdichten.
+Echte `.env`-Dateibearbeitung im Settingsmenü ist jetzt ausdrücklich beauftragt;
+kein reiner Download/JSON-Entwurf. Admin-Login hingegen ausdrücklich erst nach
+neuer gesonderter Freigabe implementieren, nicht automatisch zum Abschluss.
+Editor standardmäßig deaktiviert, keine produktiven Schreibmounts oder Freigabe
+durch Agent. Dateispeicherung ist nicht Containerneuerstellung; kein Docker-Socket
+oder privilegierter Verwaltungscontainer implizit erlaubt. Nächster gewünschter
+Architekturschritt ist ein gemeinsamer Compose-Einstieg, sodass ein Befehl alle
+Projektdienste baut/startet; weiterhin getrennte Container und bestehender
+externer Broker/MariaDB. Noch nicht umgesetzt.
+Betreiberrückmeldung: Hausarchiv war wegen leerer Storage-`SMARTMETER_URL`
+deaktiviert. Nach Konfiguration meldet dessen Healthdatei alive/database_ready/
+materialization_ready=true, written=6. Belegt gestartete Speicherung, nicht alle
+gültigen Messwerte oder erfolgreiche Pi-Diagramm-/Dauerbetriebsabnahme.
+
 ## Projekt und Ziele
 
 Aktuelle Nachbesserung (2026-10-29): Projektinhaber meldet Website wieder
@@ -280,15 +341,14 @@ Zusätzlich soll das Weboverlay eine **modulare Einrichtungsfunktion mit
 Befehlseingabe für Wallboxbefehle** anbieten. Befehlsformat, Validierung und
 zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
 
-Weitere verbindliche Anforderung vom 2026-10-29: Sämtliche bisher über `.env`
-gesetzten Projektkonfigurationen sollen später zentral unter **Settings**
-verwaltbar sein, nicht nur browserlokale Anzeigepräferenzen. Noch nicht
-implementiert und kein Auftrag, jetzt die readonly Website in einen `.env`-
-Editor umzuwandeln. Geschützte Administration, serverseitige Validierung,
-Secret-/Dateimountbehandlung und koordinierte Übernahme samt gegebenenfalls
-nötiger Containerneuerstellung sind vor Umsetzung festzulegen. Keine Secrets
-in Browserstorage/API-Antworten oder Docker-Socket im Websitecontainer; bestehende
-SELECT-only-/Hardwaregrenzen gelten bis zu einem gesonderten Umsetzungsauftrag.
+Verbindliche Anforderung vom 2026-10-29: Sämtliche bisher über `.env` gesetzten
+Projektkonfigurationen zentral unter **Settings** verwalten, nicht nur lokale
+Anzeigepräferenzen. Echte Dateibearbeitung inzwischen autorisiert, Implementierung
+in Arbeit. Admin-Login nur nach neuer ausdrücklicher Freigabe. Validierung,
+Secret-/Mountschutz und Unterscheidung gespeichert/wirksam sind erforderlich;
+kein Docker-Socket, keine anonym produktiv freigegebene Verwaltung. Die
+Messdaten-APIs und SQL-Zugriffe bleiben SELECT-only; ein Editor darf weder
+Secretdateien lesen noch Hardwarebefehle ausführen.
 
 ## Repository und Quellen
 

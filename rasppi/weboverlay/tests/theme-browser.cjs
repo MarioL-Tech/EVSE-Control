@@ -106,7 +106,7 @@ async function choose(page, selected) {
     const route = new URL(page.url()).pathname;
     await page.getByRole('link', { name: 'Settings', exact: true }).click();
     await page.waitForURL(new URL('/einstellungen', base).href);
-    assert.match(await page.locator('main').innerText(), /Platzhalter/);
+    assert.match(await page.locator('main').innerText(), /Dienstkonfiguration/);
     await page.locator('#theme-system').click();
     if (route !== '/einstellungen') {
       await page.locator(`nav a[href="${route}"]`).click();
@@ -181,7 +181,7 @@ function clean(run) {
     assert.equal(request.method, 'GET', 'Theme controls must not send commands');
     const url = new URL(request.url); assert.equal(url.origin, origin, 'No foreign resources');
     if (url.pathname === '/api/history') assert.equal(url.search, '?minutes=15');
-    assert(routes.includes(url.pathname) || ['/einstellungen', '/api/state', '/api/smartmeter', '/api/history', '/api/house-history'].includes(url.pathname) || url.pathname.startsWith('/static/')
+    assert(routes.includes(url.pathname) || ['/einstellungen', '/api/state', '/api/smartmeter', '/api/history', '/api/house-history', '/api/settings-env'].includes(url.pathname) || url.pathname.startsWith('/static/')
       || ['/favicon.ico', '/manifest.webmanifest', '/service-worker.js'].includes(url.pathname), request.url);
   }
   cases++;
@@ -245,7 +245,7 @@ function clean(run) {
       } finally { await run.context.close(); }
     }
 
-    // The gear opens a genuine read-only placeholder; settings do not poll hardware or MQTT.
+    // The editor is off by default; the catalog does not poll hardware or MQTT.
     for (const width of [320, 390, 768, 1440]) for (const scheme of ['light', 'dark']) {
       const run = await setup(browser, { colorScheme: scheme, viewport: { width, height: 900 } });
       try {
@@ -255,10 +255,13 @@ function clean(run) {
         await page.waitForFunction(() => !document.getElementById('theme-toggle').disabled);
         assert.equal(await page.title(), 'Settings · EVSE Control');
         assert.equal(await page.locator('h1').innerText(), 'Settings');
-        assert.match(await page.locator('main').innerText(), /Platzhalter/);
-        assert.equal(await page.locator('form, input:not(#theme-toggle), textarea').count(), 0);
-        assert.equal(await page.locator('input[type="checkbox"]').count(), 1);
-        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id)), ['theme-system']);
+        await page.waitForFunction(() => document.getElementById('env-status').textContent === 'Konfigurationseditor noch nicht freigeschaltet');
+        assert.match(await page.locator('main').innerText(), /Dienstkonfiguration/);
+        assert(await page.locator('#env-save').isDisabled());
+        assert.equal(await page.locator('#env-fields').evaluate(fieldset => fieldset.disabled), true);
+        assert.equal(await page.locator('#env-fields input:enabled').count(), 0);
+        assert.equal(await page.locator('#env-form').count(), 1);
+        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id)), ['env-save', 'env-reload', 'theme-system']);
         assert.equal(await page.locator('.pwa-card, #pwa-heading, #pwa-install, #pwa-update').count(), 0);
         assert.equal(await page.getByRole('link', { name: 'Settings', exact: true }).getAttribute('aria-current'), 'page');
         await mode(page, 'system'); await switchLayout(page);
@@ -271,7 +274,9 @@ function clean(run) {
         await page.locator('#theme-system').click(); await mode(page, 'system');
         assert.equal(await page.evaluate(key => localStorage.getItem(key), key), null);
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-        assert(!run.requests.some(request => new URL(request.url).pathname.startsWith('/api/')));
+        assert.deepEqual(run.requests.filter(request => new URL(request.url).pathname.startsWith('/api/'))
+          .map(request => [request.method, new URL(request.url).pathname]), [['GET', '/api/settings-env']],
+          'Settings reads only its disabled catalog, never measurement/SQL APIs or commands');
         if (width === 320 || width === 1440) await page.screenshot({
           path: `/artifacts/settings-${scheme}-${width}.png`, fullPage: true
         });
@@ -403,11 +408,70 @@ function clean(run) {
         await page.goto(new URL('/einstellungen', base).href);
         await page.locator('#theme-system').click(); await mode(page, 'system');
         await pageshow(page); await mode(page, 'system');
-        assert.equal(await page.locator('form, input:not(#theme-toggle)').count(), 0);
-        assert.equal(await page.locator('input[type="checkbox"]').count(), 1);
+        assert(await page.locator('#env-save').isDisabled());
+        assert.equal(await page.locator('#env-fields input:enabled').count(), 0);
         clean(run);
       } finally { await run.context.close(); }
     }
+    // Enabled editor UI with synthetic responses only: real file/CSRF checks
+    // run separately in the disposable PHP test image, never on this backend.
+    const editor = await setup(browser, { viewport: { width: 390, height: 900 } });
+    try {
+      const { page } = editor, posts = [];
+      let revision = 'a'.repeat(64), port = '8080', configured = true, conflict = false;
+      const definitions = {
+        WEB_PORT: { type: 'integer', min: 1, max: 65535, secret: false, readonly: false, choices: [] },
+        SMARTMETER_URL: { type: 'url', min: null, max: null, secret: true, readonly: false, choices: [] },
+        HISTORY_DB_PASSWORD_HOST_FILE: { type: 'mount', min: null, max: null, secret: true, readonly: true, choices: [] }
+      };
+      const response = () => ({ status: 'ok', csrf: 'isolated-csrf-fixture',
+        services: { uart: {}, wallbox: {}, storage: {}, weboverlay: definitions },
+        snapshot: { status: 'ok', service: 'weboverlay', revision, entries: {
+          WEB_PORT: { present: true, configured: true, secret: false, readonly: false, value: port },
+          SMARTMETER_URL: { present: true, configured, secret: true, readonly: false },
+          HISTORY_DB_PASSWORD_HOST_FILE: { present: true, configured: true, secret: true, readonly: true }
+        } } });
+      await editor.context.route('**/api/settings-env*', async route => {
+        if (route.request().method() === 'POST') {
+          const body = route.request().postDataJSON(); posts.push(body);
+          assert.equal(route.request().headers()['x-csrf-token'], 'isolated-csrf-fixture');
+          assert.equal(body.revision, revision);
+          if (conflict) return route.fulfill({ status: 409, json: { status: 'conflict' } });
+          if (Object.hasOwn(body.changes, 'WEB_PORT')) port = body.changes.WEB_PORT;
+          if (Object.hasOwn(body.changes, 'SMARTMETER_URL')) configured = body.changes.SMARTMETER_URL !== '';
+          revision = (revision[0] === 'a' ? 'b' : 'c').repeat(64);
+        }
+        await route.fulfill({ json: response() });
+      });
+      await page.goto(new URL('/einstellungen', base).href);
+      await page.waitForFunction(() => !document.getElementById('env-fields').disabled);
+      assert.equal(await page.locator('#env-key-SMARTMETER_URL').inputValue(), '');
+      assert(await page.locator('#env-key-HISTORY_DB_PASSWORD_HOST_FILE').isDisabled());
+      assert(await page.locator('#env-save').isDisabled());
+      await page.locator('#env-key-WEB_PORT').fill('8081');
+      await page.locator('#env-save').click();
+      await page.waitForFunction(() => document.getElementById('env-status').textContent.startsWith('.env gespeichert;'));
+      assert.deepEqual(posts[0].changes, { WEB_PORT: '8081' }, 'Untouched secret omitted');
+      await page.locator('#env-key-SMARTMETER_URL-clear').check();
+      await page.locator('#env-save').click();
+      await page.waitForFunction(() => document.getElementById('env-status').textContent.startsWith('.env gespeichert;') && !document.getElementById('env-fields').disabled);
+      assert.deepEqual(posts[1].changes, { SMARTMETER_URL: '' }, 'Secret clear must be explicit');
+      conflict = true;
+      await page.locator('#env-key-WEB_PORT').fill('8082');
+      await page.locator('#env-save').click();
+      await page.waitForFunction(() => document.getElementById('env-status').textContent.startsWith('Konflikt:'));
+      assert.equal(await page.locator('#env-key-WEB_PORT').inputValue(), '8082');
+      assert(await page.locator('#env-save').isDisabled());
+      page.once('dialog', dialog => dialog.accept());
+      await page.locator('#env-reload').click();
+      await page.waitForFunction(() => document.getElementById('env-status').textContent === 'Konfiguration geladen.');
+      assert.equal(await page.locator('#env-key-WEB_PORT').inputValue(), '8081');
+      assert.deepEqual(await page.evaluate(() => Object.keys(localStorage)), []);
+      assert.equal(await page.locator('#env-key-SMARTMETER_URL').inputValue(), '');
+      assert.equal(editor.errors.filter(e => !e.includes('409')).length, 0);
+      assert(editor.requests.filter(r => r.method !== 'GET').every(r => new URL(r.url).pathname === '/api/settings-env'));
+      cases++;
+    } finally { await editor.context.close(); }
     // With JavaScript disabled, the native control must not promise an action it cannot perform.
     const noScript = await setup(browser, { javaScriptEnabled: false });
     try {

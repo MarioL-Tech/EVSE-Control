@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace EvseOverlay;
 
+require_once __DIR__ . '/MinuteHistory.php';
+
 /** Independent HOUSE registry, credentials shared with the read-only history reader. */
 final class HouseHistoryStore
 {
@@ -332,12 +334,18 @@ final class HouseHistoryStore
         return $this->read($minutes, static function ($select, $prefix, $now) use ($minutes): array {
             $from = $now->modify('-' . $minutes . ' minutes');
             $parameters = [$prefix, $from->format('Y-m-d H:i:s.u'), $now->format('Y-m-d H:i:s.u')];
-            $rows = $select('SELECT id, publisher_id, sequence, fetched_at, received_at, status, last_success_at, power_w, error_code, retained FROM evse_house_samples FORCE INDEX (sample_time) WHERE source = CAST(? AS BINARY) AND fetched_at >= ? AND fetched_at <= ? ORDER BY fetched_at DESC, id DESC LIMIT 1201', $parameters);
+            $capture = MinuteHistory::read($select, 'house', $prefix, $from, $now);
+            $cutoverSql = '';
+            if ($capture !== null) {
+                $cutoverSql = ' AND fetched_at < ?';
+                $parameters[] = $capture['cutover']->format('Y-m-d H:i:s.u');
+            }
+            $rows = $select('SELECT id, publisher_id, sequence, fetched_at, received_at, status, last_success_at, power_w, error_code, retained FROM evse_house_samples FORCE INDEX (sample_time) WHERE source = CAST(? AS BINARY) AND fetched_at >= ? AND fetched_at <= ?' . $cutoverSql . ' ORDER BY fetched_at DESC, id DESC LIMIT 1201', $parameters);
             $columns = 'id, kind, received_at, retained, availability';
             $eventParameters = [$prefix, $from->modify('-10 seconds')->format('Y-m-d H:i:s.u'), $now->modify('+10 seconds')->format('Y-m-d H:i:s.u')];
             $events = $select('SELECT ' . $columns . ' FROM evse_house_events FORCE INDEX (event_time) WHERE source = CAST(? AS BINARY) AND received_at >= ? AND received_at <= ? ORDER BY received_at DESC, id DESC LIMIT 2401', $eventParameters);
             $bases = $select('SELECT ' . $columns . ' FROM evse_house_events FORCE INDEX (event_time) WHERE source = CAST(? AS BINARY) AND received_at < ? ORDER BY received_at DESC, id DESC LIMIT 2', [$prefix, $eventParameters[1]]);
-            return self::project($rows, $events, $bases, $from, $now);
+            return MinuteHistory::merge(self::project($rows, $events, $bases, $from, $now), $capture);
         });
     }
 }

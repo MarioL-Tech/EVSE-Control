@@ -1,6 +1,7 @@
 """Bounded RAM intake. SQL is never executed in an MQTT callback."""
 from datetime import datetime, timezone
 import json
+import os
 import queue
 import threading
 import uuid
@@ -60,6 +61,8 @@ class Subscriber:
     def __init__(self, config, inbox, decoder=decode):
         self.config, self.inbox = config, inbox
         self.decoder = decoder
+        from .retention import Policy
+        self.retention = Policy(os.environ)
         self.lock = threading.RLock()
         self.client = None
         self.generation = 0
@@ -137,6 +140,12 @@ class Subscriber:
         except ValueError:
             self.inbox.reject()
             # Reject invalid input deliberately; don't retry poison messages.
+            self.ack(token)
+            return
+        at = item['sample']['measured_at'] if item['kind'] == 'sample' else item['received_at']
+        if not self.retention.accepts(at):
+            # Expired observations cannot recreate deleted work. This deliberate
+            # rejection is outside retained coverage and must not poison live data.
             self.ack(token)
             return
         if not self.inbox.put(item):

@@ -12,6 +12,95 @@ const live = (t, overrides = {}) => ({ status: 'live', envelope: { timestamp: ne
 const plot = (history, id, now, selected = defaults().selected) => buildPlot(history.window(now, 15),
   GROUPS.find(g => g.id === id), selected, now - RETENTION_MS, now);
 
+function minuteBatch() {
+  const iso = t => new Date(t).toISOString(), now = epoch + 180000;
+  return { schema_version: 3, read_only: true, status: 'ok', reason: 'fixture', generated_at: iso(now),
+    minutes: 15, range: { from: iso(now - RETENTION_MS), to: iso(now) }, complete: true,
+    samples: [0, 1, 2].map(i => ({ id: String(epoch / 60000 + i + 1), timestamp: iso(epoch + i * 60000 + 30000),
+      received_at: iso(epoch + (i + 1) * 60000), status: 'ok', values: { ...values, current_a: [...values.current_a], voltage_v: [...values.voltage_v] },
+      break_before: i === 0, interval: { from: iso(epoch + i * 60000), to: iso(epoch + (i + 1) * 60000),
+        complete: true, has_gap: false, break_fields: [] } })) };
+}
+test('schema 3 validates true minute products and preserves own NULL/mixed break evidence without globalizing it', () => {
+  const now = epoch + 180000, b = minuteBatch(), h = createHistory();
+  assert(h.importHistory(b, now));
+  assert.equal((plot(h, 'power', now).paths[0].path.match(/L/g) || []).length, 2);
+  b.samples[1].interval.break_fields = ['charging', 'current_l2_a'];
+  assert(h.importHistory(b, now));
+  assert.equal((plot(h, 'power', now).paths[0].path.match(/L/g) || []).length, 2);
+  const currents = plot(h, 'current', now).paths;
+  assert.equal((currents.find(p => p.metric.id === 'current-0').path.match(/L/g) || []).length, 2);
+  assert.equal((currents.find(p => p.metric.id === 'current-1').path.match(/M/g) || []).length, 3);
+  assert.equal((plot(h, 'flags', now).paths.find(p => p.metric.id === 'charging').path.match(/M/g) || []).length, 3);
+  const points = h.window(now, 15);
+  assert.equal(points[0].recordType, 'minute'); assert.equal(points[0].source, 'sql');
+  b.samples[0].interval.has_gap = true; b.samples[0].values.active_power_w = 9999;
+  assert.equal(h.window(now, 15)[0].values.power, 7.4, 'Caller retains no ownership of stored data');
+  assert.equal((plot(h, 'power', now).paths[0].path.match(/L/g) || []).length, 2);
+});
+test('schema 3 fails closed for partial/global gaps, missing captures, raw cutover and independent live tail', () => {
+  const now = epoch + 180000;
+  for (const cause of ['has_gap', 'complete', 'missing']) {
+    const b = minuteBatch(), h = createHistory();
+    if (cause === 'missing') b.samples.splice(1, 1);
+    else b.samples[1].interval[cause] = cause === 'has_gap';
+    assert(h.importHistory(b, now));
+    assert(!plot(h, 'power', now).paths[0].path.includes('L'));
+  }
+  const b = minuteBatch(), h = createHistory();
+  b.samples.unshift({ id: '99', timestamp: new Date(epoch - 2000).toISOString(), received_at: new Date(epoch - 1000).toISOString(),
+    status: 'ok', values, break_before: true, interval: null });
+  b.samples[1].break_before = false; // Even a bad seam flag cannot bridge different products.
+  assert(h.importHistory(b, now));
+  h.observe(live(epoch + 150000), now); // Centre timestamp does not outrank the interval end.
+  h.observe(live(now + 1000), now + 1000);
+  const p = h.window(now + 1000, 15);
+  assert.equal(p.at(-1).source, 'live'); assert(p.at(-1).breakBefore); assert(p[1].breakBefore);
+  assert.equal(p.filter(v => v.source === 'live').length, 1);
+});
+test('schema 3 interval evidence is strict and cannot be forged through arbitrary buildPlot input', () => {
+  for (const mutate of [b => delete b.samples[0].interval, b => b.samples[0].interval.extra = true,
+    b => b.samples[0].interval.break_fields = ['voltage_v'], b => b.samples[0].interval.break_fields = ['charging', 'charging'],
+    b => b.samples[0].id = '1', b => b.samples[0].timestamp = b.samples[0].interval.from,
+    b => b.samples[0].received_at = b.samples[0].timestamp, b => b.samples[0].interval.complete = 1,
+    b => b.samples[0].interval.to = b.samples[1].interval.to]) {
+    const b = minuteBatch(); mutate(b); assert.equal(createHistory().importHistory(b, epoch + 180000), false);
+  }
+  const forged = [0, 1].map(i => ({ t: epoch + i * 60000 + 30000, source: 'sql', recordType: 'minute',
+    values: { power: 1 }, breakBefore: false, interval: minuteBatch().samples[i].interval }));
+  assert(!buildPlot(forged, GROUPS[0], defaults().selected, epoch, epoch + 180000).paths[0].path.includes('L'));
+});
+
+test('HOUSE hour/day/week use signed mean centre lines without bands; raw 10s limit is unchanged', () => {
+  const house = require('../static/smartmeter-chart.js');
+  for (const period of ['hour', 'day', 'week', 'month', 'year', 'custom']) {
+    const b = { selection: { period }, range: { from: new Date(epoch).toISOString(), to: new Date(epoch + 240000).toISOString() },
+      buckets: [0, -1000, 2000, 0].map((value, i) => ({ from: new Date(epoch + i * 60000).toISOString(),
+        to: new Date(epoch + (i + 1) * 60000).toISOString(), samples: 30, complete: true, has_gap: false, coverage_seconds: 60,
+        metrics: { power_w: { count: 30, nulls: 0, mean: value, min: value, max: value, last: value, mixed: false } } })) };
+    const p = house.buildArchivePlot(b);
+    assert.equal((p.path.match(/L/g) || []).length, 3); assert.equal((p.path.match(/M/g) || []).length, 1);
+    assert.equal(p.band === '', ['hour', 'day', 'week'].includes(period));
+    if (['hour', 'day', 'week'].includes(period)) {
+      for (const reason of ['has_gap', 'complete', 'nulls', 'coverage']) {
+        const copy = JSON.parse(JSON.stringify(b)), bin = copy.buckets[1];
+        if (reason === 'has_gap') bin.has_gap = true;
+        if (reason === 'complete') bin.complete = false;
+        if (reason === 'nulls') bin.metrics.power_w.nulls = 1;
+        if (reason === 'coverage') bin.coverage_seconds = 59;
+        const broken = house.buildArchivePlot(copy);
+        assert.equal((broken.path.match(/M/g) || []).length, 3);
+        assert.equal(broken.markers.length, 2); assert.equal(broken.band, '');
+        assert(!broken.path.includes('H'), 'No short aggregate ticks');
+      }
+    }
+  }
+  assert(!house.buildPlot([{ t: epoch, power_w: 0 }, { t: epoch + 60000, power_w: 0 }], epoch, epoch + 60000).path.includes('L'));
+  const raw = buildPlot([{ t: epoch, values: { power: 0 } }, { t: epoch + 60000, values: { power: 0 } }],
+    GROUPS[0], defaults().selected, epoch, epoch + 60000);
+  assert(!raw.paths[0].path.includes('L'), 'Wallbox raw 10s boundary also remains unchanged');
+});
+
 test('readings keep units, genuine zero, and unknown flags distinct', () => {
   const v = readings({ ...values, plugged_in: null, charging: false });
   assert.equal(v.power, 7.4); assert.equal(v.energy, 1.5); assert.equal(v['current-0'], 6.123);

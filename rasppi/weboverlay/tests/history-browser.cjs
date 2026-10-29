@@ -227,7 +227,9 @@ const { FIELDS } = require('../static/newcalendar.js');
       // A successful fetch status is not a DOM/render barrier. Live/clock
       // lifecycle callbacks may run between the preceding awaited assertions.
       try {
-        await page.locator('[data-summary-series="power"]').first().waitFor({ state: 'attached', timeout: 5000 });
+        await page.waitForFunction(short => (document.querySelector(short
+          ? '#chart-power .archive-line' : '#chart-power .summary-value')?.getAttribute('d') || '').length > 0,
+        ['hour', 'day', 'week'].includes(period), { timeout: 5000 });
       } catch (error) {
         console.error('Calendar render readiness', JSON.stringify({ period, requests: calendarRequests.slice(-6),
           state: await page.evaluate(() => ({ mode: document.getElementById('calendar-mode').value,
@@ -235,14 +237,18 @@ const { FIELDS } = require('../static/newcalendar.js');
             label: document.getElementById('calendar-label').textContent })), errors }));
         throw error;
       }
-      assert(await page.locator('[data-summary-series="power"]').count() > 0);
+      if (['hour', 'day', 'week'].includes(period)) {
+        assert.equal(await page.locator('#chart-grid .summary-glyph').count(), 0, 'No min/max bands or bucket ticks in short periods');
+        assert.equal(await page.locator('#chart-power .archive-line').evaluate(el => getComputedStyle(el).strokeWidth), '2px');
+        assert.equal(await page.locator('#chart-power .archive-line').evaluate(el => getComputedStyle(el).strokeDasharray), 'none');
+      } else assert(await page.locator('[data-summary-series="power"]').count() > 0);
       if (period === 'week') {
         assert.equal(await page.locator('#chart-power svg').getAttribute('data-bucket-count'), '168');
         assert.match(await page.locator('#chart-power .chart-description').innerText(), /81478 Messwerte/);
         for (const id of ['power', 'current', 'voltage', 'energy'])
           assert(await page.locator(`#chart-${id} svg *`).count() < 100);
-        const curve = await page.locator('#chart-voltage .summary-value:not(.summary-gap)').first().getAttribute('d');
-        assert.equal((curve.match(/M/g) || []).length, 2, 'A genuine gap separates two connected numeric runs');
+        const curve = await page.locator('#chart-voltage .archive-line').first().getAttribute('d');
+        assert.equal((curve.match(/M/g) || []).length, 3, 'A genuine gap isolates its value between two connected numeric runs');
         assert((curve.match(/L/g) || []).length > 50, 'Unknown charging must not isolate known voltages');
         await page.evaluate(() => {
           window.__archiveWork = { plots: 0, layouts: 0, mutations: 0 };
@@ -264,16 +270,20 @@ const { FIELDS } = require('../static/newcalendar.js');
           await page.setViewportSize({ width, height: 1050 });
           await page.emulateMedia({ colorScheme });
           await page.clock.runFor(32);
+          assert(await page.locator('#chart-grid .archive-line').evaluateAll(lines => lines.every(el =>
+            getComputedStyle(el).strokeWidth === '2px' && getComputedStyle(el).strokeDasharray === 'none')),
+          'All selected weekly series use Live thickness and solid lines (requires the scoped archive-line CSS rule)');
           await page.screenshot({ path: `/artifacts/calendar-week-connected-${label}.png`, fullPage: true, animations: 'disabled' });
         }
         await page.setViewportSize(viewport); await page.clock.runFor(32);
       }
       if (period === 'hour') {
-        assert.equal(await page.locator('#chart-power .summary-value').count(), 1, '36 isolated aggregate marks share one path');
-        assert.equal(await page.locator('#chart-power .summary-range').count(), 1);
-        assert.equal(await page.locator('#chart-power .summary-value').getAttribute('d').then(d => (d.match(/M/g) || []).length), 36,
-          'Empty minutes never acquire a value mark or connecting edge');
-        assert(await page.locator('#chart-power .summary-value').first().evaluate(el => getComputedStyle(el).strokeDasharray === 'none'));
+        assert.equal(await page.locator('#chart-power .archive-line').count(), 1, '36 isolated centres share one path');
+        assert.equal(await page.locator('#chart-power .summary-range').count(), 0);
+        const isolated = await page.locator('#chart-power .archive-line').getAttribute('d');
+        assert.equal((isolated.match(/M/g) || []).length, 36, 'Empty minutes never acquire a point');
+        assert(!/[LHVZ]/.test(isolated), 'Incomplete minutes do not acquire connecting edges or ticks');
+        assert.equal(await page.locator('#chart-power [data-series-marker]').count(), 1, 'Batched small Live-style markers show isolated evidence');
         await page.screenshot({ path: '/artifacts/calendar-hour-gaps-mobile.png', fullPage: true });
         const viewport = page.viewportSize();
         await page.setViewportSize({ width: 1440, height: 1050 });
@@ -284,7 +294,8 @@ const { FIELDS } = require('../static/newcalendar.js');
         await page.evaluate(() => dispatchEvent(new Event('resize')));
         await page.clock.runFor(32);
       }
-      assert.equal(await page.locator('[data-series-marker]').count(), 0, 'Summary glyphs never use circles/pills');
+      if (['month', 'year'].includes(period))
+        assert.equal(await page.locator('[data-series-marker]').count(), 0, 'Legacy summaries keep their previous glyph renderer');
       assert.equal(await page.locator('img').count(), 1, 'DTO reasons cannot add images');
       await page.locator('#calendar-date').fill(pickerDates[period]);
       await page.locator('#calendar-date').dispatchEvent('change');

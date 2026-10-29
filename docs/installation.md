@@ -1718,6 +1718,114 @@ existierende optionale Tabellen nicht blind an den Schema-1-Befehl anhängen.
 Dump privat aufbewahren, Kopie verifizieren und Restore ausschließlich in einem
 isolierten Wegwerfserver testen; keine Produktionswiederherstellung oder Löschung.
 
+### Minutenaufzeichnung und Aufbewahrung
+
+**PR #57: Codehead979b148 Docker-geprüft, nicht produktiv aktiviert.**
+Web40927845891/40927833069 und Storage40927845966 erfolgreich; Merge beim
+Projektinhaber, Pi-Abnahme offen. Bestehende Daten und Quellen erhalten. Details zum neuen Daten- und
+Verlustvertrag: [minute-recording.md](minute-recording.md).
+Nachfolgende Minimalrechtekorrektur4a35f26 bestätigt durch Storage40929786439
+(181 Tests je MariaDB-Version, ausdrücklich ohne UPDATE an neuen Registry-/
+Cutovertabellen). Aktuellen Gesamt-/Freigabestand über PR#57 prüfen.
+
+Der bestehende Compose-Default bleibt für Updates `STORAGE_RECORDING_MODE=raw`,
+damit ein Imageupdate nicht heimlich eine noch fehlende Migration voraussetzt.
+Für die neue Minutenaufzeichnung bewusst `STORAGE_RECORDING_MODE=minute` in der
+Storage-`.env` setzen. Die Beispielkonfiguration neuer Installationen verwendet
+minute. Web-Liveerfassung und Readerintervall nicht auf 60 Sekunden verstellen.
+
+Vor Aktivierung aktuelle Sicherung einschließlich aller vorhandenen EVSE-/HOUSE-
+und Historytabellen erstellen und Rechte prüfen. Minutenmigration braucht
+CREATE/SELECT/INSERT nur im freigegebenen EVSE-Bereich. Laufender Minutenwriter
+braucht SELECT/INSERT an den drei neuen Tabellen, zusätzlich bestehende Workrechte;
+Website SELECT an den neuen Tabellen. Für ausdrücklich konfigurierte Bereinigung
+zusätzlich DELETE ausschließlich an betroffenen eigenen Mess-/Ereignis-/Bucket-/
+Worktabellen. Keine Accountreparatur oder Erweiterung auf Preise/Provider.
+
+Vor der Storage-Umschaltung zuerst die kompatible Website aktualisieren, damit
+sie Schema3 versteht. Falls `history-rollup` bereits läuft, ihn vor der
+Umschaltung stoppen und anschließend aus dem neuen Image neu erstellen;
+keinen alten Rawworker über den Cutover weiterlaufen lassen.
+
+Nach Merge/Freigabe, aus dem Repository-Hauptverzeichnis und mit
+**derselben bisherigen Auth-/Compose-Dateiauswahl**:
+
+```bash
+cd rasppi/storage
+docker compose build storage migrate
+docker compose stop storage
+docker compose run --no-deps -T --interactive=false migrate --migrate-minutes
+# Erst nach erfolgreicher Migration und geänderter .env:
+docker compose up -d --no-deps storage
+```
+
+Vorhandenen `history-rollup` ebenfalls aus dem neuen Image neu erstellen, wenn
+die Wallbox-Kalenderhistorie bereits aktiviert ist; nicht ungefragt aktivieren:
+
+```bash
+docker compose up -d --no-deps history-rollup
+```
+
+Die zuvor aktualisierte Website muss sowohl Kalender- als auch kurze SQL-
+Historienfenster verstehen. Nachlauf und einen vollständigen
+Minutenabschluss abwarten. Geprüfte Minuten-/Stundenwerte, echte Unterbrechungen,
+Reload, zwei unabhängige Quellen und unveränderte Livefrische abnehmen. Die
+Stopphase kann Records verlieren; retained ersetzt keinen Verlauf. Keine
+automatische Wiederholung einer fehlgeschlagenen Migration oder Datenlöschung.
+
+Aufbewahrung in Storage-`.env` beziehungsweise später im freigegebenen Settings-
+Editor: `STORAGE_RETENTION_MINUTE_DAYS`, `STORAGE_RETENTION_HOUR_DAYS`,
+`STORAGE_RETENTION_DAY_DAYS`; jeweils `0` = unbegrenzt. Default ist ausdrücklich
+keine automatische Löschung. Eine endliche Stundenfrist muss mindestens der
+Minutenfrist entsprechen, eine endliche Tagesfrist mindestens der Stundenfrist;
+bei unbegrenzter feinerer Stufe muss auch die gröbere unbegrenzt sein.
+Fristverkürzung ist ein Löschauftrag für alte Werte der konfigurierten Quelle.
+Backups und Anfangsbestand vorher prüfen, Wirkung nach Containerneuerstellung
+kontrollieren. Bereinigung entfernt nicht die Datenbank und schrumpft keine
+InnoDB-Datei zwangsweise; Platz wird intern wiederverwendet. Kein DROP/TRUNCATE,
+kein `OPTIMIZE TABLE` oder Produktionsvolumeaustausch.
+
+### Settings: echte Env-Dateibearbeitung (noch nicht produktiv freigegeben)
+
+Der neue Editor schreibt echte `.env`-Dateien, kein Browserstorage und kein
+Konfigurationsdownload. **Admin-Login ist ausdrücklich noch nicht freigegeben
+und wird jetzt nicht implementiert.** Deshalb bleibt der Editor standardmäßig
+deaktiviert, ohne produktive Schreibmounts. Die Oberfläche kann bereits den
+Dienstkatalog zeigen; deaktivierte Eingaben sind keine wirksame Konfiguration.
+`/api/settings-env` verändert bei deaktiviertem Editor nichts und erlaubt nur
+GET/HEAD. Bestehende Messdaten-/Historienendpunkte bleiben SELECT-only.
+
+Implementierungsgrenze: Backend verwendet ausschließlich
+`/run/evse-settings/{uart,wallbox,storage,weboverlay}/.env`. Dort dürfen nur vorab
+bereitgestellte, von UID 10001 besessene Konfigurationsverzeichnisse liegen,
+keine Repository- oder Secretverzeichnisse. Atomarer Dateiaustausch braucht
+einen Verzeichnismount; ein einzelner `.env`-Bindmount ist dafür ungeeignet.
+Die spätere Einrichtung muss diese Dateien tatsächlich mit den verwendeten
+Deployment-`.env`-Dateien verbinden, nicht unabhängige Kopien als aktiv ausgeben.
+Keine Änderungen an bestehenden lokalen Dateien oder ihren Eigentümern durch
+Agent. Produktionsaktivierung/Verzeichnisbereitstellung erst gesondert nach
+Zugriffsschutz und Freigabe dokumentieren, keine anonyme LAN-Schreibfreigabe.
+
+`SETTINGS_EDITOR_ENABLED=0` ist der sichere Default; aktivierter Entwicklungstest
+benötigt zusätzlich exaktes `SETTINGS_EDITOR_ORIGIN`. Session-/Origin-/CSRF-
+Prüfungen sind **kein Login oder Zugriffsschutz**. Diese Schalter werden nicht
+vom normalen Produktions-Compose durchgereicht. Tests verwenden ausschließlich
+Wegwerfdateien im Docker-Testimage.
+
+Bekannte Schlüssel werden typisiert validiert; unbekannte bestehende Zeilen und
+Kommentare bleiben erhalten. Mehrzeiler, uneindeutige Duplikate, nicht unterstützte
+Interpolation und Escapes werden abgewiesen statt verändert. Passwort-/URL-
+Inhalte werden nicht an den Browser zurückgeliefert; leeres Passwortfeld behält
+den bisherigen Wert, bewusstes Leeren ist separat. Mount-/Secretpfade und Profile
+sind vorerst schreibgeschützt. Secretdateien werden weder gelesen noch ersetzt.
+Revision und Lock verhindern überschreibende parallele Speichervorgänge.
+
+**Speichern ist nicht Anwenden:** Neue Containerumgebung entsteht erst durch
+Neuerstellung des betroffenen Containers, nicht `restart`. Es gibt keinen
+Docker-Socket, automatischen Docker-Befehl oder Verwaltungscontainer in der
+Website. Gemeinsamer Ein-Befehl-Compose-Einstieg ist separat beauftragt und noch
+nicht implementiert; Broker und MariaDB sollen dabei weiterhin extern bleiben.
+
 ### Kalender-/Jahresverlauf zusätzlich einrichten (optionales Schema 2)
 
 **Bereits gespeicherte Wallbox-Intervalle bewusst neu verdichten:** Die aktuelle

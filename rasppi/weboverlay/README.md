@@ -37,12 +37,17 @@ Messwerte bleiben erhalten. **Links unten** wechselt ein nativer
 **Schiebeschalter** mit beweglichem Sonne-/Mond-Schieber und LIGHT/DARK MODE
 zwischen Hell/Dunkel (160×52 px, Tastatur/Screenreader). Am Desktop im Sidebar-Fuß,
 mobil unten links fixiert. **Settings mit Zahnrad unter Diagramme** öffnet
-`/einstellungen`, einen ausdrücklich gekennzeichneten
-Platzhalter ohne Lade-/Hardwareeinstellungen. Dort setzt **Systemdarstellung
+`/einstellungen`, mit einem standardmäßig deaktivierten Env-Konfigurationseditor
+ohne Lade-/Hardwarebefehle. Dort setzt **Systemdarstellung
 verwenden** die lokale Wahl zurück; die WebApp-Karte wurde auf Wunsch entfernt.
-Später sollen alle bisherigen `.env`-Projektkonfigurationen zentral unter Settings
-verwaltbar sein. Diese geschützte Administration ist noch nicht implementiert;
-die aktuelle Website bleibt lesend und schreibt keine Konfigurationsdateien.
+Der neue Editor (PR #57, Docker-Abnahme offen) ändert echte `.env`-Dateien
+atomar und revisioniert, keine Browserkopie. Secretwerte bleiben verborgen,
+Mountpfade/Profile vorerst schreibgeschützt. **Admin-Login ausdrücklich erst nach
+neuer Freigabe**, aktuell nicht implementiert; deshalb keine produktive
+Schreibfreigabe oder neue Produktionsmounts. SQL und Messdaten-APIs bleiben lesend.
+Speichern ändert keine laufende Containerumgebung und startet nichts neu;
+kein Docker-Socket. Einrichtungsgrenze und Tests im
+[Installationsguide](../../docs/installation.md#settings-echte-env-dateibearbeitung-noch-nicht-produktiv-freigegeben).
 Die HTTPS-/Handyeinrichtung ist vorerst zurückgestellt, die optionale Infrastruktur
 bleibt erhalten. Der Schalter wird schon vor dem ersten Render passend zur
 gespeicherten Wahl gezeichnet, ohne Seitenwechsel-Sprung. Default System folgt live der

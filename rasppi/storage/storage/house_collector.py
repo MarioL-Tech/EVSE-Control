@@ -2,6 +2,7 @@
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 import json
+import os
 from pathlib import Path
 import time
 import uuid
@@ -97,6 +98,12 @@ def run(config, stop, http_config=None):
     if not http_config.enabled:
         return
     db = HouseDatabase(config)
+    from .retention import Policy, cleanup
+    policy = Policy(os.environ)
+    last_cleanup = time.monotonic()
+    retention_ready = True
+    from .minutes import Recorder, IntakeRejected
+    recorder = Recorder(db, 'house') if config.recording_mode == 'minute' else None
     worker = HouseWorker(db)
     observations = Observations()
     pending = event(config.prefix, 'collector_started', coverage='unknown before startup', buffer='RAM only')
@@ -104,6 +111,7 @@ def run(config, stop, http_config=None):
     ready = work_ready = False
     retry, next_poll, last_work = 1, 0, 0
     written = duplicates = 0
+    admitted = 0
     watch = WorkWatch()
     availability = None
     stopping = False
@@ -118,24 +126,41 @@ def run(config, stop, http_config=None):
                 break
             if pending is None and deadline is not None:
                 if stopping:
-                    break
-                pending = event(config.prefix, 'collector_stopping', coverage='shutdown boundary')
-                pending['received_at'] = max(pending['received_at'], last_event + timedelta(microseconds=1))
-                stopping = True
+                    if not recorder or not recorder.accumulator or not recorder.accumulator.open:
+                        break
+                else:
+                    pending = event(config.prefix, 'collector_stopping', coverage='shutdown boundary')
+                    pending['received_at'] = max(pending['received_at'], last_event + timedelta(microseconds=1))
+                    stopping = True
             try:
                 if not ready:
                     db.connect()
                     worker.acquire()  # HOUSE registry only, and exclusive source lock.
+                    if recorder:
+                        recorder.acquire()
+                    else:
+                        from .minutes import require_raw_source
+                        require_raw_source(db, 'house')
                     ready, work_ready = True, False
                     watch = WorkWatch()
+                if recorder:
+                    if recorder.flush(shutdown=deadline is not None):
+                        written += 1
                 if pending is None and deadline is None and time.monotonic() >= next_poll:
                     pending = observations.attempt(http_config)
                     # Schedule from completion, never replay missed intervals.
                     next_poll = time.monotonic() + http_config.poll_seconds
                 if pending is not None:
                     item = pending
-                    if db.write(item):
-                        written += 1
+                    at = item['sample']['fetched_at'] if item['kind'] == 'sample' else item['received_at']
+                    if not policy.accepts(at):
+                        pending = None
+                        continue
+                    if (recorder.write(item) if recorder else db.write(item)):
+                        if recorder and item['kind'] == 'sample':
+                            admitted += 1
+                        else:
+                            written += 1
                     else:
                         duplicates += 1
                     pending, retry = None, 1
@@ -153,7 +178,17 @@ def run(config, stop, http_config=None):
                     progressed = worker.turn()
                     work_ready = watch.update(worker.pending_keys(), progressed)
                     last_work = time.monotonic()
-                health(True, True, work_ready, written=written, duplicates=duplicates)
+                if deadline is None and pending is None and time.monotonic() - last_cleanup >= 30:
+                    last_cleanup = time.monotonic()
+                    try:
+                        cleanup(db, 'house', policy)
+                        retention_ready = True
+                    except (ValueError, OSError, pymysql.MySQLError):
+                        diagnostic('house retention: bounded cleanup unavailable; no success assumed')
+                        retention_ready = False
+                health(True, True, work_ready, written=written, duplicates=duplicates, admitted_ram=admitted, retention_ready=retention_ready)
+            except IntakeRejected:
+                pending = event(config.prefix, 'ingestion_gap', missed_samples='unknown', reason='minute admission pressure')
             except (ValueError, ArithmeticError, OSError, pymysql.MySQLError):
                 ready = work_ready = False
                 db.close()

@@ -2,6 +2,16 @@
   'use strict';
   const RETENTION_MS = 15 * 60 * 1000, MAX_POINTS = 1200, MAX_GAP_MS = 10000;
   const STORAGE_KEY = 'evse-display-v1';
+  // Only intervals admitted by the versioned wire validator may relax raw's 10s rule.
+  const minuteEvidence = new WeakSet();
+  const flatField = m => m.index === null ? m.field : `${m.field === 'current_a' ? 'current' : 'voltage'}_l${m.index + 1}_${m.field === 'current_a' ? 'a' : 'v'}`;
+  function minuteAdjacent(a, b) {
+    const x = a?.interval, y = b?.interval;
+    return a?.source === 'sql' && b?.source === 'sql' && a.recordType === 'minute' && b.recordType === 'minute' &&
+      minuteEvidence.has(x) && minuteEvidence.has(y) && x.complete && y.complete && !x.has_gap && !y.has_gap &&
+      utc(x.to) === utc(y.from) && a.t === utc(x.from) + 30000 && b.t === utc(y.from) + 30000;
+  }
+  const sameProduct = (a, b) => (a.recordType === 'minute') === (b.recordType === 'minute');
   const metric = (id, label, field, group, index = null, divisor = 1, boolean = false) =>
     ({ id, label, field, group, index, divisor, boolean });
   const METRICS = [
@@ -58,7 +68,7 @@
   }
   function createHistory() {
     let points = [], edges = [], barriers = [], lastStamp = null, lastClock = null, broken = true, revision = 0;
-    let hardGap = false;
+    let hardGap = false, minuteMode = false, sqlTail = -Infinity;
     let lastValues = null, lastPrune = null;
     const overlaps = (a, b, c, d) => a < d && b > c;
     function edge(from, to, blocked = false) {
@@ -81,7 +91,7 @@
       hardGap ||= hard;
       if (!broken) { broken = true; revision++; }
     }
-    function clear() { points = []; edges = []; barriers = []; lastStamp = null; lastClock = null; lastValues = null; lastPrune = null; broken = true; hardGap = false; revision++; }
+    function clear() { points = []; edges = []; barriers = []; lastStamp = null; lastClock = null; lastValues = null; lastPrune = null; broken = true; hardGap = false; minuteMode = false; sqlTail = -Infinity; revision++; }
     return {
       gap, clear,
       importHistory(batch, now = Date.now()) {
@@ -89,9 +99,16 @@
         if (!incoming) return false;
         if (batch.status !== 'ok') return true;
         // Validation finishes before touching any retained state or live anchors.
-        const signature = () => JSON.stringify({ points: points.map(({ t, values, source, seriesBreak }) =>
-          ({ t, values, source, seriesBreak })), edges, barriers });
+        const signature = () => JSON.stringify({ points: points.map(({ t, values, source, seriesBreak, interval, recordType }) =>
+          ({ t, values, source, seriesBreak, interval, recordType })), edges, barriers });
         const before = signature(), oldRevision = revision;
+        if (batch.schema_version === 3) {
+          minuteMode = true;
+          sqlTail = incoming.length ? Math.max(...incoming.map(p => p.interval ? utc(p.interval.to) : p.t)) : -Infinity;
+          points = points.filter(p => p.source === 'live' && p.t > sqlTail);
+          // Raw SQL evidence must not heal a cutover or a newly missing capture.
+          edges = edges.filter(e => e[0] > sqlTail);
+        }
         for (let i = 1; i < incoming.length; i++) {
           const a = incoming[i - 1], b = incoming[i];
           edge(a.t, b.t, b.breakBefore || a.error || b.error);
@@ -126,6 +143,7 @@
             (view.status === 'read_error' && view.envelope == null);
           gap(!transportOnly); return;
         }
+        if (minuteMode && t <= sqlTail) return;
         if (lastStamp !== null && t < lastStamp) { gap(); return; }
         // API envelopes are replaced, never mutated, by the poller. A 100ms
         // freshness tick with the identical values object is not a new read.
@@ -152,7 +170,7 @@
         if (old) points.splice(points.indexOf(old), 1);
         if (points.length < MAX_POINTS || t >= points[0].t) {
           if (points.length === MAX_POINTS) points.shift();
-          points.push({ t, values, source: 'live', seriesBreak: Object.fromEntries(METRICS.map(m =>
+          points.push({ t, values, source: 'live', recordType: 'raw', interval: null, seriesBreak: Object.fromEntries(METRICS.map(m =>
             [m.id, values[m.id] === null || !!old?.seriesBreak[m.id]])),
             breakBefore: broken || (lastStamp !== null && t - lastStamp > MAX_GAP_MS) });
         }
@@ -165,8 +183,9 @@
         const duration = [1, 5, 15].includes(minutes) ? minutes * 60000 : 300000;
         return points.filter(p => p.t >= now - duration && p.t <= now).map((p, i, list) =>
           ({ ...p, breakBefore: i === 0 || (() => {
-            const a = list[i - 1].t, b = p.t;
-            return b - a > MAX_GAP_MS || !edges.some(e => e[0] <= a && e[1] >= b) ||
+            const prior = list[i - 1], a = prior.t, b = p.t;
+            return !sameProduct(prior, p) || (minuteMode && prior.source !== p.source) ||
+              (b - a > MAX_GAP_MS && !minuteAdjacent(prior, p)) || !edges.some(e => e[0] <= a && e[1] >= b) ||
               barriers.some(e => overlaps(a, b, e[0], e[1])) ||
               (hardGap && lastStamp !== null && b > lastStamp);
           })(),
@@ -188,7 +207,7 @@
     const object = v => v && typeof v === 'object' && !Array.isArray(v);
     const keys = (v, names) => object(v) && Object.keys(v).length === names.length && names.every(k => Object.hasOwn(v, k));
     if (!Number.isFinite(now) || !keys(batch, ['schema_version', 'read_only', 'status', 'reason', 'generated_at', 'minutes', 'range', 'complete', 'samples']) ||
-        batch.schema_version !== 1 || batch.read_only !== true || !['ok', 'disabled', 'unavailable'].includes(batch.status) ||
+        ![1, 3].includes(batch.schema_version) || batch.read_only !== true || !['ok', 'disabled', 'unavailable'].includes(batch.status) ||
         typeof batch.reason !== 'string' || batch.reason.length > 1024 || batch.minutes !== 15 || typeof batch.complete !== 'boolean' ||
         !Array.isArray(batch.samples) || batch.samples.length > MAX_POINTS || !keys(batch.range, ['from', 'to'])) return null;
     const generated = utc(batch.generated_at), from = utc(batch.range.from), to = utc(batch.range.to);
@@ -197,12 +216,24 @@
         (batch.status !== 'ok' && batch.samples.length)) return null;
     const result = [];
     for (const s of batch.samples) {
-      if (!keys(s, ['id', 'timestamp', 'received_at', 'status', 'values', 'break_before']) ||
+      if (!keys(s, ['id', 'timestamp', 'received_at', 'status', 'values', 'break_before', ...(batch.schema_version === 3 ? ['interval'] : [])]) ||
           typeof s.id !== 'string' || !/^(?:0|[1-9]\d{0,19})$/.test(s.id) ||
           (s.id.length === 20 && s.id > '18446744073709551615') || typeof s.break_before !== 'boolean' ||
           !['ok', 'error'].includes(s.status)) return null;
       const t = utc(s.timestamp), received = utc(s.received_at);
       if (![t, received].every(Number.isFinite) || t < from || t > to || t > now + 5000 || received > now + 5000) return null;
+      let interval = null;
+      if (batch.schema_version === 3 && s.interval !== null) {
+        const v = s.interval, fields = METRICS.map(flatField);
+        if (!keys(v, ['from', 'to', 'complete', 'has_gap', 'break_fields']) ||
+            typeof v.complete !== 'boolean' || typeof v.has_gap !== 'boolean' ||
+            !Array.isArray(v.break_fields) || v.break_fields.length > fields.length || new Set(v.break_fields).size !== v.break_fields.length ||
+            v.break_fields.some(f => !fields.includes(f))) return null;
+        const a = utc(v.from), z = utc(v.to);
+        if (!Number.isFinite(a) || a % 60000 !== 0 || z !== a + 60000 || a < from || z > to ||
+            t !== a + 30000 || received !== z || s.id !== String(a / 60000 + 1) || s.status !== 'ok') return null;
+        interval = Object.freeze({ ...v, break_fields: Object.freeze([...v.break_fields]) });
+      }
       const v = s.values;
       if (s.status === 'error') { if (v !== null) return null; }
       else {
@@ -219,10 +250,12 @@
       const values = readings(v || {});
       const receiptOrder = s.received_at.slice(0, 19) + '.' +
         (s.received_at.match(/\.(\d+)/)?.[1] || '').padEnd(6, '0') + 'Z';
-      const row = { t, received: receiptOrder, id: s.id, source: 'sql', values,
-        breakBefore: s.break_before || s.status === 'error', error: s.status === 'error',
-        seriesBreak: Object.fromEntries(METRICS.map(m => [m.id, values[m.id] === null])) };
+      if (interval) minuteEvidence.add(interval);
+      const row = { t, received: receiptOrder, id: s.id, source: 'sql', values, interval, recordType: interval ? 'minute' : 'raw',
+        breakBefore: s.break_before || s.status === 'error' || !!interval && (!interval.complete || interval.has_gap), error: s.status === 'error',
+        seriesBreak: Object.fromEntries(METRICS.map(m => [m.id, values[m.id] === null || !!interval?.break_fields.includes(flatField(m))])) };
       const previous = result.at(-1);
+      if (previous && (!sameProduct(previous, row) || (interval && !minuteAdjacent(previous, row)))) row.breakBefore = true;
       if (previous && (t < previous.t || (t === previous.t && compareReceipt(previous, row) > 0))) return null;
       if (!previous && !s.break_before) return null;
       if (previous && t === previous.t) {
@@ -257,7 +290,8 @@
         }
         const px = x(p.t).toFixed(2), py = y(value).toFixed(2);
         const connect = previous && !p.breakBefore && !p.seriesBreak?.[m.id] &&
-          !previous.seriesBreak?.[m.id] && p.t - previous.t <= MAX_GAP_MS;
+          !previous.seriesBreak?.[m.id] && sameProduct(previous, p) && p.t > previous.t &&
+          (p.recordType === 'minute' ? minuteAdjacent(previous, p) : p.t - previous.t <= MAX_GAP_MS);
         if (!connect) {
           if (segmentLength === 1) markers.push(segmentLast);
           segmentLength = 1;
@@ -375,9 +409,10 @@
         source.dataset.historyStatus = state.status;
         if (calendar?.selection) {
           const snapshot = archive?.view();
+          const representation = ['hour', 'day', 'week'].includes(calendar.selection.period) ? 'Stichprobenmittel' : 'Stichprobenmittel / Min–Max';
           source.textContent = snapshot ? `Kalenderarchiv · ${snapshot.buckets.reduce((n, b) => n + b.samples, 0)} Messwerte` : 'Kalenderarchiv';
           detail.textContent = `${state.status === 'ok' ? state.complete ? 'Archiv geladen.' : 'Archiv enthält Lücken oder ist noch nicht vollständig verdichtet.'
-            : state.status === 'browser' ? 'Zeitraum wird geladen.' : snapshot ? 'Archiv derzeit nicht verfügbar; geladene Daten bleiben erhalten.' : 'Archiv derzeit nicht verfügbar.'} Historisch, nicht live. Stichprobenmittel / Min–Max; Sessionenergie ist der letzte Sessionzähler, kein Zeitraumverbrauch.`;
+            : state.status === 'browser' ? 'Zeitraum wird geladen.' : snapshot ? 'Archiv derzeit nicht verfügbar; geladene Daten bleiben erhalten.' : 'Archiv derzeit nicht verfügbar.'} Historisch, nicht live. ${representation}; Sessionenergie ist der letzte Sessionzähler, kein Zeitraumverbrauch.`;
         } else if (!state.loaded && ['browser', 'disabled'].includes(state.status)) {
           source.textContent = browserNote.source; detail.textContent = browserNote.detail;
         } else {
@@ -485,7 +520,8 @@
             { x: px, y: height - 12, 'text-anchor': anchor, class: 'chart-axis' });
         plot.paths.forEach(series => {
           const css = colorClass(series.metric, g);
-          put(`line-${series.metric.id}`, 'path', null, { d: series.path, class: `chart-line ${css}`, 'data-series': series.metric.id });
+          put(`line-${series.metric.id}`, 'path', null, { d: series.path,
+            class: `chart-line ${css}${plot.lineMode ? ' archive-line' : ''}`, 'data-series': series.metric.id });
           // Keep every translucent envelope behind every solid value line,
           // independent of whether the first bucket happened to be uncertain.
           for (const kind of ['range', 'value']) for (const glyph of (series.renderPaths || []).filter(item => item.kind === kind))
@@ -499,7 +535,7 @@
         for (const [key, element] of entry.nodes) if (!used.has(key)) { element.remove(); entry.nodes.delete(key); }
         entry.inspect(entry.inspection);
         const descriptionText = !plot.metrics.length ? 'Keine Kurve ausgewählt. Oben wieder einschalten.' : archiveMode ? archived
-          ? `${plot.count} Messwerte · ${archived.buckets.length} Intervalle · ${g.id === 'energy' ? 'Letzter Sessionzähler' : g.step ? 'Spanne / letzter Zustand' : 'Stichprobenmittel / Min–Max'}`
+          ? `${plot.count} Messwerte · ${archived.buckets.length} Intervalle · ${g.id === 'energy' ? 'Letzter Sessionzähler' : g.step ? plot.lineMode ? 'Letzter Zustand' : 'Spanne / letzter Zustand' : plot.lineMode ? 'Stichprobenmittel' : 'Stichprobenmittel / Min–Max'}`
           : 'Keine Archivmesswerte geladen. Live-Anzeige bleibt unabhängig.'
           : plot.count ? `${plot.count} Messzeitpunkte im Fenster · Lücken bleiben unverbunden.`
             : 'Noch keine Messwerte in diesem Zeitfenster. Verlauf beginnt mit Seitenöffnung.';
