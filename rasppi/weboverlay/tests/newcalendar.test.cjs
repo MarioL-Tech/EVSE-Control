@@ -151,6 +151,27 @@ test('archive remains independent of raw/live buffer, has copy ownership and pre
   first.buckets.length = 0; assert.equal(store.size, 1);
   store.clear(); assert.equal(store.snapshot(), null); assert.equal(store.size, 0);
 });
+test('explicitly rebuilt zero-coverage summaries replace cached dots with lines, but retain a real gap', () => {
+  const b = fixture(), start = calendar.utc(b.range.from), store = calendar.createArchiveStore();
+  b.buckets = Array.from({ length: 5 }, (_, i) => {
+    const bin = { from: new Date(start + i * 300000).toISOString(), to: new Date(start + (i + 1) * 300000).toISOString(),
+      samples: 150, complete: true, has_gap: true, coverage_seconds: 0, metrics: metrics(150) };
+    bin.metrics.charging = { count: 0, nulls: 150, mean: null, min: null, max: null, last: null, mixed: false };
+    bin.metrics.voltage_l1_v = { count: 150, nulls: 0, mean: 230 + i, min: 230 + i, max: 230 + i, last: 230 + i, mixed: false };
+    return bin;
+  });
+  const group = charts.GROUPS.find(g => g.id === 'voltage');
+  const plot = () => calendar.buildSummaryPlot(store.view(), group, charts.defaults().selected, charts).paths[0].path;
+  assert(store.importHistory(b, now)); assert(!plot().includes('L'));
+  const revision = store.revision;
+  // Only an independently rebuilt API response changes this evidence. The
+  // browser must neither reinterpret the old flags nor retain the stale path.
+  for (const [i, bin] of b.buckets.entries()) if (i !== 2) { bin.has_gap = false; bin.coverage_seconds = 300; }
+  assert(store.importHistory(b, now)); assert.equal(store.revision, revision + 1);
+  assert.equal((plot().match(/L/g) || []).length, 2);
+  assert.equal((plot().match(/M/g) || []).length, 3);
+  assert.equal(store.view().buckets[2].has_gap, true);
+});
 test('immutable render views and unchanged data revisions avoid archive copies and duplicate rebuilding', () => {
   const store = calendar.createArchiveStore(), b = fixture();
   assert(store.importHistory(b, now));
