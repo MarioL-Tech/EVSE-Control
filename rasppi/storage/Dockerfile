@@ -9,7 +9,9 @@ COPY storage ./storage
 COPY migrations ./migrations
 COPY tests ./tests
 RUN python -m unittest discover -s tests -p test_unit.py -v \
-    && python -m unittest discover -s tests -p test_history_unit.py -v && touch /tmp/unit-tested
+    && python -m unittest discover -s tests -p test_history_unit.py -v \
+    && python -m unittest discover -s tests -p test_house_unit.py -v \
+    && python -m unittest discover -s tests -p test_history_refresh_unit.py -v && touch /tmp/unit-tested
 CMD ["python", "-m", "unittest", "discover", "-s", "tests", "-v"]
 
 FROM base AS runtime

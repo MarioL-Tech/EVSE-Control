@@ -230,6 +230,70 @@ class HistoryIntegration(unittest.TestCase):
         self.assertEqual(self.bucket(), first)
         self.assertEqual(self.bucket(seconds=3600)["metrics"]["active_power_w"]["n"], 31)
 
+    def test_explicit_refresh_requeues_only_existing_source_minutes_in_range(self):
+        import threading
+        from storage.history_refresh import refresh_history
+
+        self.db.write(self.availability())
+        for second in range(-2, 182, 2):
+            self.db.write(self.sample(second, values={"charging": None, "active_power_w": 100}))
+        self.drain()
+        original = self.bucket()
+        self.assertFalse(original["has_gap"])
+        # Simulate a persisted, conservative summary from the old algorithm.
+        conservative = {**original, "has_gap": True, "coverage_seconds": "0"}
+        other = self.source.upper()  # Binary source matching must not fold case.
+        with self.db.connection.cursor() as c:
+            c.execute("UPDATE evse_history_buckets SET data_json=%s WHERE source=%s "
+                      "AND resolution_seconds=60 AND bucket_start=%s",
+                      (json.dumps(conservative), self.source, START))
+            c.execute("INSERT INTO evse_history_buckets (source,resolution_seconds,bucket_start,data_json,updated_at) "
+                      "SELECT %s,resolution_seconds,bucket_start,data_json,updated_at FROM evse_history_buckets WHERE source=%s",
+                      (other, self.source))
+            c.execute("INSERT INTO evse_history_work (source,resolution_seconds,bucket_start,generation,done_generation,pending) "
+                      "SELECT %s,resolution_seconds,bucket_start,generation,done_generation,pending "
+                      "FROM evse_history_work WHERE source=%s", (other, self.source))
+        self.db.connection.commit()
+
+        def work():
+            return self.query("SELECT source,resolution_seconds,bucket_start,generation,done_generation,pending "
+                              "FROM evse_history_work WHERE source IN (%s,%s) ORDER BY source,resolution_seconds,bucket_start",
+                              (self.source, other))
+
+        def unchanged():
+            return (
+                self.query("SELECT * FROM evse_wallbox_samples WHERE source=%s ORDER BY id", (self.source,)),
+                self.query("SELECT * FROM evse_ingest_events WHERE source=%s ORDER BY event_id", (self.source,)),
+                self.query("SELECT * FROM evse_history_buckets WHERE source IN (%s,%s) "
+                           "ORDER BY source,resolution_seconds,bucket_start", (self.source, other)),
+                self.query("SELECT * FROM evse_history_state WHERE source=%s", (self.source,)),
+                self.query("SELECT * FROM evse_schema_versions ORDER BY version"),
+                self.query("SELECT * FROM T_ELECTRICITYPRICE ORDER BY id"),
+                self.query("SELECT * FROM T_ELECTRICITYPROVIDER ORDER BY id"),
+            )
+
+        before, untouched = work(), unchanged()
+        start, end = START.isoformat() + "Z", (START + timedelta(minutes=2)).isoformat() + "Z"
+        for repeat in (1, 2):
+            self.assertEqual(refresh_history(self.db, start, end, threading.Event()), 2)
+            expected = []
+            for source, resolution, at, generation, done, pending in before:
+                selected = source == self.source.encode() and resolution == 60 and START <= at < START + timedelta(minutes=2)
+                expected.append((source, resolution, at, generation + (repeat if selected else 0), done,
+                                 1 if selected else pending))
+            self.assertEqual(work(), tuple(expected))
+            self.assertEqual(unchanged(), untouched)  # Includes byte-identical raw/materializations and version/state.
+        self.assertEqual(self.query("SELECT algorithm_version FROM evse_history_state WHERE source=%s", (self.source,)), ((1,),))
+        self.assertEqual(self.query("SELECT version FROM evse_schema_versions ORDER BY version"), ((1,), (2,)))
+        self.drain()  # Ordinary worker owns reconstruction and parent notification.
+        self.assertEqual(self.bucket(), original)
+        parent = self.bucket(seconds=3600)
+        self.assertTrue(parent["has_gap"])
+        self.assertFalse(parent["complete"])
+        self.assertEqual(self.query("SELECT data_json FROM evse_history_buckets WHERE source=%s "
+                                    "AND resolution_seconds=60 AND bucket_start=%s", (other, START)),
+                         ((json.dumps(conservative),),))
+
     def test_backfill_and_new_live_insert_concurrently(self):
         for second in range(CHUNK + 3):
             self.db.write(self.sample(second))

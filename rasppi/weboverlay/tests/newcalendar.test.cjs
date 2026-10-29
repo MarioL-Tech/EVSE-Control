@@ -20,8 +20,10 @@ function mountedCalendar(saved = null) {
   const buttons = calendar.PERIODS.map(period => {
     const button = new Element(); button.setAttribute('data-calendar-period', period); return button;
   });
-  const calls = [], writes = [];
+  const calls = [], writes = [], events = [], eventTarget = new EventTarget();
+  eventTarget.addEventListener('evse:calendar-change', event => events.push(event.detail));
   const instance = calendar.mount({
+    eventTarget,
     document: { hidden: false, getElementById: id => ids[id], querySelectorAll: () => buttons },
     loader: { select: value => calls.push(value), setVisible() {}, tick() {}, suspend() { calls.push('suspend'); } },
     archive: { clear() {} }, onChange() {},
@@ -29,7 +31,7 @@ function mountedCalendar(saved = null) {
   });
   const click = period => buttons.find(b => b.getAttribute('data-calendar-period') === period).dispatchEvent(new Event('click'));
   const pressed = () => buttons.filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.getAttribute('data-calendar-period'));
-  return { ids, buttons, instance, calls, writes, click, pressed };
+  return { ids, buttons, instance, calls, writes, click, pressed, events, eventTarget };
 }
 test('native period buttons reuse hidden mode change selection and synchronize captions/wrappers', () => {
   const ui = mountedCalendar(), { ids } = ui;
@@ -175,7 +177,7 @@ test('summary plots use weighted API mean and interval ranges, no connected line
   assert.equal(p.count, 150); assert.equal(p.paths[0].markers.length, 0);
   const [range, value] = p.paths[0].glyphs;
   assert.equal(p.paths[0].glyphs.length, 2);
-  assert.equal(range.kind, 'range'); assert(range.path.includes('V')); assert(!range.path.includes('H'));
+  assert.equal(range.kind, 'range'); assert(range.path.endsWith('Z')); assert(!range.path.includes('H'));
   assert.equal(value.kind, 'value'); assert(value.path.includes('H')); assert(!value.path.includes('V'));
   assert.equal(p.paths[0].path, '');
   assert.equal(Number(value.path.split(',')[1].split('H')[0]), Number((180 - (1 - p.lo) / (p.hi - p.lo) * 155).toFixed(2)), 'API mean, not last or min/max midpoint reconstruction');
@@ -184,7 +186,7 @@ test('summary plots use weighted API mean and interval ranges, no connected line
   const mixed = calendar.buildSummaryPlot(b, charts.GROUPS.find(g => g.id === 'flags'), charts.defaults().selected, charts)
     .paths.find(p => p.metric.id === 'charging').glyphs[0];
   assert(mixed.gap); assert(mixed.mixed); assert.equal(mixed.kind, 'range');
-  assert(mixed.path.includes('V')); assert(!mixed.path.includes('H'));
+  assert(mixed.path.endsWith('Z')); assert(!mixed.path.includes('H'));
 });
 test('empty/pre-data archive has no fabricated zero samples; null-only bins produce no glyph', () => {
   for (const buckets of [[], [{ ...fixture().buckets[0], samples: 0, metrics: metrics(0), coverage_seconds: 0 }]]) {
@@ -259,10 +261,11 @@ test('hour-long constant zero W and 6 A retain 60 solid-role aggregates despite 
     assert(series.glyphs.filter(g => g.kind === 'value').every(g => g.label.includes(field === 'active_power_w' ? 'Stichprobenmittel 0' : 'letzter Wert 6')));
   }
 });
-test('complete adjacent buckets still never connect; empty, NULL, offline and missing intervals stay separate', () => {
+test('only complete adjacent buckets connect; empty, NULL, offline and missing intervals split paths', () => {
   const b = hourSeries();
   b.buckets.forEach(bin => { bin.complete = true; bin.has_gap = false; bin.coverage_seconds = 60; });
   assertIndependentTicks(summary(b, 'active_power_w'), 60);
+  assert.equal(summary(b, 'active_power_w').renderPaths.find(p => p.kind === 'value').path.match(/M/g).length, 1);
   b.buckets[10].samples = 0; b.buckets[10].metrics = metrics(0); b.buckets[10].coverage_seconds = 0;
   b.buckets[20].metrics.active_power_w = { count: 0, nulls: 30, mean: null, min: null, max: null, last: null, mixed: false };
   b.buckets[30].has_gap = true;
@@ -272,6 +275,27 @@ test('complete adjacent buckets still never connect; empty, NULL, offline and mi
   const series = summary(b, 'active_power_w');
   assertIndependentTicks(series, 57);
   assert.equal(series.glyphs.filter(g => g.kind === 'value' && g.gap).length, 2);
+  const normal = series.renderPaths.find(p => p.kind === 'value' && !p.gap);
+  assert.equal(normal.path.match(/M/g).length, 5, 'Five separated fully observed runs; no path across missing data');
+  assert.equal(series.renderPaths.find(p => p.kind === 'value' && p.gap).path.match(/M/g).length, 2);
+});
+test('varying numeric means connect despite mixed ranges and an unrelated unknown charging state', () => {
+  const b = hourSeries();
+  for (const [i, bin] of b.buckets.entries()) {
+    bin.complete = true; bin.has_gap = false; bin.coverage_seconds = 60;
+    bin.metrics.voltage_l1_v = { count: 30, nulls: 0, min: 228, max: 236, mean: 230 + i % 5, last: 232, mixed: true };
+    bin.metrics.charging = { count: 0, nulls: 30, min: null, max: null, mean: null, last: null, mixed: false };
+  }
+  assert(calendar.validate(b, now));
+  const path = summary(b, 'voltage_l1_v').renderPaths.find(p => p.kind === 'value').path;
+  assert.equal((path.match(/M/g) || []).length, 1);
+  assert.equal((path.match(/L/g) || []).length, 59);
+  assert.equal(summary(b, 'charging').renderPaths.length, 0);
+  b.buckets[20].metrics.voltage_l1_v.nulls = 1;
+  b.buckets[20].metrics.voltage_l1_v.count = 29;
+  const broken = summary(b, 'voltage_l1_v').renderPaths;
+  assert.equal((broken.find(p => p.kind === 'value' && !p.gap).path.match(/M/g) || []).length, 2);
+  assert(broken.some(p => p.kind === 'value' && p.gap));
 });
 test('partial physical min/max stays separate from mean and never fabricates a zero for missing mean', () => {
   const b = hourSeries();
@@ -281,7 +305,7 @@ test('partial physical min/max stays separate from mean and never fabricates a z
   const series = summary(b, 'voltage_l1_v');
   assert.equal(series.glyphs.length, 2);
   assert(series.glyphs.every(g => g.gap && g.mixed));
-  assert(series.glyphs[0].path.includes('V'));
+  assert(series.glyphs[0].path.endsWith('Z'));
   assert(series.glyphs[1].label.includes('Stichprobenmittel 231'));
   b.buckets[0].metrics.voltage_l1_v.mean = null;
   assert.deepEqual(summary(b, 'voltage_l1_v').glyphs.map(g => g.kind), ['range']);
@@ -301,4 +325,58 @@ test('flags/codes never average mixed states; limit/session use actual last incl
     assert.deepEqual(summary(b, field).glyphs.map(g => g.kind), ['range']);
   }
   assert(calendar.validate(b, now));
+});
+
+test('512 buckets retain every extreme and label but need at most four paths per series', () => {
+  const b = hourSeries(), start = calendar.utc(b.range.from);
+  b.buckets = Array.from({ length: 512 }, (_, i) => ({
+    ...b.buckets[0], metrics: metrics(30), has_gap: i % 7 === 0, complete: true,
+    from: new Date(start + i * 6000).toISOString(), to: new Date(start + (i + 1) * 6000).toISOString(), coverage_seconds: 6
+  }));
+  b.buckets.forEach((bin, i) => Object.assign(bin.metrics.active_power_w, { min: i, max: i + 1000, mean: i + 500, last: i }));
+  const p = calendar.buildSummaryPlot(b, charts.GROUPS[0], charts.defaults().selected, charts);
+  const s = p.paths[0];
+  assert.equal(p.bucketCount, 512); assert.equal(p.count, 15360);
+  assert.equal(s.glyphs.length, 1024); assert(s.renderPaths.length <= 4);
+  for (let i = 0; i < 512; i++) {
+    const glyph = s.glyphs.find(g => g.bucketIndex === i && g.kind === 'range');
+    assert(glyph); assert(glyph.label.includes('30 Werte'));
+  }
+  assert(p.hi >= 1.511); assert(p.lo <= 0);
+  assert(s.renderPaths.every(g => !/NaN|Infinity/.test(g.path)));
+  const uncertain = s.renderPaths.find(g => g.kind === 'value' && g.gap);
+  assert(!uncertain.path.includes('L'), 'Incomplete intervals are independent subpaths, not a repaired trend');
+});
+test('calendar publishes metadata only and accepts HOUSE navigation only for the exact current query', () => {
+  const ui = mountedCalendar();
+  assert.equal(calendar.currentSelection, null); assert.equal(calendar.currentRange, null);
+  assert.deepEqual(ui.events[0], { selection: null, range: null }, 'Late modules can read properties and early modules receive initial live state');
+  ui.click('day');
+  const original = { period: 'day', date: 'now', tz: calendar.ZONE };
+  assert.deepEqual(calendar.currentSelection, original);
+  const b = fixture(), metadata = { range: b.range, selection: b.selection, navigation: b.navigation };
+  function deliver(query, value = metadata) {
+    const event = new Event('evse:calendar-range');
+    Object.defineProperty(event, 'detail', { value: { query, metadata: value } });
+    ui.eventTarget.dispatchEvent(event);
+  }
+  deliver(calendarQuery({ period: 'year', date: 'now', tz: calendar.ZONE }));
+  assert(ui.ids['calendar-prev'].disabled);
+  deliver(calendarQuery(original), { ...metadata, buckets: [] });
+  assert(ui.ids['calendar-prev'].disabled, 'Unknown metadata fields are not admitted');
+  deliver(calendarQuery(original));
+  assert(!ui.ids['calendar-prev'].disabled);
+  assert.deepEqual(calendar.currentRange, b.range);
+  assert.deepEqual(calendar.currentSelection, { period: 'day', at: b.range.from, tz: calendar.ZONE });
+  assert.deepEqual(ui.instance.selection, original, 'Relative Now preference is not rewritten');
+  assert(ui.events.every(e => Object.keys(e).sort().join() === 'range,selection'));
+  const savedRange = calendar.currentRange;
+  deliver(calendarQuery(original), metadata);
+  assert.equal(ui.events.length, 3, 'Resolved fallback metadata is accepted only once');
+  deliver(calendarQuery(calendar.currentSelection), { ...metadata, range: { ...b.range, from: 'invalid' } });
+  assert.deepEqual(calendar.currentRange, savedRange);
+  ui.click('live');
+  deliver(calendarQuery(original));
+  assert.equal(calendar.currentSelection, null); assert.equal(calendar.currentRange, null);
+  assert(ui.ids['calendar-prev'].disabled);
 });

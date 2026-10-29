@@ -3,14 +3,12 @@ on:
   push:
     paths:
       - 'rasppi/weboverlay/**'
-      - 'rasppi/storage/migrations/**'
-      - 'rasppi/storage/storage/history.py'
+      - 'rasppi/storage/**'
       - '.github/workflows/weboverlay-docker.yml'
   pull_request:
     paths:
       - 'rasppi/weboverlay/**'
-      - 'rasppi/storage/migrations/**'
-      - 'rasppi/storage/storage/history.py'
+      - 'rasppi/storage/**'
       - '.github/workflows/weboverlay-docker.yml'
 permissions:
   contents: read
@@ -30,6 +28,8 @@ jobs:
           docker compose -f rasppi/weboverlay/compose.yaml -f rasppi/weboverlay/compose.auth.yaml -f rasppi/weboverlay/compose.history.yaml config --quiet
           COMPOSE_PROFILES=https WEB_BIND_ADDRESS=192.0.2.10 docker compose -f rasppi/weboverlay/compose.yaml -f rasppi/weboverlay/compose.auth.yaml -f rasppi/weboverlay/compose.history.yaml config --quiet
           docker compose -f rasppi/weboverlay/compose.pwa-test.yaml --profile tools config --quiet
+          docker compose -f rasppi/weboverlay/compose.house-api-test.yaml config --quiet
+          docker compose -f rasppi/weboverlay/compose.house-e2e-test.yaml config --quiet
           # Check actual expanded host bindings without publishing any test ports
           # or logging environment/credentials from the full configuration.
           env -u WEB_BIND_ADDRESS docker compose -f rasppi/weboverlay/compose.yaml config --format json | grep -Eq '"host_ip"[[:space:]]*:[[:space:]]*"127\.0\.0\.1"'
@@ -75,6 +75,22 @@ jobs:
           trap 'docker compose -f compose.history-test.yaml logs --tail 60; docker compose -f compose.history-test.yaml down --volumes' EXIT
           docker compose -f compose.history-test.yaml build history-tests
           docker compose -f compose.history-test.yaml up --abort-on-container-exit --exit-code-from history-tests
+      - name: HOUSE read-only API with disposable loopback MariaDB 11.8.8
+        working-directory: rasppi/weboverlay
+        run: |
+          project="evse-house-api-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          trap 'docker compose -p "$project" -f compose.house-api-test.yaml down --volumes --remove-orphans' EXIT
+          docker compose -p "$project" -f compose.house-api-test.yaml up --build --abort-on-container-exit --exit-code-from house-api-tests
+      - name: Real HOUSE PHP publisher to Python collector and SQL
+        working-directory: rasppi/weboverlay
+        run: |
+          project="evse-house-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          trap 'docker compose -p "$project" -f compose.house-e2e-test.yaml down --volumes --remove-orphans' EXIT
+          docker compose -p "$project" -f compose.house-e2e-test.yaml build
+          # Complete one-shot migration before attaching the assertion runner:
+          # --abort-on-container-exit must not treat migrate's success as test end.
+          docker compose -p "$project" -f compose.house-e2e-test.yaml up -d --wait --wait-timeout 90 publisher collector
+          docker compose -p "$project" -f compose.house-e2e-test.yaml up --no-deps --abort-on-container-exit --exit-code-from assertions assertions
       - name: Extract resolved Composer lock for verification
         run: |
           docker create --name web-dependencies evse-weboverlay:test

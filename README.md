@@ -16,7 +16,10 @@ geprüft; Pi-/Handyinstallation noch offen. Spätere Domainanbindung
 Die HTTPS-/Handyeinrichtung ist auf Wunsch vorerst zurückgestellt; HTTP im LAN
 bleibt nutzbar. Settings enthält keine WebApp-Karte mehr. Die aktuelle
 Oberflächenüberarbeitung verlagert Datenstatus nach unten, bietet Kurvenauswahl
-direkt am Diagramm und einen gesonderten Haus-Liveverlauf ohne SQL-Hausarchiv.
+direkt am Diagramm und einen gesonderten Haus-Liveverlauf. Neu implementiertes
+opt-in ergänzt ein dauerhaftes Haus-SQL-Archiv im bestehenden MariaDB-System,
+verbundene belegte Mittelwertlinien und begrenztes SVG-Rendering. Docker-/Pi-
+Abnahme dieser Erweiterung offen; explizite additive Aktivierung erforderlich.
 Docker-CI 40777926455/40777919496 für 296074c ist erfolgreich; Pi-Prüfung steht
 noch aus, aktuellen Freigabestand über PR #52 prüfen. Der Fahrzeuganschluss-Fix
 benötigt zusätzlich das aktualisierte Readerimage, keine Datenbankmigration.
@@ -205,7 +208,10 @@ Optional zeigt **Netzleistung Haus** den siebten HTTP-Smartmeterwert:
 positiv Netzbezug, negativ Einspeisung. Die private Quelle nur lokal über
 `SMARTMETER_URL` konfigurieren; ohne URL bleibt sie deaktiviert.
 [Einrichtung und Ausfallverhalten](docs/installation.md#haus-smartmeter-optional-einrichten).
-Kein verfügbarer Ladestrom, keine Ladeautomation und kein Hauszählerverlauf.
+Kein verfügbarer Ladestrom und keine Ladeautomation. Ein dauerhaftes optionales
+[Hausarchiv](docs/installation.md#haus-netzleistung-dauerhaft-aufzeichnen-separates-house-schema)
+ergänzt Stunde/Tag/Woche/Monat/Jahr, bleibt standardmäßig deaktiviert und ist noch
+nicht produktiv aktiviert.
 
 ## ESP32-UART-Verbindung testen
 

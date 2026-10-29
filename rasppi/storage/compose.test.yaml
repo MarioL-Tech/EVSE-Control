@@ -33,6 +33,10 @@ services:
       DB_PASSWORD: isolated-client
       MQTT_HOST: broker
       DB_ROOT_PASSWORD: isolated-root
+      HOUSE_MQTT_TOPIC_PREFIX: evse/house
+      HOUSE_STORAGE_CLIENT_ID: evse-house-storage-test
+    # Discover all Wallbox/calendar/HOUSE unit and integration suites.
+    command: [python, -m, unittest, discover, -s, tests, -p, 'test_*.py', -v]
     depends_on:
       db:
         condition: service_healthy

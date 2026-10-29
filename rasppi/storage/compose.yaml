@@ -45,6 +45,25 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+  house-storage:
+    <<: *runtime
+    profiles: [house-history]
+    command: [--house]
+    restart: unless-stopped
+    networks: [mqtt, database]
+    environment:
+      <<: *storage-environment
+      HOUSE_MQTT_TOPIC_PREFIX: ${HOUSE_MQTT_TOPIC_PREFIX:-evse/house}
+      HOUSE_STORAGE_CLIENT_ID: ${HOUSE_STORAGE_CLIENT_ID:-evse-house-storage}
+      MQTT_USERNAME: ${HOUSE_STORAGE_MQTT_USERNAME:-${MQTT_USERNAME:-}}
+    volumes:
+      - ./secrets/db-password.txt:/run/secrets/db-password:ro
+    healthcheck:
+      test: [CMD, python, -m, storage, --house-healthcheck]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
   history-rollup:
     <<: *runtime
     profiles: [history]

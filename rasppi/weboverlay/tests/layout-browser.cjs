@@ -89,6 +89,9 @@ function sample() {
 async function live(page) {
   await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Live');
 }
+async function paint(page) {
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => resolve())));
+}
 async function globals(page) {
   for (const id of ['status', 'reason', 'wallbox-warning', 'timestamp', 'freshness']) {
     assert(await page.locator(`#${id}`).isVisible(), `${id} must remain visible`);
@@ -320,6 +323,7 @@ function clean(run) {
         await overflow(page, `${route} ${width}: technical details`);
         if (route === '/diagramme') {
           for (let i = 0; i < 16; i++) await boxes.nth(i).uncheck();
+          await paint(page);
           assert(await boxes.evaluateAll(inputs => inputs.every(input => !input.checked)));
           await globals(page);
           assert.equal(await page.locator('#display-empty').count(), 0);
@@ -338,8 +342,10 @@ function clean(run) {
           await globals(page);
           await overflow(page, `${route} ${width}: overview ignores all-off preferences`);
           await page.locator('nav a[href="/diagramme"]').click(); await live(page);
+          await paint(page);
           assert(await boxes.evaluateAll(inputs => inputs.every(input => !input.checked)));
           await page.locator('#reset-display').click();
+          await paint(page);
           assert(await boxes.evaluateAll(inputs => inputs.every(input => input.checked)));
           assert.equal(await page.locator('#chart-grid svg[hidden], #chart-diagnostics-grid svg[hidden]').count(), 0);
         }

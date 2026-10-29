@@ -57,8 +57,9 @@ class Inbox:
 
 
 class Subscriber:
-    def __init__(self, config, inbox):
+    def __init__(self, config, inbox, decoder=decode):
         self.config, self.inbox = config, inbox
+        self.decoder = decoder
         self.lock = threading.RLock()
         self.client = None
         self.generation = 0
@@ -123,7 +124,7 @@ class Subscriber:
                 self.pending_mids[message.mid] = token
         try:
             if message.topic == self.config.prefix + "/state":
-                item = {"kind": "sample", "sample": decode(message.payload), "source": self.config.prefix,
+                item = {"kind": "sample", "sample": self.decoder(message.payload), "source": self.config.prefix,
                         "received_at": now(), "retained": bool(message.retain), "ack": token}
             elif message.topic == self.config.prefix + "/availability":
                 availability = {b"online": "online", b"offline": "offline"}.get(message.payload)

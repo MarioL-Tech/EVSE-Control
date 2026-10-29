@@ -114,9 +114,13 @@ Fehlerwarnungen bleiben außerhalb der einklappbaren Bereiche sichtbar.
 Übersicht mit Bezug (+)/Einspeisung (−), Status, letztem Abruf und Abrufalter.
 Wert 7 wird aus W nach kW umgerechnet. Die 16 Wallbox-Präferenzen blenden ihn
 nicht aus. Auf der Diagrammseite gibt es einen eigenen signierten Haus-Liveverlauf
-im Browser-RAM (maximal 15 Minuten/1200 Abrufe), ohne MQTT-/MariaDB-Speicherung.
-Keine Hauswerte für Kalenderarchive: dort wird statt einer erfundenen Kurve ein
-entsprechender Hinweis gezeigt. HTTP-Abrufzeit ist weiterhin keine Gerätemesszeit.
+im Browser-RAM (maximal 15 Minuten/1200 Abrufe). Ohne zusätzliche Aktivierung
+keine MQTT-/MariaDB-Speicherung und keine erfundene Kalenderkurve. Das neue opt-in
+`house-history` ergänzt separaten PHP-Publisher, vorhandenen Broker und eigenen
+Storage-Collector; Website bleibt SELECT-only. `/api/house-history` ist unabhängig
+vom Wallboxschema, Default `WEB_HOUSE_HISTORY_ENABLED=0`. Einrichtung ausschließlich
+im [Installationsguide](../../docs/installation.md#haus-netzleistung-dauerhaft-aufzeichnen-separates-house-schema).
+Neue Docker-/Pi-Abnahme offen. HTTP-Abrufzeit ist weiterhin keine Gerätemesszeit.
 
 **Diagramme `/diagramme`:** über die gemeinsame Navigation öffnen. Vier
 elektrische Zeitverläufe, weitere Zustands-/Rohwertkurven unter „Zustands- &
@@ -149,8 +153,10 @@ optionale additive Speicherschema 2 und dessen getrennten Verdichtungsworker.
 Periodentasten und ein passender Datum-/Stunden-/Wochen-/Monats-/Jahreswähler
 ersetzen das sichtbare Modusmenü. Eine kompakte Statuszeile statt Verlaufskarte
 unterscheidet lokale, geladene, unvollständige und nicht verfügbare Historie.
-Archivintervalle zeigen solide Mittelwert-/Lastmarken und dezente Min/Max-Spannen;
-keine Linien über unbewiesene Intervallkanten. SVG-Koordinaten passen sich der
+Archivintervalle zeigen verbundene belegte Mittelwert-/Lastlinien und dezente
+Min/Max-Bänder, mit getrennten Marken an tatsächlichen Lücken/Unvollständigkeit.
+Pfade werden je Serie gebündelt, geschlossene Diagnosegruppen nicht vorab
+gezeichnet; keine Linien über unbewiesene Intervallkanten. SVG-Koordinaten passen sich der
 tatsächlichen Breite an, damit Achsentexte am Handy nicht mitkomprimiert werden.
 Die Übersicht sammelt/lädt keinen verdeckten Diagrammverlauf.
 Wiederholte API-Polls zählen nicht als neue Messungen; bei gleicher Sekunden-

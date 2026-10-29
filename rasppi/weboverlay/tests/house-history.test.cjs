@@ -1,0 +1,119 @@
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const house = require('../static/house-history.js');
+const chart = require('../static/smartmeter-chart.js');
+const epoch = Date.parse('2026-10-29T12:00:00Z');
+const iso = t => new Date(t).toISOString();
+function raw(values = [-1000, 0, null, 500]) {
+  return { schema_version: 1, read_only: true, status: 'ok', reason: 'Hausverlauf', generated_at: iso(epoch),
+    minutes: 15, range: { from: iso(epoch - 900000), to: iso(epoch) }, complete: true,
+    samples: values.map((v, i) => ({ id: String(i + 1), timestamp: iso(epoch - 10000 + i * 1000),
+      received_at: iso(epoch - 9000 + i * 1000), status: v === null ? 'error' : 'ok', power_w: v, break_before: i === 0 })) };
+}
+function calendar(from = '2024-01-01T00:00:00Z', to = '2025-01-01T00:00:00Z', period = 'year', date = '2024', tz = 'UTC') {
+  return { schema_version: 2, read_only: true, status: 'ok', reason: 'Hausverlauf', generated_at: iso(epoch),
+    range: { from, to, timezone: tz }, selection: { period, date, timezone: tz }, navigation: { previous: null, next: null, now: null },
+    aggregation: 'sample_mean', complete: true, progress: { samples_done: true, events_done: true }, buckets: [] };
+}
+function bucket(from, to, value, options = {}) {
+  return { from, to, samples: 1, has_gap: false, complete: true, coverage_seconds: (Date.parse(to) - Date.parse(from)) / 1000,
+    metrics: { power_w: { count: value === null ? 0 : 1, nulls: value === null ? 1 : 0,
+      mean: value, min: value, max: value, last: value, mixed: false } }, ...options };
+}
+test('signed zero/NULL survive raw reload; no synthetic preactivation values; two pollers have one broken seam', () => {
+  const s = house.createStore(); assert(s.importHistory(raw(), epoch));
+  const points = s.points([{ t: epoch - 8500, power_w: 9 }, { t: epoch - 6000, power_w: -9 }], epoch, 15);
+  assert.deepEqual(points.map(p => p.power_w), [-1000, 0, null, 500, -9]);
+  assert(points.at(-1).breakBefore); assert(points[0].breakBefore);
+  const plot = chart.buildPlot(points, epoch - 900000, epoch);
+  assert.equal((plot.path.match(/L/g) || []).length, 1);
+  assert(s.importHistory({ ...raw([]), status: 'unavailable' }, epoch));
+  assert.equal(s.raw().samples.length, 4, 'Failures retain historical baseline');
+  const fresh = house.createStore(); assert(fresh.importHistory(raw(), epoch));
+  assert.deepEqual(fresh.points([], epoch, 15), s.points([], epoch, 15));
+});
+test('raw and calendar validation rejects malformed values, mixed metrics, excess slots and foreign fields', () => {
+  for (const value of [NaN, Infinity, '0', true, Number.MAX_SAFE_INTEGER + 1]) assert.equal(house.validate(raw([value]), epoch), null);
+  for (const mutate of [b => b.samples.push(...Array(1200).fill(b.samples[0])), b => b.samples[0].power_w = null,
+    b => b.samples[0].timestamp = '2026-02-30T00:00:00Z', b => b.samples[0].id = '18446744073709551616',
+    b => b.samples[0].break_before = false, b => b.samples[0] = null,
+    b => b.samples[1].timestamp = iso(Date.parse(b.samples[0].timestamp) - 1000), b => b.extra = 1]) {
+    const b = raw(); mutate(b); assert.equal(house.validate(b, epoch), null);
+  }
+  const b = calendar(), selection = { period: 'year', date: '2024', tz: 'UTC' };
+  b.buckets = [bucket(b.range.from, '2024-01-02T00:00:00Z', -10)];
+  assert(house.validate(b, epoch, selection)); b.buckets[0].metrics.power_w.mixed = true;
+  assert.equal(house.validate(b, epoch, selection), null);
+});
+test('calendar year and both DST days use server UTC bounds without assuming 24-hour days', () => {
+  for (const [date, from, to, hours] of [['2026-03-29', '2026-03-28T23:00:00Z', '2026-03-29T22:00:00Z', 23],
+    ['2026-10-25', '2026-10-24T22:00:00Z', '2026-10-25T23:00:00Z', 25]]) {
+    const b = calendar(from, to, 'day', date, 'Europe/Vienna');
+    assert(house.validate(b, epoch, { period: 'day', date, tz: 'Europe/Vienna' }));
+    assert.equal((house.utc(to) - house.utc(from)) / 3600000, hours);
+  }
+  assert(house.validate(calendar(), epoch, { period: 'year', date: '2024', tz: 'UTC' }));
+});
+test('archive curves/bands connect only fully covered adjacent intervals; NULL/gaps never heal', () => {
+  const b = calendar(), from = Date.parse(b.range.from);
+  b.buckets = Array.from({ length: 5 }, (_, i) => bucket(iso(from + i * 60000), iso(from + (i + 1) * 60000), i === 2 ? null : -500));
+  const geometry = { left: 62, right: 480, top: 24, bottom: 210 };
+  let plot = chart.buildArchivePlot(b, geometry);
+  assert.equal((plot.path.match(/L/g) || []).length, 2); assert(plot.band.includes('Z'));
+  assert(plot.band.split('M').filter(Boolean).every(part => part.endsWith('Z')), 'Min/max coverage is a band, never vertical spikes');
+  b.buckets[1].has_gap = true; b.buckets[4].complete = false;
+  plot = chart.buildArchivePlot(b, geometry); assert(!plot.path.includes('L'));
+  assert(!/NaN|Infinity/.test(plot.path)); assert.equal(plot.markers.length, 0);
+  const incomplete = calendar(); incomplete.buckets = [bucket(incomplete.range.from, '2024-01-02T00:00:00Z', -500,
+    { has_gap: true, complete: false, coverage_seconds: 0 })];
+  plot = chart.buildArchivePlot(incomplete, geometry);
+  assert.match(plot.path, /H/); assert.equal(plot.band, '', 'Unproven coverage keeps a local value mark without a false envelope');
+});
+function harness() {
+  let wall = epoch, mono = 0, calls = [], timers = new Map(), timerID = 0;
+  const store = house.createStore();
+  const loader = house.createLoader({ fetch: (url, init) => new Promise(resolve => calls.push({ url, init, resolve })),
+    clock: () => ({ wall, mono }), setTimer: f => { timers.set(++timerID, f); return timerID; }, clearTimer: id => timers.delete(id),
+    importHistory: (b, now) => store.importHistory(b, now), importArchive: (b, now, s) => store.importHistory(b, now, s),
+    onReset: () => store.clearRaw() });
+  const response = b => ({ status: b.status === 'unavailable' ? 503 : 200, headers: { get: () => null }, text: async () => JSON.stringify(b) });
+  return { loader, store, calls, timers, response, advance(ms) { wall += ms; mono += ms; }, rollback() { wall--; } };
+}
+const settle = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
+test('independent HOUSE loader uses one request, hidden cancellation and late replies cannot import', async () => {
+  const h = harness(); h.loader.tick(); h.loader.tick(); assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].url, '/api/house-history?minutes=15');
+  h.loader.setVisible(false); assert(h.calls[0].init.signal.aborted);
+  h.calls[0].resolve(h.response(raw())); await settle(); assert.equal(h.store.raw(), null);
+  h.loader.setVisible(true); h.loader.tick(); h.calls[1].resolve(h.response(raw())); await settle();
+  assert.equal(h.store.raw().samples.length, 4);
+});
+test('disabled pauses automatic retries including clock rollback; explicit lifecycle restores; 4s timeout releases slot', async () => {
+  const h = harness(); h.loader.tick(); h.calls[0].resolve(h.response({ ...raw([]), status: 'disabled' })); await settle();
+  h.advance(60000); h.loader.tick(); h.rollback(); h.loader.tick(); assert.equal(h.calls.length, 1);
+  h.loader.restore(); h.loader.tick(); assert.equal(h.calls.length, 2);
+  [...h.timers.values()][0](); assert(h.calls[1].init.signal.aborted);
+  h.advance(9999); h.loader.tick(); assert.equal(h.calls.length, 2);
+  h.advance(1); h.loader.tick(); assert.equal(h.calls.length, 3);
+  h.calls[1].resolve(h.response(raw())); await settle(); assert.equal(h.store.raw(), null);
+});
+test('year request never depends on wallbox schema or endpoint; selection change aborts previous generation', async () => {
+  const h = harness(); h.loader.tick(); h.loader.select({ period: 'year', date: '2024', tz: 'UTC' }); h.loader.tick();
+  assert(h.calls[0].init.signal.aborted); assert.match(h.calls[1].url, /^\/api\/house-history\?period=year/);
+  h.calls[1].resolve(h.response(calendar())); await settle(); assert(h.store.archive());
+  h.calls[0].resolve(h.response(raw())); await settle(); assert.equal(h.store.raw(), null);
+});
+test('unavailable backoff is 10/30/60 seconds; success refreshes at 60 seconds', async () => {
+  const h = harness(); h.loader.tick();
+  for (const [i, delay] of [10000, 30000, 60000].entries()) {
+    const b = raw([]); b.status = 'unavailable'; b.generated_at = iso(epoch + [0, 10000, 40000][i]);
+    h.calls[i].resolve(h.response(b)); await settle();
+    h.advance(delay - 1); h.loader.tick(); assert.equal(h.calls.length, i + 1);
+    h.advance(1); h.loader.tick(); assert.equal(h.calls.length, i + 2);
+  }
+  const b = raw(); b.generated_at = iso(epoch + 100000);
+  h.calls[3].resolve(h.response(b)); await settle(); assert(h.store.raw());
+  h.advance(59999); h.loader.tick(); assert.equal(h.calls.length, 4);
+  h.advance(1); h.loader.tick(); assert.equal(h.calls.length, 5);
+});

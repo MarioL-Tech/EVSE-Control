@@ -1,0 +1,181 @@
+name: evse-house-e2e-test
+
+# Disposable PHP -> MQTT -> Python -> SQL path, never a deployment stack.
+x-storage-build: &storage-build
+  context: ../storage
+  target: test
+x-house-environment: &house-environment
+  HOUSE_E2E_ISOLATED: '1'
+  DB_HOST: db
+  DB_PORT: '3306'
+  DB_NAME: evse_house_e2e
+  DB_USERNAME: house_e2e
+  DB_PASSWORD: dummy-only-house-db
+  DB_TIMEOUT_SECONDS: '2'
+  MQTT_HOST: broker
+  MQTT_PORT: '1883'
+  MQTT_USERNAME: house_e2e
+  MQTT_PASSWORD: dummy-only-house-mqtt
+  HOUSE_MQTT_TOPIC_PREFIX: evse/house-e2e
+  HOUSE_STORAGE_CLIENT_ID: evse-house-e2e-storage
+
+services:
+  db:
+    image: mariadb:11.8.8
+    command: [--character-set-server=utf8mb4, --collation-server=utf8mb4_bin]
+    environment:
+      MARIADB_ROOT_PASSWORD: dummy-only-house-root
+      MARIADB_DATABASE: evse_house_e2e
+      MARIADB_USER: house_e2e
+      MARIADB_PASSWORD: dummy-only-house-db
+    tmpfs:
+      - /var/lib/mysql:rw,size=512m
+    healthcheck:
+      test: [CMD, healthcheck.sh, --connect, --innodb_initialized]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+      start_period: 10s
+    networks: [house-e2e]
+
+  broker:
+    image: eclipse-mosquitto:2
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - |
+        umask 077
+        mosquitto_passwd -b -c /tmp/house.passwd house_e2e dummy-only-house-mqtt
+        chown mosquitto:mosquitto /tmp/house.passwd
+        chmod 0400 /tmp/house.passwd
+        printf '%s\n' 'listener 1883' 'allow_anonymous false' 'password_file /tmp/house.passwd' 'persistence false' 'log_dest stdout' 'log_type error' > /tmp/house.conf
+        chmod 0444 /tmp/house.conf
+        exec mosquitto -c /tmp/house.conf
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=8m,mode=1777
+      - /mosquitto/data:rw,size=8m
+      - /mosquitto/log:rw,size=8m
+    healthcheck:
+      test: [CMD, mosquitto_pub, -h, '127.0.0.1', -u, house_e2e, -P, dummy-only-house-mqtt, -t, fixture/health, -m, ready, -q, '1']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks: [house-e2e]
+
+  source:
+    build:
+      context: .
+      target: test
+    entrypoint: [node, /app/tests/house-source.cjs]
+    environment:
+      HOUSE_E2E_ISOLATED: '1'
+    user: '10001:10001'
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=16m,mode=1777
+    healthcheck:
+      test: [CMD, node, /app/tests/house-source.cjs, --healthcheck]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks: [house-e2e]
+
+  migrate:
+    build: *storage-build
+    entrypoint: [python, -m, storage]
+    command: [--migrate-house]
+    environment: *house-environment
+    user: '10001:10001'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=16m,mode=1777
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [house-e2e]
+
+  collector:
+    build: *storage-build
+    entrypoint: [python, -m, storage]
+    command: [--house]
+    environment: *house-environment
+    user: '10001:10001'
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=16m,mode=1777
+    stop_grace_period: 20s
+    healthcheck:
+      test: [CMD, python, -m, storage, --house-healthcheck]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      broker:
+        condition: service_healthy
+    networks: [house-e2e]
+
+  publisher:
+    build:
+      context: .
+      target: test
+    entrypoint: [php, /app/php/house-publisher.php]
+    environment:
+      HOUSE_MQTT_TOPIC_PREFIX: evse/house-e2e
+      HOUSE_PUBLISHER_CLIENT_ID: evse-house-e2e-publisher
+      MQTT_HOST: broker
+      MQTT_PORT: '1883'
+      MQTT_USERNAME: house_e2e
+      MQTT_PASSWORD: dummy-only-house-mqtt
+      SMARTMETER_URL: http://source:8089/dev/powerValue.txt
+      SMARTMETER_POLL_SECONDS: '1'
+      SMARTMETER_TIMEOUT_SECONDS: '1'
+      SMARTMETER_STALE_SECONDS: '5'
+    user: '10001:10001'
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=16m,mode=1777
+    healthcheck:
+      test: [CMD, php, /app/docker/house-healthcheck.php]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    depends_on:
+      collector:
+        condition: service_healthy
+      source:
+        condition: service_healthy
+    networks: [house-e2e]
+
+  assertions:
+    build: *storage-build
+    entrypoint: [python, /app/tests/house_e2e.py]
+    environment: *house-environment
+    user: '10001:10001'
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=16m,mode=1777
+    depends_on:
+      collector:
+        condition: service_healthy
+      publisher:
+        condition: service_healthy
+    networks: [house-e2e]
+
+networks:
+  house-e2e:
+    internal: true

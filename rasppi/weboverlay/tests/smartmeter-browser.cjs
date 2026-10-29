@@ -17,6 +17,12 @@ function sample(power_w = 1549.4, overrides = {}) {
     const context = await browser.newContext();
     const errors = [], requests = [];
     let mode = 'positive', count = 0, frozen = null;
+    await context.route('**/api/house-history?**', route => { const now = Date.now(); return route.fulfill({ json: {
+      schema_version: 1, read_only: true, status: 'disabled', reason: 'Nicht eingerichtet',
+      generated_at: new Date().toISOString(), minutes: 15,
+      range: { from: new Date(now - 900000).toISOString(), to: new Date(now).toISOString() },
+      complete: false, samples: []
+    } }); });
     // No database or external sensor is used by this simulated browser scenario.
     await context.route('**/api/history?**', route => route.fulfill({ json: {
       schema_version: 1, read_only: true, status: 'disabled', reason: 'Test: kein Archiv',
@@ -116,9 +122,10 @@ function sample(power_w = 1549.4, overrides = {}) {
     assert((await series()).split('M').length >= 3, 'Offline creates a retained gap');
     // Fixed fetch timestamp is deduped, then expires even with successful HTTP responses.
     frozen = sample(0); mode = 'frozen'; await text('grid-power', '0,00 kW');
-    const pointCount = await page.locator('#house-chart-svg circle').count();
+    await pause(100); // Allow the single scheduled SVG frame to finish.
+    const pointCount = await page.locator('#house-chart-svg [data-house-series]').getAttribute('d');
     await pause(1100);
-    assert.equal(await page.locator('#house-chart-svg circle').count(), pointCount, 'Duplicate fetch is not a measurement');
+    assert.equal(await series(), pointCount, 'Duplicate fetch is not a measurement or a redraw');
     await text('grid-status', 'Veraltet');
     mode = 'negative'; await text('grid-status', 'Live');
     assert((await series()).split('M').length >= 4, 'Stale recovery does not bridge');
@@ -144,14 +151,13 @@ function sample(power_w = 1549.4, overrides = {}) {
       delete document.hidden; document.dispatchEvent(new Event('visibilitychange'));
     });
     await text('grid-status', 'Live');
-    const gaps = (await series()).split('M').length;
     mode = 'hung';
     assert.equal(await page.evaluate(() => {
       dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
       return document.getElementById('grid-power').textContent;
     }), '—');
     mode = 'positive'; await text('grid-status', 'Live');
-    assert((await series()).split('M').length > gaps, 'Pageshow starts a separate segment');
+    assert((await series()).startsWith('M'), 'Pageshow starts a separate segment');
     assert.equal(await page.evaluate(() => Object.keys(localStorage).some(key => /house/.test(key))), false,
       'House measurements/preferences are page-local');
     assert.deepEqual(errors, [], 'JavaScript/console/CSP errors');

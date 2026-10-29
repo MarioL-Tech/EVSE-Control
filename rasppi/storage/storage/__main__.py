@@ -158,15 +158,49 @@ def main():
     mode.add_argument("--migrate", action="store_true", help="Explicit schema initialization using DDL account")
     mode.add_argument("--migrate-history", action="store_true", help="Explicit additive schema-2 migration")
     mode.add_argument("--history-worker", action="store_true", help="Separate bounded materialization worker; no MQTT")
+    mode.add_argument("--refresh-history", action="store_true", help="Explicitly requeue existing wallbox minute buckets; no raw writes")
     mode.add_argument("--healthcheck", action="store_true")
     mode.add_argument("--history-healthcheck", action="store_true")
+    mode.add_argument("--migrate-house", action="store_true", help="Explicit independent HOUSE schema migration")
+    mode.add_argument("--house", action="store_true", help="HOUSE collector and bounded materialization")
+    mode.add_argument("--house-healthcheck", action="store_true")
+    parser.add_argument("--history-from", help="Inclusive UTC second, YYYY-MM-DDTHH:MM:SSZ; refresh only")
+    parser.add_argument("--history-to", help="Exclusive UTC second, YYYY-MM-DDTHH:MM:SSZ; refresh only")
     args = parser.parse_args()
+    if args.refresh_history:
+        from .history_refresh import parse_range
+        try:
+            parse_range(args.history_from, args.history_to)
+        except ValueError:
+            parser.error("--refresh-history requires valid --history-from/--history-to UTC seconds, at most one calendar year")
+    elif args.history_from is not None or args.history_to is not None:
+        parser.error("--history-from/--history-to require --refresh-history")
+    if args.house_healthcheck:
+        from .house_collector import healthcheck as house_healthcheck
+        return house_healthcheck()
     if args.healthcheck:
         return healthcheck()
     if args.history_healthcheck:
         return healthcheck(history=True)
     try:
         os.set_blocking(2, False)
+        if args.migrate_house or args.house:
+            from .house_collector import configuration, run as run_house
+            from .house_database import HouseDatabase
+            house_config = configuration()
+            if args.migrate_house:
+                database = HouseDatabase(house_config)
+                try:
+                    database.connect()
+                    database.migrate()
+                finally:
+                    database.close()
+                return 0
+            stop = threading.Event()
+            signal.signal(signal.SIGTERM, lambda *_: stop.set())
+            signal.signal(signal.SIGINT, lambda *_: stop.set())
+            run_house(house_config, stop)
+            return 0
         config = Config.from_environment()
         if args.migrate or args.migrate_history:
             database = Database(config)
@@ -185,9 +219,23 @@ def main():
         stop = threading.Event()
         signal.signal(signal.SIGTERM, lambda *_: stop.set())
         signal.signal(signal.SIGINT, lambda *_: stop.set())
+        if args.refresh_history:
+            from .history_refresh import HistoryRefreshStopped, refresh_history
+            database = Database(config)
+            try:
+                database.connect()
+                try:
+                    count = refresh_history(database, args.history_from, args.history_to, stop)
+                except HistoryRefreshStopped as interrupted:
+                    diagnostic(f"storage history refresh: interrupted; queued={interrupted.count}")
+                    return 130
+                diagnostic(f"storage history refresh: queued={count}")
+                return 0
+            finally:
+                database.close()
         (run_history if args.history_worker else run)(config, stop)
         return 0
-    except (ValueError, OSError, pymysql.MySQLError):
+    except (ValueError, ArithmeticError, OSError, pymysql.MySQLError):
         diagnostic("storage: configuration, migration or database error; check local configuration/grants")
         return 1
 

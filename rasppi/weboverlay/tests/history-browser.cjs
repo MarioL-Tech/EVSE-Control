@@ -102,6 +102,7 @@ const { FIELDS } = require('../static/newcalendar.js');
     await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok');
     await page.waitForFunction(() => document.querySelector('[data-series="power"]')?.getAttribute('d')?.includes('L'));
     assert.match(await page.locator('#history-source').innerText(), /Wallbox-Archiv/);
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Offline');
     assert.equal(await page.locator('#status').innerText(), 'Offline');
     assert((await path()).includes('L'), 'Archive renders while MQTT is offline');
     assert.equal(await page.locator('#chart-grid > figure').count(), 4);
@@ -197,6 +198,7 @@ const { FIELDS } = require('../static/newcalendar.js');
     for (const period of ['hour', 'day', 'week', 'month', 'year']) {
       await page.locator(`[data-calendar-period="${period}"]`).click();
       await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok');
+      await page.clock.runFor(32); // Explicit RAF barrier with the paused browser clock.
       assert.equal(await page.locator('#calendar-mode').inputValue(), period);
       assert.equal(await page.locator(`[data-calendar-period="${period}"]`).getAttribute('aria-pressed'), 'true');
       assert.equal(await page.locator('[data-calendar-period][aria-pressed="true"]').count(), 1);
@@ -218,33 +220,55 @@ const { FIELDS } = require('../static/newcalendar.js');
       }
       assert(await page.locator('[data-summary-series="power"]').count() > 0);
       if (period === 'hour') {
-        assert.equal(await page.locator('#chart-power .summary-value').count(), 36, 'Empty minutes never acquire a value mark');
-        assert.equal(await page.locator('#chart-power .summary-range').count(), 36);
+        assert.equal(await page.locator('#chart-power .summary-value').count(), 1, '36 isolated aggregate marks share one path');
+        assert.equal(await page.locator('#chart-power .summary-range').count(), 1);
+        assert.equal(await page.locator('#chart-power .summary-value').getAttribute('d').then(d => (d.match(/M/g) || []).length), 36,
+          'Empty minutes never acquire a value mark or connecting edge');
         assert(await page.locator('#chart-power .summary-value').first().evaluate(el => getComputedStyle(el).strokeDasharray === 'none'));
         await page.screenshot({ path: '/artifacts/calendar-hour-gaps-mobile.png', fullPage: true });
         const viewport = page.viewportSize();
         await page.setViewportSize({ width: 1440, height: 1050 });
         await page.evaluate(() => dispatchEvent(new Event('resize')));
+        await page.clock.runFor(32);
         await page.screenshot({ path: '/artifacts/calendar-hour-gaps-desktop.png', fullPage: true });
         await page.setViewportSize(viewport);
         await page.evaluate(() => dispatchEvent(new Event('resize')));
+        await page.clock.runFor(32);
       }
       assert.equal(await page.locator('[data-series-marker]').count(), 0, 'Summary glyphs never use circles/pills');
       assert.equal(await page.locator('img').count(), 1, 'DTO reasons cannot add images');
       await page.locator('#calendar-date').fill(pickerDates[period]);
       await page.locator('#calendar-date').dispatchEvent('change');
       await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok');
+      await page.clock.runFor(32);
       assert.equal(new URLSearchParams(calendarRequests.at(-1)).get('date'), pickerDates[period]);
     }
-    assert.equal(await page.locator('[data-summary-series="power"]').count(), 732, 'Each day has separate range and value glyphs');
+    assert.equal(await page.locator('#chart-power svg').getAttribute('data-bucket-count'), '366');
+    assert.equal(await page.locator('[data-summary-series="power"]').count(), 2, '366 days share one band and one trend');
+    assert.notEqual(await page.locator('#chart-power .summary-range').evaluate(el => getComputedStyle(el).fill), 'none',
+      'Min/max is a filled band rather than a vertical stroke forest');
+    assert.equal(await page.locator('#chart-power .summary-value').evaluate(el => getComputedStyle(el).strokeDasharray), 'none',
+      'The aggregate trend remains a calm solid line in the active theme');
+    assert(await page.locator('#chart-power *').count() <= 100, 'DOM budget is independent of 366 buckets');
+    assert.equal(await page.locator('#chart-diagnostics-grid svg > *').count(), 0, 'Closed diagnostics have not been drawn');
+    await page.locator('#chart-power svg').focus();
+    await page.keyboard.press('End');
+    assert.match(await page.locator('#chart-power svg > title').innerText(), /30 Werte/);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+    await page.clock.runFor(32);
     assert(await page.locator('#chart-power svg').evaluate(svg => {
       const width = Math.max(240, Math.round(svg.closest('figure').getBoundingClientRect().width - 40));
       return svg.viewBox.baseVal.width === width;
     }), 'Archive resize recomputes pixel geometry, not compressed text');
     await page.setViewportSize({ width: 1440, height: 1050 });
     await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+    await page.clock.runFor(32);
+    await page.evaluate(() => { window.__retainedCalendarPath = document.querySelector('#chart-power .summary-value'); });
+    await page.evaluate(() => { for (let i = 0; i < 25; i++) window.dispatchEvent(new Event('resize')); });
+    await page.clock.runFor(32);
+    assert(await page.evaluate(() => window.__retainedCalendarPath === document.querySelector('#chart-power .summary-value')),
+      'Resize updates the keyed path in place rather than replacing the SVG tree');
     await page.evaluate(() => {
       window.__calendarMutations = 0;
       new MutationObserver(() => window.__calendarMutations++).observe(document.querySelector('#chart-power svg'), { childList: true });
@@ -265,8 +289,10 @@ const { FIELDS } = require('../static/newcalendar.js');
     assert.equal(new URLSearchParams(calendarRequests.at(-1)).get('date'), 'now');
     await page.reload();
     await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok');
+    await page.clock.runFor(32);
     assert.equal(await page.locator('#calendar-mode').inputValue(), 'year');
-    assert.equal(await page.locator('[data-summary-series="power"]').count(), 732);
+    assert.equal(await page.locator('#chart-power svg').getAttribute('data-bucket-count'), '366');
+    assert(await page.locator('[data-summary-series="power"]').count() <= 4);
     await page.setViewportSize({ width: 320, height: 844 });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.screenshot({ path: '/artifacts/calendar-year-flat-mobile.png', fullPage: true });

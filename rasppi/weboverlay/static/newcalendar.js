@@ -97,39 +97,79 @@
       for (const stat of ['min', 'max']) points.push({ t: utc(bin.from), values: Object.fromEntries(charts.METRICS.map(m =>
         [m.id, bin.metrics[fieldFor(m)][stat] === null ? null : bin.metrics[fieldFor(m)][stat] / m.divisor])) });
     }
-    const plot = charts.buildPlot(points, group, selected, start, end, geometry);
+    const plot = charts.buildPlot(points, group, selected, start, end, geometry, true);
+    // Extrema are used for scaling only, not rendered as a synthetic raw series.
+    delete plot.points;
     const bounds = plot.geometry;
     const x = t => bounds.left + (t - start) / (end - start) * (bounds.right - bounds.left);
     const y = v => bounds.bottom - (v - plot.lo) / (plot.hi - plot.lo) * (bounds.bottom - bounds.top);
+    plot.bucketCount = batch.buckets.length;
     plot.paths = plot.metrics.map(m => {
-      const glyphs = [];
-      for (const bin of batch.buckets) {
+      const glyphs = [], renderPaths = [], runs = [], bucketLabels = [];
+      let run = [];
+      const finish = () => { if (run.length) runs.push(run); run = []; };
+      for (const [bucketIndex, bin] of batch.buckets.entries()) {
         const stat = bin.metrics[fieldFor(m)];
-        if (!stat.count) continue;
+        if (!stat.count) { finish(); continue; }
         const left = x(utc(bin.from)), right = x(utc(bin.to)), middle = (left + right) / 2;
         const mean = MEANS.includes(fieldFor(m)) ? stat.mean : (typeof stat.last === 'boolean' ? Number(stat.last) : stat.last);
         const min = y(stat.min / m.divisor), max = y(stat.max / m.divisor);
         const format = v => v === null ? 'unbekannt' : valueFormat.format(v / m.divisor);
-        const attributes = { gap: bin.has_gap || !bin.complete || stat.nulls > 0, mixed: stat.mixed,
+        const attributes = { bucketIndex, gap: bin.has_gap || !bin.complete || stat.nulls > 0, mixed: stat.mixed,
           label: `${m.label} · ${axisLabel(utc(bin.from), 'day', batch.range.timezone)} – ${axisLabel(utc(bin.to), 'day', batch.range.timezone)} · ${batch.range.timezone}: ${stat.count} Werte; Min ${format(stat.min)}, Max ${format(stat.max)}, ${MEANS.includes(fieldFor(m)) ? 'Stichprobenmittel' : 'letzter Wert'} ${format(mean)} ${group.unit}; belegte Dauer ${bin.coverage_seconds} s${stat.mixed ? ', gemischt' : ''}${bin.has_gap || !bin.complete || stat.nulls > 0 ? ', Lücken / unvollständig' : ''}` };
-        // Independent, observed aggregates, not reconstructed time series. The
-        // renderer styles range softly and value SOLID, even when gap is true;
-        // gap remains available for separate uncertainty styling / the tooltip.
+        bucketLabels[bucketIndex] = attributes.label;
+        // Logical bucket glyphs retain all values/tooltips for inspection.
+        // Only renderPaths below are mounted, never one DOM node per glyph.
+        const half = (right - left) * .36;
+        const coord = (a, b) => `${a.toFixed(2)},${b.toFixed(2)}`;
         glyphs.push({ ...attributes, kind: 'range',
-          path: `M${middle.toFixed(2)},${min.toFixed(2)}V${max.toFixed(2)}` });
+          path: `M${coord(middle - half, min)}L${coord(middle - half, max)}L${coord(middle + half, max)}L${coord(middle + half, min)}Z` });
         // Never replace a NULL last with an older non-NULL observation. Mixed
         // flags/codes expose only the range, not a seemingly constant state.
         if (mean !== null && !((FLAGS.includes(fieldFor(m)) || CODES.includes(fieldFor(m))) && stat.mixed)) {
           const py = y(mean / m.divisor).toFixed(2);
-          // A short bucket-local tick is an aggregate mark, not an assertion
-          // that the value held for the entire interval. No neighbour links,
-          // even for complete buckets; an inset preserves every bucket edge.
-          const halfWidth = Math.min(5, (right - left) * .4);
+          // Isolated/incomplete intervals get inset, bucket-local marks.
+          const halfWidth = Math.min(3, (right - left) * .32);
           glyphs.push({ ...attributes, kind: 'value',
             path: `M${(middle - halfWidth).toFixed(2)},${py}H${(middle + halfWidth).toFixed(2)}` });
         }
+        const value = mean === null || ((FLAGS.includes(fieldFor(m)) || CODES.includes(fieldFor(m))) && stat.mixed)
+          ? null : y(mean / m.divisor);
+        // A varying numeric measurement is precisely why a mean/range is
+        // plotted. `mixed` only makes categorical states ambiguous; it must
+        // not turn an otherwise continuous voltage/current series into ticks.
+        const safe = !attributes.gap && value !== null;
+        const previous = run.at(-1);
+        if (!safe || (previous && previous.to !== utc(bin.from))) finish();
+        run.push({ left, right, middle, min, max, value, gap: attributes.gap, to: utc(bin.to) });
+        if (!safe) finish();
       }
-      return { metric: m, path: '', markers: [], glyphs };
+      finish();
+      const add = (kind, gap, path) => {
+        let target = renderPaths.find(p => p.kind === kind && p.gap === gap);
+        if (!target) { target = { kind, gap, path: '' }; renderPaths.push(target); }
+        target.path += path;
+      };
+      const xy = (a, b) => `${a.toFixed(2)},${b.toFixed(2)}`;
+      for (const segment of runs) {
+        if (segment.length === 1) {
+          const p = segment[0], half = (p.right - p.left) * .36;
+          add('range', p.gap, `M${xy(p.middle - half, p.min)}L${xy(p.middle - half, p.max)}L${xy(p.middle + half, p.max)}L${xy(p.middle + half, p.min)}Z`);
+          if (p.value !== null) {
+            const tick = Math.min(3, (p.right - p.left) * .32);
+            add('value', p.gap, `M${xy(p.middle - tick, p.value)}H${(p.middle + tick).toFixed(2)}`);
+          }
+          continue;
+        }
+        // Only fully evidenced adjoining buckets form a trend/envelope.
+        // Each run is a separate subpath, including at a one-pixel-wide gap.
+        add('range', false, `M${segment.map(p => xy(p.middle, p.min)).join('L')}L${segment.slice().reverse().map(p => xy(p.middle, p.max)).join('L')}Z`);
+        let trend = `M${xy(segment[0].middle, segment[0].value)}`;
+        for (const point of segment.slice(1)) trend += group.step
+          ? `H${point.middle.toFixed(2)}V${point.value.toFixed(2)}` : `L${xy(point.middle, point.value)}`;
+        add('value', false, trend);
+      }
+      return { metric: m, path: '', markers: [], glyphs, renderPaths, bucketLabels };
     });
     plot.count = batch.buckets.reduce((n, b) => n + b.samples, 0);
     return plot;
@@ -144,7 +184,7 @@
           : { day: '2-digit', month: '2-digit', year: 'numeric' }) }));
     return timeFormats.get(key).format(t);
   }
-  function mount({ document, loader, archive, onChange, storage }) {
+  function mount({ document, loader, archive, onChange, storage, eventTarget = root }) {
     const mode = document.getElementById('calendar-mode');
     if (!mode) return null;
     const picker = document.getElementById('calendar-date'), custom = document.getElementById('calendar-custom');
@@ -153,6 +193,19 @@
     const pickerCaption = document.getElementById('calendar-picker-caption');
     const label = document.getElementById('calendar-label'), range = document.getElementById('chart-range');
     let selection = null, navigation = null;
+    const clone = value => value == null ? null : JSON.parse(JSON.stringify(value));
+    function publish(resolved = null) {
+      api.currentSelection = clone(selection);
+      api.currentRange = clone(resolved);
+      if (resolved && selection?.date === 'now')
+        api.currentSelection = { period: selection.period, at: resolved.from, tz: selection.tz };
+      if (eventTarget.dispatchEvent) {
+        const detail = { selection: clone(api.currentSelection), range: clone(api.currentRange) };
+        const event = typeof root.CustomEvent === 'function' ? new root.CustomEvent('evse:calendar-change', { detail }) : new Event('evse:calendar-change');
+        if (!('detail' in event)) Object.defineProperty(event, 'detail', { value: detail });
+        eventTarget.dispatchEvent(event);
+      }
+    }
     const persist = () => { try { storage?.setItem(KEY, JSON.stringify(selection)); } catch (_) { /* page-only */ } };
     function controls() {
       picker.hidden = ['live', 'custom'].includes(mode.value); custom.hidden = mode.value !== 'custom';
@@ -182,12 +235,12 @@
         document.getElementById('calendar-to').value = value.date_to || '';
       }
       label.textContent = value ? `Archiv · ${ZONE} · Zeitraum wird geladen` : 'Live-Verlauf · Browser und Roharchiv';
-      controls(); if (save) persist(); onChange(); loader.tick(); return true;
+      controls(); if (save) persist(); publish(); onChange(); loader.tick(); return true;
     }
     mode.addEventListener('change', () => {
       if (mode.value === 'custom') {
         selection = { period: 'custom', tz: ZONE }; navigation = null; archive.clear(); loader.suspend();
-        controls(); label.textContent = `Zeitraum wählen · ${ZONE}`; onChange(); return;
+        controls(); label.textContent = `Zeitraum wählen · ${ZONE}`; publish(); onChange(); return;
       }
       select(mode.value === 'live' ? null : { period: mode.value, date: 'now', tz: ZONE });
     });
@@ -210,7 +263,7 @@
     document.getElementById('calendar-now').addEventListener('click', () =>
       select(mode.value === 'live' ? null : { period: mode.value === 'custom' ? 'day' : mode.value, date: 'now', tz: ZONE }));
     function loaded(batch) {
-      if (!selection) return;
+      if (!selection || batch.status !== 'ok') return;
       navigation = batch.navigation;
       picker.value = batch.selection.date;
       const period = batch.selection.period;
@@ -220,14 +273,27 @@
           ...(period === 'day' ? { dateStyle: 'long' } : { month: 'long', year: 'numeric' }) }).format(utc(batch.range.from))
           : `${axisLabel(utc(batch.range.from), 'day')} – ${axisLabel(utc(batch.range.to), 'day')}`;
       label.textContent = `${title} · ${ZONE}`;
-      controls();
+      controls(); publish(batch.range);
     }
+    eventTarget.addEventListener?.('evse:calendar-range', event => {
+      const detail = event.detail, currentQuery = query(api.currentSelection);
+      if (!selection || navigation || api.currentRange !== null || currentQuery === null ||
+          !keys(detail, ['query', 'metadata']) || detail.query !== currentQuery ||
+          !keys(detail.metadata, ['range', 'selection', 'navigation'])) return;
+      // Reuse the strict calendar metadata/query checks; no HOUSE measurements
+      // cross this interface, and a stale/foreign query cannot move navigation.
+      const candidate = { schema_version: 2, read_only: true, status: 'ok', reason: '',
+        generated_at: new Date().toISOString(), aggregation: 'sample_mean', complete: false,
+        progress: { samples_done: false, events_done: false }, buckets: [], ...detail.metadata };
+      if (validate(candidate, Date.now(), api.currentSelection)) loaded(candidate);
+    });
     let saved = null;
     try { saved = JSON.parse(storage?.getItem(KEY) || 'null'); } catch (_) { /* default live */ }
     if (!select(saved, false)) select(null, false);
-    return { get selection() { return selection; }, loaded, reset() { navigation = null; controls(); } };
+    return { get selection() { return selection; }, loaded, reset() { navigation = null; controls(); publish(); } };
   }
-  const api = { KEY, ZONE, MAX_BINS, PERIODS, FIELDS, utc, validate, createArchiveStore, fieldFor, buildSummaryPlot, axisLabel, mount };
+  const api = { KEY, ZONE, MAX_BINS, PERIODS, FIELDS, utc, validate, createArchiveStore, fieldFor, buildSummaryPlot, axisLabel, mount,
+    currentSelection: null, currentRange: null };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.OverlayCalendar = api;
 })(typeof window !== 'undefined' ? window : globalThis);
