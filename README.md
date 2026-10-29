@@ -198,6 +198,8 @@ Das bestehende Layout bleibt unverändert. **Schiebeschalter links unten** mit
 Sonne/Mond wechselt Hell/Dunkel. **Settings mit Zahnrad** steht links unter
 „Diagramme“ und öffnet die Platzhalterseite `/einstellungen`.
 Dort stellt „Systemdarstellung verwenden“ die automatische Browserpräferenz wieder her.
+Geplant ist die zentrale Verwaltung aller bisherigen `.env`-Projektkonfigurationen
+unter Settings; geschützte Administration ist noch nicht implementiert.
 Die Theme-Wahl bleibt browserlokal, ohne Messwerte oder Zugangsdaten.
 Die Vorlagen bestimmen nur den Stil, nicht Inhalt oder Anordnung der Website.
 

@@ -102,7 +102,7 @@ jobs:
           test "$(docker inspect -f '{{.RestartCount}}' "$collector")" = 0
           # init + one Python runtime; HOUSE polling must be a thread, not a
           # second --house collector or PHP publisher process.
-          docker compose -p "$project" -f compose.house-e2e-test.yaml exec -T collector python -c 'from pathlib import Path; import os; commands=[p.read_bytes().split(b"\0") for p in Path("/proc").glob("[0-9]*/cmdline") if p.parent.name != str(os.getpid())]; assert sum(c[:3] == [b"python", b"-m", b"storage"] for c in commands) == 1; assert not any(b"--house" in c or any(b"house-publisher.php" in a for a in c) for c in commands)'
+          docker compose -p "$project" -f compose.house-e2e-test.yaml exec -T collector python /app/tests/process_assertions.py
           docker compose -p "$project" -f compose.house-e2e-test.yaml stop -t 20 collector
           test "$(docker inspect -f '{{.State.ExitCode}}' "$collector")" = 0
           test "$(docker inspect -f '{{.State.OOMKilled}}' "$collector")" = false

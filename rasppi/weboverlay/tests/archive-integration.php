@@ -89,6 +89,94 @@ try {
         $v = (new HistoryArchive($config))->snapshot($r);
         archiveAssert($v['status'] === 'ok' && !$v['buckets'][0]['complete'] && $v['buckets'][0]['metrics']['active_power_w']['last'] === null);
     });
+    $run('metric NULLs remain local through SQL and PHP projection', static function () use ($reset, $insert, $snapshot, $start): void {
+        $reset();
+        // Five minutes fill the first day-view bin: missing intervals cannot
+        // mask whether an unrelated metric NULL changed global coverage.
+        for ($i = 0; $i < 5; ++$i) {
+            $insert(archiveMutate(archiveFixture($start + $i * 60, 60, 2, 0), static function (&$d) use ($i): void {
+                $d['metrics']['charging'] = ['n' => 0, 'nulls' => 2, 'sum' => null,
+                    'min' => null, 'max' => null, 'first' => null, 'last' => null, 'mixed' => false];
+                foreach (['voltage_l1_v', 'voltage_l2_v', 'voltage_l3_v'] as $field) {
+                    $d['metrics'][$field] = ['n' => 2, 'nulls' => 0, 'sum' => '460',
+                        'min' => '230', 'max' => '230', 'first' => '230', 'last' => '230', 'mixed' => false];
+                }
+                foreach (['current_l1_a', 'current_l2_a', 'current_l3_a'] as $field) {
+                    $ownNull = $field === 'current_l1_a' && $i === 4;
+                    $d['metrics'][$field] = ['n' => $ownNull ? 1 : 2, 'nulls' => $ownNull ? 1 : 0, 'sum' => '0',
+                        'min' => '0', 'max' => '0', 'first' => '0', 'last' => $ownNull ? null : '0', 'mixed' => false];
+                }
+            }));
+        }
+        $v = $snapshot();
+        archiveAssert($v['status'] === 'ok');
+        $bin = $v['buckets'][0]; $m = $bin['metrics'];
+        archiveAssert($bin['complete'] && !$bin['has_gap'] && $bin['coverage_seconds'] === 300.0 && $bin['samples'] === 10);
+        archiveAssert($m['charging']['count'] === 0 && $m['charging']['nulls'] === 10 && $m['charging']['last'] === null);
+        archiveAssert($m['active_power_w']['mean'] === 0.0 && $m['current_limit_a']['last'] === 6.0);
+        archiveAssert($m['current_l1_a']['nulls'] === 1 && $m['current_l1_a']['last'] === null && $m['current_l1_a']['mean'] === 0.0);
+        foreach (['current_l2_a', 'current_l3_a'] as $field) {
+            archiveAssert($m[$field]['nulls'] === 0 && $m[$field]['mean'] === 0.0);
+        }
+        foreach (['voltage_l1_v', 'voltage_l2_v', 'voltage_l3_v'] as $field) {
+            archiveAssert($m[$field]['nulls'] === 0 && $m[$field]['mean'] === 230.0);
+        }
+    });
+    $run('range-local invalidation waits for initial cursors and never releases pending work', static function () use ($reset, $insert, $root, $config, $start): void {
+        $reset();
+        for ($i = 0; $i < 60; ++$i) { $insert(archiveFixture($start + $i * 60)); }
+        $hour = HistoryRange::parse('period=hour&date=2026-01-01T00:00&tz=UTC');
+        $read = static fn() => (new HistoryArchive($config))->snapshot($hour);
+        $root->exec("UPDATE evse_history_state SET events_done=0,invalidate_from='2026-01-01 01:00:00' WHERE source='isolated/archive'");
+        // A differently cased source must not affect state or pending queries.
+        $root->exec("INSERT INTO evse_history_state SELECT 'isolated/Archive',algorithm_version,sample_cursor,sample_highwater,samples_done,1,updated_at,initialized,event_cursor_at,event_cursor_id,event_highwater_at,event_highwater_id,invalidate_from,invalidate_cursor FROM evse_history_state WHERE source='isolated/archive'");
+        $root->exec("INSERT INTO evse_history_work VALUES ('isolated/Archive',60,'2026-01-01 00:05:00',2,1,1)");
+        $v = $read();
+        archiveAssert($v['status'] === 'ok' && $v['complete'] && !$v['progress']['events_done']);
+        foreach ($v['buckets'] as $bin) { archiveAssert($bin['complete'] && !$bin['has_gap'] && $bin['samples'] === 2); }
+        $root->exec("UPDATE evse_history_state SET invalidate_from='2026-01-01 00:20:00',invalidate_cursor='2026-01-01 00:50:00' WHERE source='isolated/archive'");
+        $v = $read();
+        archiveAssert($v['status'] === 'ok' && !$v['complete']);
+        foreach ($v['buckets'] as $i => $bin) {
+            archiveAssert($bin['complete'] === ($i < 20) && $bin['has_gap'] === ($i >= 20));
+            archiveAssert($bin['samples'] === ($i < 20 ? 2 : 0));
+            if ($i >= 20) { archiveAssert($bin['metrics']['active_power_w']['last'] === null); }
+        }
+        foreach (["initialized=0", "samples_done=0,sample_cursor=0",
+            "event_cursor_at='1000-01-01',event_highwater_at='1000-01-02'",
+            "event_highwater_id=UNHEX(CONCAT(REPEAT('00',15),'01'))",
+            "invalidate_from=NULL,invalidate_cursor=NULL"] as $unfinished) {
+            // Recreate the completed initial state before each negative case.
+            $root->exec("UPDATE evse_history_state SET initialized=1,samples_done=1,sample_cursor=5,event_cursor_at='1000-01-01',event_highwater_at='1000-01-01',event_highwater_id=UNHEX(REPEAT('00',16)),invalidate_from='2026-01-01 01:00:00',invalidate_cursor=NULL WHERE source='isolated/archive'");
+            $root->exec("UPDATE evse_history_state SET $unfinished WHERE source='isolated/archive'");
+            $v = $read(); archiveAssert($v['status'] === 'ok' && !$v['complete']);
+            foreach ($v['buckets'] as $bin) { archiveAssert(!$bin['complete'] && $bin['has_gap']); }
+        }
+        $root->exec("UPDATE evse_history_state SET initialized=1,samples_done=1,sample_cursor=5,event_highwater_id=UNHEX(REPEAT('00',16)),events_done=1,invalidate_from=NULL,invalidate_cursor=NULL WHERE source='isolated/archive'");
+        $root->exec("INSERT INTO evse_history_work VALUES ('isolated/archive',60,'2026-01-01 00:10:00',2,1,1)");
+        $v = $read(); archiveAssert($v['status'] === 'ok' && !$v['complete']);
+        archiveAssert(!$v['buckets'][10]['complete'] && $v['buckets'][10]['metrics']['active_power_w']['mean'] === null);
+        archiveAssert($v['buckets'][9]['complete'] && $v['buckets'][40]['complete']);
+        $root->exec("UPDATE evse_history_work SET pending=0,done_generation=generation WHERE source='isolated/archive'");
+        archiveAssert($read()['complete']);
+        $root->exec("UPDATE evse_history_state SET invalidate_from='2026-01-01 00:20:00' WHERE source='isolated/archive'");
+        archiveAssert($read()['status'] === 'unavailable');
+    });
+    $run('localized readiness retains hour and child-minute pending barriers', static function () use ($reset, $insert, $root, $config, $start): void {
+        $reset();
+        for ($i = 0; $i < 24; ++$i) { $insert(archiveFixture($start + $i * 3600, 3600)); }
+        $year = HistoryRange::parse('period=year&date=2026&tz=UTC');
+        $read = static fn() => (new HistoryArchive($config))->snapshot($year);
+        $root->exec("UPDATE evse_history_state SET events_done=0,invalidate_from='2026-01-02' WHERE source='isolated/archive'");
+        $v = $read(); archiveAssert($v['status'] === 'ok' && $v['buckets'][0]['complete'] && !$v['buckets'][0]['has_gap']);
+        foreach ([60, 3600] as $resolution) {
+            $root->exec("INSERT INTO evse_history_work VALUES ('isolated/archive',$resolution,'2026-01-01',2,1,1)");
+            $v = $read(); archiveAssert($v['status'] === 'ok' && !$v['buckets'][0]['complete']);
+            archiveAssert($v['buckets'][0]['metrics']['active_power_w']['mean'] === null);
+            $root->exec("UPDATE evse_history_work SET pending=0,done_generation=generation WHERE source='isolated/archive'");
+            archiveAssert($read()['buckets'][0]['complete']);
+        }
+    });
     $run('future empty range never substitutes current values', static function () use ($reset, $config): void {
         $reset(); $r = HistoryRange::parse('period=year&date=9998&tz=UTC');
         $v = (new HistoryArchive($config))->snapshot($r);

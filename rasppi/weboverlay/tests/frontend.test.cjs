@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { createViewState, present, flag } = require('../static/app.js');
+const { createViewState, present, presentStatic, createRenderer, flag } = require('../static/app.js');
 const telemetry = {
   error_code: 0, socket_lock_state: 2, charging_state_raw: 3, charging_state: 3,
   below_commanded_current: false, plugged_in: true, charging: false,
@@ -119,5 +119,120 @@ test('invalid envelope and invalid telemetry fail closed', () => {
     live({ values: { ...telemetry, current_a: [1] } }), live({ values: { ...telemetry, charging: 'false' } })]) {
     const { state } = setup(); state.receive(state.begin(), live()); state.receive(state.begin(), bad);
     assert.equal(state.snapshot().status, 'invalid'); assert.equal(state.snapshot().values, null);
+  }
+});
+
+function rendererSetup() {
+  const context = setup(), elements = new Map(), writes = [], chartViews = [];
+  const ids = [...Object.keys(present(context.state.snapshot())), 'wallbox-warning'];
+  for (const id of ids) {
+    let text = '', hidden = false, tone;
+    elements.set(id, {
+      get textContent() { return text; },
+      set textContent(value) { writes.push([id, 'text', value]); text = value; },
+      get hidden() { return hidden; },
+      set hidden(value) { writes.push([id, 'hidden', value]); hidden = value; },
+      dataset: {
+        get tone() { return tone; },
+        set tone(value) { writes.push([id, 'tone', value]); tone = value; }
+      }
+    });
+  }
+  let staticCalls = 0;
+  const render = createRenderer({
+    document: { getElementById: id => elements.get(id) || null },
+    charts: { update: view => chartViews.push(view) },
+    formatStatic: view => { staticCalls++; return presentStatic(view); }
+  });
+  return { ...context, elements, writes, chartViews, draw: () => render(context.state.snapshot()),
+    get staticCalls() { return staticCalls; } };
+}
+test('unchanged freshness ticks cache static presentation but keep every chart/loader tick', () => {
+  const r = rendererSetup();
+  r.state.receive(r.state.begin(), live({ fresh_for_seconds: 20 })); r.draw();
+  r.writes.length = 0;
+  for (let i = 0; i < 100; i++) { r.advance(100); r.draw(); }
+  assert.equal(r.staticCalls, 1);
+  assert.equal(r.chartViews.length, 101);
+  assert.ok(r.writes.length > 0, 'countdown remains active');
+  assert.ok(r.writes.every(([id, type]) => ['freshness', 'age'].includes(id) && type === 'text'));
+  assert.equal(r.elements.get('freshness').textContent, present(r.state.snapshot()).freshness);
+  r.writes.length = 0; r.draw();
+  assert.deepEqual(r.writes, [], 'identical tick writes neither text nor attributes');
+});
+test('cached presentation expires at the exact freshness boundary without another response', () => {
+  const r = rendererSetup();
+  r.state.receive(r.state.begin(), live({ fresh_for_seconds: 1 })); r.draw();
+  r.state.begin(); // A pending request must not extend the old value lifetime.
+  r.advance(999); r.draw();
+  assert.equal(r.staticCalls, 1);
+  assert.notEqual(r.elements.get('power').textContent, '—');
+  r.advance(1); r.draw();
+  assert.equal(r.staticCalls, 2);
+  assert.equal(r.elements.get('power').textContent, '—');
+  assert.equal(r.elements.get('plugged').textContent, 'Unbekannt');
+  assert.equal(r.elements.get('freshness').textContent, '—');
+  assert.equal(r.chartViews.at(-1).status, 'stale');
+});
+test('a new response with the same timestamp invalidates all static fields including unknown flags', () => {
+  const r = rendererSetup();
+  r.state.receive(r.state.begin(), live()); r.draw();
+  const oldStamp = r.chartViews.at(-1).envelope.timestamp;
+  r.state.receive(r.state.begin(), live({ values: { ...telemetry,
+    active_power_w: 2750, error_code: 7, plugged_in: null, charging: null } })); r.draw();
+  assert.equal(r.staticCalls, 2);
+  assert.equal(r.chartViews.at(-1).envelope.timestamp, oldStamp);
+  assert.equal(r.chartViews.at(-1).values.active_power_w, 2750);
+  assert.equal(r.elements.get('power').textContent, present(r.state.snapshot()).power);
+  assert.equal(r.elements.get('plugged').textContent, 'Unbekannt');
+  assert.equal(r.elements.get('charging').textContent, 'Unbekannt');
+  assert.equal(r.elements.get('wallbox-warning').hidden, false);
+  assert.equal(r.elements.get('wallbox-error').dataset.tone, 'warning');
+  r.writes.length = 0; r.draw();
+  assert.deepEqual(r.writes, []);
+});
+test('offline/null views keep loader ticks alive without repeating static preparation or DOM writes', () => {
+  const r = rendererSetup();
+  r.state.receive(r.state.begin(), live()); r.draw();
+  r.state.receive(r.state.begin(), live({ status: 'offline' })); r.draw();
+  assert.equal(r.elements.get('power').textContent, '—');
+  r.state.reset(); r.draw();
+  const calls = r.staticCalls, chartCalls = r.chartViews.length;
+  r.writes.length = 0;
+  for (let i = 0; i < 610; i++) { r.advance(100); r.draw(); }
+  assert.equal(r.staticCalls, calls);
+  assert.equal(r.chartViews.length, chartCalls + 610);
+  assert.deepEqual(r.writes, []);
+});
+test('timeout and either backwards clock invalidate cached live presentation on the next tick', () => {
+  for (const mode of ['timeout', 'wall', 'mono', 'suspend']) {
+    const r = rendererSetup();
+    r.state.receive(r.state.begin(), live({ fresh_for_seconds: 20 })); r.draw();
+    if (mode === 'timeout') { r.state.begin(); r.advance(3000); }
+    else if (mode === 'suspend') r.time.wall += 60000;
+    else r.time[mode]--;
+    r.draw();
+    assert.equal(r.staticCalls, 2, mode);
+    assert.equal(r.elements.get('power').textContent, '—', mode);
+    assert.equal(r.elements.get('plugged').textContent, 'Unbekannt', mode);
+    assert.equal(r.chartViews.at(-1).values, null, mode);
+  }
+});
+test('nonlive transitions and recovery never reuse cached live or unknown presentation', () => {
+  for (const status of ['waiting', 'offline', 'stale', 'clock_error', 'invalid', 'read_error']) {
+    const r = rendererSetup();
+    r.state.receive(r.state.begin(), live({ values: { ...telemetry, error_code: 7 } })); r.draw();
+    r.state.receive(r.state.begin(), live({ status })); r.draw();
+    assert.equal(r.elements.get('power').textContent, '—', status);
+    assert.equal(r.elements.get('charging').textContent, 'Unbekannt', status);
+    assert.equal(r.elements.get('wallbox-warning').hidden, true, status);
+    r.state.receive(r.state.begin(), live()); r.draw();
+    assert.equal(r.elements.get('power').textContent, present(r.state.snapshot()).power, status);
+    assert.equal(r.elements.get('charging').textContent, 'Nein', status);
+    // A fresh envelope with identical contents may reformat, but must not
+    // rewrite unchanged attributes or text (including warning.hidden).
+    r.writes.length = 0;
+    r.state.receive(r.state.begin(), live()); r.draw();
+    assert.deepEqual(r.writes, [], status);
   }
 });

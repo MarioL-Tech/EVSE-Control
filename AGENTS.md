@@ -6,6 +6,33 @@ bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
 ## Projekt und Ziele
 
+Aktuelle Nachbesserung (2026-10-29): Projektinhaber meldet Website wieder
+erreichbar, aber weiterhin Punktreihen, Renderlast und leeres Hausarchiv bei
+vorhandenem Livewert. Screenshot ist kein Nachweis der Archivaktivierung.
+Belegter Fehler: PHP-Projektion machte metrikspezifische NULLs zu globalen
+Lücken; Korrektur erhält globale Ausfall-/Coverage-/Dirty-Barrieren. Links nur
+angrenzende schlechte Readkanten ohne zeitliche Überlappung dürfen keine neue
+Minute vergiften. Archivaufbereitung auf ausgewählte Gruppen begrenzen,
+Inspektionslabels lazy, unveränderliche Renderansicht statt JSON-Kopie pro Frame,
+keine Archivframes bei unveränderten Frischeticks. Formatter und statische
+Liveanzeige wiederverwenden; Frische-/Clock-/Retryprüfung bleibt aktiv.
+Hausloaderstatus in bestehender Diagrammbeschreibung anzeigen, keine neue Karte;
+deaktiviert/unverfügbar/erfolgreich leer/unvollständig unterscheiden und erhaltene
+Altdaten als solche kennzeichnen. Produktive Ursache des leeren Hausarchivs noch
+offen; ausschließlich redigierte API-Zähler beim Betreiber angefragt.
+Neue Docker-Abnahme offen. Vorhandene konservative Bestandsaggregate nur durch
+expliziten begrenzten `--refresh-history` neu berechnen, niemals still umdeuten.
+Laufende Eventinvalidierung wird nach nachweislich abgeschlossenen Initialcursorn
+ab `invalidate_from` lokalisiert; historische Bereiche davor bleiben lesbar.
+Initialbackfill, widersprüchliche Zustände und Pending-Kind-/Elternarbeit bleiben
+gesperrt. Unabhängiger abschließender Reviewversuch wegen Kontingent abgebrochen;
+kein vollständiger zusätzlicher Reviewnachweis daraus. PR #55 ist mittlerweile
+gemergt (420854b); Featurehead fcb14da bestand Web 40900732201/40900717412 und
+Storage 40900732166. Nachmerge-Lauf 40902481238 bestand kombinierten Datenpfad
+und Broker-Recovery, scheiterte danach an Prozesszählung mit möglicher
+Healthchecküberlappung. Test nimmt nur den exakten Healthcheckvektor aus und
+prüft echte Duplikate/Legacy-Hausdienste weiterhin; Shutdownassertionen erhalten.
+
 Aktueller Folgeauftrag (2026-10-29): Archivdiagramme wegen hoher Renderlast und
 weiterhin unbefriedigender Darstellung erneut überarbeiten; Haus-Netzleistung
 nun ausdrücklich dauerhaft speichern und in Stunde/Tag/weiteren Kalenderansichten
@@ -236,6 +263,16 @@ Geräte-/Sicherheitsgrenzen und sind keine bereits verfügbaren Bedienfunktionen
 Zusätzlich soll das Weboverlay eine **modulare Einrichtungsfunktion mit
 Befehlseingabe für Wallboxbefehle** anbieten. Befehlsformat, Validierung und
 zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
+
+Weitere verbindliche Anforderung vom 2026-10-29: Sämtliche bisher über `.env`
+gesetzten Projektkonfigurationen sollen später zentral unter **Settings**
+verwaltbar sein, nicht nur browserlokale Anzeigepräferenzen. Noch nicht
+implementiert und kein Auftrag, jetzt die readonly Website in einen `.env`-
+Editor umzuwandeln. Geschützte Administration, serverseitige Validierung,
+Secret-/Dateimountbehandlung und koordinierte Übernahme samt gegebenenfalls
+nötiger Containerneuerstellung sind vor Umsetzung festzulegen. Keine Secrets
+in Browserstorage/API-Antworten oder Docker-Socket im Websitecontainer; bestehende
+SELECT-only-/Hardwaregrenzen gelten bis zu einem gesonderten Umsetzungsauftrag.
 
 ## Repository und Quellen
 

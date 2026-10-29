@@ -25,6 +25,21 @@ test('polling a cached timestamp adds no measurements, same-second updates repla
   h.observe(live(epoch, { active_power_w: 8000 }), epoch + 5000);
   assert.equal(h.size, 1); assert.equal(h.window(epoch + 5000, 15)[0].values.power, 8);
 });
+test('identical freshness ticks do not reread metrics but still enforce clock, age and outage barriers', () => {
+  const h = createHistory(), view = live(epoch);
+  let reads = 0;
+  Object.defineProperty(view.values, 'active_power_w', { get() { reads++; return 7400; } });
+  h.observe(view, epoch);
+  const first = reads, revision = h.revision;
+  for (let i = 1; i <= 100; i++) h.observe(view, epoch + i * 100);
+  assert.equal(reads, first); assert.equal(h.revision, revision);
+  h.observe({ status: 'stale', values: null }, epoch + 10100);
+  h.observe(view, epoch + 10200);
+  h.observe(live(epoch + 12000), epoch + 12000);
+  assert.equal((plot(h, 'power', epoch + 12000).paths[0].path.match(/M/g) || []).length, 2);
+  h.observe(view, epoch - 1); assert.equal(h.size, 1, 'Rollback clears the old timeline even for a reused envelope');
+  h.observe(view, epoch + RETENTION_MS + 1); assert.equal(h.size, 0);
+});
 test('page restoration clears measurements, timestamp identity and clock anchors', () => {
   const h = createHistory();
   h.observe(live(epoch), epoch); h.observe(live(epoch + 2000), epoch + 2000);

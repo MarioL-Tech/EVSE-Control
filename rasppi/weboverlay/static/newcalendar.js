@@ -74,16 +74,26 @@
     return JSON.parse(JSON.stringify(batch));
   }
   function createArchiveStore() {
-    let batch = null, revision = 0;
+    let batch = null, revision = 0, signature = null;
+    function freeze(value) {
+      if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); }
+      return value;
+    }
     return {
       importHistory(value, now = Date.now(), selection) {
         const validated = validate(value, now, selection);
         if (!validated) return false;
-        if (validated.status === 'ok') { batch = validated; revision++; }
+        if (validated.status === 'ok') {
+          const next = JSON.stringify({ ...validated, generated_at: undefined, reason: undefined });
+          if (signature !== next) { signature = next; batch = freeze(validated); revision++; }
+        }
         return true;
       },
-      clear() { batch = null; revision++; },
+      clear() { batch = null; signature = null; revision++; },
       snapshot() { return batch === null ? null : JSON.parse(JSON.stringify(batch)); },
+      // Internal renderer view has immutable ownership: no full JSON copy per
+      // status update or frame. snapshot() retains its public copy contract.
+      view() { return batch; },
       get size() { return batch?.buckets.length || 0; },
       get revision() { return revision; }
     };
@@ -91,10 +101,22 @@
   function fieldFor(m) {
     return m.index === null ? m.field : `${m.field === 'current_a' ? 'current' : 'voltage'}_l${m.index + 1}_${m.field === 'current_a' ? 'a' : 'v'}`;
   }
+  const preparedArchives = new WeakMap();
+  function prepareArchive(batch) {
+    if (preparedArchives.has(batch)) return preparedArchives.get(batch);
+    const result = { start: utc(batch.range.from), end: utc(batch.range.to),
+      bins: batch.buckets.map(bin => ({ bin, from: utc(bin.from), to: utc(bin.to) })), labels: new Map(),
+      count: batch.buckets.reduce((n, bin) => n + bin.samples, 0) };
+    // Tests/external callers can pass mutable data. Cache only owned immutable
+    // store views so a changed timestamp can never reuse stale geometry.
+    if (Object.isFrozen(batch)) preparedArchives.set(batch, result);
+    return result;
+  }
   function buildSummaryPlot(batch, group, selected, charts, geometry) {
-    const start = utc(batch.range.from), end = utc(batch.range.to), points = [];
+    const prepared = prepareArchive(batch), { start, end } = prepared, points = [];
+    const metrics = charts.METRICS.filter(m => m.group === group.id && selected[m.id]);
     for (const bin of batch.buckets) {
-      for (const stat of ['min', 'max']) points.push({ t: utc(bin.from), values: Object.fromEntries(charts.METRICS.map(m =>
+      for (const stat of ['min', 'max']) points.push({ values: Object.fromEntries(metrics.map(m =>
         [m.id, bin.metrics[fieldFor(m)][stat] === null ? null : bin.metrics[fieldFor(m)][stat] / m.divisor])) });
     }
     const plot = charts.buildPlot(points, group, selected, start, end, geometry, true);
@@ -105,43 +127,40 @@
     const y = v => bounds.bottom - (v - plot.lo) / (plot.hi - plot.lo) * (bounds.bottom - bounds.top);
     plot.bucketCount = batch.buckets.length;
     plot.paths = plot.metrics.map(m => {
-      const glyphs = [], renderPaths = [], runs = [], bucketLabels = [];
+      const renderPaths = [], runs = [], logical = [], labels = new Map();
+      const field = fieldFor(m), isMean = MEANS.includes(field), categorical = FLAGS.includes(field) || CODES.includes(field);
+      const labelAt = index => {
+        const entry = prepared.bins[index];
+        if (!entry || !entry.bin.metrics[field].count) return null;
+        if (!labels.has(index)) {
+          const { bin, from, to } = entry, stat = bin.metrics[field];
+          if (!prepared.labels.has(index)) prepared.labels.set(index,
+            `${axisLabel(from, 'day', batch.range.timezone)} – ${axisLabel(to, 'day', batch.range.timezone)} · ${batch.range.timezone}`);
+          const mean = isMean ? stat.mean : typeof stat.last === 'boolean' ? Number(stat.last) : stat.last;
+          const format = v => v === null ? 'unbekannt' : valueFormat.format(v / m.divisor);
+          labels.set(index, `${m.label} · ${prepared.labels.get(index)}: ${stat.count} Werte; Min ${format(stat.min)}, Max ${format(stat.max)}, ${isMean ? 'Stichprobenmittel' : 'letzter Wert'} ${format(mean)} ${group.unit}; belegte Dauer ${bin.coverage_seconds} s${stat.mixed ? ', gemischt' : ''}${bin.has_gap || !bin.complete || stat.nulls > 0 ? ', Lücken / unvollständig' : ''}`);
+        }
+        return labels.get(index);
+      };
       let run = [];
       const finish = () => { if (run.length) runs.push(run); run = []; };
-      for (const [bucketIndex, bin] of batch.buckets.entries()) {
-        const stat = bin.metrics[fieldFor(m)];
+      for (const [bucketIndex, { bin, from, to }] of prepared.bins.entries()) {
+        const stat = bin.metrics[field];
         if (!stat.count) { finish(); continue; }
-        const left = x(utc(bin.from)), right = x(utc(bin.to)), middle = (left + right) / 2;
-        const mean = MEANS.includes(fieldFor(m)) ? stat.mean : (typeof stat.last === 'boolean' ? Number(stat.last) : stat.last);
+        const left = x(from), right = x(to), middle = (left + right) / 2;
+        const mean = isMean ? stat.mean : (typeof stat.last === 'boolean' ? Number(stat.last) : stat.last);
         const min = y(stat.min / m.divisor), max = y(stat.max / m.divisor);
-        const format = v => v === null ? 'unbekannt' : valueFormat.format(v / m.divisor);
-        const attributes = { bucketIndex, gap: bin.has_gap || !bin.complete || stat.nulls > 0, mixed: stat.mixed,
-          label: `${m.label} · ${axisLabel(utc(bin.from), 'day', batch.range.timezone)} – ${axisLabel(utc(bin.to), 'day', batch.range.timezone)} · ${batch.range.timezone}: ${stat.count} Werte; Min ${format(stat.min)}, Max ${format(stat.max)}, ${MEANS.includes(fieldFor(m)) ? 'Stichprobenmittel' : 'letzter Wert'} ${format(mean)} ${group.unit}; belegte Dauer ${bin.coverage_seconds} s${stat.mixed ? ', gemischt' : ''}${bin.has_gap || !bin.complete || stat.nulls > 0 ? ', Lücken / unvollständig' : ''}` };
-        bucketLabels[bucketIndex] = attributes.label;
-        // Logical bucket glyphs retain all values/tooltips for inspection.
-        // Only renderPaths below are mounted, never one DOM node per glyph.
-        const half = (right - left) * .36;
-        const coord = (a, b) => `${a.toFixed(2)},${b.toFixed(2)}`;
-        glyphs.push({ ...attributes, kind: 'range',
-          path: `M${coord(middle - half, min)}L${coord(middle - half, max)}L${coord(middle + half, max)}L${coord(middle + half, min)}Z` });
-        // Never replace a NULL last with an older non-NULL observation. Mixed
-        // flags/codes expose only the range, not a seemingly constant state.
-        if (mean !== null && !((FLAGS.includes(fieldFor(m)) || CODES.includes(fieldFor(m))) && stat.mixed)) {
-          const py = y(mean / m.divisor).toFixed(2);
-          // Isolated/incomplete intervals get inset, bucket-local marks.
-          const halfWidth = Math.min(3, (right - left) * .32);
-          glyphs.push({ ...attributes, kind: 'value',
-            path: `M${(middle - halfWidth).toFixed(2)},${py}H${(middle + halfWidth).toFixed(2)}` });
-        }
-        const value = mean === null || ((FLAGS.includes(fieldFor(m)) || CODES.includes(fieldFor(m))) && stat.mixed)
+        const attributes = { bucketIndex, gap: bin.has_gap || !bin.complete || stat.nulls > 0, mixed: stat.mixed };
+        const value = mean === null || (categorical && stat.mixed)
           ? null : y(mean / m.divisor);
         // A varying numeric measurement is precisely why a mean/range is
         // plotted. `mixed` only makes categorical states ambiguous; it must
         // not turn an otherwise continuous voltage/current series into ticks.
         const safe = !attributes.gap && value !== null;
         const previous = run.at(-1);
-        if (!safe || (previous && previous.to !== utc(bin.from))) finish();
-        run.push({ left, right, middle, min, max, value, gap: attributes.gap, to: utc(bin.to) });
+        if (!safe || (previous && previous.to !== from)) finish();
+        const point = { left, right, middle, min, max, value, ...attributes, to };
+        run.push(point); logical.push(point);
         if (!safe) finish();
       }
       finish();
@@ -169,9 +188,25 @@
           ? `H${point.middle.toFixed(2)}V${point.value.toFixed(2)}` : `L${xy(point.middle, point.value)}`;
         add('value', false, trend);
       }
-      return { metric: m, path: '', markers: [], glyphs, renderPaths, bucketLabels };
+      let glyphs = null;
+      return { metric: m, path: '', markers: [], renderPaths, labelAt,
+        // Compatibility/inspection data is lazy. Normal SVG rendering uses
+        // only the batched paths and formats only the inspected interval.
+        get bucketLabels() { return batch.buckets.map((_, i) => labelAt(i)); },
+        get glyphs() {
+          if (glyphs) return glyphs;
+          glyphs = [];
+          const xy = (a, b) => `${a.toFixed(2)},${b.toFixed(2)}`;
+          for (const p of logical) {
+            const half = (p.right - p.left) * .36, tick = Math.min(3, (p.right - p.left) * .32);
+            const attrs = { bucketIndex: p.bucketIndex, gap: p.gap, mixed: p.mixed, label: labelAt(p.bucketIndex) };
+            glyphs.push({ ...attrs, kind: 'range', path: `M${xy(p.middle - half, p.min)}L${xy(p.middle - half, p.max)}L${xy(p.middle + half, p.max)}L${xy(p.middle + half, p.min)}Z` });
+            if (p.value !== null) glyphs.push({ ...attrs, kind: 'value', path: `M${xy(p.middle - tick, p.value)}H${(p.middle + tick).toFixed(2)}` });
+          }
+          return glyphs;
+        } };
     });
-    plot.count = batch.buckets.reduce((n, b) => n + b.samples, 0);
+    plot.count = prepared.count;
     return plot;
   }
   function axisLabel(t, period, zone = ZONE, compact = false) {

@@ -87,13 +87,18 @@
   }
   function createStore() {
     let raw = null, archive = null, revision = 0;
+    const freeze = value => {
+      if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); }
+      return value;
+    };
     return {
       importHistory(value, now, selection = null) {
         const batch = validate(value, now, selection);
         if (!batch) return false;
         if (batch.status === 'ok') {
           const old = selection ? archive : raw;
-          if (JSON.stringify(old) !== JSON.stringify(batch)) { if (selection) archive = batch; else raw = batch; revision++; }
+          const signature = value => value && JSON.stringify({ ...value, generated_at: undefined, reason: undefined });
+          if (signature(old) !== signature(batch)) { if (selection) archive = freeze(batch); else raw = freeze(batch); revision++; }
         }
         return true;
       },
@@ -103,6 +108,8 @@
       },
       raw() { return raw ? JSON.parse(JSON.stringify(raw)) : null; },
       archive() { return archive ? JSON.parse(JSON.stringify(archive)) : null; },
+      rawView() { return raw; },
+      archiveView() { return archive; },
       // The two independent HTTP pollers must never interleave. SQL is the
       // baseline; only strictly newer RAM observations form a separate tail.
       points(live, now, minutes = 5) {
