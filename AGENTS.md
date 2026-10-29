@@ -25,8 +25,12 @@ expliziten begrenzten `--refresh-history` neu berechnen, niemals still umdeuten.
 Laufende Eventinvalidierung wird nach nachweislich abgeschlossenen Initialcursorn
 ab `invalidate_from` lokalisiert; historische Bereiche davor bleiben lesbar.
 Initialbackfill, widersprüchliche Zustände und Pending-Kind-/Elternarbeit bleiben
-gesperrt. Unabhängiger abschließender Reviewversuch wegen Kontingent abgebrochen;
-kein vollständiger zusätzlicher Reviewnachweis daraus. PR #55 ist mittlerweile
+gesperrt. Erster abschließender Reviewversuch wegen Kontingent abgebrochen;
+anschließend zwei unabhängige gpt-6.1-sol-Reviews: Frontend ohne konkreten
+Befund, Backend fand Präzisionsverlust einer Mikrosekunden-Grenzprüfung am
+SQL-Epochjahr 1000. Minutenabgleich jetzt vor Floatkonvertierung am Text,
+beide Invalidierungsfelder regressionsabgedeckt. Kein Ersatz für Docker-CI.
+PR #55 ist mittlerweile
 gemergt (420854b); Featurehead fcb14da bestand Web 40900732201/40900717412 und
 Storage 40900732166. Nachmerge-Lauf 40902481238 bestand kombinierten Datenpfad
 und Broker-Recovery, scheiterte danach an Prozesszählung mit möglicher

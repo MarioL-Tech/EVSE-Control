@@ -392,6 +392,12 @@ final class HistoryArchive
             $invalid = [];
             foreach (['invalidate_from', 'invalidate_cursor'] as $key) {
                 if (!array_key_exists($key, $s)) { throw new \UnexpectedValueException('Missing invalidation state'); }
+                // Validate minute alignment as text before float conversion:
+                // microseconds near the year-1000 SQL epoch can round away.
+                if ($s[$key] !== null && (!is_string($s[$key]) ||
+                    !preg_match('/\A[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:00(?:\.000000)?\z/D', $s[$key]))) {
+                    throw new \UnexpectedValueException('Invalid invalidation boundary');
+                }
                 $invalid[$key] = $s[$key] === null ? null : self::timestamp($s[$key], true);
                 if ($invalid[$key] !== null && (floor($invalid[$key]) !== $invalid[$key] || (int) $invalid[$key] % 60 !== 0 ||
                     $invalid[$key] > $now->getTimestamp() + 5)) {
