@@ -9,7 +9,7 @@ Netzleistungsdiagramm. Separate neutrale1px-Linie mit4/5-Strichelung,55% Deckkra
 und kleinem0-Achsenlabel hinter der Datenkurve, in Live und Archiv. Keine
 Messreihe/Nullfüllung, keine Änderungen an Daten, Skalierung, Lücken, API oder
 Hardware. Statische Shell v9; Hell-/Dunkel-/Mobil-/Archivprüfungen ergänzt,
-neuer Dockerabschluss offen. PR#58 alsfe0999b gemergt; Nutzer bestätigt nach
+Prüf-/Freigabestand über PR#59. PR#58 alsfe0999b gemergt; Nutzer bestätigt nach
 Websiteupdate wieder Funktion. Optionales MQTT-Authoverlay scheiterte erneut
 an fehlendem MQTT_PASSWORD_HOST_FILE; ohne dieses Overlay funktioniert es laut
 Nutzer. Daraus keine Broker-Authentifizierung oder spezifische Envwerte ableiten.
