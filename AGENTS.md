@@ -20,8 +20,19 @@ Hausloaderstatus in bestehender Diagrammbeschreibung anzeigen, keine neue Karte;
 deaktiviert/unverfügbar/erfolgreich leer/unvollständig unterscheiden und erhaltene
 Altdaten als solche kennzeichnen. Produktive Ursache des leeren Hausarchivs noch
 offen; ausschließlich redigierte API-Zähler beim Betreiber angefragt.
-Neue Docker-Abnahme offen. Vorhandene konservative Bestandsaggregate nur durch
-expliziten begrenzten `--refresh-history` neu berechnen, niemals still umdeuten.
+Codehead 7452be0 vollständig Docker-geprüft: Web 40911077845 (PR) und
+40911066582 (Push), Storage-Matrix 40911077779 mit MariaDB 10.11/11.8.8/11.8.
+150 JS-Fälle, PHP-/SQL-/Transport-/TLS-/acht Browser-/Runtimeprüfungen sowie
+kombinierte HTTP-/MQTT-Ausfälle, Broker-Recovery, Prozess-/Shutdownprüfung.
+Neue 168-Bucket-Wochenfixture repräsentiert 81.478 künstliche Read-Counter:
+100 unveränderte Frischeticks verursachen keine zusätzlichen Archivplotaufbauten,
+Wallbox-Geometrielesungen oder SVG-Mutationen; alle sichtbaren Diagramme <100
+SVG-Knoten. Simulierte verbundene Wochenkurven bei 1440 px dunkel/390 px hell,
+Hausjahreskurve und Status-/Fehlerdarstellung visuell angesehen. Keine reale
+Pi-Last-/ARM-Garantie oder bestätigte Hausarchivierung daraus ableiten.
+Aktueller Abschluss-/Freigabehead in PR #56; Merge durch Projektinhaber.
+Vorhandene konservative Bestandsaggregate nur durch expliziten begrenzten
+`--refresh-history` neu berechnen, niemals still umdeuten.
 Laufende Eventinvalidierung wird nach nachweislich abgeschlossenen Initialcursorn
 ab `invalidate_from` lokalisiert; historische Bereiche davor bleiben lesbar.
 Initialbackfill, widersprüchliche Zustände und Pending-Kind-/Elternarbeit bleiben
@@ -41,7 +52,8 @@ Aktueller Folgeauftrag (2026-10-29): Archivdiagramme wegen hoher Renderlast und
 weiterhin unbefriedigender Darstellung erneut überarbeiten; Haus-Netzleistung
 nun ausdrücklich dauerhaft speichern und in Stunde/Tag/weiteren Kalenderansichten
 anzeigen, oberhalb von „Diagnose“. Hausarchivierung ist als opt-in implementiert,
-alte Aufteilung Docker-geprüft, vereinfachter Storagepfad noch nicht; Pi-Abnahme offen. Bisheriger Live-RAM-Verlauf allein ist
+alte Aufteilung und vereinfachter Storagepfad Docker-geprüft (Nachweise oben);
+Pi-Hausarchivabnahme offen. Bisheriger Live-RAM-Verlauf allein ist
 kein SQL-Hausarchiv. Vorgabe zusätzlich: belegte Datenpunkte als Linien verbinden.
 Website bleibt SELECT-only, vorhandene Raw-/Preis-/Providerdaten erhalten,
 keine Produktionsmigration durch Agent. Main-Build 40782985667 scheiterte nach
