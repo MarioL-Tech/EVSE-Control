@@ -121,7 +121,7 @@ function year(query) {
         for (const colorScheme of ['light', 'dark']) {
           await page.emulateMedia({ colorScheme });
           await page.waitForFunction(scheme => document.documentElement.dataset.effectiveTheme === scheme, colorScheme);
-          await page.screenshot({ path: `/artifacts/house-year-${width}-${colorScheme}.png`, fullPage: true });
+          await page.screenshot({ path: `/artifacts/house-year-${width}-${colorScheme}.png`, fullPage: true, animations: 'disabled' });
         }
       }
     }
