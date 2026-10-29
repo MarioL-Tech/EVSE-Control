@@ -67,8 +67,11 @@ Erneute unabhängige Abschlussprüfung: API/Diagramme und Betriebsanleitung ohne
 konkreten Befund. Datenpipeline fand fehlende Invalidierung einer bereits
 materialisierten Folgeminute bei verspätetem linken Kontext. Korrektur markiert
 nur bereits vorhandene Folge-Minutenwork samt Eltern in derselben Transaktion;
-keine unbegrenzte Zukunftsarbeit. Neue Unit-/MariaDB-Fälle für zurückdatierte
-Clockfehler und Retainedwerte vorbereitet; deren erneute Docker-CI offen.
+keine unbegrenzte Zukunftsarbeit. Korrektur a682f7c nochmals unabhängig gezielt
+geprüft, ohne weitere konkrete Befunde. Neue Unit-/MariaDB-Fälle für zurückdatierte
+Clockfehler und Retainedwerte bestanden in beiden Storage-Matrizen
+40877155840/40877144752; erneute vollständige Web-/E2E-Abschlussnachweise und
+aktueller Freigabehead stehen in PR #54. Keine Agent-Mergefreigabe für Produktion.
 Keine lokalen Hosttests und kein Pi-/ARM-/Dauerbetriebsnachweis oder Deployment.
 
 EVSE-Control ist eine Diplomarbeit zur Steuerung und Überwachung einer
