@@ -17,7 +17,18 @@ function sample(power_w = 1549.4, overrides = {}) {
     const context = await browser.newContext();
     const errors = [], requests = [];
     let mode = 'positive', count = 0, frozen = null;
-    await context.route('**/api/house-history?**', route => { const now = Date.now(); return route.fulfill({ json: {
+    await context.route('**/api/house-history?**', route => {
+      const now = Date.now(), query = new URL(route.request().url()).searchParams;
+      if (query.has('period')) {
+        const from = new Date(now).toISOString().slice(0, 10) + 'T00:00:00Z';
+        return route.fulfill({ json: { schema_version: 2, read_only: true, status: 'disabled', reason: 'Nicht eingerichtet',
+          generated_at: new Date(now).toISOString(), aggregation: 'sample_mean', complete: false,
+          progress: { samples_done: false, events_done: false }, buckets: [],
+          range: { from, to: new Date(Date.parse(from) + 86400000).toISOString(), timezone: 'Europe/Vienna' },
+          selection: { period: query.get('period'), date: query.get('date') === 'now' ? from.slice(0, 10) : query.get('date'), timezone: 'Europe/Vienna' },
+          navigation: { previous: null, next: null, now: null } } });
+      }
+      return route.fulfill({ json: {
       schema_version: 1, read_only: true, status: 'disabled', reason: 'Nicht eingerichtet',
       generated_at: new Date().toISOString(), minutes: 15,
       range: { from: new Date(now - 900000).toISOString(), to: new Date(now).toISOString() },
@@ -137,7 +148,8 @@ function sample(power_w = 1549.4, overrides = {}) {
     assert.equal(await page.locator('#chart-range').inputValue(), '1');
     await page.locator('[data-calendar-period="day"]').click();
     assert(!await page.locator('#house-chart-svg').isVisible());
-    assert.match(await page.locator('#house-chart-description').innerText(), /Keine Haus-Archivdaten/);
+    await page.waitForFunction(() => document.getElementById('house-chart-description')?.textContent === 'Hausarchiv ist deaktiviert.');
+    assert.match(await page.locator('#house-chart-description').innerText(), /Hausarchiv ist deaktiviert/);
     mode = 'zero'; await text('grid-power', '0,00 kW');
     await page.locator('[data-calendar-period="live"]').click(); await hasPoints();
     // Visibility transitions break edges, pause polling, and discard stale replies.
