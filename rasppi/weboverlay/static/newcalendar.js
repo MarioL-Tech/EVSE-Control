@@ -181,7 +181,12 @@
         // A varying numeric measurement is precisely why a mean/range is
         // plotted. `mixed` only makes categorical states ambiguous; it must
         // not turn an otherwise continuous voltage/current series into ticks.
-        const safe = !attributes.gap && value !== null;
+        // Short views show a trend of available interval aggregates, not a
+        // reconstruction of uninterrupted raw acquisition. Coarse coverage /
+        // processing flags remain in inspection labels, but must not isolate
+        // every known mean until background quality processing catches up.
+        // Missing intervals and field-local NULL/mixed states still split runs.
+        const safe = value !== null && (lineMode && !categorical ? stat.nulls === 0 : !attributes.gap);
         const previous = run.at(-1);
         if (!safe || (previous && previous.to !== from)) finish();
         const point = { left, right, middle, min, max, value, ...attributes, to };
@@ -196,9 +201,9 @@
       };
       const xy = (a, b) => `${a.toFixed(2)},${b.toFixed(2)}`;
       if (lineMode) {
-        // The same conservative runs as the summary renderer, but only their
-        // mean/last centres are drawn. Raw buildPlot's 10s rule is untouched:
-        // adjacency here is evidenced by the calendar interval boundaries.
+        // Lines interpolate adjacent available mean/last centres only; they
+        // do not claim gap-free raw acquisition. Live/raw's 10s/lifecycle
+        // barriers and long-range coverage envelopes remain unchanged.
         let path = '';
         const markers = [];
         for (const segment of runs) {

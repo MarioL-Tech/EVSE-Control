@@ -4,6 +4,23 @@ Stand: 2026-10-29. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
+Aktueller Fehlerauftrag (2026-10-29): Stundenarchiv zeigt zunächst nur Punkte,
+neuere Intervalle werden ohne Update später Linien (Nutzerscreenshots21:05/21:07,
+119 bzw208 Messwerte). Auf ausdrücklichen Auftrag jetzt reine Renderer-
+Korrektur: Stunde/Tag/Woche verbinden vorhandene benachbarte Intervallmittel/
+letzte Werte unabhängig von groben has_gap-/coverage-/complete-Qualitätsflags.
+Die Linie ist ausdrücklich Aggregatinterpolation, KEIN Nachweis lückenloser
+Rohmessung. Qualitätsflags/Inspektionslabels bleiben unverändert. Fehlende/leere
+Intervalle, feldlokale NULL und gemischte/unbekannte Zustände trennen weiterhin.
+Live-/Raw-10s- und Lifecycle-Barrieren sowie Langzeit-Min/Max-Spannen unverändert.
+Keine DB-/Aufzeichnungs-/Verdichtungsänderung, Migration oder Refresh. Regression
+für119 Messwerte in vier noch qualitätsunsicheren Minuten und stabiles Linienbild
+bei nachlaufenden Flagupdates, echte Fehlintervalle/NULL und unabhängige Hauswerte.
+Statische Shell v10. Separater Fix-PR#60 baut auf Nullreferenz-PR#59 auf, um diese
+kleine Darstellung separat überprüfbar zu halten; dessen Merge bleibt beim Nutzer.
+Prüf-/Freigabestand über PR#60. Nullreferenz-PR#59 besteht Web40945782058;
+simulierte helle/mobil/dunkle Nullreferenz angesehen, PR ist bereit zur Prüfung.
+
 Aktueller kleiner UI-Auftrag (2026-10-29): dezente Nullreferenz im Haus-
 Netzleistungsdiagramm. Separate neutrale1px-Linie mit4/5-Strichelung,55% Deckkraft
 und kleinem0-Achsenlabel hinter der Datenkurve, in Live und Archiv. Keine

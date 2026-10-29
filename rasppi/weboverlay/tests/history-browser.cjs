@@ -87,6 +87,8 @@ const { FIELDS } = require('../static/newcalendar.js');
               mean: 235 + phase + Math.sin(i / 8), last: 235 + phase, mixed: true });
           const power = i >= 20 && i < 26 ? 4000 : i === 26 ? 2000 : 0;
           Object.assign(metrics.active_power_w, { min: power ? power - 500 : 0, max: power + (power ? 500 : 0), mean: power, last: power, mixed: power > 0 });
+          if (!empty && i === Math.floor(weekHours / 2)) for (const field of FIELDS.slice(0, 9))
+            Object.assign(metrics[field], { count: samples - 1, nulls: 1 });
         }
         if (empty) {
           for (const stat of Object.values(metrics)) Object.assign(stat, { count: 0, nulls: 0, mean: null, min: null, max: null, last: null });
@@ -97,8 +99,8 @@ const { FIELDS } = require('../static/newcalendar.js');
           }
         }
         return { from: a, to: bounds[i + 1], samples: empty ? 0 : samples,
-          has_gap: period === 'hour' || period === 'week' && (empty || i === Math.floor(weekHours / 2)), complete: true,
-          coverage_seconds: empty ? 0 : period === 'week' ? i === Math.floor(weekHours / 2) ? 0 : 3600 : 58, metrics };
+          has_gap: period === 'hour' || period === 'week' && (empty || i === Math.floor(weekHours / 2)), complete: period !== 'hour',
+          coverage_seconds: empty || period === 'hour' ? 0 : period === 'week' ? i === Math.floor(weekHours / 2) ? 0 : 3600 : 58, metrics };
       }) };
     if (period === 'custom') json.navigation = { previous: null, next: null, now: null };
     if (calendarHold) { heldCalendar.push({ route, json }); return; }
@@ -288,11 +290,12 @@ const { FIELDS } = require('../static/newcalendar.js');
         await page.setViewportSize(viewport); await page.clock.runFor(32);
       }
       if (period === 'hour') {
-        assert.equal(await page.locator('#chart-power .archive-line').count(), 1, '36 isolated centres share one path');
+        assert.equal(await page.locator('#chart-power .archive-line').count(), 1, '36 available means share one path');
         assert.equal(await page.locator('#chart-power .summary-range').count(), 0);
         const isolated = await page.locator('#chart-power .archive-line').getAttribute('d');
-        assert.equal((isolated.match(/M/g) || []).length, 36, 'Empty minutes never acquire a point');
-        assert(!/[LHVZ]/.test(isolated), 'Incomplete minutes do not acquire connecting edges or ticks');
+        assert.equal((isolated.match(/M/g) || []).length, 2, 'Empty minutes split two aggregate runs');
+        assert.equal((isolated.match(/L/g) || []).length, 34, 'Available means connect without waiting for coarse coverage/completion');
+        assert(!/[HVZ]/.test(isolated), 'No raw-like ticks, bands or invented samples');
         assert.equal(await page.locator('#chart-power [data-series-marker]').count(), 1, 'Batched small Live-style markers show isolated evidence');
         await page.screenshot({ path: '/artifacts/calendar-hour-gaps-mobile.png', fullPage: true });
         const viewport = page.viewportSize();

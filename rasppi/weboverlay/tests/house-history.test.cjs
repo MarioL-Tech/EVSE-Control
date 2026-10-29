@@ -157,6 +157,27 @@ function harness() {
   const response = b => ({ status: b.status === 'unavailable' ? 503 : 200, headers: { get: () => null }, text: async () => JSON.stringify(b) });
   return { loader, store, calls, timers, states, response, advance(ms) { wall += ms; mono += ms; }, rollback() { wall--; } };
 }
+test('short house aggregate lines do not depend on coarse coverage/completion, but retain NULL and missing intervals', () => {
+  for (const period of ['hour', 'day', 'week']) {
+    const b = calendar(); b.selection.period = period;
+    const from = Date.parse(b.range.from);
+    b.buckets = [-500, 0, 500, 250].map((value, i) => bucket(iso(from + i * 60000), iso(from + (i + 1) * 60000), value,
+      { has_gap: true, complete: false, coverage_seconds: 0 }));
+    const plot = chart.buildArchivePlot(b);
+    assert.equal((plot.path.match(/L/g) || []).length, 3);
+    assert.equal((plot.path.match(/M/g) || []).length, 1);
+    assert.equal(plot.band, '');
+    b.buckets.splice(1, 1);
+    const missing = chart.buildArchivePlot(b);
+    assert.equal((missing.path.match(/M/g) || []).length, 2);
+    assert.equal((missing.path.match(/L/g) || []).length, 1);
+    b.buckets[1].metrics.power_w.nulls = 1;
+    b.buckets[1].samples = 2;
+    const unknown = chart.buildArchivePlot(b);
+    assert(!unknown.path.includes('L'), 'A field-local NULL still breaks both neighbouring edges');
+    assert(b.buckets.every(bin => bin.has_gap && !bin.complete && bin.coverage_seconds === 0));
+  }
+});
 const settle = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
 test('independent HOUSE loader uses one request, hidden cancellation and late replies cannot import', async () => {
   const h = harness(); h.loader.tick(); h.loader.tick(); assert.equal(h.calls.length, 1);
