@@ -4,6 +4,16 @@ Stand: 2026-10-29. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
+Aktueller kleiner UI-Auftrag (2026-10-29): dezente Nullreferenz im Haus-
+Netzleistungsdiagramm. Separate neutrale1px-Linie mit4/5-Strichelung,55% Deckkraft
+und kleinem0-Achsenlabel hinter der Datenkurve, in Live und Archiv. Keine
+Messreihe/Nullfüllung, keine Änderungen an Daten, Skalierung, Lücken, API oder
+Hardware. Statische Shell v9; Hell-/Dunkel-/Mobil-/Archivprüfungen ergänzt,
+Prüf-/Freigabestand über PR#59. PR#58 alsfe0999b gemergt; Nutzer bestätigt nach
+Websiteupdate wieder Funktion. Optionales MQTT-Authoverlay scheiterte erneut
+an fehlendem MQTT_PASSWORD_HOST_FILE; ohne dieses Overlay funktioniert es laut
+Nutzer. Daraus keine Broker-Authentifizierung oder spezifische Envwerte ableiten.
+
 Aktuelle Nachbesserung (2026-10-29, implementiert; Freigabestand PR#58): Zukünftige Kalenderperioden und
 benutzerdefinierte Enden nach jetzt in UI UND beiden Historien-APIs sperren;
 laufende Kalenderperioden bleiben auswählbar, Next am aktuellen Zeitraum null.

@@ -140,6 +140,11 @@ function year(query) {
       assert.equal((d.match(/L/g) || []).length, 165, 'Varying signed means connect across healthy hourly intervals');
       assert(!/[HVZ]/.test(d));
       assert.equal(await page.locator('#house-chart-svg [data-house-band]').count(), 0);
+      const zero = page.locator('#house-chart-svg [data-house-zero]');
+      assert.equal(await zero.count(), 1, 'Same zero reference in calendar and live charts');
+      assert.equal(await zero.getAttribute('y1'), await zero.getAttribute('y2'));
+      assert.equal(await zero.getAttribute('stroke-dasharray'), '4 5');
+      assert.equal(await page.locator('#house-chart-svg [data-house-zero-label]').textContent(), '0');
       assert((await page.locator('#house-chart-svg [data-house-markers]').getAttribute('d')).includes('a2,2'));
       assert.equal(await curve.evaluate(el => getComputedStyle(el).strokeWidth), '2px');
       assert(await page.locator('#house-chart-svg *').count() < 15);
@@ -173,6 +178,8 @@ function year(query) {
           await page.emulateMedia({ colorScheme });
           await page.waitForFunction(scheme => document.documentElement.dataset.effectiveTheme === scheme, colorScheme);
           await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+          assert.equal(await page.locator('#house-chart-svg [data-house-zero]').count(), 1);
+          assert.equal(await page.locator('#house-chart-svg [data-house-zero]').evaluate(el => getComputedStyle(el).strokeWidth), '1px');
           await page.screenshot({ path: `/artifacts/house-year-${width}-${colorScheme}.png`, fullPage: true, animations: 'disabled' });
         }
       }

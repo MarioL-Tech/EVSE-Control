@@ -220,7 +220,14 @@
       hasSnapshot: !!snapshot, checked: checkbox.checked });
     svg.replaceChildren();
     if (svg.hidden) return;
-    svg.append(node('path', { d: `M${geometry.left},${geometry.top}V${geometry.bottom}H${geometry.right}M${geometry.left},${plot.zeroY}H${geometry.right}`, fill: 'none', stroke: 'currentColor', 'stroke-opacity': '.3' }));
+    svg.append(node('path', { d: `M${geometry.left},${geometry.top}V${geometry.bottom}H${geometry.right}`, fill: 'none', stroke: 'currentColor', 'stroke-opacity': '.3' }));
+    // Reference only, never a measurement or a bridge across missing values.
+    // Keep it behind the curve and neutral in both themes.
+    svg.append(node('line', { x1: geometry.left, x2: geometry.right, y1: plot.zeroY, y2: plot.zeroY,
+      stroke: 'var(--muted)', 'stroke-width': 1, 'stroke-opacity': '.55', 'stroke-dasharray': '4 5',
+      'vector-effect': 'non-scaling-stroke', 'data-house-zero': '', 'aria-hidden': 'true' }));
+    svg.append(node('text', { x: geometry.left - 8, y: plot.zeroY + 4, 'text-anchor': 'end',
+      class: 'chart-axis', 'fill-opacity': '.8', 'data-house-zero-label': '', 'aria-hidden': 'true' }, '0'));
     if (plot.band) svg.append(node('path', { d: plot.band, class: 'series-0', fill: 'currentColor', 'fill-opacity': '.12',
       stroke: 'currentColor', 'stroke-opacity': '.25', 'data-house-band': '' }));
     svg.append(node('path', { d: plot.path, class: 'chart-line series-0', 'data-house-series': '' }));

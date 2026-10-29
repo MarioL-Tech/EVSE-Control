@@ -126,6 +126,18 @@ function sample(power_w = 1549.4, overrides = {}) {
       mode = next; await text('grid-power', power); await text('status', 'Offline');
     }
     assert((await series()).includes('L'), 'House connects real successive live fetches despite offline MQTT');
+    for (const colorScheme of ['light', 'dark']) {
+      await page.emulateMedia({ colorScheme });
+      const zero = page.locator('#house-chart-svg [data-house-zero]');
+      assert.equal(await zero.count(), 1);
+      assert.equal(await zero.getAttribute('y1'), await zero.getAttribute('y2'));
+      assert.equal(await zero.getAttribute('stroke-dasharray'), '4 5');
+      assert.equal(await zero.getAttribute('stroke-opacity'), '.55');
+      assert.equal(await zero.getAttribute('stroke-width'), '1');
+      assert.equal(await page.locator('#house-chart-svg [data-house-zero-label]').textContent(), '0');
+      const y = Number(await zero.getAttribute('y1'));
+      assert(Number.isFinite(y) && y >= 24 && y <= 212, 'Zero reference stays inside the signed plot');
+    }
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.locator('#smartmeter').screenshot({ path: path.join(artifacts, 'house-chart-dark-mobile.png') });
     mode = 'offline'; await text('grid-status', 'Offline');
