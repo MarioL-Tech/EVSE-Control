@@ -82,7 +82,11 @@ const { FIELDS } = require('../static/newcalendar.js');
         if (period === 'week') {
           for (const stat of Object.values(metrics)) stat.count = samples;
           Object.assign(metrics.charging, { count: 0, nulls: samples, min: null, max: null, last: null });
-          Object.assign(metrics.voltage_l1_v, { min: 228, max: 242, mean: 235 + Math.sin(i / 8), last: 235, mixed: true });
+          for (const [phase, field] of ['voltage_l1_v', 'voltage_l2_v', 'voltage_l3_v'].entries())
+            Object.assign(metrics[field], { min: 228 + phase, max: 242 + phase,
+              mean: 235 + phase + Math.sin(i / 8), last: 235 + phase, mixed: true });
+          const power = i >= 20 && i < 26 ? 4000 : i === 26 ? 2000 : 0;
+          Object.assign(metrics.active_power_w, { min: power ? power - 500 : 0, max: power + (power ? 500 : 0), mean: power, last: power, mixed: power > 0 });
         }
         if (empty) {
           for (const stat of Object.values(metrics)) Object.assign(stat, { count: 0, nulls: 0, mean: null, min: null, max: null, last: null });
@@ -255,7 +259,14 @@ const { FIELDS } = require('../static/newcalendar.js');
         await page.clock.runFor(10000);
         assert.deepEqual(await page.evaluate(() => window.__archiveWork), { plots: 0, layouts: 0, mutations: 0 },
           '100 freshness ticks cause no archive builds, layouts or SVG writes');
-        await page.screenshot({ path: '/artifacts/calendar-week-connected-desktop.png', fullPage: true, animations: 'disabled' });
+        const viewport = page.viewportSize();
+        for (const [width, colorScheme, label] of [[1440, 'dark', 'desktop'], [390, 'light', 'mobile']]) {
+          await page.setViewportSize({ width, height: 1050 });
+          await page.emulateMedia({ colorScheme });
+          await page.clock.runFor(32);
+          await page.screenshot({ path: `/artifacts/calendar-week-connected-${label}.png`, fullPage: true, animations: 'disabled' });
+        }
+        await page.setViewportSize(viewport); await page.clock.runFor(32);
       }
       if (period === 'hour') {
         assert.equal(await page.locator('#chart-power .summary-value').count(), 1, '36 isolated aggregate marks share one path');
