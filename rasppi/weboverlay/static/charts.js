@@ -338,6 +338,7 @@
         const x = (event.clientX - bounds.left) / bounds.width * p.geometry.width;
         inspect(Math.floor((x - p.geometry.left) / (p.geometry.right - p.geometry.left) * p.bucketCount));
       });
+      entry.inspect = inspect;
       figures.set(g.id, entry);
     }
     const source = document.getElementById('history-source'), detail = document.getElementById('history-detail');
@@ -475,7 +476,7 @@
             class: `chart-line chart-marker ${css}`, 'data-series-marker': series.metric.id });
         });
         for (const [key, element] of entry.nodes) if (!used.has(key)) { element.remove(); entry.nodes.delete(key); }
-        inspect(entry.inspection);
+        entry.inspect(entry.inspection);
         const descriptionText = !plot.metrics.length ? 'Keine Kurve ausgewählt. Oben wieder einschalten.' : archiveMode ? archived
           ? `${plot.count} Messwerte · ${archived.buckets.length} Intervalle · ${g.id === 'energy' ? 'Letzter Sessionzähler' : g.step ? 'Spanne / letzter Zustand' : 'Stichprobenmittel / Min–Max'}`
           : 'Keine Archivmesswerte geladen. Live-Anzeige bleibt unabhängig.'
