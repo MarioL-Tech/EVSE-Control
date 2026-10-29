@@ -181,7 +181,7 @@ function clean(run) {
     assert.equal(request.method, 'GET', 'Theme controls must not send commands');
     const url = new URL(request.url); assert.equal(url.origin, origin, 'No foreign resources');
     if (url.pathname === '/api/history') assert.equal(url.search, '?minutes=15');
-    assert(routes.includes(url.pathname) || ['/einstellungen', '/api/state', '/api/smartmeter', '/api/history'].includes(url.pathname) || url.pathname.startsWith('/static/')
+    assert(routes.includes(url.pathname) || ['/einstellungen', '/api/state', '/api/smartmeter', '/api/history', '/api/house-history'].includes(url.pathname) || url.pathname.startsWith('/static/')
       || ['/favicon.ico', '/manifest.webmanifest', '/service-worker.js'].includes(url.pathname), request.url);
   }
   cases++;

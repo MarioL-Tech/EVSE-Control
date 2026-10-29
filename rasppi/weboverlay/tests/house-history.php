@@ -1,6 +1,12 @@
 <?php
 declare(strict_types=1);
 
+set_exception_handler(static function (Throwable $error): void {
+    $label = $error::class === RuntimeException::class ? $error->getMessage() : $error::class;
+    fwrite(STDERR, 'House history fixture: ' . $label . ' at ' . basename($error->getFile()) . ':' . $error->getLine() . "\n");
+    exit(1);
+});
+
 // Container-only pure projections. No database, broker, source HTTP or browser required.
 require dirname(__DIR__) . '/vendor/autoload.php';
 
