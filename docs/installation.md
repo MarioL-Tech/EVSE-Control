@@ -1838,10 +1838,10 @@ Achsenrest enthält keine Messwerte und wird nicht als Datenbereich abgefragt.
 Korrektur verhindert unnötige Lücken durch Online-Refreshnachrichten, numerische
 Min/Max-Variation oder unbekannte andere Felder. Alte gespeicherte Gap-Metadaten
 werden nicht vom Browser ignoriert oder beim Start still überschrieben.
-Ein Tagesdiagramm mit vielen Punkten und `coverage_seconds=0` kann daher trotz
-aktualisierter Software weiterhin alte Gap-Metadaten enthalten. Erst nach
-belegter Neuberechnung und anschließendem API-/Kurvenvergleich beurteilen;
-bekannte Ausfälle oder fehlende Rohdaten dürfen nicht künstlich verbunden werden.
+Diese optionale Wartung ist **keine Voraussetzung für Liniendiagramme** und
+wird nicht allein wegen sichtbarer Punkte empfohlen. Der Diagrammauftrag ändert
+weder Aufzeichnung noch gespeicherte Verdichtung. Bekannte Ausfälle oder
+fehlende Rohdaten dürfen nicht künstlich verbunden werden.
 Nach Update des Storageimages und nur bei bereits aktivem Schema 2 kann der
 Betreiber einen konkreten UTC-Bereich erneut vormerken (max. ein Kalenderjahr):
 

@@ -8,19 +8,24 @@ Aktuelle Nachbesserung (2026-10-29, implementiert; Freigabestand PR#58): Zukünf
 benutzerdefinierte Enden nach jetzt in UI UND beiden Historien-APIs sperren;
 laufende Kalenderperioden bleiben auswählbar, Next am aktuellen Zeitraum null.
 Kalender-SELECTs dürfen nur bereits abgeschlossene vergangene Summaries lesen.
-Screenshot zeigt weiterhin Punktreihen; Betreiber-API:239 belegte Tagesintervalle,
-237 has_gap,3 incomplete,erste6 coverage_seconds=0. Das passt zu konservativen
-Bestandsverdichtungen des alten Algorithmus (Online-Refresh/all-fields-known),
-beweist aber ohne Neuberechnung keine heutige Raw-Kontinuität. Bestehender
-expliziter begrenzter --refresh-history-Weg empfohlen; regulärer Worker rekonstruiert
-nur aus belegten Daten, keine blanket Verbindungen über gespeicherte Gapflags.
-Regression erweitert um realistische Online-Refreshs hinter jedem Sample und
-unbekanntes charging bei unveränderten Rohdaten/Preisen/Providern. Pi-Refresh-
-Ergebnis weiterhin offen; kein Agent-Produktionszugriff. Codehead23ef0d2 besteht
-Web40936744288 und Storage40936744498 auf drei MariaDB-Versionen; nachfolgende
-Zusatztests für ausgeschlossene Zukunfts-SQLzeilen und den Cachewechsel von
-Coverage0-Punkten auf belegte Linien sind in PR#58 enthalten. Aktuellen finalen
-Docker-/Freigabestand dort prüfen; Merge ausschließlich durch Projektinhaber.
+Betreiber-API zunächst239 belegte Tagesintervalle,237 has_gap,3 incomplete,
+erste6 coverage_seconds=0. Nutzer stellt ausdrücklich klar: keine erneute
+Komprimierung/Verdichtung beauftragt, nur Diagrammdarstellung. Die daraus zuvor
+abgeleitete Refresh-Empfehlung ist zurückgenommen; keine Produktionsaktion durch
+Agent. Neuer Nutzerscreenshot vom29.10.,20:40 zeigt am rechten Rand bereits
+verbundene neuere Werte neben älteren Punkten. Nutzer vermutet letzte Änderung
+als Ursache, ohne kausalen Nachweis oder bestätigte Refresh-Ausführung.
+Auftrag nun: PR#58 vorbereiten, keine vorschnelle Lockerung der Lückenprüfung.
+Begonnene uncommittete Rendererlockerung und Erweiterung auf alle Perioden
+vollständig verworfen; bisherige Renderer bleiben unverändert. Bestehender
+expliziter Refresh ist nur separate optionale Wartung, keine Diagrammvoraussetzung.
+Codehead1ad27a7 besteht Web40940945771/40940936832 und Storage40940945815
+auf drei MariaDB-Versionen:171 JS-Fälle,83 PHP-Kalenderfälle,18 Archiv-SQL-/HTTP-
+Szenarien,35 Theme-/Settingsfälle und181 Storagefälle je DB-Version. Kalender-/
+Lückenbilder aus simulierter CI angesehen; kein Nachweis durchgehender Altwerte.
+Aktuellen finalen Dokumentations-/Freigabestand über PR#58 prüfen; Merge nur
+durch Projektinhaber. Zusätzlicher Modelltest-Lookup scheiterte am Kontingent,
+ohne Toolausführung/Ergebnis; keine zusätzliche unabhängige Prüfung behaupten.
 
 Aktueller Auftrag (2026-10-29, implementiert/Docker-geprüft, Pi-Abnahme offen): Stunde/Tag/Woche sollen
 dieselbe einfache Linienoptik wie Live bekommen. Echte Offline-/NULL-/Clock-/
