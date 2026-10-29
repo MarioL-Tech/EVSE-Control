@@ -218,7 +218,7 @@ class HouseIntakeTests(unittest.TestCase):
         starts = {(call.args[1][1], call.args[1][2]) for call in cursor.execute.call_args_list}
         self.assertNotIn(('minute', START + timedelta(minutes=1)), starts)
         cursor.reset_mock()
-        dirty_observation(cursor, 'evse/house', START + timedelta(seconds=30))
+        dirty_observation(cursor, 'evse/house', START + timedelta(minutes=30, seconds=30))
         self.assertEqual(cursor.execute.call_count, 4)
 
     def test_failed_dirty_never_commits(self):

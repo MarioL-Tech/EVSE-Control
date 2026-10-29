@@ -31,6 +31,9 @@ globale Wallboxversionen bleiben `{1}`/`{1,2}`. Signed W, echte 0/NULL, UUID/Seq
 Dedupe, Raw+Dirty vor ACK, begrenzte materialisierte Minute/Stunde/Tag. Keine
 Produktionsmigration, Hauswerte vor Aktivierung oder bestehende Daten erfinden.
 Readonly `/api/house-history` unabhängig von Wallboxhistorie/deren Schema;
+Rohgrenzen mikrosekundengenau wie SQL, reine Online-Refreshereignisse bei bereits
+bekanntem Onlinezustand unterbrechen keine Kurve. Abrufzeitfenster nicht als
+identisches Empfangszeitfenster behandeln; 10-s-Clock-/Transportgrenzen bleiben.
 `WEB_HOUSE_HISTORY_ENABLED=0` Default, vorhandene HISTORY_DB-Lesekonfiguration.
 Eigener Browserstore mit Kalenderkoordinator, kein Import von Archivwerten in
 Live-Frische. Unabhängige HTTP-Poller nicht zu abwechselnden Live-/SQL-Punkten

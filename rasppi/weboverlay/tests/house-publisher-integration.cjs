@@ -53,8 +53,8 @@ async function main() {
   await fs.writeFile(conf, `listener ${mqttPort} 127.0.0.1\nallow_anonymous true\npersistence false\n`);
   broker = child('mosquitto', ['-c', conf]);
   await until(() => new Promise(r => { const s = net.connect(mqttPort, '127.0.0.1'); s.once('connect', () => { s.destroy(); r(true); }); s.once('error', () => r(false)); }));
-  subscriber = child('mosquitto_sub', ['-d', '-q', '1', '-h', '127.0.0.1', '-p', String(mqttPort), '-t', 'evse/house/#', '-F', '%t %p']);
-  await until(() => subscriber.output.includes('Received SUBACK'));
+  subscriber = child('stdbuf', ['-oL', '-eL', 'mosquitto_sub', '-d', '-q', '1', '-h', '127.0.0.1', '-p', String(mqttPort), '-t', 'evse/house/#', '-F', '%t %p']);
+  await until(() => /received suback/i.test(subscriber.output));
   const env = { SMARTMETER_URL: `http://127.0.0.1:${httpPort}/private-house-source`, SMARTMETER_POLL_SECONDS: '1',
     SMARTMETER_TIMEOUT_SECONDS: '1', MQTT_HOST: '127.0.0.1', MQTT_PORT: String(mqttPort),
     HOUSE_MQTT_TOPIC_PREFIX: 'evse/house', HOUSE_PUBLISHER_CLIENT_ID: 'evse-house-publisher',

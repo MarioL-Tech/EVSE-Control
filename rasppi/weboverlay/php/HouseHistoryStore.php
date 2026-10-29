@@ -97,8 +97,8 @@ final class HouseHistoryStore
         if ($query instanceof HistoryRange) { return array_replace($query->envelope($status, $now), ['reason' => $reason]); }
         if (!in_array($query, [1, 5, 15], true)) { throw new \InvalidArgumentException('Invalid house query'); }
         return ['schema_version' => 1, 'read_only' => true, 'status' => $status, 'reason' => $reason,
-            'generated_at' => HistoryRange::iso($now), 'minutes' => $query,
-            'range' => ['from' => HistoryRange::iso($now->modify('-' . $query . ' minutes')), 'to' => HistoryRange::iso($now)],
+            'generated_at' => self::iso($now), 'minutes' => $query,
+            'range' => ['from' => self::iso($now->modify('-' . $query . ' minutes')), 'to' => self::iso($now)],
             'complete' => false, 'samples' => []];
     }
 
@@ -248,7 +248,8 @@ final class HouseHistoryStore
         }
         foreach ($events as $event) {
             $at = self::date($event['received_at']);
-            if ($at < $from || $at > $to) { $complete = false; }
+            // Event context spans the maximum permitted fetch/receipt offset.
+            if ($at < $from->modify('-10 seconds') || $at > $to->modify('+10 seconds')) { $complete = false; }
         }
         $online = null;
         if (isset($baselines[0]) && (!isset($baselines[1]) || $baselines[0]['received_at'] !== $baselines[1]['received_at'])) {
@@ -265,7 +266,10 @@ final class HouseHistoryStore
         foreach ($rows as $row) {
             self::uint($row['id'], '18446744073709551615');
             $at = self::date($row['fetched_at']); $receipt = self::date($row['received_at']);
-            if ($at < $from || $at > $to || $receipt < $from || $receipt > $to || abs((float) $at->format('U.u') - (float) $receipt->format('U.u')) > 10 ||
+            // The requested window bounds HTTP fetch times, not the independent
+            // collector receipt clock. A small transport/clock offset must not
+            // turn the entire otherwise valid response into isolated points.
+            if ($at < $from || $at > $to || abs((float) $at->format('U.u') - (float) $receipt->format('U.u')) > 10 ||
                 ($prior !== null && ($at <= $prior[0] || $receipt < $prior[1]))) { $complete = false; }
             $prior = [$at, $receipt];
         }
@@ -285,10 +289,14 @@ final class HouseHistoryStore
                 do { $group[] = $events[$index++]; }
                 while (isset($events[$index]) && $events[$index]['received_at'] === $eventTime);
                 $ambiguous = $ambiguous || self::date($group[0]['received_at']) === $receipt;
-                // Every timestamp group breaks an edge. Multiple events at the
-                // same instant have no provable SQL order, regardless of IDs.
-                ++$barrier;
-                $online = count($group) === 1 ? self::onlineAfter($group[0], $online) : null;
+                // A unique online refresh preserves a known online state.
+                // Reconnects, losses and ambiguous groups still break edges;
+                // same-timestamp IDs never prove lifecycle ordering.
+                $nextOnline = count($group) === 1 ? self::onlineAfter($group[0], $online) : null;
+                $refresh = count($group) === 1 && $online === true && $nextOnline === true
+                    && $group[0]['kind'] === 'availability' && !self::flag($group[0]['retained']);
+                if (!$refresh) { ++$barrier; }
+                $online = $nextOnline;
             }
             $power = self::decimal($row['power_w']);
             $sequence = (int) self::uint($row['sequence'], '4294967295');
@@ -319,8 +327,9 @@ final class HouseHistoryStore
             $parameters = [$prefix, $from->format('Y-m-d H:i:s.u'), $now->format('Y-m-d H:i:s.u')];
             $rows = $select('SELECT id, publisher_id, sequence, fetched_at, received_at, status, last_success_at, power_w, error_code, retained FROM evse_house_samples FORCE INDEX (sample_time) WHERE source = CAST(? AS BINARY) AND fetched_at >= ? AND fetched_at <= ? ORDER BY fetched_at DESC, id DESC LIMIT 1201', $parameters);
             $columns = 'id, kind, received_at, retained, availability';
-            $events = $select('SELECT ' . $columns . ' FROM evse_house_events FORCE INDEX (event_time) WHERE source = CAST(? AS BINARY) AND received_at >= ? AND received_at <= ? ORDER BY received_at DESC, id DESC LIMIT 2401', $parameters);
-            $bases = $select('SELECT ' . $columns . ' FROM evse_house_events FORCE INDEX (event_time) WHERE source = CAST(? AS BINARY) AND received_at < ? ORDER BY received_at DESC, id DESC LIMIT 2', [$prefix, $parameters[1]]);
+            $eventParameters = [$prefix, $from->modify('-10 seconds')->format('Y-m-d H:i:s.u'), $now->modify('+10 seconds')->format('Y-m-d H:i:s.u')];
+            $events = $select('SELECT ' . $columns . ' FROM evse_house_events FORCE INDEX (event_time) WHERE source = CAST(? AS BINARY) AND received_at >= ? AND received_at <= ? ORDER BY received_at DESC, id DESC LIMIT 2401', $eventParameters);
+            $bases = $select('SELECT ' . $columns . ' FROM evse_house_events FORCE INDEX (event_time) WHERE source = CAST(? AS BINARY) AND received_at < ? ORDER BY received_at DESC, id DESC LIMIT 2', [$prefix, $eventParameters[1]]);
             return self::project($rows, $events, $bases, $from, $now);
         });
     }

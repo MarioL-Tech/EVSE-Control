@@ -21,6 +21,14 @@ function bucket(from, to, value, options = {}) {
     metrics: { power_w: { count: value === null ? 0 : 1, nulls: value === null ? 1 : 0,
       mean: value, min: value, max: value, last: value, mixed: false } }, ...options };
 }
+test('microsecond raw range includes a valid zero from the current fractional second', () => {
+  const batch = raw([0]);
+  batch.generated_at = '2026-10-29T12:00:00.900000Z';
+  batch.range = { from: '2026-10-29T11:45:00.900000Z', to: batch.generated_at };
+  batch.samples[0].timestamp = '2026-10-29T12:00:00.100000Z';
+  batch.samples[0].received_at = '2026-10-29T12:00:00.200000Z';
+  assert(house.validate(batch, epoch + 900));
+});
 test('signed zero/NULL survive raw reload; no synthetic preactivation values; two pollers have one broken seam', () => {
   const s = house.createStore(); assert(s.importHistory(raw(), epoch));
   const points = s.points([{ t: epoch - 8500, power_w: 9 }, { t: epoch - 6000, power_w: -9 }], epoch, 15);
