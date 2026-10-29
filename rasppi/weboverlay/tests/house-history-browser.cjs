@@ -29,22 +29,30 @@ function year(query) {
   const date = /^\d{4}$/.test(requestedDate) ? requestedDate
     : new Intl.DateTimeFormat('en', { timeZone: 'Europe/Vienna', year: 'numeric' }).format(at ? new Date(at) : new Date());
   const n = Number(date);
-  // Real API tests verify DST boundaries. This renderer fixture uses bounded
-  // daily UTC slots across the requested Vienna year, including a real gap.
+  // Real API tests verify DST. Renderer fixture follows local ISO weeks,
+  // clipping both year edges and retaining a quality-only incomplete interval.
   const from = `${n - 1}-12-31T23:00:00Z`, to = `${n}-12-31T23:00:00Z`;
   const nav = date => ({ period: 'year', date: String(date), tz: 'Europe/Vienna' });
   const start = Date.parse(from), count = n % 5 + 1, days = (Date.parse(to) - start) / 86400000;
-  const availableDays = Math.min(days, Math.max(0, Math.ceil((Date.now() + 5000 - start) / 86400000)));
-  const bucket = (index, value, options = {}) => ({ from: iso(start + index * 86400000), to: iso(start + (index + 1) * 86400000),
-    samples: count, has_gap: false, complete: true, coverage_seconds: 86400,
+  const bounds = Array.from({ length: days + 1 }, (_, i) => {
+    const civil = iso(Date.UTC(n, 0, i + 1)).slice(0, 10);
+    const march = new Date(Date.UTC(n, 3, 0)), october = new Date(Date.UTC(n, 10, 0));
+    march.setUTCDate(march.getUTCDate() - march.getUTCDay());
+    october.setUTCDate(october.getUTCDate() - october.getUTCDay());
+    const summer = civil > iso(march.getTime()).slice(0, 10) && civil <= iso(october.getTime()).slice(0, 10);
+    return Date.parse(civil + 'T00:00:00Z') - (summer ? 2 : 1) * 3600000;
+  }).filter((_, i) => i === 0 || i === days || new Date(Date.UTC(n, 0, i + 1)).getUTCDay() === 1);
+  const available = bounds.slice(0, -1).filter(a => a <= Date.now() + 5000).length;
+  const bucket = (index, value, options = {}) => ({ from: iso(bounds[index]), to: iso(bounds[index + 1]),
+    samples: count, has_gap: false, complete: true, coverage_seconds: (bounds[index + 1] - bounds[index]) / 1000,
     metrics: { power_w: { count, nulls: 0, mean: value, min: value - 400, max: value + 400, last: value, mixed: false } },
     ...options });
   return { schema_version: 2, read_only: true, status: 'ok', reason: 'Hausverlauf', generated_at: iso(Date.now()),
     range: { from, to, timezone: 'Europe/Vienna' }, selection: { period: 'year', date, timezone: 'Europe/Vienna' },
     navigation: { previous: nav(n - 1), next: nav(n + 1), now: { period: 'year', date: 'now', tz: 'Europe/Vienna' } },
     aggregation: 'sample_mean', complete: true, progress: { samples_done: true, events_done: true },
-    buckets: Array.from({ length: availableDays }, (_, i) => bucket(i, (i % 9 - 4) * 125,
-      i === Math.floor(availableDays / 2) ? { has_gap: true, complete: false, coverage_seconds: 0 } : {})) };
+    buckets: Array.from({ length: available }, (_, i) => bucket(i, (i % 9 - 4) * 125,
+      i === Math.floor(available / 2) ? { has_gap: true, complete: false, coverage_seconds: 0 } : {})) };
 }
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -118,18 +126,18 @@ function year(query) {
     assert(houseRequests > beforeReload, 'Reload fetches persistent SQL baseline');
     await page.locator('[data-calendar-period="year"]').click();
     await page.locator('#calendar-date').fill('2024'); await page.locator('#calendar-date').dispatchEvent('change');
-    await page.waitForFunction(() => !!document.querySelector('#house-chart-svg [data-house-band]'));
+    await page.waitForFunction(() => (document.querySelector('#house-chart-svg [data-house-series]')?.getAttribute('d') || '').includes('L'));
     assert(await page.locator('#house-chart-svg').isVisible(), 'House year archive is independent of disabled wallbox');
     assert.equal(await page.locator('#calendar-prev').isEnabled(), true, 'Validated house metadata supplies navigation fallback');
     assert.equal(await page.locator('#grid-power').innerText(), '—');
     const yearRequests = houseRequests;
     await page.reload();
-    await page.waitForFunction(() => !!document.querySelector('#house-chart-svg [data-house-band]'));
+    await page.waitForFunction(() => (document.querySelector('#house-chart-svg [data-house-series]')?.getAttribute('d') || '').includes('L'));
     assert(houseRequests > yearRequests, 'Reload restores the selected house year while wallbox history stays disabled');
     assert.equal(await page.locator('#calendar-date').inputValue(), '2024');
     const yearPath = await curve.getAttribute('d');
     assert(yearPath.includes('L'), 'Daily means are connected as a line, not isolated ticks');
-    assert.equal((yearPath.match(/M/g) || []).length, 3, 'One uncertain bucket separates the two continuous runs');
+    assert.equal((yearPath.match(/M/g) || []).length, 1, 'A quality-only change cannot erase a known mean');
 
     await page.locator('[data-calendar-period="week"]').click();
     await page.waitForFunction(() => document.getElementById('house-chart-description')?.textContent.startsWith('5039 Messpunkte'));
@@ -137,8 +145,8 @@ function year(query) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       const d = await curve.getAttribute('d');
-      assert.equal((d.match(/M/g) || []).length, 3, 'Real gap isolates the uncertain mean');
-      assert.equal((d.match(/L/g) || []).length, 165, 'Varying signed means connect across healthy hourly intervals');
+      assert.equal((d.match(/M/g) || []).length, 1, 'Partial NULL keeps the existing signed mean');
+      assert.equal((d.match(/L/g) || []).length, 167, 'Known signed means connect without claiming raw continuity');
       assert(!/[HVZ]/.test(d));
       assert.equal(await page.locator('#house-chart-svg [data-house-band]').count(), 0);
       const zero = page.locator('#house-chart-svg [data-house-zero]');
@@ -146,7 +154,7 @@ function year(query) {
       assert.equal(await zero.getAttribute('y1'), await zero.getAttribute('y2'));
       assert.equal(await zero.getAttribute('stroke-dasharray'), '4 5');
       assert.equal(await page.locator('#house-chart-svg [data-house-zero-label]').textContent(), '0');
-      assert((await page.locator('#house-chart-svg [data-house-markers]').getAttribute('d')).includes('a2,2'));
+      assert.equal(await page.locator('#house-chart-svg [data-house-markers]').getAttribute('d'), '');
       assert.equal(await curve.evaluate(el => getComputedStyle(el).strokeWidth), '2px');
       assert(await page.locator('#house-chart-svg *').count() < 15);
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -155,7 +163,7 @@ function year(query) {
     }
     await page.locator('[data-calendar-period="year"]').click();
     await page.locator('#calendar-date').fill('2024'); await page.locator('#calendar-date').dispatchEvent('change');
-    await page.waitForFunction(() => !!document.querySelector('#house-chart-svg [data-house-band]'));
+    await page.waitForFunction(() => (document.querySelector('#house-chart-svg [data-house-series]')?.getAttribute('d') || '').includes('L'));
 
     let ready;
     const readyPromise = new Promise(resolve => { ready = resolve; });
@@ -163,7 +171,7 @@ function year(query) {
     await page.locator('#calendar-date').fill('2023'); await page.locator('#calendar-date').dispatchEvent('change');
     await readyPromise;
     await page.locator('#calendar-date').fill('2022'); await page.locator('#calendar-date').dispatchEvent('change');
-    await page.waitForFunction(() => document.getElementById('house-chart-description')?.textContent.startsWith('1095 Messpunkte'));
+    await page.waitForFunction(() => document.getElementById('house-chart-description')?.textContent.startsWith('159 Messpunkte'));
     const currentDescription = await page.locator('#house-chart-description').innerText();
     const release = releaseHeld; holdDate = null; releaseHeld = null; await release(); await pause(100);
     assert.equal(await page.locator('#calendar-date').inputValue(), '2022');

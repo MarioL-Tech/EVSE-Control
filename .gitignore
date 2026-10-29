@@ -25,6 +25,8 @@ esp32-firmware/
 
 # Secrets — never commit WiFi credentials / MQTT passwords
 .env
+.env.before-settings
+.evse-settings/
 secrets.h
 config.local.h
 

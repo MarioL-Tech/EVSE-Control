@@ -135,17 +135,20 @@ werden nicht nachträglich vom Browser umgedeutet; gezielter optionaler
 Session-Resets bleiben sichtbar/erklärbar, nicht künstlich konstante Kurven.
 Stunden-/Tagkombination verwendet Summen/Counts statt Mittelwerte von Mittelwerten.
 
-**Darstellung in Stunde/Tag/Woche:** Linien verbinden vorhandene benachbarte
+**Darstellung in Stunde/Tag/Woche/Monat/Jahr:** Linien verbinden vorhandene benachbarte
 Intervallmittel bzw zulässige letzte Werte. Dies ist eine Interpolation von
 Aggregaten, kein Nachweis durchgehend verfügbarer Rohmessungen. Die übergeordneten
 Qualitätsflags `has_gap`, `coverage_seconds` und `complete` bleiben unverändert
 in API und Inspektionslabels, isolieren aber nicht jeden bekannten Aggregatwert
-während eines Verarbeitungsnachlaufs. Fehlende/leere Intervalle, feldlokale NULL,
+während eines Verarbeitungsnachlaufs. Teilweise NULLs löschen einen bekannten
+numerischen Mittel-/letzten Wert nicht; vollständig unbekannte oder fehlende/leere Intervalle,
 unbekannte letzte Werte und gemischte kategoriale Zustände trennen weiterhin.
 Für Bool-/Code-Stufen bleiben auch die bisherigen globalen Qualitätsbarrieren
 erforderlich; eine unsichere Aggregatperiode wird nicht als konstanter Zustand ausgegeben.
-Live-/Rohkurven behalten ihre10s-/Lifecycle-Regeln; die konservativen Langzeit-
-Min/Max-Spannen bleiben davon getrennt. Keine Neuverdichtung als Voraussetzung.
+Live-/Rohkurven behalten ihre10s-/Lifecycle-Regeln; nur eigene Zeiträume (custom)
+verwenden weiter konservative Min/Max-Spannen. Linienachsen orientieren sich an
+den dargestellten Mittel-/letzten Werten statt unsichtbaren Rohwertspitzen.
+Keine Neuverdichtung als Voraussetzung.
 
 Die PHP-Projektion erhält diese Trennung: unabhängige NULL-Metriken dürfen
 `has_gap` nicht global verschärfen. Eine schlechte Readkante, die ausschließlich
@@ -187,9 +190,12 @@ Neue alternative Form (kein Mischen von Formen):
   32 MiB eingelesene Summarydaten, maximal 512 Ausgabebuckets/2 MiB JSON.
   Legacy-Ausgabebudget 1 MiB unverändert. Keine Treiber-/Credentialdetails nach außen.
 - Stunde: Minuten; Tag: 5-Minuten-Bins aus Minuten; Woche: Stunden; Monat:
-  2-Stunden-Bins aus Stunden; Jahr: lokale Kalendertage aus Stunden (max. 8785
-  Stunden, 366 Ausgabepunkte). Vorhandene Tagesbuckets für passende UTC-Slices
-  optional. Keine falsche Zuordnung von UTC-Tagen zu lokalen Tagen.
+  lokale Kalendertage (28–31 Punkte, DST-Tage mit23/25 Stunden); Jahr: lokale
+  ISO-Kalenderwochen, an den Jahresgrenzen abgeschnitten (53, in seltenen Jahren
+  54 Punkte). Keine fremden Dezember-/Januartage in die Jahresauswahl aufnehmen.
+  Beide aus bestehenden Stundensummen/Counts (max.8785 Stunden), nicht Mittelwert
+  von Mittelwerten, keine neue SQL-Verdichtung/Migration und kein Rawscan.
+  Keine falsche Zuordnung von UTC-Tagen zu lokalen Tagen.
 
 Schema-2-Antwort:
 
@@ -230,8 +236,10 @@ Fehler `unavailable`503/leer, deaktiviert200/leer, feste sichere Gründe.
   Zeitraum, Jetzt, Zurück/Weiter, Auswahl Live/Stunde/Tag/Woche/Monat/Jahr/Zeitraum.
   Zeitraum/Timezone klar beschriften, native Tastaturbedienung. Auswahl nur
   Präferenzen; keine Daten in localStorage. Server berechnet Zonen-/Kalendergrenzen.
-- Summarydaten als Intervall-Min/Max + Mittel/Letzter-Wert darstellen; Lücken
-  innerhalb eines Buckets nicht durch eine durchgehende Linie verschweigen.
+- Summarydaten in Stunde bis Jahr als Mittel-/Letzter-Wert-Linien darstellen,
+  nicht als durchgehende Rohaufnahme ausgeben; Lücken-/NULL-/Coveragequalität in
+  API und Inspektionslabels behalten. Vollständig fehlende Intervalle trennen;
+  Custom behält konservative Intervall-Min/Max-Spannen.
   Keine Marker-Pillen. Für Sessionenergie explizit letzter Sessionzähler,
   kein Tages-/Jahresverbrauch; gemischte Flags/Codes nicht als konstant darstellen.
 - Raw-Graphfehler: `gapFloor`/globale Unvollständigkeit/Source-Wechsel nicht

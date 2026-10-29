@@ -164,10 +164,12 @@ try {
     });
     $run('localized readiness retains hour and child-minute pending barriers', static function () use ($reset, $insert, $root, $config, $start): void {
         $reset();
-        for ($i = 0; $i < 24; ++$i) { $insert(archiveFixture($start + $i * 3600, 3600)); }
         $year = HistoryRange::parse('period=year&date=2026&tz=UTC');
+        [$first, $next] = $year->bins()[0];
+        for ($t = $first; $t < $next; $t += 3600) { $insert(archiveFixture($t, 3600)); }
         $read = static fn() => (new HistoryArchive($config))->snapshot($year);
-        $root->exec("UPDATE evse_history_state SET events_done=0,invalidate_from='2026-01-02' WHERE source='isolated/archive'");
+        $boundary = gmdate('Y-m-d H:i:s', $next);
+        $root->exec("UPDATE evse_history_state SET events_done=0,invalidate_from='$boundary' WHERE source='isolated/archive'");
         $v = $read(); archiveAssert($v['status'] === 'ok' && $v['buckets'][0]['complete'] && !$v['buckets'][0]['has_gap']);
         foreach ([60, 3600] as $resolution) {
             $root->exec("INSERT INTO evse_history_work VALUES ('isolated/archive',$resolution,'2026-01-01',2,1,1)");
@@ -226,7 +228,7 @@ try {
         print('Year fixture: ' . json_encode(['status' => $v['status'], 'complete' => $v['complete'],
             'buckets' => count($v['buckets']), 'samples' => array_sum(array_column($v['buckets'], 'samples')),
             'elapsed_ms' => (int) ((hrtime(true) - $before) / 1000000)], JSON_THROW_ON_ERROR) . "\n");
-        archiveAssert($v['status'] === 'ok' && $v['complete'] && count($v['buckets']) === 366);
+        archiveAssert($v['status'] === 'ok' && $v['complete'] && count($v['buckets']) === 53);
         archiveAssert($hours === 8784 && array_sum(array_column($v['buckets'], 'samples')) === 15811200);
         archiveAssert(strlen(json_encode($v, JSON_THROW_ON_ERROR)) <= 2097152);
         foreach ($v['buckets'] as $b) {

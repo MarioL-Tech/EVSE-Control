@@ -52,6 +52,31 @@ jobs:
           done
       - name: Build and test in Docker with isolated broker
         run: docker build --progress=plain -t evse-weboverlay:test rasppi/weboverlay
+      - name: Provision config-only settings with disposable operator files
+        run: |
+          fixture="$(mktemp -d)"
+          git archive HEAD | tar -x -C "$fixture"
+          # No real .env, secret, network, Docker socket or production services.
+          printf '# fixture\nWEB_PORT=8080\nMQTT_PASSWORD=dummy-only-provision\n' > "$fixture/rasppi/weboverlay/.env"
+          bash "$fixture/rasppi/weboverlay/docker/setup-settings.sh"
+          test -L "$fixture/rasppi/weboverlay/.env"
+          cmp "$fixture/rasppi/weboverlay/.env" "$fixture/rasppi/weboverlay/.env.before-settings"
+          test "$(stat -c %a "$fixture/.evse-settings/weboverlay")" = 2750
+          docker run --rm --read-only --network none --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges:true --entrypoint php \
+            --mount "type=bind,src=$fixture/.evse-settings,dst=/run/evse-settings" evse-settings-setup:local -r '
+            require "/app/vendor/autoload.php";
+            $s = new EvseOverlay\EnvSettingsStore("/run/evse-settings", true);
+            $r = $s->read("weboverlay");
+            if (($r["status"] ?? null) !== "ok") exit(1);
+            $r = $s->update("weboverlay", $r["revision"], ["WEB_PORT" => "8081"]);
+            exit(($r["status"] ?? null) === "ok" ? 0 : 1);'
+          test "$(stat -c %a "$fixture/.evse-settings/weboverlay/.env")" = 640
+          # The unprivileged operator can still read after atomic replacement;
+          # Compose consumes that SAME edited file through its original .env path.
+          (cd "$fixture/rasppi/weboverlay" && docker compose config --format json) | grep -Eq '"published"[[:space:]]*:[[:space:]]*"8081"'
+          bash "$fixture/rasppi/weboverlay/docker/setup-settings.sh"
+          grep -q "WEB_PORT='8081'" "$fixture/rasppi/weboverlay/.env"
+          grep -q 'WEB_PORT=8080' "$fixture/rasppi/weboverlay/.env.before-settings"
       - name: Build local HTTPS proxy
         run: docker build --progress=plain -f rasppi/weboverlay/docker/https/Dockerfile -t evse-web-https:test rasppi/weboverlay
       - name: Trusted HTTPS and PWA with isolated CA and broker

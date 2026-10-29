@@ -245,11 +245,14 @@ final class EnvSettingsStore
             // Recheck bytes before commit; catches non-cooperating edits observed during this transaction.
             if ($this->content($path) !== $content) { self::fail('conflict'); }
             $temp = $dir . '/.env.tmp-' . bin2hex(random_bytes(16));
+            // Provisioned setgid directories give the deployment operator read
+            // access (0640), not write access. Legacy private roots stay 0600.
+            $fileMode = ((self::stat($dir)['mode'] & 02000) !== 0) ? 0640 : 0600;
             $old = umask(0077);
             try { $stream = @fopen($temp, 'x+b'); } finally { umask($old); }
             if ($stream === false) { self::fail(); }
             try {
-                if (!@chmod($temp, 0600)) { self::fail(); }
+                if (!@chmod($temp, $fileMode)) { self::fail(); }
                 $offset = 0;
                 while ($offset < strlen($next)) {
                     $written = @fwrite($stream, substr($next, $offset));

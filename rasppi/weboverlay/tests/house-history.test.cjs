@@ -133,6 +133,7 @@ test('calendar year and both DST days use server UTC bounds without assuming 24-
 });
 test('archive curves/bands connect only fully covered adjacent intervals; NULL/gaps never heal', () => {
   const b = calendar(), from = Date.parse(b.range.from);
+  b.selection.period = 'custom';
   b.buckets = Array.from({ length: 5 }, (_, i) => bucket(iso(from + i * 60000), iso(from + (i + 1) * 60000), i === 2 ? null : -500));
   const geometry = { left: 62, right: 480, top: 24, bottom: 210 };
   let plot = chart.buildArchivePlot(b, geometry);
@@ -141,7 +142,7 @@ test('archive curves/bands connect only fully covered adjacent intervals; NULL/g
   b.buckets[1].has_gap = true; b.buckets[4].complete = false;
   plot = chart.buildArchivePlot(b, geometry); assert(!plot.path.includes('L'));
   assert(!/NaN|Infinity/.test(plot.path)); assert.equal(plot.markers.length, 0);
-  const incomplete = calendar(); incomplete.buckets = [bucket(incomplete.range.from, '2024-01-02T00:00:00Z', -500,
+  const incomplete = calendar(); incomplete.selection.period = 'custom'; incomplete.buckets = [bucket(incomplete.range.from, '2024-01-02T00:00:00Z', -500,
     { has_gap: true, complete: false, coverage_seconds: 0 })];
   plot = chart.buildArchivePlot(incomplete, geometry);
   assert.match(plot.path, /H/); assert.equal(plot.band, '', 'Unproven coverage keeps a local value mark without a false envelope');
@@ -158,7 +159,7 @@ function harness() {
   return { loader, store, calls, timers, states, response, advance(ms) { wall += ms; mono += ms; }, rollback() { wall--; } };
 }
 test('short house aggregate lines do not depend on coarse coverage/completion, but retain NULL and missing intervals', () => {
-  for (const period of ['hour', 'day', 'week']) {
+  for (const period of ['hour', 'day', 'week', 'month', 'year']) {
     const b = calendar(); b.selection.period = period;
     const from = Date.parse(b.range.from);
     b.buckets = [-500, 0, 500, 250].map((value, i) => bucket(iso(from + i * 60000), iso(from + (i + 1) * 60000), value,
@@ -174,7 +175,9 @@ test('short house aggregate lines do not depend on coarse coverage/completion, b
     b.buckets[1].metrics.power_w.nulls = 1;
     b.buckets[1].samples = 2;
     const unknown = chart.buildArchivePlot(b);
-    assert(!unknown.path.includes('L'), 'A field-local NULL still breaks both neighbouring edges');
+    assert.equal(unknown.path, missing.path, 'Partial NULL retains a known aggregate mean');
+    Object.assign(b.buckets[1].metrics.power_w, { count: 0, nulls: 2, mean: null, min: null, max: null, last: null });
+    assert(!chart.buildArchivePlot(b).path.includes('L'), 'Entirely unknown interval breaks both edges');
     assert(b.buckets.every(bin => bin.has_gap && !bin.complete && bin.coverage_seconds === 0));
   }
 });

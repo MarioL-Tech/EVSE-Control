@@ -153,12 +153,12 @@ final class HistoryRange
             ($this->period === 'custom' && $this->to->getTimestamp() - $this->from->getTimestamp() <= 86400) ? 60 : 3600;
     }
 
-    /** Half-open bins, local midnight boundaries for year/long custom, elapsed bins otherwise. */
+    /** Month: local days. Year: ISO weeks clipped to the selected year. No data rewriting. */
     public function bins(): array
     {
         $duration = $this->to->getTimestamp() - $this->from->getTimestamp();
         $step = match ($this->period) {
-            'hour' => 60, 'day' => 300, 'week' => 3600, 'month' => 7200, 'year' => 0,
+            'hour' => 60, 'day' => 300, 'week' => 3600, 'month', 'year' => 0,
             default => $duration <= 3600 ? 60 : ($duration <= 86400 ? 300 : ($duration <= 7 * 86400 ? 3600 : ($duration <= 31 * 86400 ? 7200 : 0))),
         };
         $bins = [];
@@ -167,8 +167,9 @@ final class HistoryRange
             if (count($bins) >= 512) {
                 throw new \UnexpectedValueException('Too many history bins');
             }
-            $end = $step === 0 ? $cursor->setTimezone(new \DateTimeZone($this->timezone))->modify('tomorrow')->setTime(0, 0) :
-                $cursor->setTimestamp($cursor->getTimestamp() + $step);
+            $end = $this->period === 'year' ? $cursor->setTimezone(new \DateTimeZone($this->timezone))->modify('next monday')->setTime(0, 0) :
+                ($step === 0 ? $cursor->setTimezone(new \DateTimeZone($this->timezone))->modify('tomorrow')->setTime(0, 0) :
+                $cursor->setTimestamp($cursor->getTimestamp() + $step));
             if ($this->period === 'custom' && $step > 0) {
                 $stamp = $cursor->getTimestamp();
                 $end = $cursor->setTimestamp($stamp + $step - ($stamp % $step + $step) % $step);

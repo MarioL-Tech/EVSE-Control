@@ -5,12 +5,18 @@ und benutzerdefinierte Enden nach jetzt sind400, Next am aktuellen Zeitraum null
 Bei laufenden Kalenderperioden werden nur schon abgeschlossene Summaries bis
 jetzt abgefragt, nicht deren zukünftiger Rest. Prüf-/Freigabestand: PR#58.
 
-Stunde/Tag/Woche zeigen eine Linie durch vorhandene benachbarte Aggregatmittel,
+Stunde/Tag/Woche/Monat/Jahr zeigen eine Linie durch vorhandene benachbarte Aggregatmittel,
 nicht die Zusicherung einer unterbrechungsfreien Rohmessung. Übergeordnete
 Coverage-/Verarbeitungsflags bleiben erhalten und machen solche Mittelwerte
 nicht mehr automatisch zu isolierten Punkten. Fehlende/leere Intervalle und
-feldlokale NULL bleiben Trennungen; Livefrische und Raw-/Minuten-Kurvenregeln
-sowie die konservativen Min/Max-Spannen längerer Zeiträume ändern sich nicht.
+vollständig unbekannte Intervalle bleiben Trennungen. Einzelne NULL-Beobachtungen
+bleiben Qualitätsmetadaten und löschen einen vorhandenen signierten Mittelwert
+nicht. Monat liefert einen samplegewichteten Tagesmittelpunkt pro lokalem Tag,
+Jahr einen Wochenmittelpunkt pro lokaler ISO-Woche (an den Jahresgrenzen gekürzt).
+Keine Auffüllung mit Nullen oder Mittelung bereits unterschiedlich gewichteter
+Mittelwerte: vorhandene Stundensummen/Counts werden read-only projiziert.
+Livefrische und Raw-/Minuten-Kurvenregeln bleiben unverändert; konservative
+Min/Max-Spannen bleiben ausschließlich im benutzerdefinierten Zeitraum.
 Weder DB-Neuberechnung noch Aufzeichnungsänderung dafür erforderlich.
 
 Erweiterung PR #57 (Docker-geprüft, Pi-Minutenabnahme offen): Minutenmittel im bestehenden Storage,

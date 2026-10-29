@@ -39,9 +39,9 @@ $test(static function () use ($range): void {
         archiveAssert(count($r->bins()) === $hours * 12);
     }
     $leap = $range('period=year&date=2024');
-    archiveAssert(count($leap->bins()) === 366);
+    archiveAssert(count($leap->bins()) === 53);
     archiveAssert($leap->to->getTimestamp() - $leap->from->getTimestamp() === 8784 * 3600);
-    archiveAssert(count($range('period=month&date=2024-02')->bins()) === 348);
+    archiveAssert(count($range('period=month&date=2024-02')->bins()) === 29);
     archiveAssert($range('period=week&date=2020-W53')->from->format('Y-m-d') === '2020-12-28');
 });
 $test(static function () use ($range): void {
@@ -77,6 +77,34 @@ $test(static function (): void {
     archiveReject(static fn() => HistoryRange::parse('period=hour&at=2026-10-25T01:00:00Z', $firstHour));
 });
 $hour = $range('period=hour&date=2026-01-01T12:00&tz=UTC');
+$test(static function () use ($range): void {
+    foreach (['2026-03' => 23, '2026-10' => 25] as $month => $dstHours) {
+        $r = $range('period=month&date=' . $month);
+        archiveAssert(count($r->bins()) === 31);
+        $durations = array_map(static fn($bin) => ($bin[1] - $bin[0]) / 3600, $r->bins());
+        archiveAssert(in_array($dstHours, $durations));
+        archiveAssert(array_sum($durations) * 3600 === $r->to->getTimestamp() - $r->from->getTimestamp());
+    }
+    foreach (['2012' => 54, '2024' => 53, '2026' => 53] as $year => $count) {
+        $r = $range('period=year&date=' . $year);
+        $bins = $r->bins(); archiveAssert(count($bins) === $count);
+        archiveAssert($bins[0][0] === $r->from->getTimestamp() && end($bins)[1] === $r->to->getTimestamp());
+        foreach ($bins as $i => [$a, $b]) {
+            archiveAssert($a < $b && $b - $a <= 169 * 3600);
+            if ($i) archiveAssert($a === $bins[$i - 1][1]);
+        }
+    }
+    // Read existing hour sums/counts, not an average of differently populated days.
+    $month = $range('period=month&date=2026-03&tz=UTC');
+    $a = $month->from->getTimestamp();
+    $p = HistoryArchive::project($month, [archiveFixture($a, 3600, 2, 100), archiveFixture($a + 3600, 3600, 6, 300)]);
+    archiveAssert(count($p['buckets']) === 31 && $p['buckets'][0]['metrics']['active_power_w']['mean'] === 250.0);
+    $year = $range('period=year&date=2026&tz=UTC');
+    $a = $year->from->getTimestamp();
+    $p = HistoryArchive::project($year, [archiveFixture($a, 3600, 2, 100), archiveFixture($a + 86400, 3600, 6, 300)]);
+    archiveAssert($p['buckets'][0]['metrics']['active_power_w']['mean'] === 250.0);
+    archiveAssert($p['buckets'][0]['metrics']['session_energy_wh']['mean'] === null);
+});
 $start = $hour->from->getTimestamp();
 $test(static function () use ($hour): void {
     $store = new HistoryArchive(new HistoryConfig(), static fn() => throw new RuntimeException('Must not connect'));
@@ -201,11 +229,11 @@ $test(static function () use ($range): void {
         for ($t = $year->from->getTimestamp(); $t < $year->to->getTimestamp(); $t += 3600) { yield archiveFixture($t, 3600); }
     })();
     $p = HistoryArchive::project($year, $rows);
-    archiveAssert($p['complete'] && count($p['buckets']) === 366);
+    archiveAssert($p['complete'] && count($p['buckets']) === 53);
     archiveAssert(array_sum(array_column($p['buckets'], 'samples')) === 8784 * 2);
     foreach ($p['buckets'] as $b) {
         $hours = (strtotime($b['to']) - strtotime($b['from'])) / 3600;
-        archiveAssert(in_array($hours, [23, 24, 25]) && $b['samples'] === (int) $hours * 2);
+        archiveAssert($hours > 0 && $hours <= 169 && $b['samples'] === (int) $hours * 2);
     }
     archiveAssert(strlen(json_encode($p, JSON_THROW_ON_ERROR)) < 2097152);
 });

@@ -1785,13 +1785,17 @@ kontrollieren. Bereinigung entfernt nicht die Datenbank und schrumpft keine
 InnoDB-Datei zwangsweise; Platz wird intern wiederverwendet. Kein DROP/TRUNCATE,
 kein `OPTIMIZE TABLE` oder Produktionsvolumeaustausch.
 
-### Settings: echte Env-Dateibearbeitung (noch nicht produktiv freigegeben)
+### Settings: echte Env-Dateibearbeitung ohne Anmeldung im vertrauenswürdigen LAN
 
 Der neue Editor schreibt echte `.env`-Dateien, kein Browserstorage und kein
-Konfigurationsdownload. **Admin-Login ist ausdrücklich noch nicht freigegeben
-und wird jetzt nicht implementiert.** Deshalb bleibt der Editor standardmäßig
-deaktiviert, ohne produktive Schreibmounts. Die Oberfläche kann bereits den
-Dienstkatalog zeigen; deaktivierte Eingaben sind keine wirksame Konfiguration.
+Konfigurationsdownload. **Am29.10.2026 ausdrücklich ohne Admin-Login freigegeben.**
+Jeder Client, der die Website erreicht, kann nach Einrichtung Konfiguration
+ändern; Origin-/CSRF-Prüfung ist keine Authentifizierung. Nur im vertrauenswürdigen
+LAN/VPN, niemals öffentlich freigeben. HTTP schützt Konfigurationsübertragung
+nicht vor Mitlesen im Netz. Keine neue Firewall-/Port-/TLS-Änderung impliziert.
+Compose reicht `SETTINGS_EDITOR_ENABLED=1` und eine exakte Origin durch; ohne
+sichere Dateibereitstellung bleibt der Zugriff fail-closed. Mit
+`SETTINGS_EDITOR_ENABLED=0` in der Website-`.env` und Neuerstellung deaktivieren.
 `/api/settings-env` verändert bei deaktiviertem Editor nichts und erlaubt nur
 GET/HEAD. Bestehende Messdaten-/Historienendpunkte bleiben SELECT-only.
 
@@ -1800,17 +1804,51 @@ Implementierungsgrenze: Backend verwendet ausschließlich
 bereitgestellte, von UID 10001 besessene Konfigurationsverzeichnisse liegen,
 keine Repository- oder Secretverzeichnisse. Atomarer Dateiaustausch braucht
 einen Verzeichnismount; ein einzelner `.env`-Bindmount ist dafür ungeeignet.
-Die spätere Einrichtung muss diese Dateien tatsächlich mit den verwendeten
-Deployment-`.env`-Dateien verbinden, nicht unabhängige Kopien als aktiv ausgeben.
-Keine Änderungen an bestehenden lokalen Dateien oder ihren Eigentümern durch
-Agent. Produktionsaktivierung/Verzeichnisbereitstellung erst gesondert nach
-Zugriffsschutz und Freigabe dokumentieren, keine anonyme LAN-Schreibfreigabe.
+Die Einrichtung verbindet die bearbeiteten Dateien mit den tatsächlich durch
+Compose verwendeten `.env`-Pfaden, keine unabhängigen Scheinkopien.
 
-`SETTINGS_EDITOR_ENABLED=0` ist der sichere Default; aktivierter Entwicklungstest
-benötigt zusätzlich exaktes `SETTINGS_EDITOR_ORIGIN`. Session-/Origin-/CSRF-
-Prüfungen sind **kein Login oder Zugriffsschutz**. Diese Schalter werden nicht
-vom normalen Produktions-Compose durchgereicht. Tests verwenden ausschließlich
-Wegwerfdateien im Docker-Testimage.
+**Einmalig durch den Betreiber auf dem Pi** (vorher aktuelle lokale `.env`-Dateien
+privat sichern, nicht ausgeben/committen; vorhandene Compose-/Auth-/Historyauswahl
+beibehalten):
+
+```bash
+cd ~/EVSE-Control
+git pull --ff-only
+bash rasppi/weboverlay/docker/setup-settings.sh
+cd rasppi/weboverlay
+docker compose -f compose.yaml -f compose.history.yaml up -d --build weboverlay
+```
+
+Das Script baut das bestehende Websiteimage samt Docker-Tests und startet genau
+einen beendeten Docker-Einrichtungsprozess ohne Netzwerk/Docker-Socket; es startet
+oder stoppt keine Projektdienste. Nur dieser ausdrücklich aufgerufene Helfer läuft
+als Containerroot mit CHOWN/FOWNER/DAC_OVERRIDE/FSETID, niemals `privileged`. Repository
+ist darin read-only, ausschließlich `.evse-settings` schreibbar. Der Website-
+Runtimecontainer bleibt UID10001, read-only/cap-drop, ohne Docker-Socket.
+
+Bestehende Envdateien werden bytegenau nach
+`.evse-settings/{uart,wallbox,storage,weboverlay}/.env` kopiert, Originale als
+`.env.before-settings` mit0600 behalten und bisherige `.env`-Pfade auf diese Dateien
+verlinkt. Fehlende Dateien beginnen leer (bestehende Compose-Defaults gelten).
+Keine Secretdatei wird gelesen/kopiert, keine Werte ausgegeben. Abweichende bereits
+vorhandene Zieldateien/unerwartete Links werden abgewiesen statt überschrieben;
+wiederholter Aufruf erhält bearbeitete Daten. Konkurrierende manuelle Envänderungen
+während Einrichtung vermeiden. Wrapper bei Konflikt stoppen lassen, keine Backups löschen.
+
+Verzeichnisse gehören UID10001 und der **primären lokalen Gruppe des ausführenden
+Betreibers**, Modus2750/setgid; Envdateien0640, Lock0600. Diese Gruppe darf
+Konfiguration (auch Secrets) lesen, nicht schreiben. Nur eine vertrauenswürdige
+Operatorgruppe verwenden. Der atomare Webeditor erhält die Gruppe bei Austausch,
+sodass spätere Compose-Aufrufe dieselben Dateien lesen können. Keine Freigabe
+ganzer Dienst-/Repository-/Secretverzeichnisse an die laufende Website.
+
+Standardorigin ist exakt `http://WEB_BIND_ADDRESS:WEB_PORT`, nicht der Request-Host.
+Bei Zugang über anderen Namen/HTTPS `SETTINGS_EDITOR_ORIGIN` explizit auf die
+Browserorigin ohne abschließenden Slash setzen, danach nur Website neu erstellen.
+Bei falscher Origin ist der Editor nicht verfügbar/403; das ist kein Anlass,
+CSRF/Hostprüfungen auszubauen. Mit anderem SSH-Tunnel-/Originzugang vorher dessen
+exakte Origin konfigurieren. Keine automatische Host-/Proxyvertrauensableitung.
+Tests verwenden ausschließlich Wegwerfdateien im Docker-Testimage.
 
 Bekannte Schlüssel werden typisiert validiert; unbekannte bestehende Zeilen und
 Kommentare bleiben erhalten. Mehrzeiler, uneindeutige Duplikate, nicht unterstützte

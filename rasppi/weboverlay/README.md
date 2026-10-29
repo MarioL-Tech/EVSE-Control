@@ -37,17 +37,20 @@ Messwerte bleiben erhalten. **Links unten** wechselt ein nativer
 **Schiebeschalter** mit beweglichem Sonne-/Mond-Schieber und LIGHT/DARK MODE
 zwischen Hell/Dunkel (160×52 px, Tastatur/Screenreader). Am Desktop im Sidebar-Fuß,
 mobil unten links fixiert. **Settings mit Zahnrad unter Diagramme** öffnet
-`/einstellungen`, mit einem standardmäßig deaktivierten Env-Konfigurationseditor
+`/einstellungen`, mit einem explizit einzurichtenden Env-Konfigurationseditor
 ohne Lade-/Hardwarebefehle. Dort setzt **Systemdarstellung
 verwenden** die lokale Wahl zurück; die WebApp-Karte wurde auf Wunsch entfernt.
-Der neue Editor (PR #57, Docker-Abnahme offen) ändert echte `.env`-Dateien
+Der Editor ändert echte `.env`-Dateien
 atomar und revisioniert, keine Browserkopie. Secretwerte bleiben verborgen,
 Mountpfade/Profile vorerst schreibgeschützt. **Admin-Login ausdrücklich erst nach
-neuer Freigabe**, aktuell nicht implementiert; deshalb keine produktive
-Schreibfreigabe oder neue Produktionsmounts. SQL und Messdaten-APIs bleiben lesend.
+neuer Freigabe**, aktuell nicht implementiert. Separat ausdrücklich autorisiert:
+Editor ohne Anmeldung im vertrauenswürdigen LAN. Jeder erreichbare Client kann
+nach Einrichtung schreiben, CSRF ist kein Login. Dedizierter Config-only-Mount,
+Operator-Einrichtung mit privaten Backups/Links, keine Projekt-/Secret-RW-Mounts.
+SQL und Messdaten-APIs bleiben lesend. Settingskarten nutzen die ganze verfügbare Breite.
 Speichern ändert keine laufende Containerumgebung und startet nichts neu;
 kein Docker-Socket. Einrichtungsgrenze und Tests im
-[Installationsguide](../../docs/installation.md#settings-echte-env-dateibearbeitung-noch-nicht-produktiv-freigegeben).
+[Installationsguide](../../docs/installation.md#settings-echte-env-dateibearbeitung-ohne-anmeldung-im-vertrauenswürdigen-lan).
 Die HTTPS-/Handyeinrichtung ist vorerst zurückgestellt, die optionale Infrastruktur
 bleibt erhalten. Der Schalter wird schon vor dem ersten Render passend zur
 gespeicherten Wahl gezeichnet, ohne Seitenwechsel-Sprung. Default System folgt live der
@@ -164,10 +167,14 @@ optionale additive Speicherschema 2 und dessen getrennten Verdichtungsworker.
 Periodentasten und ein passender Datum-/Stunden-/Wochen-/Monats-/Jahreswähler
 ersetzen das sichtbare Modusmenü. Eine kompakte Statuszeile statt Verlaufskarte
 unterscheidet lokale, geladene, unvollständige und nicht verfügbare Historie.
-Archivintervalle zeigen verbundene belegte Mittelwert-/Lastlinien und dezente
-Min/Max-Bänder, mit getrennten Marken an tatsächlichen Lücken/Unvollständigkeit.
+Stunde bis Jahr zeigen verbundene belegte Mittelwert-/Lastlinien; Monat einen
+lokalen Tagesmittelwert, Jahr ISO-Wochenmittel mit gekürzten Randwochen.
+Einzelne NULL-Beobachtungen löschen einen bekannten numerischen Mittelwert nicht;
+vollständig unbekannte/fehlende Intervalle bleiben Lücken. Das ist
+Aggregatinterpolation, kein Nachweis durchgehender Rohmessung. Min/Max-Bänder
+bleiben im benutzerdefinierten Zeitraum, Zustände werden nicht gemittelt.
 Pfade werden je Serie gebündelt, geschlossene Diagnosegruppen nicht vorab
-gezeichnet; keine Linien über unbewiesene Intervallkanten. SVG-Koordinaten passen sich der
+gezeichnet; keine Linien über vollständig fehlende Intervalle. SVG-Koordinaten passen sich der
 tatsächlichen Breite an, damit Achsentexte am Handy nicht mitkomprimiert werden.
 Die Übersicht sammelt/lädt keinen verdeckten Diagrammverlauf.
 Wiederholte API-Polls zählen nicht als neue Messungen; bei gleicher Sekunden-

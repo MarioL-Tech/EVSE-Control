@@ -137,14 +137,17 @@
   }
   function buildSummaryPlot(batch, group, selected, charts, geometry) {
     const prepared = prepareArchive(batch), { start, end } = prepared, points = [];
-    const lineMode = ['hour', 'day', 'week'].includes(batch.selection.period);
+    const lineMode = batch.selection.period !== 'custom';
     const metrics = charts.METRICS.filter(m => m.group === group.id && selected[m.id]);
     for (const bin of batch.buckets) {
-      for (const stat of ['min', 'max']) points.push({ values: Object.fromEntries(metrics.map(m =>
-        [m.id, bin.metrics[fieldFor(m)][stat] === null ? null : bin.metrics[fieldFor(m)][stat] / m.divisor])) });
+      for (const stat of lineMode ? ['value'] : ['min', 'max']) points.push({ values: Object.fromEntries(metrics.map(m => {
+        const field = fieldFor(m), s = bin.metrics[field];
+        const value = stat === 'value' ? (MEANS.includes(field) ? s.mean : s.last) : s[stat];
+        return [m.id, value === null ? null : Number(value) / m.divisor];
+      })) });
     }
     const plot = charts.buildPlot(points, group, selected, start, end, geometry, true);
-    // Extrema are used for scaling only, not rendered as a synthetic raw series.
+    // Line axes use the displayed aggregate values, not hidden raw extrema.
     delete plot.points;
     const bounds = plot.geometry;
     const x = t => bounds.left + (t - start) / (end - start) * (bounds.right - bounds.left);
@@ -181,12 +184,13 @@
         // A varying numeric measurement is precisely why a mean/range is
         // plotted. `mixed` only makes categorical states ambiguous; it must
         // not turn an otherwise continuous voltage/current series into ticks.
-        // Short views show a trend of available interval aggregates, not a
+        // Calendar lines show a trend of available interval aggregates, not a
         // reconstruction of uninterrupted raw acquisition. Coarse coverage /
         // processing flags remain in inspection labels, but must not isolate
         // every known mean until background quality processing catches up.
-        // Missing intervals and field-local NULL/mixed states still split runs.
-        const safe = value !== null && (lineMode && !categorical ? stat.nulls === 0 : !attributes.gap);
+        // A partial NULL does not erase a known numeric mean/last. Entirely
+        // unknown/empty intervals still split; categorical evidence stays strict.
+        const safe = value !== null && (lineMode && !categorical || !attributes.gap);
         const previous = run.at(-1);
         if (!safe || (previous && previous.to !== from)) finish();
         const point = { left, right, middle, min, max, value, ...attributes, to };

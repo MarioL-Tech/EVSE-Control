@@ -66,6 +66,8 @@ function sample(power_w = 1549.4, overrides = {}) {
     const text = (id, value) => page.waitForFunction(({ id, value }) =>
       document.getElementById(id)?.textContent === value, { id, value });
     await text('grid-power', '+1,55 kW'); await text('grid-direction', 'Netzbezug');
+    assert(await page.locator('#grid-direction').evaluate(el => parseFloat(getComputedStyle(el).fontSize) >= 18),
+      'Grid import/export direction is prominently readable, not a tiny subtitle');
     await text('status', 'Offline');
     assert.equal(await page.locator('.details-grid.measurements #smartmeter').count(), 1);
     assert.equal(await page.locator('.details-grid.measurements #voltage-0').count(), 1);
@@ -83,6 +85,7 @@ function sample(power_w = 1549.4, overrides = {}) {
     await pause(1100); assert.equal(await page.evaluate(() => window.houseMutations), 0);
     for (const [next, power, direction] of [['negative', '-0,80 kW', 'Einspeisung'], ['zero', '0,00 kW', 'Ausgeglichen']]) {
       mode = next; await text('grid-power', power); await text('grid-direction', direction);
+      assert(await page.locator('#grid-direction').evaluate(el => parseFloat(getComputedStyle(el).fontSize) >= 18));
       await text('status', 'Offline');
     }
     for (const next of ['bad', 'missing', 'offline']) {

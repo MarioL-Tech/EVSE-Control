@@ -129,11 +129,12 @@ dd { margin: 0; text-align: right; font-weight: 550; font-variant-numeric: tabul
 .smartmeter-card:has(#grid-status[data-tone=good]) #grid-reason { display: none; }
 .smartmeter-reading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 18px; }
 .smartmeter-reading .hero-value { margin-bottom: 0; }
-.smartmeter-direction { color: var(--muted); font-size: .85rem; }
+.smartmeter-direction { color: var(--muted); font-size: clamp(1.15rem, 2vw, 1.5rem); font-weight: 650; }
 .smartmeter-card .metadata { margin-top: 14px; }
 .source-details { margin-top: 12px; }
 .source-details summary { padding: 0; font-size: .72rem; color: var(--muted); }
-.settings-placeholder { max-width: 720px; }
+.settings-main { max-width: none; }
+.settings-placeholder { width: 100%; min-width: 0; }
 .settings-placeholder > .card { margin-top: 18px; }
 .settings-placeholder p + button { margin-top: 16px; }
 .pwa-card p, .pwa-instructions { margin-top: 12px; }
@@ -194,7 +195,7 @@ tbody tr:last-child > * { border-bottom: 0; }
 .chart-line.archive-line { stroke-dasharray: none; }
 #env-form fieldset { min-width: 0; border: 1px solid var(--border); border-radius: 5px; margin: 12px 0; padding: 12px; }
 #env-fields p { margin-bottom: 12px; overflow-wrap: anywhere; }
-#env-fields input:not([type=checkbox]) { width: 100%; max-width: 40rem; min-height: 40px; border: 1px solid var(--border); border-radius: 5px; padding: 8px; font: inherit; color: var(--text); background: var(--surface); }
+#env-fields input:not([type=checkbox]) { width: 100%; min-width: 0; min-height: 40px; border: 1px solid var(--border); border-radius: 5px; padding: 8px; font: inherit; color: var(--text); background: var(--surface); }
 #env-form input[type=checkbox] { accent-color: var(--accent); }
 #env-form button { margin: 4px 4px 4px 0; }
 #env-status { margin: 12px 0; }

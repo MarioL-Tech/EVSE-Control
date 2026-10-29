@@ -200,7 +200,7 @@ test('immutable render views and unchanged data revisions avoid archive copies a
 });
 test('archive plotting reads only selected group metrics and formats interval labels lazily', () => {
   const b = fixture();
-  b.selection.period = 'month'; b.navigation = { previous: null, next: null, now: null };
+  b.selection.period = 'custom'; b.navigation = { previous: null, next: null, now: null };
   for (const field of calendar.FIELDS.filter(f => f !== 'active_power_w'))
     Object.defineProperty(b.buckets[0].metrics, field, { get() { throw Error('unselected metric touched'); } });
   const p = calendar.buildSummaryPlot(b, charts.GROUPS[0], charts.defaults().selected, charts);
@@ -264,7 +264,7 @@ test('server supplied DST/leap ranges are retained exactly, never fixed-24h civi
 });
 test('summary plots use weighted API mean and interval ranges, no connected line/marker pills', () => {
   const b = fixture();
-  b.selection.period = 'month'; b.navigation = { previous: null, next: null, now: null };
+  b.selection.period = 'custom'; b.navigation = { previous: null, next: null, now: null };
   b.buckets[0].metrics.active_power_w = { count: 150, nulls: 0, mean: 1000, min: 0, max: 4000, last: 3000, mixed: true };
   const p = calendar.buildSummaryPlot(b, charts.GROUPS[0], charts.defaults().selected, charts);
   assert.equal(p.count, 150); assert.equal(p.paths[0].markers.length, 0);
@@ -306,7 +306,7 @@ test('floating aggregate rounding is tolerated at the server precision, not conv
 });
 test('latest NULL is not replaced by an older known state; partial last marks are bucket-local', () => {
   const b = fixture();
-  b.selection.period = 'month'; b.navigation = { previous: null, next: null, now: null };
+  b.selection.period = 'custom'; b.navigation = { previous: null, next: null, now: null };
   b.buckets[0].metrics.charging = { count: 149, nulls: 1, mean: null, min: 0, max: 0, last: null, mixed: false };
   assert(calendar.validate(b, now));
   const group = charts.GROUPS.find(g => g.id === 'flags');
@@ -318,7 +318,7 @@ test('latest NULL is not replaced by an older known state; partial last marks ar
   assert(q.paths.find(s => s.metric.id === 'plugged').glyphs.some(g => g.kind === 'value'), 'known false last remains visible');
 });
 
-function hourSeries(period = 'month') {
+function hourSeries(period = 'custom') {
   const b = fixture(), start = calendar.utc(b.range.from);
   b.range.to = new Date(start + 3600000).toISOString();
   b.selection = { period, date: '2026-10-27T00:00', timezone: 'Europe/Vienna' };
@@ -335,7 +335,7 @@ const summary = (b, field) => {
   return calendar.buildSummaryPlot(b, group, charts.defaults().selected, charts).paths.find(p => p.metric.id === metric.id);
 };
 test('hour/day/week draw only mean/last centre lines, with live-style steps and no bands or bucket ticks', () => {
-  for (const period of ['hour', 'day', 'week']) {
+  for (const period of ['hour', 'day', 'week', 'month', 'year']) {
     const b = hourSeries(period);
     for (const [i, bin] of b.buckets.entries()) {
       bin.has_gap = false; bin.complete = true; bin.coverage_seconds = 60;
@@ -361,7 +361,7 @@ test('hour/day/week draw only mean/last centre lines, with live-style steps and 
   }
 });
 test('119 measurements in four pending minutes already form aggregate lines and do not flash with quality updates', () => {
-  for (const period of ['hour', 'day', 'week']) {
+  for (const period of ['hour', 'day', 'week', 'month', 'year']) {
     const b = hourSeries(period); b.buckets = b.buckets.slice(0, 4);
     for (const [i, bin] of b.buckets.entries()) {
       bin.samples = i === 2 ? 29 : 30; bin.metrics = metrics(bin.samples);
@@ -379,9 +379,13 @@ test('119 measurements in four pending minutes already form aggregate lines and 
     assert.equal(summary(b, 'voltage_l1_v').path, path);
   }
 });
-test('short-period field-local NULL, empty and missing intervals stay disconnected', () => {
+test('partial NULL preserves an existing mean; entirely unknown, empty and missing intervals split calendar lines', () => {
+  const partial = hourSeries('day');
+  partial.buckets[20].metrics.active_power_w.nulls = 1;
+  partial.buckets[20].metrics.active_power_w.count = 29;
+  assert.equal((summary(partial, 'active_power_w').path.match(/L/g) || []).length, 59);
   for (const change of [
-    b => { b.buckets[20].metrics.active_power_w.nulls = 1; b.buckets[20].metrics.active_power_w.count = 29; },
+    b => { b.buckets[20].metrics.active_power_w = { count: 0, nulls: 30, mean: null, min: null, max: null, last: null, mixed: false }; },
     b => { b.buckets[20].samples = 0; b.buckets[20].metrics = metrics(0); },
     b => { b.buckets.splice(20, 1); }
   ]) {
@@ -389,11 +393,8 @@ test('short-period field-local NULL, empty and missing intervals stay disconnect
     b.buckets.forEach(bin => { bin.has_gap = false; bin.complete = true; bin.coverage_seconds = 60; });
     change(b);
     const s = summary(b, 'active_power_w');
-    assert.equal((s.path.match(/M/g) || []).length, 3 - Number(b.buckets.length === 59 || b.buckets[20].samples === 0));
+    assert.equal((s.path.match(/M/g) || []).length, 2);
     assert.deepEqual(s.renderPaths, []);
-    if (b.buckets.length === 60 && b.buckets[20].samples) {
-      assert(s.markers.some(p => p.x > 200 && p.x < 210), 'Uncertain isolated mean is a small marker, not a bucket tick');
-    }
   }
 });
 test('short-period isolated values and mixed/NULL states never invent a line or an averaged state', () => {
@@ -477,7 +478,7 @@ test('partial physical min/max stays separate from mean and never fabricates a z
 });
 test('flags/codes never average mixed states; limit/session use actual last including NULL', () => {
   const b = fixture();
-  b.selection.period = 'month'; b.navigation = { previous: null, next: null, now: null };
+  b.selection.period = 'custom'; b.navigation = { previous: null, next: null, now: null };
   for (const field of ['charging', 'error_code']) {
     b.buckets[0].metrics[field] = { count: 150, nulls: 0, min: 0, max: 1, mean: null, last: field === 'charging' ? false : 0, mixed: true };
     assert.deepEqual(summary(b, field).glyphs.map(g => g.kind), ['range']);
