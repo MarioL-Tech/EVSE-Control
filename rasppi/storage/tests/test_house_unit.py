@@ -213,13 +213,27 @@ class HouseIntakeTests(unittest.TestCase):
             mark.assert_called_once()
         db.connection.commit.assert_called_once()
         cursor = MagicMock()
+        cursor.fetchone.return_value = None
         dirty_observation(cursor, 'evse/house', START)
-        self.assertEqual(cursor.execute.call_count, 6)
-        starts = {(call.args[1][1], call.args[1][2]) for call in cursor.execute.call_args_list}
+        self.assertEqual(cursor.execute.call_count, 7)
+        starts = {(call.args[1][1], call.args[1][2]) for call in cursor.execute.call_args_list
+                  if call.args[0].startswith('INSERT')}
         self.assertNotIn(('minute', START + timedelta(minutes=1)), starts)
         cursor.reset_mock()
         dirty_observation(cursor, 'evse/house', START + timedelta(minutes=30, seconds=30))
-        self.assertEqual(cursor.execute.call_count, 4)
+        self.assertEqual(cursor.execute.call_count, 5)
+
+    def test_late_context_dirties_existing_following_minute_and_its_parents(self):
+        cursor = MagicMock()
+        cursor.fetchone.return_value = (1,)
+        dirty_observation(cursor, 'evse/house', START + timedelta(hours=23, minutes=59, seconds=58))
+        starts = {(call.args[1][1], call.args[1][2]) for call in cursor.execute.call_args_list
+                  if call.args[0].startswith('INSERT')}
+        following = START + timedelta(days=1)
+        for level in ('minute', 'hour', 'day'):
+            self.assertIn((level, following), starts)
+        self.assertEqual(sum(level == 'minute' for level, _ in starts), 3)
+        self.assertIn('FOR UPDATE', cursor.execute.call_args_list[0].args[0])
 
     def test_failed_dirty_never_commits(self):
         db = HouseDatabase(self.config())

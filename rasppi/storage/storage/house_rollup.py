@@ -24,14 +24,18 @@ def dirty(c, source, at, level):
 
 
 def dirty_observation(c, source, at):
-    # A new observation belongs to its current minute and can be the delayed
-    # right-side context of the previous minute. The next minute will be dirtied
-    # by its first observation; eagerly creating it here would keep parents from
-    # catching up during a continuous two-second stream.
+    # Both neighboring minutes can consume this observation as context. Refresh
+    # an already-known next minute, but never create future work just for context:
+    # that would keep parents from catching up during continuous intake.
     current = floor(at, 'minute')
     minutes = {current}
     if current >= EPOCH + timedelta(minutes=1):
         minutes.add(current - timedelta(minutes=1))
+    following = current + timedelta(minutes=1)
+    c.execute('SELECT 1 FROM evse_house_work WHERE source=%s AND level=%s '
+              'AND bucket_start=%s FOR UPDATE', (source, 'minute', following))
+    if c.fetchone() is not None:
+        minutes.add(following)
     work = {('minute', start) for start in minutes}
     work.update(('hour', floor(start, 'hour')) for start in minutes)
     work.update(('day', floor(start, 'day')) for start in minutes)

@@ -85,6 +85,9 @@ Raw/Event plus Dirty-Markierung atomar VOR ACK. Generation-/Delivery-MID-Schutz,
 begrenzte Inbox/Backpressure/Retry wie Wallboxcollector; kein SQL im Callback.
 Eigener HOUSE-Worker materialisiert begrenzte Work-Turns, nicht im Callback.
 Roheintrag markiert aktuelle/vorherige Minute und betroffene Stunde/Tag dirty;
+eine bereits bekannte Folgeminute wird samt Eltern ebenfalls invalidiert, weil
+verspätete Beobachtungen deren linken Kontext ändern können. Unbekannte zukünftige
+Minuten werden dafür nicht angelegt, damit laufende Aufnahme Eltern nicht blockiert.
 Kindveröffentlichung markiert Eltern nochmals. Generationen atomar prüfen.
 Eltern nicht als fertig ausgeben, solange betroffene Kinder pending sind.
 

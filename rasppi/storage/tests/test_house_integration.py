@@ -177,6 +177,30 @@ class HouseIntegration(unittest.TestCase):
         self.drain()
         self.assertTrue(self.bucket()['has_gap'])
 
+    def assert_late_context_invalidates_following_minute(self, **changes):
+        self.db.write(self.item(58, 1))
+        self.db.write(self.item(62, 2))
+        self.drain()
+        following = START + timedelta(minutes=1)
+        self.assertEqual(self.bucket(at=following)['coverage_ms'], 2000)
+        self.assertEqual(self.bucket('hour')['coverage_ms'], 4000)
+        self.db.write(self.item(59, 3, **changes))
+        pending = {(level, at) for level, at, _, _, flag in self.generations() if flag}
+        self.assertIn(('minute', following), pending)
+        self.drain()
+        self.assertEqual(self.bucket(at=following)['coverage_ms'], 0)
+        self.assertEqual(self.bucket('hour')['coverage_ms'], 0)
+        self.assertEqual(self.bucket('day')['coverage_ms'], 0)
+        self.assertTrue(all(generation == processed and not flag
+                            for _, _, generation, processed, flag in self.generations()))
+
+    def test_backdated_clock_error_invalidates_following_minute(self):
+        self.assert_late_context_invalidates_following_minute(
+            status='error', power_w=None, last_success_at=None, error='clock_error')
+
+    def test_late_retained_context_invalidates_following_minute(self):
+        self.assert_late_context_invalidates_following_minute(retained=True)
+
     def test_house_only_runtime_grants_no_global_registry_access(self):
         config = replace(self.config, db_user=self.user, db_password='isolated-house-only')
         db = HouseDatabase(config)

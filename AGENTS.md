@@ -63,6 +63,12 @@ verbundene signierte Stresskurve mit echter Unterbrechung oberhalb Diagnose.
 Der bestehende Schema-1-Beispieldump enthält keine optionalen Archive;
 Installationsguide verlangt deren Tabellen ausdrücklich im privaten Backup.
 Aktuellen Freigabehead über PR #54 kontrollieren; Merge durch Projektinhaber.
+Erneute unabhängige Abschlussprüfung: API/Diagramme und Betriebsanleitung ohne
+konkreten Befund. Datenpipeline fand fehlende Invalidierung einer bereits
+materialisierten Folgeminute bei verspätetem linken Kontext. Korrektur markiert
+nur bereits vorhandene Folge-Minutenwork samt Eltern in derselben Transaktion;
+keine unbegrenzte Zukunftsarbeit. Neue Unit-/MariaDB-Fälle für zurückdatierte
+Clockfehler und Retainedwerte vorbereitet; deren erneute Docker-CI offen.
 Keine lokalen Hosttests und kein Pi-/ARM-/Dauerbetriebsnachweis oder Deployment.
 
 EVSE-Control ist eine Diplomarbeit zur Steuerung und Überwachung einer
