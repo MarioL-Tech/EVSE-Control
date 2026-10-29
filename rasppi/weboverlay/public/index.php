@@ -22,7 +22,7 @@ header('X-Frame-Options: DENY');
 header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$assets = ['app.js' => 'text/javascript', 'charts.js' => 'text/javascript', 'history.js' => 'text/javascript', 'newcalendar.js' => 'text/javascript', 'theme.js' => 'text/javascript', 'smartmeter.js' => 'text/javascript', 'smartmeter-chart.js' => 'text/javascript',
+$assets = ['env-settings.js' => 'text/javascript', 'app.js' => 'text/javascript', 'charts.js' => 'text/javascript', 'history.js' => 'text/javascript', 'newcalendar.js' => 'text/javascript', 'theme.js' => 'text/javascript', 'smartmeter.js' => 'text/javascript', 'smartmeter-chart.js' => 'text/javascript',
     'house-history.js' => 'text/javascript', 'pwa.js' => 'text/javascript', 'style.css' => 'text/css', 'icon.svg' => 'image/svg+xml',
     'app-192.png' => 'image/png', 'app-512.png' => 'image/png',
     'app-maskable-512.png' => 'image/png', 'apple-touch-icon.png' => 'image/png',
@@ -35,6 +35,9 @@ $known = isset($pages[$path ?? '']) || in_array($path, ['/api/state', '/api/smar
     || isset($rootAssets[$path ?? ''])
     || ($asset !== null && isset($assets[$asset]));
 
+if ($path === '/api/settings-env') {
+    \EvseOverlay\EnvSettingsHttp::handle();
+}
 if (!$known) {
     http_response_code(404);
     header('Content-Type: application/json; charset=utf-8');

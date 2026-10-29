@@ -114,6 +114,7 @@
   }
   function buildSummaryPlot(batch, group, selected, charts, geometry) {
     const prepared = prepareArchive(batch), { start, end } = prepared, points = [];
+    const lineMode = ['hour', 'day', 'week'].includes(batch.selection.period);
     const metrics = charts.METRICS.filter(m => m.group === group.id && selected[m.id]);
     for (const bin of batch.buckets) {
       for (const stat of ['min', 'max']) points.push({ values: Object.fromEntries(metrics.map(m =>
@@ -126,6 +127,7 @@
     const x = t => bounds.left + (t - start) / (end - start) * (bounds.right - bounds.left);
     const y = v => bounds.bottom - (v - plot.lo) / (plot.hi - plot.lo) * (bounds.bottom - bounds.top);
     plot.bucketCount = batch.buckets.length;
+    plot.lineMode = lineMode;
     plot.paths = plot.metrics.map(m => {
       const renderPaths = [], runs = [], logical = [], labels = new Map();
       const field = fieldFor(m), isMean = MEANS.includes(field), categorical = FLAGS.includes(field) || CODES.includes(field);
@@ -170,6 +172,30 @@
         target.path += path;
       };
       const xy = (a, b) => `${a.toFixed(2)},${b.toFixed(2)}`;
+      if (lineMode) {
+        // The same conservative runs as the summary renderer, but only their
+        // mean/last centres are drawn. Raw buildPlot's 10s rule is untouched:
+        // adjacency here is evidenced by the calendar interval boundaries.
+        let path = '';
+        const markers = [];
+        for (const segment of runs) {
+          const known = segment.filter(p => p.value !== null);
+          if (!known.length) continue;
+          path += `M${xy(known[0].middle, known[0].value)}`;
+          for (const p of known.slice(1)) path += group.step
+            ? `H${p.middle.toFixed(2)}V${p.value.toFixed(2)}` : `L${xy(p.middle, p.value)}`;
+          if (known.length === 1) markers.push({ x: known[0].middle, y: known[0].value });
+        }
+        const last = logical.filter(p => p.value !== null).at(-1);
+        if (last && !markers.some(p => p.x === last.middle && p.y === last.value))
+          markers.push({ x: last.middle, y: last.value });
+        const sparse = [];
+        for (const p of markers.slice().reverse())
+          if (!sparse.some(q => Math.abs(q.x - p.x) < 7 && Math.abs(q.y - p.y) < 5)) sparse.push(p);
+        return { metric: m, path, markers: sparse.reverse(), renderPaths: [], labelAt,
+          get bucketLabels() { return batch.buckets.map((_, i) => labelAt(i)); },
+          get glyphs() { return []; } };
+      }
       for (const segment of runs) {
         if (segment.length === 1) {
           const p = segment[0], half = (p.right - p.left) * .36;

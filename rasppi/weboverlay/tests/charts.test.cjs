@@ -12,6 +12,36 @@ const live = (t, overrides = {}) => ({ status: 'live', envelope: { timestamp: ne
 const plot = (history, id, now, selected = defaults().selected) => buildPlot(history.window(now, 15),
   GROUPS.find(g => g.id === id), selected, now - RETENTION_MS, now);
 
+test('HOUSE hour/day/week use signed mean centre lines without bands; raw 10s limit is unchanged', () => {
+  const house = require('../static/smartmeter-chart.js');
+  for (const period of ['hour', 'day', 'week', 'month', 'year', 'custom']) {
+    const b = { selection: { period }, range: { from: new Date(epoch).toISOString(), to: new Date(epoch + 240000).toISOString() },
+      buckets: [0, -1000, 2000, 0].map((value, i) => ({ from: new Date(epoch + i * 60000).toISOString(),
+        to: new Date(epoch + (i + 1) * 60000).toISOString(), samples: 30, complete: true, has_gap: false, coverage_seconds: 60,
+        metrics: { power_w: { count: 30, nulls: 0, mean: value, min: value, max: value, last: value, mixed: false } } })) };
+    const p = house.buildArchivePlot(b);
+    assert.equal((p.path.match(/L/g) || []).length, 3); assert.equal((p.path.match(/M/g) || []).length, 1);
+    assert.equal(p.band === '', ['hour', 'day', 'week'].includes(period));
+    if (['hour', 'day', 'week'].includes(period)) {
+      for (const reason of ['has_gap', 'complete', 'nulls', 'coverage']) {
+        const copy = JSON.parse(JSON.stringify(b)), bin = copy.buckets[1];
+        if (reason === 'has_gap') bin.has_gap = true;
+        if (reason === 'complete') bin.complete = false;
+        if (reason === 'nulls') bin.metrics.power_w.nulls = 1;
+        if (reason === 'coverage') bin.coverage_seconds = 59;
+        const broken = house.buildArchivePlot(copy);
+        assert.equal((broken.path.match(/M/g) || []).length, 3);
+        assert.equal(broken.markers.length, 2); assert.equal(broken.band, '');
+        assert(!broken.path.includes('H'), 'No short aggregate ticks');
+      }
+    }
+  }
+  assert(!house.buildPlot([{ t: epoch, power_w: 0 }, { t: epoch + 60000, power_w: 0 }], epoch, epoch + 60000).path.includes('L'));
+  const raw = buildPlot([{ t: epoch, values: { power: 0 } }, { t: epoch + 60000, values: { power: 0 } }],
+    GROUPS[0], defaults().selected, epoch, epoch + 60000);
+  assert(!raw.paths[0].path.includes('L'), 'Wallbox raw 10s boundary also remains unchanged');
+});
+
 test('readings keep units, genuine zero, and unknown flags distinct', () => {
   const v = readings({ ...values, plugged_in: null, charging: false });
   assert.equal(v.power, 7.4); assert.equal(v.energy, 1.5); assert.equal(v['current-0'], 6.123);

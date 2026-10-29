@@ -375,9 +375,10 @@
         source.dataset.historyStatus = state.status;
         if (calendar?.selection) {
           const snapshot = archive?.view();
+          const representation = ['hour', 'day', 'week'].includes(calendar.selection.period) ? 'Stichprobenmittel' : 'Stichprobenmittel / Min–Max';
           source.textContent = snapshot ? `Kalenderarchiv · ${snapshot.buckets.reduce((n, b) => n + b.samples, 0)} Messwerte` : 'Kalenderarchiv';
           detail.textContent = `${state.status === 'ok' ? state.complete ? 'Archiv geladen.' : 'Archiv enthält Lücken oder ist noch nicht vollständig verdichtet.'
-            : state.status === 'browser' ? 'Zeitraum wird geladen.' : snapshot ? 'Archiv derzeit nicht verfügbar; geladene Daten bleiben erhalten.' : 'Archiv derzeit nicht verfügbar.'} Historisch, nicht live. Stichprobenmittel / Min–Max; Sessionenergie ist der letzte Sessionzähler, kein Zeitraumverbrauch.`;
+            : state.status === 'browser' ? 'Zeitraum wird geladen.' : snapshot ? 'Archiv derzeit nicht verfügbar; geladene Daten bleiben erhalten.' : 'Archiv derzeit nicht verfügbar.'} Historisch, nicht live. ${representation}; Sessionenergie ist der letzte Sessionzähler, kein Zeitraumverbrauch.`;
         } else if (!state.loaded && ['browser', 'disabled'].includes(state.status)) {
           source.textContent = browserNote.source; detail.textContent = browserNote.detail;
         } else {
@@ -485,7 +486,8 @@
             { x: px, y: height - 12, 'text-anchor': anchor, class: 'chart-axis' });
         plot.paths.forEach(series => {
           const css = colorClass(series.metric, g);
-          put(`line-${series.metric.id}`, 'path', null, { d: series.path, class: `chart-line ${css}`, 'data-series': series.metric.id });
+          put(`line-${series.metric.id}`, 'path', null, { d: series.path,
+            class: `chart-line ${css}${plot.lineMode ? ' archive-line' : ''}`, 'data-series': series.metric.id });
           // Keep every translucent envelope behind every solid value line,
           // independent of whether the first bucket happened to be uncertain.
           for (const kind of ['range', 'value']) for (const glyph of (series.renderPaths || []).filter(item => item.kind === kind))
@@ -499,7 +501,7 @@
         for (const [key, element] of entry.nodes) if (!used.has(key)) { element.remove(); entry.nodes.delete(key); }
         entry.inspect(entry.inspection);
         const descriptionText = !plot.metrics.length ? 'Keine Kurve ausgewählt. Oben wieder einschalten.' : archiveMode ? archived
-          ? `${plot.count} Messwerte · ${archived.buckets.length} Intervalle · ${g.id === 'energy' ? 'Letzter Sessionzähler' : g.step ? 'Spanne / letzter Zustand' : 'Stichprobenmittel / Min–Max'}`
+          ? `${plot.count} Messwerte · ${archived.buckets.length} Intervalle · ${g.id === 'energy' ? 'Letzter Sessionzähler' : g.step ? plot.lineMode ? 'Letzter Zustand' : 'Spanne / letzter Zustand' : plot.lineMode ? 'Stichprobenmittel' : 'Stichprobenmittel / Min–Max'}`
           : 'Keine Archivmesswerte geladen. Live-Anzeige bleibt unabhängig.'
           : plot.count ? `${plot.count} Messzeitpunkte im Fenster · Lücken bleiben unverbunden.`
             : 'Noch keine Messwerte in diesem Zeitfenster. Verlauf beginnt mit Seitenöffnung.';

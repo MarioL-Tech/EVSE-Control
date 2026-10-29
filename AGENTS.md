@@ -4,6 +4,30 @@ Stand: 2026-10-29. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
+Aktueller Auftrag (2026-10-29, Umsetzung/Abnahme offen): Stunde/Tag/Woche sollen
+dieselbe einfache Linienoptik wie Live bekommen. Echte Offline-/NULL-/Clock-/
+Lifecycle-Unterbrechungen bleiben getrennt; Min-Max-Bänder entfallen in diesen
+drei Ansichten. Wallbox- und Hauswerte sollen nur noch minutenweise als
+Stichprobenmittel für W/A/V dauerhaft aufgezeichnet werden; Zustände, Limits und
+Sessionzähler nicht mitteln. Erfassung/Live bleiben bei zwei Sekunden. Neue
+Minutenprodukte brauchen eigene Coverage und explizite additive Migration;
+Bestandsrohdaten/Preise/Provider bleiben unangetastet. RAM-Zwischenpuffer kann
+bei Crash bis zu einer offenen Minute verlieren, kein Commit-vor-ACK-Versprechen
+für diesen neuen Aufzeichnungsmodus. Legacy-Rawmodus bleibt getrennt.
+Echte `.env`-Dateibearbeitung im Settingsmenü ist jetzt ausdrücklich beauftragt;
+kein reiner Download/JSON-Entwurf. Admin-Login hingegen ausdrücklich erst nach
+neuer gesonderter Freigabe implementieren, nicht automatisch zum Abschluss.
+Editor standardmäßig deaktiviert, keine produktiven Schreibmounts oder Freigabe
+durch Agent. Dateispeicherung ist nicht Containerneuerstellung; kein Docker-Socket
+oder privilegierter Verwaltungscontainer implizit erlaubt. Nächster gewünschter
+Architekturschritt ist ein gemeinsamer Compose-Einstieg, sodass ein Befehl alle
+Projektdienste baut/startet; weiterhin getrennte Container und bestehender
+externer Broker/MariaDB. Noch nicht umgesetzt.
+Betreiberrückmeldung: Hausarchiv war wegen leerer Storage-`SMARTMETER_URL`
+deaktiviert. Nach Konfiguration meldet dessen Healthdatei alive/database_ready/
+materialization_ready=true, written=6. Belegt gestartete Speicherung, nicht alle
+gültigen Messwerte oder erfolgreiche Pi-Diagramm-/Dauerbetriebsabnahme.
+
 ## Projekt und Ziele
 
 Aktuelle Nachbesserung (2026-10-29): Projektinhaber meldet Website wieder
@@ -280,15 +304,14 @@ Zusätzlich soll das Weboverlay eine **modulare Einrichtungsfunktion mit
 Befehlseingabe für Wallboxbefehle** anbieten. Befehlsformat, Validierung und
 zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
 
-Weitere verbindliche Anforderung vom 2026-10-29: Sämtliche bisher über `.env`
-gesetzten Projektkonfigurationen sollen später zentral unter **Settings**
-verwaltbar sein, nicht nur browserlokale Anzeigepräferenzen. Noch nicht
-implementiert und kein Auftrag, jetzt die readonly Website in einen `.env`-
-Editor umzuwandeln. Geschützte Administration, serverseitige Validierung,
-Secret-/Dateimountbehandlung und koordinierte Übernahme samt gegebenenfalls
-nötiger Containerneuerstellung sind vor Umsetzung festzulegen. Keine Secrets
-in Browserstorage/API-Antworten oder Docker-Socket im Websitecontainer; bestehende
-SELECT-only-/Hardwaregrenzen gelten bis zu einem gesonderten Umsetzungsauftrag.
+Verbindliche Anforderung vom 2026-10-29: Sämtliche bisher über `.env` gesetzten
+Projektkonfigurationen zentral unter **Settings** verwalten, nicht nur lokale
+Anzeigepräferenzen. Echte Dateibearbeitung inzwischen autorisiert, Implementierung
+in Arbeit. Admin-Login nur nach neuer ausdrücklicher Freigabe. Validierung,
+Secret-/Mountschutz und Unterscheidung gespeichert/wirksam sind erforderlich;
+kein Docker-Socket, keine anonym produktiv freigegebene Verwaltung. Die
+Messdaten-APIs und SQL-Zugriffe bleiben SELECT-only; ein Editor darf weder
+Secretdateien lesen noch Hardwarebefehle ausführen.
 
 ## Repository und Quellen
 

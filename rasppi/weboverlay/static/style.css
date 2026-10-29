@@ -191,6 +191,13 @@ tbody tr:last-child > * { border-bottom: 0; }
 .chart-line.series-2 { stroke-dasharray: 2 3; }
 .chart-line.series-3 { stroke-dasharray: 9 3 2 3; }
 .chart-line { fill: none; }
+.chart-line.archive-line { stroke-dasharray: none; }
+#env-form fieldset { min-width: 0; border: 1px solid var(--border); border-radius: 5px; margin: 12px 0; padding: 12px; }
+#env-fields p { margin-bottom: 12px; overflow-wrap: anywhere; }
+#env-fields input:not([type=checkbox]) { width: 100%; max-width: 40rem; min-height: 40px; border: 1px solid var(--border); border-radius: 5px; padding: 8px; font: inherit; color: var(--text); background: var(--surface); }
+#env-form input[type=checkbox] { accent-color: var(--accent); }
+#env-form button { margin: 4px 4px 4px 0; }
+#env-status { margin: 12px 0; }
 .chart-legend { display: flex; flex-wrap: wrap; gap: 7px 16px; margin: 10px 0; padding: 0; list-style: none; font-size: .68rem; }
 .chart-legend li::before { content: "━ "; font-weight: 700; }
 .chart-description { color: var(--muted); font-size: .66rem; }

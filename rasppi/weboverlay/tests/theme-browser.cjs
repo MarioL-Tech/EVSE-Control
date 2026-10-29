@@ -106,7 +106,7 @@ async function choose(page, selected) {
     const route = new URL(page.url()).pathname;
     await page.getByRole('link', { name: 'Settings', exact: true }).click();
     await page.waitForURL(new URL('/einstellungen', base).href);
-    assert.match(await page.locator('main').innerText(), /Platzhalter/);
+    assert.match(await page.locator('main').innerText(), /Dienstkonfiguration/);
     await page.locator('#theme-system').click();
     if (route !== '/einstellungen') {
       await page.locator(`nav a[href="${route}"]`).click();
@@ -181,7 +181,7 @@ function clean(run) {
     assert.equal(request.method, 'GET', 'Theme controls must not send commands');
     const url = new URL(request.url); assert.equal(url.origin, origin, 'No foreign resources');
     if (url.pathname === '/api/history') assert.equal(url.search, '?minutes=15');
-    assert(routes.includes(url.pathname) || ['/einstellungen', '/api/state', '/api/smartmeter', '/api/history', '/api/house-history'].includes(url.pathname) || url.pathname.startsWith('/static/')
+    assert(routes.includes(url.pathname) || ['/einstellungen', '/api/state', '/api/smartmeter', '/api/history', '/api/house-history', '/api/settings-env'].includes(url.pathname) || url.pathname.startsWith('/static/')
       || ['/favicon.ico', '/manifest.webmanifest', '/service-worker.js'].includes(url.pathname), request.url);
   }
   cases++;
@@ -245,7 +245,7 @@ function clean(run) {
       } finally { await run.context.close(); }
     }
 
-    // The gear opens a genuine read-only placeholder; settings do not poll hardware or MQTT.
+    // The editor is off by default; the catalog does not poll hardware or MQTT.
     for (const width of [320, 390, 768, 1440]) for (const scheme of ['light', 'dark']) {
       const run = await setup(browser, { colorScheme: scheme, viewport: { width, height: 900 } });
       try {
@@ -255,10 +255,13 @@ function clean(run) {
         await page.waitForFunction(() => !document.getElementById('theme-toggle').disabled);
         assert.equal(await page.title(), 'Settings · EVSE Control');
         assert.equal(await page.locator('h1').innerText(), 'Settings');
-        assert.match(await page.locator('main').innerText(), /Platzhalter/);
-        assert.equal(await page.locator('form, input:not(#theme-toggle), textarea').count(), 0);
-        assert.equal(await page.locator('input[type="checkbox"]').count(), 1);
-        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id)), ['theme-system']);
+        await page.waitForFunction(() => document.getElementById('env-status').textContent === 'Konfigurationseditor noch nicht freigeschaltet');
+        assert.match(await page.locator('main').innerText(), /Dienstkonfiguration/);
+        assert(await page.locator('#env-save').isDisabled());
+        assert(await page.locator('#env-fields').isDisabled());
+        assert.equal(await page.locator('#env-fields input:enabled').count(), 0);
+        assert.equal(await page.locator('#env-form').count(), 1);
+        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id)), ['env-save', 'env-reload', 'theme-system']);
         assert.equal(await page.locator('.pwa-card, #pwa-heading, #pwa-install, #pwa-update').count(), 0);
         assert.equal(await page.getByRole('link', { name: 'Settings', exact: true }).getAttribute('aria-current'), 'page');
         await mode(page, 'system'); await switchLayout(page);
@@ -403,8 +406,8 @@ function clean(run) {
         await page.goto(new URL('/einstellungen', base).href);
         await page.locator('#theme-system').click(); await mode(page, 'system');
         await pageshow(page); await mode(page, 'system');
-        assert.equal(await page.locator('form, input:not(#theme-toggle)').count(), 0);
-        assert.equal(await page.locator('input[type="checkbox"]').count(), 1);
+        assert(await page.locator('#env-save').isDisabled());
+        assert.equal(await page.locator('#env-fields input:enabled').count(), 0);
         clean(run);
       } finally { await run.context.close(); }
     }

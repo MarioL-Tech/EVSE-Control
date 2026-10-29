@@ -8,6 +8,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" sizes="180x180">
   <script src="/static/pwa.js" defer></script>
+  <script src="/static/env-settings.js" defer></script>
   <title>Settings · EVSE Control</title>
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <script src="/static/theme.js"></script>
@@ -31,13 +32,28 @@
       </div>
     </aside>
     <main id="main-content" tabindex="-1">
-      <header class="page-header"><h1>Settings</h1><span class="readonly">Nur lesen</span></header>
+      <header class="page-header"><h1>Settings</h1><span class="readonly">Konfiguration</span></header>
       <div class="settings-placeholder">
-        <section class="card"><h2>In Vorbereitung</h2><p class="subtle">Platzhalter – noch keine Lade- oder Hardwareeinstellungen.</p></section>
+        <section class="card" aria-labelledby="env-heading">
+          <h2 id="env-heading">Dienstkonfiguration (.env)</h2>
+          <p class="subtle">Speichern ändert keine laufenden Container. Keine Lade- oder Hardwarebefehle.</p>
+          <label for="env-service">Dienst</label>
+          <select id="env-service" disabled>
+            <option value="uart">UART</option><option value="wallbox">Wallbox</option>
+            <option value="storage">Storage</option><option value="weboverlay" selected>Weboverlay</option>
+          </select>
+          <p id="env-status" role="status" aria-live="polite">Konfigurationseditor wird geladen.</p>
+          <form id="env-form" autocomplete="off">
+            <fieldset id="env-fields" disabled><legend>Variablen</legend></fieldset>
+            <p><label><input id="env-create" type="checkbox" disabled> Fehlende .env ausdrücklich anlegen</label></p>
+            <button id="env-save" type="submit" disabled>.env speichern</button>
+            <button id="env-reload" type="button" disabled>Neu laden und Änderungen verwerfen</button>
+          </form>
+        </section>
         <section class="card"><h2>Darstellung</h2><p class="subtle">Die Auswahl gilt nur in diesem Browser.</p><button id="theme-system" type="button" disabled>Systemdarstellung verwenden</button></section>
         <p class="subtle"><a class="text-link" href="/">Zur Übersicht</a></p>
       </div>
-      <noscript><p class="notice">Ohne JavaScript folgt die Darstellung der Systemeinstellung.</p></noscript>
+      <noscript><p class="notice">Ohne JavaScript folgt die Darstellung der Systemeinstellung. Der Konfigurationseditor benötigt JavaScript und bleibt deaktiviert.</p></noscript>
     </main>
   </div>
 </body>

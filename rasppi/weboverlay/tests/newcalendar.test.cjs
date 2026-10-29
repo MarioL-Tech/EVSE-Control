@@ -137,6 +137,7 @@ test('immutable render views and unchanged data revisions avoid archive copies a
 });
 test('archive plotting reads only selected group metrics and formats interval labels lazily', () => {
   const b = fixture();
+  b.selection.period = 'month'; b.navigation = { previous: null, next: null, now: null };
   for (const field of calendar.FIELDS.filter(f => f !== 'active_power_w'))
     Object.defineProperty(b.buckets[0].metrics, field, { get() { throw Error('unselected metric touched'); } });
   const p = calendar.buildSummaryPlot(b, charts.GROUPS[0], charts.defaults().selected, charts);
@@ -145,6 +146,10 @@ test('archive plotting reads only selected group metrics and formats interval la
   assert.match(p.paths[0].labelAt(0), /150 Werte/);
   assert.equal(p.paths[0].labelAt(9), null);
   assert.equal(p.paths[0].glyphs.length, 2, 'Optional logical glyph access stays compatible');
+  b.selection.period = 'hour';
+  const line = calendar.buildSummaryPlot(b, charts.GROUPS[0], charts.defaults().selected, charts);
+  assert.equal(line.paths.length, 1); assert(line.paths[0].path.startsWith('M'));
+  assert.deepEqual(line.paths[0].renderPaths, []); assert.match(line.paths[0].labelAt(0), /150 Werte/);
 });
 test('full response validation is atomic, bounded, rejects foreign navigation and wrong selection', () => {
   const invalid = [b => b.buckets.push(...Array(512).fill(b.buckets[0])),
@@ -196,6 +201,7 @@ test('server supplied DST/leap ranges are retained exactly, never fixed-24h civi
 });
 test('summary plots use weighted API mean and interval ranges, no connected line/marker pills', () => {
   const b = fixture();
+  b.selection.period = 'month'; b.navigation = { previous: null, next: null, now: null };
   b.buckets[0].metrics.active_power_w = { count: 150, nulls: 0, mean: 1000, min: 0, max: 4000, last: 3000, mixed: true };
   const p = calendar.buildSummaryPlot(b, charts.GROUPS[0], charts.defaults().selected, charts);
   assert.equal(p.count, 150); assert.equal(p.paths[0].markers.length, 0);
@@ -237,6 +243,7 @@ test('floating aggregate rounding is tolerated at the server precision, not conv
 });
 test('latest NULL is not replaced by an older known state; partial last marks are bucket-local', () => {
   const b = fixture();
+  b.selection.period = 'month'; b.navigation = { previous: null, next: null, now: null };
   b.buckets[0].metrics.charging = { count: 149, nulls: 1, mean: null, min: 0, max: 0, last: null, mixed: false };
   assert(calendar.validate(b, now));
   const group = charts.GROUPS.find(g => g.id === 'flags');
@@ -248,10 +255,10 @@ test('latest NULL is not replaced by an older known state; partial last marks ar
   assert(q.paths.find(s => s.metric.id === 'plugged').glyphs.some(g => g.kind === 'value'), 'known false last remains visible');
 });
 
-function hourSeries() {
+function hourSeries(period = 'month') {
   const b = fixture(), start = calendar.utc(b.range.from);
   b.range.to = new Date(start + 3600000).toISOString();
-  b.selection = { period: 'hour', date: '2026-10-27T00:00', timezone: 'Europe/Vienna' };
+  b.selection = { period, date: '2026-10-27T00:00', timezone: 'Europe/Vienna' };
   b.navigation = { previous: null, next: null, now: null };
   b.buckets = Array.from({ length: 60 }, (_, i) => ({
     from: new Date(start + i * 60000).toISOString(), to: new Date(start + (i + 1) * 60000).toISOString(),
@@ -264,6 +271,60 @@ const summary = (b, field) => {
   const group = charts.GROUPS.find(g => g.id === metric.group);
   return calendar.buildSummaryPlot(b, group, charts.defaults().selected, charts).paths.find(p => p.metric.id === metric.id);
 };
+test('hour/day/week draw only mean/last centre lines, with live-style steps and no bands or bucket ticks', () => {
+  for (const period of ['hour', 'day', 'week']) {
+    const b = hourSeries(period);
+    for (const [i, bin] of b.buckets.entries()) {
+      bin.has_gap = false; bin.complete = true; bin.coverage_seconds = 60;
+      Object.assign(bin.metrics.voltage_l1_v, { min: 228, max: 242, mean: 230 + i % 5, last: 240, mixed: true });
+      Object.assign(bin.metrics.charging, { count: 0, nulls: 30, min: null, max: null, last: null });
+      Object.assign(bin.metrics.plugged_in, { min: i % 2, max: i % 2, last: Boolean(i % 2) });
+    }
+    for (const field of ['active_power_w', 'current_limit_a', 'voltage_l1_v']) {
+      const s = summary(b, field);
+      assert.equal((s.path.match(/M/g) || []).length, 1);
+      assert.equal((s.path.match(/L/g) || []).length, 59);
+      assert(!/[HVZ]/.test(s.path)); assert.deepEqual(s.renderPaths, []); assert.deepEqual(s.glyphs, []);
+      assert.equal(s.markers.length, 1, 'Same last-point marker convention as Live');
+      assert.match(s.labelAt(0), field === 'current_limit_a' ? /letzter Wert 6/ : field === 'active_power_w' ? /Stichprobenmittel 0/ : /Stichprobenmittel 230/);
+    }
+    const p = calendar.buildSummaryPlot(b, charts.GROUPS.find(g => g.id === 'voltage'), { 'voltage-0': true }, charts);
+    assert.equal(p.paths.length, 1);
+    assert.equal(Number(p.paths[0].path.match(/^M[^,]+,([\d.]+)/)[1]),
+      Number((180 - (230 - p.lo) / (p.hi - p.lo) * 155).toFixed(2)), 'Use the API mean, not last or extrema midpoint');
+    const steps = summary(b, 'plugged_in').path;
+    assert.equal((steps.match(/H/g) || []).length, 59); assert.equal((steps.match(/V/g) || []).length, 59);
+    assert.equal(summary(b, 'charging').path, '', 'Unrelated NULL has no global effect');
+  }
+});
+test('short-period own NULL, empty, missing, offline/clock/lifecycle gaps and incomplete bins stay disconnected', () => {
+  for (const change of [
+    b => { b.buckets[20].metrics.active_power_w.nulls = 1; b.buckets[20].metrics.active_power_w.count = 29; },
+    b => { b.buckets[20].has_gap = true; },
+    b => { b.buckets[20].complete = false; },
+    b => { b.buckets[20].samples = 0; b.buckets[20].metrics = metrics(0); },
+    b => { b.buckets.splice(20, 1); }
+  ]) {
+    const b = hourSeries('week');
+    b.buckets.forEach(bin => { bin.has_gap = false; bin.complete = true; bin.coverage_seconds = 60; });
+    change(b);
+    const s = summary(b, 'active_power_w');
+    assert.equal((s.path.match(/M/g) || []).length, 3 - Number(b.buckets.length === 59 || b.buckets[20].samples === 0));
+    assert.deepEqual(s.renderPaths, []);
+    if (b.buckets.length === 60 && b.buckets[20].samples) {
+      assert(s.markers.some(p => p.x > 200 && p.x < 210), 'Uncertain isolated mean is a small marker, not a bucket tick');
+    }
+  }
+});
+test('short-period isolated values and mixed/NULL states never invent a line or an averaged state', () => {
+  const b = hourSeries('hour'); b.buckets = b.buckets.slice(0, 1);
+  const s = summary(b, 'active_power_w');
+  assert.match(s.path, /^M[\d.]+,[\d.]+$/); assert.equal(s.markers.length, 1);
+  Object.assign(b.buckets[0].metrics.charging, { mixed: true, min: 0, max: 1, last: true });
+  assert.equal(summary(b, 'charging').path, '');
+  b.buckets[0].metrics.current_limit_a.last = null;
+  assert.equal(summary(b, 'current_limit_a').path, '');
+});
 function assertIndependentTicks(series, expected) {
   assert.equal(series.path, ''); assert.deepEqual(series.markers, []);
   const values = series.glyphs.filter(g => g.kind === 'value');
@@ -276,7 +337,7 @@ function assertIndependentTicks(series, expected) {
     assert(left > previous); assert(right > left); previous = right;
   }
 }
-test('hour-long constant zero W and 6 A retain 60 solid-role aggregates despite incomplete/gap context', () => {
+test('legacy long-range constant zero W and 6 A retain local aggregates despite incomplete/gap context', () => {
   const b = hourSeries(); assert(calendar.validate(b, now));
   for (const field of ['active_power_w', 'current_limit_a']) {
     const series = summary(b, field);
@@ -336,6 +397,7 @@ test('partial physical min/max stays separate from mean and never fabricates a z
 });
 test('flags/codes never average mixed states; limit/session use actual last including NULL', () => {
   const b = fixture();
+  b.selection.period = 'month'; b.navigation = { previous: null, next: null, now: null };
   for (const field of ['charging', 'error_code']) {
     b.buckets[0].metrics[field] = { count: 150, nulls: 0, min: 0, max: 1, mean: null, last: field === 'charging' ? false : 0, mixed: true };
     assert.deepEqual(summary(b, field).glyphs.map(g => g.kind), ['range']);
