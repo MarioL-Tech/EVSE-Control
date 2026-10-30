@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-30 16:07 (Europe/Vienna)
+
+- Controlbrowsertest prüft zusätzlich die gültige6-A-Einzelgrenze ausdrücklich:
+  Hinweis auf unverstellbaren Ganzamperebereich, weiterhin gültige technische
+  Übernehmen-Voraussetzung und kein POST durch Metadaten-/Entwurfsanpassung.
+  Ausführung ausschließlich über Docker-CI, noch offen.
+
 ## 2026-10-30 16:04 (Europe/Vienna)
 
 - Auf Betreiberwunsch redundanten Wallbox-Tab samt doppelter Seite entfernt;

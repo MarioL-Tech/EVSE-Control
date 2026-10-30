@@ -15,14 +15,14 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ serviceWorkers: 'block' });
-    let configMissing = false, hardwareUnknown = false, getFailure = false, outcomeUnknown = false, partial = false, live = true;
+    let configMissing = false, hardwareUnknown = false, onlySix = false, getFailure = false, outcomeUnknown = false, partial = false, live = true;
     let postCount = 0, getCount = 0;
     let postMode = null, hangState = false, stateCharging = null, invalidCurrent = null, freshSeconds = 10;
     let stateResponses = 0, onStateHang = null;
     const payloads = [], errors = [];
     const envelope = () => ({ status: 'ok', csrf: 'fixture-csrf', inspection: inspection({
-      installation_max_ma: configMissing ? null : 13700, hardware_max_ma: hardwareUnknown ? null : 22000,
-      effective_max_ma: configMissing || hardwareUnknown ? null : 13700 }), command: null, command_sent: false });
+      installation_max_ma: configMissing ? null : onlySix ? 6000 : 13700, hardware_max_ma: hardwareUnknown ? null : 22000,
+      effective_max_ma: configMissing || hardwareUnknown ? null : onlySix ? 6000 : 13700 }), command: null, command_sent: false });
     await context.route('**/api/wallbox-control', async route => {
       if (route.request().method() === 'GET') {
         getCount++;
@@ -158,7 +158,13 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
     await page.screenshot({ path: path.join(artifacts, 'overview-control-missing-cap-320.png'), fullPage: true, animations: 'disabled' });
     await page.locator('#control-stop').click(); await untilText('control-write', /Protokoll-ACK/); await ready();
     assert.equal(postCount, 4, 'Stop needs no installation maximum');
-    configMissing = false; hardwareUnknown = true; await refresh();
+    configMissing = false; onlySix = true; await refresh(); await ready();
+    assert.equal(await range.getAttribute('max'), '6');
+    assert.equal(await range.inputValue(), '6');
+    await untilText('control-hint', /nur 6 A.*Kein verstellbarer Bereich/);
+    assert(!await page.locator('#control-apply').isDisabled(), 'Verified 6 A is valid, just not an adjustable range');
+    assert.equal(postCount, 4, 'Tighter verified limit only changes draft');
+    onlySix = false; hardwareUnknown = true; await refresh();
     assert(await page.locator('#control-start').isDisabled()); assert(!await page.locator('#control-stop').isDisabled());
     assert(!await range.isDisabled()); assert.equal(await range.getAttribute('max'), '32');
     await range.focus(); await page.keyboard.press('Home'); await page.keyboard.press('ArrowRight');
