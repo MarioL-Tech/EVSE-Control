@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-30 21:37 (Europe/Vienna)
+
+- ESP32-Web-CI ba7088e besteht PHP-/HTTP-/JS- und native Vollpfadfixture
+  HTTP→PHP→Broker→Python-Gateway→PTY→unveränderte Firmwarekerne. UART-Dockerläufe
+  41122141975/41122105792 grün. Keine Hardware-/Flash-/Pi-Aussage.
+- Volle Webprüfung41122141913 scheitert am alten exakten Theme-Buttoninventory:
+  zwei explizit beauftragte Servotasten fehlten im erwarteten Set. Inventar genau
+  um diese zwei IDs ergänzt und disabled bei unavailable-Fixture ausdrücklich
+  geprüft; übrige Theme-/NoPOST-/Monitoring-/Frischeprüfungen nicht gelockert.
+  Abschlusslauf noch offen.
+
 ## 2026-10-30 21:16 (Europe/Vienna)
 
 - Webgatewayintegration: separater CSRF-/MQTT-RPC-Endpunkt für explizite

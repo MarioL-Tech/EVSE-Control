@@ -4,6 +4,12 @@ Stand: 2026-10-30. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
+ESP32-Integrations-CI ba7088e besteht neue PHP-/HTTP-/JS-Prüfungen und echte
+native Vollpfadfixture sowie UART41122141975/41122105792. Web41122141913 scheitert
+nur am alten Theme-Buttoninventory (beauftragte zwei Servotasten); erwartetes Set
+gezielt ergänzt, disabled bei Gatewayausfall zusätzlich geprüft. Abschluss-CI
+noch offen, kein vollständiger Erfolg/Hardware-/Pi-Nachweis behauptet.
+
 Web-/UART-Integration auf Featurebranch: Übersicht mit manuellen Servozielen,
 RFID-Kartenanzahl/Anlernfenster/Abbrechen/write-only-Widerruf in Settings.
 Neue `/api/esp32-control` mit eigenem CSRF, StrictJson, separatem begrenztem
