@@ -162,6 +162,13 @@ neben Debianpaketen den öffentlichen Upstreamdownload. Keine zusätzliche
 Hostinstallation oder Brokerkonfiguration. Die passende Bibliothek ist im Image;
 kein Austausch gegen eine ungepatchte Systembibliothek. [Technischer Vertrag](wallbox/web-control-contract.md).
 
+Bekannter ARM64-Buildfehler im ersten PR#65-Stand: Die Python-Probe konnte die
+Systemkopie statt des gepatchten Artefakts laden (`undefined symbol:
+evse_mosquitto_incoming_limit`). Nicht den Test überspringen oder Marker entfernen;
+die Korrektur lädt explizit das Docker-Artefakt und prüft weiterhin unabhängig
+den echten Reader. Ein Buildabbruch ist kein erfolgreicher Containerwechsel;
+mit `&&` verkettete Websiteupdates werden dann nicht ausgeführt.
+
 Vollständig isolierter End-to-End-Test (kein Produktionsgerät/-netz):
 
 ```bash

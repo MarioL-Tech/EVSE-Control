@@ -5,7 +5,6 @@ this: malloc may reserve virtual memory without committing resident pages.
 """
 
 import ctypes
-import ctypes.util
 from pathlib import Path
 import socket
 import sys
@@ -209,7 +208,12 @@ def test(binary, remaining):
 
 
 if __name__ == "__main__":
-    library = ctypes.CDLL(ctypes.util.find_library("mosquitto") or "libmosquitto.so.1")
+    # Deliberately do not use find_library/SONAME lookup here: on ARM64 the
+    # distro library can win that lookup despite the reader's build RUNPATH.
+    # Require the artifact installed by our Dockerfile, with NO fallback.
+    # test() independently checks the actual reader's /proc maps, so pinning
+    # this probe cannot conceal a reader loading the unguarded system copy.
+    library = ctypes.CDLL("/usr/local/lib/libmosquitto.so.1")
     marker = library.evse_mosquitto_incoming_limit  # Missing symbol is a hard failure.
     marker.restype = ctypes.c_int
     marker.argtypes = []
