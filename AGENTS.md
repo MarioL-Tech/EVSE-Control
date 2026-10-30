@@ -8,8 +8,13 @@ Aktueller Folgeauftrag (2026-10-30): Haus-Netzleistung auf der Diagrammseite dir
 unter die gemeinsame Zeitraumwahl und oberhalb sämtlicher Wallboxdiagramme.
 Reihenfolge im echten DOM geändert, keine CSS-Umsortierung/Komprimierung oder
 zweite Instanz. Diagnose unten, Status-/Frische-/Fehler und Datenpfade unverändert;
-Browser prüft tatsächliche Reihenfolge bei320..2560px. PWA-Shell v13, Dockerabnahme
-für diesen Folgeauftrag noch offen. Nutzer meldet weiterhin unverbundene Diagnose-
+Browser prüft tatsächliche Reihenfolge bei320..2560px. PWA-Shell v13. Codehead
+4577675 besteht Web41037745303/41037726231 vollständig (180 JS-Fälle und bisherige
+Backend-/SQL-/HTTP-/TLS-/PWA-/Chromium-/Runtime-/Provisioningprüfungen). Simulierte
+dunkle Desktop-Liveansicht und helle mobile Hauswochenansicht visuell geprüft:
+Hauskurve oberhalb der Wallbox, gleiche Dimensionen, Diagnose unten. Finaler
+Prüf-/Freigabestand für diesen Layoutteil in PR#63; kein Pi-Deployment.
+Nutzer meldet weiterhin unverbundene Diagnose-
 punkte nach PR#62. Fokussierte Subagentanalyse bestätigt verbliebene kategorielle
 has_gap-/complete-Barrieren; vorhandene API vermischt aber Verarbeitungsrückstand,
 Coverage, echte Ausfälle/Retained/Clock und verlorenen Kontext. Bloßes Freigeben

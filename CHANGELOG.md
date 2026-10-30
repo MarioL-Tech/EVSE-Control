@@ -6,6 +6,8 @@ Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
 ## 2026-10-30
 
+- **11:11** — **Haus-zuerst-Code Docker-grün und visuell geprüft** — Head4577675 besteht41037745303/41037726231 vollständig:180 JS-Fälle, bestehende Backend-/SQL-/HTTP-/MQTT-/TLS-/PWA-/acht Chromium-/Runtime-/Provisioningprüfungen. DOM-/Geometrie-Reihenfolge320..2560px geprüft; simulierte dunkle Desktop-Liveansicht und helle mobile Hauswochenansicht angesehen. Keine neuen Diagrammverbindungen/DB-/Produktionsänderungen. Separat gemeldeter Diagnosefehler bleibt ausdrücklich offen bis konkreter Screenshot/Zeitraum vorliegt; finalen Layoutstand über PR#63 prüfen.
+
 - **11:00** — **Haus-Netzleistung vor alle Wallboxdiagramme stellen** — Echte DOM-Reihenfolge: gemeinsame Zeitraumwahl, unabhängige Hauskarte mit Netzleistungsdiagramm, Wallboxkurven, Diagnose und aktueller Status. Keine zweite Hausinstanz, unveränderte Daten-/Frischelogik und Kartendimensionen. Layoutregression prüft Reihenfolge bei320..2560px, PWA-Shell v13; Dockerabschluss offen. Erneut gemeldete Diagnose-Punktreihen separat untersucht: has_gap/complete vermischen nachgewiesene Lücken und Verarbeitungsqualität, blindes Verbinden daher nicht vorgenommen. Konkreten Diagnosescreenshot samt Zeitraum angefragt; kein neuer Diagnosefix behauptet, keine Produktions- oder Hardwareaktion.
 
 - **00:22** — **Lazy-Diagnoseassertion nach bewusstem Öffnen erhalten** — Erweiterter Kalenderbrowsertest prüft Diagnose-SVGs zunächst leer, öffnet sie gezielt für Unknown/Mixed und hält nach erneutem Schließen ihren exakten SVG-Inhalt fest. Spätere Monats-/Jahreswechsel dürfen diesen nicht verändern; dies ersetzt die danach nicht mehr passende „noch nie gezeichnet“-Annahme durch eine stärkere No-redraw-Prüfung. Keine Produkt-/Zeitgrenze geändert.
