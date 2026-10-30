@@ -15,10 +15,31 @@ test('API parser preserves nullable maxima and separate steps', () => {
   for (const bad of [null, {}, envelope({ command_sent: 'true' }), envelope({ csrf: '' }), envelope({ status: 'anything' }),
     envelope({ inspection: inspection({ hardware_max_ma: '16000' }) }), envelope({ command: inspection({ write: {} }) })]) assert.throws(() => parseResponse(bad));
 });
+test('HTTP error envelope vocabulary distinguishes no publish from unknown outcome', () => {
+  // HTTP codes describe the fixtures; this pure test does not perform HTTP I/O.
+  for (const [httpCode, status, commandSent] of [[403, 'forbidden', false], [400, 'invalid', false],
+    [503, 'unavailable', false], [504, 'outcome_unknown', true]]) {
+    const body = envelope({ status, csrf: null, inspection: null, command: null, command_sent: commandSent });
+    const parsed = parseResponse(body);
+    assert.equal(parsed.command_sent, commandSent, `HTTP ${httpCode}`);
+    if (commandSent) {
+      assert.match(resultText(parsed), /Ausgang unbekannt.*nicht automatisch wiederholt/, `HTTP ${httpCode}`);
+      assert.doesNotMatch(resultText(parsed), /Kein Schreibauftrag versendet/);
+    } else {
+      assert.match(resultText(parsed), /Kein Schreibauftrag versendet/, `HTTP ${httpCode}`);
+      assert.doesNotMatch(resultText(parsed), /Ausgang unbekannt/, `HTTP ${httpCode}`);
+    }
+  }
+});
 test('Bounds take minimum of hardware, installation and software, then floor slider', () => {
   assert.deepEqual(bounds(inspection()), { min: 6, max: 13, effective_ma: 13700 });
   assert.equal(bounds(inspection({ hardware_max_ma: 10000, effective_max_ma: 10000 })).max, 10);
-  assert.equal(bounds(inspection({ hardware_max_ma: 64000, installation_max_ma: 32000, effective_max_ma: 32000 })).max, 32);
+  assert.equal(bounds(inspection({ hardware_max_ma: 32000, installation_max_ma: 32000, effective_max_ma: 32000 })).max, 32);
+  // The conservative backend rejects hardware maxima above 32 A; it does not
+  // return an invented capped effective maximum for that unavailable result.
+  const unavailable = envelope({ status: 'unavailable', inspection: inspection({ status: 'unavailable',
+    hardware_max_ma: 64000, installation_max_ma: 32000, effective_max_ma: null }) });
+  assert.equal(bounds(parseResponse(unavailable).inspection), null);
   for (const overrides of [{ installation_max_ma: null }, { hardware_max_ma: null }, { effective_max_ma: null },
     { hardware_max_ma: 5999 }, { installation_max_ma: 32001 }, { effective_max_ma: 16000 }, { minimum_ma: 0 }, { software_max_ma: 64000 }]) assert.equal(bounds(inspection(overrides)), null);
   assert.equal(bounds(null), null);

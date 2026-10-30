@@ -102,7 +102,7 @@ void json_tests() {
     ControlReply reply;
     reply.status = "ok";
     reply.reason = "inspection_complete";
-    reply.hardware_max_ma = 63000;
+    reply.hardware_max_ma = 16000;
     reply.installation_max_ma = 16000;
     reply.firmware_raw = std::numeric_limits<std::uint32_t>::max();
     auto body = serialize(request, reply, session, lease);
@@ -127,8 +127,10 @@ void json_tests() {
         contains(serialize(request, reply, session, {}), "\"effective_max_ma\":null");
     }
     reply.installation_max_ma = 16000;
-    reply.hardware_max_ma = 5999;
-    contains(serialize(request, reply, session, {}), "\"effective_max_ma\":null");
+    for (const auto invalid : {0U, 5999U, 32001U, 63000U, 4294967295U}) {
+        reply.hardware_max_ma = invalid;
+        contains(serialize(request, reply, session, {}), "\"effective_max_ma\":null");
+    }
     reply.hardware_max_ma.reset();
     contains(serialize(request, reply, session, {}), "\"effective_max_ma\":null");
     reply.installation_max_ma.reset();

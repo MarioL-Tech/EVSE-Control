@@ -5,6 +5,11 @@ die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
 Aktueller Webbedienauftrag (2026-10-30): PR#64 vom Projektinhaber gemergt.
+Umsetzung in Entwurfs-PR#65; erste CI fehlgeschlagen, noch keine neue Abnahme.
+Statische Gegenprüfung: HTTP-Ablehnungen dürfen bei `command_sent=false` keinen
+unklaren Hardwareausgang vortäuschen. Libmosquitto braucht Empfangsgrenze VOR
+Payloadallokation: gepinnte2.0.21 mit kleinem4096-Byte-Patch und zwingendem
+Link-/Laufzeitmarker, reine Docker-TCP-/PTY-Regressionen. Keine Produktionsprobe.
 Weiterentwicklung jetzt ausdrücklich OHNE Passwort/Login oder zusätzlichen
 Freischalter; jeder erreichbare Nutzer im vertrauenswürdigen LAN/VPN darf
 manuell bedienen. Login folgt erst zum Schluss. Diese Freigabe ersetzt die

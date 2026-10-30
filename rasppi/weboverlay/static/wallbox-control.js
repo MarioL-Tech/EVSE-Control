@@ -23,7 +23,7 @@
     return { operation, current_ma: draft * 1000 };
   }
   function parseResponse(body) {
-    if (!body || !['ok', 'unavailable', 'outcome_unknown', 'invalid_request', 'rejected', 'disabled', 'busy'].includes(body.status) ||
+    if (!body || !['ok', 'unavailable', 'outcome_unknown', 'invalid_request', 'invalid', 'forbidden', 'rejected', 'disabled', 'busy'].includes(body.status) ||
         !(body.csrf === null || (typeof body.csrf === 'string' && body.csrf.length > 0 && body.csrf.length <= 1024)) ||
         typeof body.command_sent !== 'boolean' || !Object.hasOwn(body, 'inspection') || !Object.hasOwn(body, 'command')) throw new Error('invalid_response');
     for (const item of [body.inspection, body.command]) {
@@ -82,7 +82,7 @@
     text('effective-max', amp(inspection?.effective_max_ma));
     text('firmware', integer(inspection?.firmware_raw) ? String(inspection.firmware_raw) : 'Unbekannt');
     text('hint', limits ? `6–${limits.max} A · Ziehen ändert nur den Entwurf. Erst Übernehmen oder Start sendet.` :
-      'Start/Stromvorgabe gesperrt: gültige technische Grenzen fehlen. Settings → Wallbox: WALLBOX_INSTALLATION_MAX_MA prüfen und Wallbox-Container neu erstellen. Kein geratenes Maximum. Stop bleibt bei erreichbarer Bedienverbindung möglich.');
+      'Start/Stromvorgabe nicht verfügbar: gültige technische Grenzen fehlen. Settings → Wallbox: WALLBOX_INSTALLATION_MAX_MA prüfen und Wallbox-Container neu erstellen. Kein geratenes Maximum. Stop bleibt bei erreichbarer Bedienverbindung möglich.');
   }
   function accept(body) {
     inspection = body.inspection;

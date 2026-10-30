@@ -50,6 +50,10 @@ if(BUILD_TESTING)
     if(BUILD_WALLBOX_SERVICE AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
         find_package(Python3 COMPONENTS Interpreter QUIET)
         if(Python3_Interpreter_FOUND)
+            add_test(NAME wallbox-mqtt-incoming-limit
+                COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/mqtt_limit_test.py
+                        $<TARGET_FILE:evse-wallbox>)
+            set_tests_properties(wallbox-mqtt-incoming-limit PROPERTIES TIMEOUT 30)
             add_executable(wallbox-write-probe tests/write_probe.cpp)
             target_link_libraries(wallbox-write-probe PRIVATE wallbox_write)
             if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")

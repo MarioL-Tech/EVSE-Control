@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-30 13:42 (Europe/Vienna)
+
+- Manuelle Bedienung nach statischer Gegenprüfung nachgebessert: explizite
+  HTTP-400/403-Ablehnungen bleiben „nicht versendet“, nicht „Ausgang unbekannt“;
+  ACK-/Versandangaben werden auf Widersprüche geprüft. Neue UI-Regressionen
+  unterscheiden 400/403/503 vor Versand von 504 nach möglichem Versand und
+  prüfen Frischeablauf bei hängenden/ungültigen Telemetrieantworten.
+- Zusätzliche Wegwerf-End-to-End-Fälle für doppelte logische Befehle,
+  Readerneustart mit neuer Session und Stop ohne Installationsstromgrenze.
+  Die erste CI ist noch nicht bestanden; keine Pi-/Hardwarefreigabe.
+- Readerlibmosquitto jetzt als SHA256-gepinnte2.0.21 mit kleinem lokalem
+  4096-Byte-Preallocation-Patch statt nachträglicher alleiniger Callbackgrenze.
+  Upstreamframing/TLS/Threading bleiben; Link-/Laufzeitmarker verhindert stillen
+  ungepatchten Ersatz. Docker-TCP-/PTY-Regression mit 4096/4097 und körperlosem
+  64-MiB-Header hinzugefügt; Quelllizenzen im Runtime-/E2E-Image erhalten.
+
 All notable changes to the EVSE-Control project. This file is **actively maintained** — every code, docs or infrastructure change is logged here with a timestamp. New entries are added at the top of the current day's section.
 
 Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)

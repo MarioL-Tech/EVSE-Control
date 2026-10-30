@@ -75,4 +75,8 @@ foreach (['status' => 'payload', 'reason' => 'payload', 'attempted' => 1, 'ackno
     $copy = clone $r; $copy->write = clone $r->write; $copy->write->$key = $value;
     check(ControlMqttTransport::validateResult($encode($copy), $id, 'start') === null);
 }
+foreach (['attempted' => false, 'acknowledged' => false, 'status' => 'outcome_unknown'] as $key => $value) {
+    $copy = clone $r; $copy->write = clone $r->write; $copy->write->$key = $value;
+    check(ControlMqttTransport::validateResult($encode($copy), $id, 'start') === null);
+}
 echo "Control pure validation checks passed ($checks, Docker only)\n";

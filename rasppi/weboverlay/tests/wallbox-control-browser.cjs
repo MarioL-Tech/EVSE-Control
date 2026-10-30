@@ -17,6 +17,8 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
     const context = await browser.newContext({ serviceWorkers: 'block' });
     let configMissing = false, hardwareUnknown = false, getFailure = false, outcomeUnknown = false, partial = false, live = true;
     let postCount = 0, getCount = 0;
+    let postMode = null, hangState = false, stateCharging = null, invalidCurrent = null, freshSeconds = 10;
+    let stateResponses = 0, onStateHang = null;
     const payloads = [], errors = [];
     const envelope = () => ({ status: 'ok', csrf: 'fixture-csrf', inspection: inspection({
       installation_max_ma: configMissing ? null : 13700, hardware_max_ma: hardwareUnknown ? null : 22000,
@@ -32,19 +34,35 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
       const body = route.request().postDataJSON();
       assert.deepEqual(Object.keys(body).sort(), ['current_ma', 'operation']);
       payloads.push(body); postCount++;
+      const mode = postMode || { responseCode: outcomeUnknown ? 504 : 200,
+        status: outcomeUnknown ? 'outcome_unknown' : 'ok', commandSent: true };
       await pause(250); // Exposes duplicate-click races while a response is pending.
-      return route.fulfill({ json: { ...envelope(), status: outcomeUnknown ? 'outcome_unknown' : 'ok', command_sent: true,
-        command: outcomeUnknown ? null : inspection({ operation: body.operation, write: partial ? null : ack,
+      return route.fulfill({ status: mode.responseCode, json: { ...envelope(),
+        ...(mode.commandSent ? {} : { csrf: null, inspection: null }), status: mode.status,
+        command_sent: mode.commandSent,
+        command: !mode.commandSent || mode.status === 'outcome_unknown' ? null : inspection({ operation: body.operation, write: partial ? null : ack,
           preparation: body.operation === 'start' ? ack : null }) } });
     });
-    await context.route('**/api/state', route => route.fulfill({ json: {
+    await context.route('**/api/state', async route => {
+      if (hangState) {
+        if (onStateHang) { onStateHang(); onStateHang = null; }
+        // No API response reaches the page. Bound fixture cleanup even if the
+        // application never aborts the request itself.
+        await pause(5500);
+        await route.abort().catch(() => {});
+        return;
+      }
+      stateResponses++;
+      return route.fulfill({ json: {
       schema_version: 1, read_only: true, status: live ? 'live' : 'offline', reason: 'Simulierte Messwerte',
       broker_connected: live, availability: live ? 'online' : 'offline', timestamp: new Date().toISOString(),
-      last_success_at: new Date().toISOString(), age_seconds: 0, fresh_for_seconds: live ? 10 : 0, error: null,
-      values: live ? { active_power_w: 0, session_energy_wh: 0, current_limit_a: 6, current_a: [0, 0, 0],
+      last_success_at: new Date().toISOString(), age_seconds: 0, fresh_for_seconds: live ? freshSeconds : 0, error: null,
+      values: live ? { active_power_w: 0, session_energy_wh: 0, current_limit_a: 6,
+        current_a: invalidCurrent === 'array' ? null : invalidCurrent === 'member' ? [0, null, 0] : [0, 0, 0],
         voltage_v: [230, 231, 232], error_code: 0, socket_lock_state: 257, charging_state_raw: 34048,
-        charging_state: 5, plugged_in: true, charging: null, below_commanded_current: false } : null
-    } }));
+        charging_state: 5, plugged_in: true, charging: stateCharging, below_commanded_current: false } : null
+    } });
+    });
     await context.route('**/api/smartmeter', route => route.fulfill({ json: { schema_version: 1, read_only: true,
       status: 'disabled', reason: 'Test deaktiviert', power_w: null, fetched_at: null, age_seconds: null, fresh_for_seconds: 0 } }));
     // No archive/database or hardware is exercised by these fixtures.
@@ -55,8 +73,9 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
       status: 'disabled', samples: [], complete: false, minutes: 15, generated_at: new Date().toISOString(),
       range: { from: new Date(Date.now() - 900000).toISOString(), to: new Date().toISOString() } } }));
     const page = await context.newPage();
+    page.setDefaultTimeout(10000);
     page.on('pageerror', error => errors.push(String(error)));
-    const untilText = (id, pattern) => page.waitForFunction(({ id, source }) => new RegExp(source).test(document.getElementById(id)?.textContent || ''), { id, source: pattern.source });
+    const untilText = (id, pattern, timeout = 10000) => page.waitForFunction(({ id, source }) => new RegExp(source).test(document.getElementById(id)?.textContent || ''), { id, source: pattern.source }, { timeout });
     const ready = () => page.waitForFunction(() => !document.getElementById('control-stop').disabled);
     const refresh = async () => {
       const previous = getCount;
@@ -77,6 +96,12 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
     });
     await pause(350); assert.equal(await page.evaluate(() => window.controlMutations), 0, 'Unchanged 100ms view ticks do not mutate control text');
     assert.equal(await page.locator('#limit').textContent(), '6,0 A');
+    for (const [width, colorScheme] of [[1440, 'dark'], [390, 'light']]) {
+      await page.setViewportSize({ width, height: 1000 }); await page.emulateMedia({ colorScheme });
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.body.scrollWidth <= innerWidth));
+      await page.screenshot({ path: path.join(artifacts, `wallbox-overview-${width}-${colorScheme}.png`), fullPage: true, animations: 'disabled' });
+    }
+    assert.equal(postCount, 0, 'Overview screenshot/layout changes never send commands');
     const range = page.locator('#control-current');
     assert.equal(await range.getAttribute('max'), '13');
     await range.focus(); await page.keyboard.press('ArrowRight');
@@ -98,7 +123,7 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
     assert.equal(await page.evaluate(() => Object.keys(localStorage).some(key => /wallbox|command|control-request/.test(key))), false);
     await page.goto(new URL('/wallbox', base).href); await ready();
     assert.equal(postCount, 3, 'Navigation never replays');
-    for (const [width, colorScheme] of [[1440, 'dark'], [390, 'light'], [320, 'light']]) {
+    for (const [width, colorScheme] of [[1440, 'dark'], [390, 'light'], [320, 'light'], [320, 'dark']]) {
       await page.setViewportSize({ width, height: 1000 }); await page.emulateMedia({ colorScheme });
       assert.equal(await page.locator('.brand img').count(), 1);
       assert.equal(await page.locator('nav .nav-link[aria-current="page"]').count(), 1);
@@ -141,6 +166,65 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
     const afterAbort = postCount;
     await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
     await ready(); assert.equal(postCount, afterAbort, 'Aborted POST is never replayed');
+    // Non-2xx HTTP responses carry meaningful command_sent evidence. These
+    // are UI fixtures, not coverage of the real PHP/MQTT/serial transport.
+    for (const mode of [
+      { responseCode: 403, status: 'forbidden', commandSent: false },
+      { responseCode: 400, status: 'invalid', commandSent: false },
+      { responseCode: 503, status: 'unavailable', commandSent: false },
+      { responseCode: 504, status: 'outcome_unknown', commandSent: true }
+    ]) {
+      postMode = mode;
+      const beforePost = postCount;
+      await page.locator('#control-stop').click();
+      await untilText('control-result', mode.commandSent ? /Ausgang unbekannt.*nicht automatisch wiederholt/ : /Kein Schreibauftrag versendet/);
+      await ready();
+      const result = await page.locator('#control-result').textContent();
+      if (mode.commandSent) {
+        assert.doesNotMatch(result, /Kein Schreibauftrag versendet/, `HTTP ${mode.responseCode}`);
+        await untilText('control-ack', /Ausgang unbekannt/);
+      } else {
+        assert.doesNotMatch(result, /Ausgang unbekannt/, `HTTP ${mode.responseCode}`);
+        await untilText('control-ack', /Kein Auftrag versendet/);
+      }
+      await pause(350);
+      assert.equal(postCount, beforePost + 1, `HTTP ${mode.responseCode}: no automatic POST retry`);
+      await refresh(); await ready();
+      assert.equal(postCount, beforePost + 1, `HTTP ${mode.responseCode}: pageshow only refreshes GET`);
+      assert.equal(await page.locator('#control-result').textContent(), result, 'Inspection preserves command evidence');
+    }
+    postMode = null;
+    const beforeFreshness = postCount;
+    live = true; stateCharging = true; freshSeconds = 2;
+    await page.reload(); await ready();
+    await untilText('control-actual', /Lädt: Ja/);
+    const hung = new Promise(resolve => { onStateHang = resolve; });
+    hangState = true;
+    await Promise.race([hung, pause(2500).then(() => { throw new Error('State poll did not enter bounded hanging fixture'); })]);
+    const fulfilledBeforeExpiry = stateResponses;
+    await untilText('control-actual', /Unbekannt – keine frischen Livewerte/, 3500);
+    await untilText('status', /Daten veraltet/, 500);
+    assert.equal(stateResponses, fulfilledBeforeExpiry, 'Actual view expires without a new API response');
+    assert.doesNotMatch(await page.locator('#control-actual').textContent(), /Lädt: Ja|\b0 A\b/);
+    assert.equal(await page.locator('#current-0').textContent(), '—');
+    assert.equal(postCount, beforeFreshness, 'Freshness expiry/hanging telemetry never creates a POST');
+    hangState = false; freshSeconds = 10;
+    for (const invalid of ['array', 'member']) {
+      invalidCurrent = null;
+      await page.reload(); await ready();
+      await untilText('control-actual', /Lädt: Ja/);
+      invalidCurrent = invalid;
+      await untilText('status', /Ungültige Daten/);
+      await untilText('control-actual', /Unbekannt – keine frischen Livewerte/);
+      assert.doesNotMatch(await page.locator('#control-actual').textContent(), /Lädt: Ja|\b0 A\b/,
+        `Null current ${invalid} must not become zero or preserve charging`);
+      for (const id of ['current-0', 'current-1', 'current-2', 'voltage-0', 'limit', 'power']) {
+        assert.equal(await page.locator(`#${id}`).textContent(), '—', `Null ${invalid} invalidates whole validated view: ${id}`);
+      }
+      assert.equal(await page.locator('#charging').textContent(), 'Unbekannt');
+      assert.equal(postCount, beforeFreshness, 'Invalid telemetry/reloads never replay commands');
+    }
+    invalidCurrent = null; stateCharging = null;
     for (const target of ['/diagramme', '/einstellungen']) {
       await page.goto(new URL(target, base).href);
       assert.equal(await page.locator('nav .nav-link').count(), 4);

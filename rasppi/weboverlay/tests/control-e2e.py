@@ -158,8 +158,9 @@ def main():
                    'MQTT_CLIENT_ID': 'control-e2e-reader', 'MQTT_USERNAME': '',
                    'MQTT_PASSWORD': '', 'MQTT_PASSWORD_FILE': '',
                    'WALLBOX_INSTALLATION_MAX_MA': '16000', 'WEB_CONTROL_ORIGIN': origin}
-            reader = subprocess.Popen(['/usr/local/bin/evse-wallbox', '--device', simulator.path,
-                                       '--interval-ms', '200', '--timeout-ms', '100'], env=env,
+            reader_args = ['/usr/local/bin/evse-wallbox', '--device', simulator.path,
+                           '--interval-ms', '200', '--timeout-ms', '100']
+            reader = subprocess.Popen(reader_args, env=env,
                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             processes.append(reader)
             web = subprocess.Popen(['php', '-S', f'127.0.0.1:{web_port}', '-t', '/app/public', '/app/public/index.php'],
@@ -213,6 +214,20 @@ def main():
             code, recovered = request()
             check(code == 200 and recovered['status'] == 'ok', 'Explicit inspection recovery')
             check(simulator.count() == 5, 'Recovery GET resent command')
+            # Replayed command ID/payload may only return a cached result, never
+            # enqueue a second serial action, including after completion.
+            inspect = recovered['inspection']
+            duplicate_id = hashlib.sha256(b'control-dedupe-synthetic-only').hexdigest()[:32]
+            duplicate = f'v1|{duplicate_id}|{inspect["session"]}|{inspect["lease"]}|stop|0'
+            publish = ['mosquitto_pub', '-h', '127.0.0.1', '-p', str(mqtt_port),
+                       '-t', 'evse/test/control/request', '-m', duplicate]
+            subprocess.run(publish, check=True, capture_output=True, timeout=3)
+            subprocess.run(publish, check=True, capture_output=True, timeout=3)
+            wait(lambda: simulator.count() == 6, 'Duplicate command first execution')
+            time.sleep(.3)
+            subprocess.run(publish, check=True, capture_output=True, timeout=3)
+            time.sleep(.3)
+            check(simulator.count() == 6, 'Duplicate logical command repeated a write')
             # Retained commands MUST NOT affect even a valid lease. A stale
             # wrong session likewise cannot enter the serial write path.
             inspect = recovered['inspection']
@@ -228,8 +243,25 @@ def main():
                     args.append('-r')
                 subprocess.run(args, check=True, capture_output=True, timeout=3)
             time.sleep(.5)
-            check(simulator.count() == 5, 'Retained/stale session accepted')
+            check(simulator.count() == 6, 'Retained/stale session accepted')
             check(reader.poll() is None and broker.poll() is None and web.poll() is None, 'Process unexpectedly exited')
+            reader.send_signal(signal.SIGTERM); reader.wait(timeout=4)
+            previous_frames = len(simulator.frames)
+            reader = subprocess.Popen(reader_args, env={**env, 'WALLBOX_INSTALLATION_MAX_MA': ''},
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            processes.append(reader)
+            wait(lambda: len(simulator.frames) >= previous_frames + 3, 'Reader restart polling')
+            code, no_installation = request()
+            check(code == 200 and no_installation['inspection']['installation_max_ma'] is None and
+                  no_installation['inspection']['effective_max_ma'] is None, 'Missing cap must remain unknown')
+            check(no_installation['inspection']['session'] != inspect['session'], 'Reader restart reused session')
+            check(simulator.count() == 6, 'Retained/restart replay emitted write')
+            code, no_start = request(body={'operation': 'start', 'current_ma': 6000}, token=token)
+            check(simulator.count() == 6 and not no_start['command']['preparation']['attempted'],
+                  'Missing cap permitted Start/current preparation')
+            code, stop_without_cap = request(body={'operation': 'stop', 'current_ma': 0}, token=token)
+            check(code == 200 and stop_without_cap['command']['write']['acknowledged'] and simulator.count() == 7,
+                  'Stop must remain usable without an installation cap or feature unlock')
             print('HTTP -> PHP -> MQTT -> C++ -> PTY: inspect, limits, Apply/Start/Stop, unknown commit, recovery, retained/stale rejection passed')
     finally:
         for process in reversed(processes):

@@ -1,6 +1,7 @@
 #include "control_channel.hpp"
 
 #include <mosquitto.h>
+extern "C" int evse_mosquitto_incoming_limit(void);
 #include <fcntl.h>
 #include <sys/random.h>
 #include <unistd.h>
@@ -191,6 +192,8 @@ struct ControlChannel::Impl {
 
     Impl(MqttOptions opts, const MqttPublisher &owner)
         : library_owner(owner), options(std::move(opts)), request_topic(options.prefix + "/control/request") {
+        if (evse_mosquitto_incoming_limit() != 4096)
+            throw std::runtime_error("Guarded MQTT library required");
         worker = std::thread([this] { run(); });
     }
     ~Impl() {

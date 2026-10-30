@@ -83,6 +83,9 @@ final class ControlMqttTransport
                     !self::keys($w, ['status', 'reason', 'attempted', 'acknowledged', 'hardware_max_ma',
                         'effective_current_ma', 'charging_state_raw', 'charging_observed']) ||
                     !self::labels($w) || !is_bool($w->attempted) || !is_bool($w->acknowledged) ||
+                    ($w->acknowledged !== ($w->status === 'acknowledged')) ||
+                    ($w->acknowledged && !$w->attempted) ||
+                    (in_array($w->status, ['outcome_unknown', 'rejected_by_device'], true) && !$w->attempted) ||
                     ($w->charging_observed !== null && !is_bool($w->charging_observed))) { return null; }
                 foreach (['hardware_max_ma', 'effective_current_ma', 'charging_state_raw'] as $n) {
                     if (!self::uint($w->$n)) { return null; }

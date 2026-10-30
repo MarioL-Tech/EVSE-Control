@@ -25,6 +25,18 @@ eigener ControlChannel im bestehenden C++-Reader → WriteCore/libmodbus.
 Kein zusätzlicher Container/Daemon/DB-Zugriff; kein zweiter Modbusmaster. Vorhandener
 MQTT-Telemetriepublisher, PHP-Subscriber, Live-/Archiv-APIs und SQL bleiben unabhängig.
 
+Das Readerimage baut libmosquitto 2.0.21 aus SHA256-gepinnter Upstreamquelle
+mit lokalem Empfangspatch. MQTT Remaining Length über 4096 Bytes wird bereits
+vor der Payloadallokation abgewiesen, nicht erst im 160-Byte-Anwendungscallback.
+TLS/Threading und Upstreamframing bleiben erhalten. Ein exportierter Grenzwert-
+marker wird beim Linken und vor Channelstart verlangt; eine ungepatchte System-
+bibliothek ist kein still unterstützter Produktionsersatz. Der reine Docker-
+TCP/PTY-Test verlangt: 4096-Byte-Paket akzeptiert, 4097-Byte-/64-MiB-Header ohne
+Body schnell abgewiesen, Telemetrie läuft weiter. Keine solche Netzprobe an
+Produktionsbroker/-reader ausführen. Der Website-End-to-End-Test verwendet
+dieselbe Readerbibliothek. Upstreamlizenzen liegen unter
+`/usr/share/doc/evse-libmosquitto/` im Image.
+
 Pro HTTP-Anfrage ein kurzlebiger PHP-MQTT-Client mit eindeutiger Client-ID und
 denselben Backend-Zugangsdaten. Erfolgreichen SUBACK der eindeutigen Ergebnistopics
 abwarten, danach genau einmal QoS0/nicht-retained veröffentlichen; keine Publish-

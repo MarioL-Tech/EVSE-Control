@@ -1,0 +1,29 @@
+--- a/lib/packet_mosq.c
++++ b/lib/packet_mosq.c
+@@ -52,1 +52,9 @@
++#ifndef WITH_BROKER
++/* EVSE runtime marker; the guard below uses this same literal limit. */
++libmosq_EXPORT int evse_mosquitto_incoming_limit(void)
++{
++	return 4096;
++}
++#endif
++
+ int packet__alloc(struct mosquitto__packet *packet)
+@@ -548,3 +556,6 @@
+ #else
+-		/* FIXME - client case for incoming message received from broker too large */
++		/* Reject from the decoded header, BEFORE allocating or reading the body. */
++		if(mosq->in_packet.remaining_length > (uint32_t)evse_mosquitto_incoming_limit()){
++			return MOSQ_ERR_OVERSIZE_PACKET;
++		}
+ #endif
+--- a/lib/linker.version
++++ b/lib/linker.version
+@@ -161,1 +161,6 @@
+ } MOSQ_1.6;
++
++EVSE_1.0 {
++	global:
++		evse_mosquitto_incoming_limit;
++} MOSQ_1.7;
