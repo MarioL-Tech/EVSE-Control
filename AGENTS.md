@@ -34,7 +34,8 @@ Live-/Raw-/Lifecycle-/SQL-Live-/Frischeregeln unverändert. PWA-Shell v14. Synth
 136-Intervall-Regressionsstruktur und Tagesbrowserprüfung aller sieben Kurven;
 private JSON-Datei nicht ins Repository übernehmen. Statische Gegenprüfung ohne
 weiteren Datenpfadbefund, zugänglichen Beobachtungstitel auch bei Inspektion erhalten.
-Dockerabschluss für diese neue Diagnosekorrektur noch in Arbeit, Finalstand PR#63.
+Docker-/Bildabnahme und finaler Freigabestand für diese Diagnosekorrektur in PR#63;
+keine produktive Pi- oder Hardwareabnahme daraus ableiten.
 Keine DB-/Aufzeichnungs-/Steueränderung oder Produktionszugriff; Wallbox-Go weiter
 ausdrücklich ausstehend.
 
