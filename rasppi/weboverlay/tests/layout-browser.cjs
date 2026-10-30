@@ -261,8 +261,8 @@ function clean(run) {
         assert.equal(await page.locator('h1').innerText(), route === '/' ? 'Übersicht' : 'Diagramme');
         assert(await page.locator('h2').count() > 0);
         assert.equal(await page.locator('nav[aria-label="Hauptnavigation"]').count(), 1);
-        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').evaluateAll(links => links.map(a => a.getAttribute('href'))), ['/', '/wallbox', '/diagramme', '/einstellungen']);
-        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').allTextContents().then(labels => labels.map(label => label.trim())), ['Übersicht', 'Wallbox', 'Diagramme', 'Settings']);
+        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').evaluateAll(links => links.map(a => a.getAttribute('href'))), ['/', '/diagramme', '/einstellungen']);
+        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').allTextContents().then(labels => labels.map(label => label.trim())), ['Übersicht', 'Diagramme', 'Settings']);
         const settings = page.getByRole('link', { name: 'Settings', exact: true });
         assert.equal(await settings.getAttribute('href'), '/einstellungen');
         assert.equal(await settings.locator('svg').count(), 1);
@@ -271,9 +271,9 @@ function clean(run) {
           const { x, y, width, height } = link.getBoundingClientRect(); return { x, y, width, height };
         }));
         if (width > 900) {
-          assert(navBoxes[3].y >= navBoxes[2].y + navBoxes[2].height, 'Settings below Diagramme');
+          assert(navBoxes[2].y >= navBoxes[1].y + navBoxes[1].height, 'Settings below Diagramme');
         } else {
-          assert(navBoxes.every(box => Math.abs(box.y - navBoxes[0].y) <= 1), 'Four compact navigation tabs in one row');
+          assert(navBoxes.every(box => Math.abs(box.y - navBoxes[0].y) <= 1), 'Three compact navigation tabs in one row');
           assert(navBoxes.every(box => box.x >= 0 && box.x + box.width <= width), 'Tabs fit viewport');
         }
         assert.equal(await page.locator('nav [aria-current="page"]').count(), 1);

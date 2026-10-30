@@ -17,6 +17,14 @@
   function draftAmps(value, limits) {
     return limits && Number.isInteger(value) && value >= limits.min && value <= limits.max ? value : null;
   }
+  function draftBounds(inspection) {
+    const approved = bounds(inspection);
+    if (approved) return { min: approved.min, max: approved.max };
+    const hardware = inspection?.hardware_max_ma;
+    // Local editing range only, NEVER permission to publish. The command path
+    // still requires bounds() with a valid explicit installation maximum.
+    return { min: 6, max: Math.floor(integer(hardware) && hardware >= 6000 && hardware <= 32000 ? hardware / 1000 : 32) };
+  }
   function commandBody(operation, draft, limits) {
     if (operation === 'stop') return { operation, current_ma: 0 };
     if (!['start', 'set_current'].includes(operation) || draftAmps(draft, limits) === null) return null;
@@ -52,7 +60,7 @@
     const prep = c.operation === 'start' ? `Stromvorbereitung: ${stepText(c.preparation)}. ` : '';
     return `${prep}${c.operation === 'start' ? 'Start' : c.operation === 'stop' ? 'Stop' : 'Stromvorgabe'}: ${stepText(c.write)}.`;
   }
-  const api = { bounds, draftAmps, commandBody, parseResponse, stepText, resultText, GET_TIMEOUT_MS, POST_TIMEOUT_MS, REFRESH_MS };
+  const api = { bounds, draftBounds, draftAmps, commandBody, parseResponse, stepText, resultText, GET_TIMEOUT_MS, POST_TIMEOUT_MS, REFRESH_MS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof document === 'undefined') return;
   const root = document.getElementById('wallbox-control');
@@ -65,24 +73,25 @@
   let lastActual = undefined;
   function render() {
     const limits = bounds(inspection), usable = ready && !!csrf && !busy && !document.hidden && !suspended;
+    const editing = draftBounds(inspection);
     const range = get('current');
-    if (limits) {
-      if (draftAmps(draft, limits) === null) draft = limits.min;
-      if (range.max !== String(limits.max)) range.max = String(limits.max);
-      if (range.value !== String(draft)) range.value = String(draft);
-    }
-    disabled('current', !limits || busy);
+    if (draftAmps(draft, editing) === null) draft = editing.min;
+    if (range.max !== String(editing.max)) range.max = String(editing.max);
+    if (range.value !== String(draft)) range.value = String(draft);
+    disabled('current', busy || document.hidden || suspended);
     disabled('apply', !usable || !limits);
     disabled('start', !usable || !limits);
     // A configured installation maximum is intentionally NOT a Stop condition.
     disabled('stop', !usable);
-    text('draft', limits ? `${draft} A` : '—');
+    text('draft', limits ? `${draft} A` : `${draft} A · Entwurf`);
     text('hardware-max', amp(inspection?.hardware_max_ma));
     text('installation-max', amp(inspection?.installation_max_ma));
     text('effective-max', amp(inspection?.effective_max_ma));
     text('firmware', integer(inspection?.firmware_raw) ? String(inspection.firmware_raw) : 'Unbekannt');
-    text('hint', limits ? `6–${limits.max} A · Ziehen ändert nur den Entwurf. Erst Übernehmen oder Start sendet.` :
-      'Start/Stromvorgabe nicht verfügbar: gültige technische Grenzen fehlen. Settings → Wallbox: WALLBOX_INSTALLATION_MAX_MA prüfen und Wallbox-Container neu erstellen. Kein geratenes Maximum. Stop bleibt bei erreichbarer Bedienverbindung möglich.');
+    text('hint', limits ? (limits.max === 6 ?
+      'Die geprüften Grenzen erlauben in 1-A-Schritten nur 6 A. Kein verstellbarer Bereich.' :
+      `6–${limits.max} A · Ziehen ändert nur den Entwurf. Erst Übernehmen oder Start sendet.`) :
+      `Nur lokaler Entwurf (6–${editing.max} A), keine Freigabe. Start/Übernehmen nicht verfügbar: gültige technische Grenzen fehlen. Settings → Wallbox: WALLBOX_INSTALLATION_MAX_MA prüfen und Wallbox-Container neu erstellen. Stop bleibt bei erreichbarer Bedienverbindung möglich.`);
   }
   function accept(body) {
     inspection = body.inspection;
@@ -154,7 +163,7 @@
   }
   get('current').addEventListener('input', event => {
     const value = Number(event.target.value);
-    if (draftAmps(value, bounds(inspection)) !== null) { draft = value; render(); }
+    if (draftAmps(value, draftBounds(inspection)) !== null) { draft = value; render(); }
   });
   for (const [id, op] of [['apply', 'set_current'], ['start', 'start'], ['stop', 'stop']]) get(id).addEventListener('click', () => { void send(op); });
   window.addEventListener('evse:state', event => {

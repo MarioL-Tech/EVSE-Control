@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { bounds, draftAmps, commandBody, parseResponse, stepText, resultText, GET_TIMEOUT_MS, POST_TIMEOUT_MS, REFRESH_MS } = require('../static/wallbox-control.js');
+const { bounds, draftBounds, draftAmps, commandBody, parseResponse, stepText, resultText, GET_TIMEOUT_MS, POST_TIMEOUT_MS, REFRESH_MS } = require('../static/wallbox-control.js');
 const inspection = (extra = {}) => ({ schema_version: 1, status: 'ok', minimum_ma: 6000, software_max_ma: 32000,
   hardware_max_ma: 22000, installation_max_ma: 13700, effective_max_ma: 13700, firmware_raw: 123, write: null, preparation: null, ...extra });
 const envelope = (extra = {}) => ({ status: 'ok', csrf: 'test-csrf', inspection: inspection(), command: null, command_sent: false, ...extra });
@@ -62,6 +62,23 @@ test('Partial Start never claims charging or a Start ACK', () => {
   assert.match(resultText(body), /Start: Nicht gesendet/);
   assert.match(stepText(ack), /keine Ladebestätigung/);
   assert.match(stepText({ status: 'rejected_by_device', attempted: true, acknowledged: false }), /abgelehnt/);
+});
+test('Editable local draft never authorizes missing or invalid installation limits', () => {
+  assert.deepEqual(draftBounds(inspection()), { min: 6, max: 13 });
+  assert.deepEqual(draftBounds(null), { min: 6, max: 32 });
+  for (const hardware_max_ma of [null, 0, 5999, 32001, 64000]) {
+    const item = inspection({ hardware_max_ma, effective_max_ma: null });
+    assert.deepEqual(draftBounds(item), { min: 6, max: 32 });
+    assert.equal(commandBody('start', 10, bounds(item)), null);
+  }
+  for (const installation_max_ma of [null, 0, 5999, 32001]) {
+    const item = inspection({ installation_max_ma, effective_max_ma: null });
+    assert.deepEqual(draftBounds(item), { min: 6, max: 22 });
+    assert.equal(draftAmps(10, draftBounds(item)), 10);
+    assert.equal(commandBody('set_current', 10, bounds(item)), null);
+    assert.equal(commandBody('start', 10, bounds(item)), null);
+  }
+  assert.deepEqual(draftBounds(inspection({ hardware_max_ma: 6000, effective_max_ma: 6000 })), { min: 6, max: 6 });
 });
 test('Unknown outcomes and no publish remain distinct', () => {
   assert.match(resultText(envelope({ status: 'outcome_unknown', command_sent: true })), /unbekannt.*nicht automatisch wiederholt/);

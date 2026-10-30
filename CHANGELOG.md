@@ -1,5 +1,38 @@
 # Changelog
 
+## 2026-10-30 16:18 (Europe/Vienna)
+
+- Aktuelle Bedienungs-/Prüfstandverweise auf Folge-PR#67 ausgerichtet;
+  PR#65/66 bleiben Grundlagen, keine aktuelle Hardwareabnahme. Keine weitere
+  Funktionsänderung oder Pi-Aktion.
+
+## 2026-10-30 16:17 (Europe/Vienna)
+
+- Docker-CI besteht neue lokalen Entwurfs-/Maus-/6-A-/Nichtversandfälle und
+  Altlink-/API-/SQL-/PWA-Prüfungen. Layoutsuite hatte noch den früheren vierten
+  Navigationsindex für Settings verwendet; auf dritten Link nach Diagramme
+  korrigiert, Anordnung/Viewportprüfung ausdrücklich erhalten. Finale CI offen.
+
+## 2026-10-30 16:07 (Europe/Vienna)
+
+- Controlbrowsertest prüft zusätzlich die gültige6-A-Einzelgrenze ausdrücklich:
+  Hinweis auf unverstellbaren Ganzamperebereich, weiterhin gültige technische
+  Übernehmen-Voraussetzung und kein POST durch Metadaten-/Entwurfsanpassung.
+  Ausführung ausschließlich über Docker-CI, noch offen.
+
+## 2026-10-30 16:04 (Europe/Vienna)
+
+- Auf Betreiberwunsch redundanten Wallbox-Tab samt doppelter Seite entfernt;
+  Bedienung und einklappbare Details bleiben auf Übersicht. Alte GET-/HEAD-URL
+  leitet302 nach `/`, POST405 ohne Redirect. Dreiernavigation wiederhergestellt,
+  PWA-Shellv16, APIs weiterhin network-only.
+- Reinen lokalen Sliderentwurf nicht mehr bei fehlenden technischen Grenzen
+  deaktivieren. Entwurfsbereich ohne Freigabe klar markiert; Start/Übernehmen
+  verlangen unverändert gültige explizite Grenzen/Verbindung/CSRF. Keine
+  geratenen16-/32-A-Installationswerte, kein automatischer Versand. Hinweis für
+  unverstellbaren6-A-Einzelbereich. Maus-/Tastatur-/Nichtversand-/Altlinkfälle
+  ergänzt; Backend und Reader unverändert. Docker-CI noch offen.
+
 ## 2026-10-30 14:46 (Europe/Vienna)
 
 - ARM64-Ladekorrektur besteht Reader41064617992/41064740474 nativ auf ARM64 und

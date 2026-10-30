@@ -15,14 +15,14 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ serviceWorkers: 'block' });
-    let configMissing = false, hardwareUnknown = false, getFailure = false, outcomeUnknown = false, partial = false, live = true;
+    let configMissing = false, hardwareUnknown = false, onlySix = false, getFailure = false, outcomeUnknown = false, partial = false, live = true;
     let postCount = 0, getCount = 0;
     let postMode = null, hangState = false, stateCharging = null, invalidCurrent = null, freshSeconds = 10;
     let stateResponses = 0, onStateHang = null;
     const payloads = [], errors = [];
     const envelope = () => ({ status: 'ok', csrf: 'fixture-csrf', inspection: inspection({
-      installation_max_ma: configMissing ? null : 13700, hardware_max_ma: hardwareUnknown ? null : 22000,
-      effective_max_ma: configMissing || hardwareUnknown ? null : 13700 }), command: null, command_sent: false });
+      installation_max_ma: configMissing ? null : onlySix ? 6000 : 13700, hardware_max_ma: hardwareUnknown ? null : 22000,
+      effective_max_ma: configMissing || hardwareUnknown ? null : onlySix ? 6000 : 13700 }), command: null, command_sent: false });
     await context.route('**/api/wallbox-control', async route => {
       if (route.request().method() === 'GET') {
         getCount++;
@@ -123,21 +123,53 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
     assert.equal(await page.evaluate(() => Object.keys(localStorage).some(key => /wallbox|command|control-request/.test(key))), false);
     await page.goto(new URL('/wallbox', base).href); await ready();
     assert.equal(postCount, 3, 'Navigation never replays');
+    assert.equal(new URL(page.url()).pathname, '/', 'Old Wallbox URL redirects to the only overview');
+    assert.equal(await page.locator('h1').textContent(), 'Übersicht');
+    assert.equal(await page.locator('a[href="/wallbox"]').count(), 0, 'No duplicate navigation or details link');
     for (const [width, colorScheme] of [[1440, 'dark'], [390, 'light'], [320, 'light'], [320, 'dark']]) {
       await page.setViewportSize({ width, height: 1000 }); await page.emulateMedia({ colorScheme });
       assert.equal(await page.locator('.brand img').count(), 1);
       assert.equal(await page.locator('nav .nav-link[aria-current="page"]').count(), 1);
-      assert.deepEqual(await page.locator('nav .nav-link').allTextContents(), ['Übersicht', 'Wallbox', 'Diagramme', 'Settings']);
+      assert.deepEqual(await page.locator('nav .nav-link').allTextContents(), ['Übersicht', 'Diagramme', 'Settings']);
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.body.scrollWidth <= innerWidth));
-      await page.screenshot({ path: path.join(artifacts, `wallbox-${width}-${colorScheme}.png`), fullPage: true, animations: 'disabled' });
+      await page.screenshot({ path: path.join(artifacts, `overview-control-${width}-${colorScheme}.png`), fullPage: true, animations: 'disabled' });
     }
     configMissing = true; await refresh(); await ready();
     assert(await page.locator('#control-start').isDisabled()); assert(await page.locator('#control-apply').isDisabled());
+    assert(!await range.isDisabled(), 'Missing cap must not disable local editing');
     await untilText('control-hint', /WALLBOX_INSTALLATION_MAX_MA.*neu erstellen/);
+    await range.focus(); await page.keyboard.press('Home'); await page.keyboard.press('ArrowRight');
+    assert.equal(await range.inputValue(), '7');
+    await untilText('control-draft', /7 A · Entwurf/);
+    // A real pointer gesture, not just a synthetic input event, must move it.
+    await range.evaluate(el => el.scrollIntoView({ block: 'center' }));
+    const slider = await range.boundingBox();
+    await page.mouse.move(slider.x + 5, slider.y + slider.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(slider.x + slider.width * .5, slider.y + slider.height / 2, { steps: 8 });
+    await page.mouse.up();
+    assert(Number(await range.inputValue()) > 7, 'Pointer gesture edits an unapproved local draft');
+    const localDraft = await range.inputValue();
+    await refresh(); await ready();
+    assert.equal(await range.inputValue(), localDraft, 'Metadata refresh preserves valid local draft');
+    await page.locator('#control-apply').evaluate(el => el.click());
+    await page.locator('#control-start').evaluate(el => el.click());
+    await pause(150); assert.equal(postCount, 3, 'Local draft and disabled actions cannot dispatch');
+    await page.screenshot({ path: path.join(artifacts, 'overview-control-missing-cap-320.png'), fullPage: true, animations: 'disabled' });
     await page.locator('#control-stop').click(); await untilText('control-write', /Protokoll-ACK/); await ready();
     assert.equal(postCount, 4, 'Stop needs no installation maximum');
-    configMissing = false; hardwareUnknown = true; await refresh();
+    configMissing = false; onlySix = true; await refresh(); await ready();
+    assert.equal(await range.getAttribute('max'), '6');
+    assert.equal(await range.inputValue(), '6');
+    await untilText('control-hint', /nur 6 A.*Kein verstellbarer Bereich/);
+    assert(!await page.locator('#control-apply').isDisabled(), 'Verified 6 A is valid, just not an adjustable range');
+    assert.equal(postCount, 4, 'Tighter verified limit only changes draft');
+    onlySix = false; hardwareUnknown = true; await refresh();
     assert(await page.locator('#control-start').isDisabled()); assert(!await page.locator('#control-stop').isDisabled());
+    assert(!await range.isDisabled()); assert.equal(await range.getAttribute('max'), '32');
+    await range.focus(); await page.keyboard.press('Home'); await page.keyboard.press('ArrowRight');
+    await untilText('control-draft', /7 A · Entwurf/);
+    await pause(100); assert.equal(postCount, 4, 'Unknown hardware draft never dispatches');
     hardwareUnknown = false; live = false; await refresh(); await untilText('control-actual', /Unbekannt – keine frischen Livewerte/);
     assert.equal(await page.locator('#current-0').textContent(), '—');
     outcomeUnknown = true;
@@ -149,6 +181,9 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
     await untilText('control-status', /fehlgeschlagen/);
     assert.equal(await page.locator('#control-result').textContent(), retained, 'GET failure retains last command outcome');
     assert(await page.locator('#control-stop').isDisabled());
+    assert(!await range.isDisabled(), 'Failed inspection still allows local draft, never a write');
+    await range.focus(); await page.keyboard.press('ArrowRight');
+    assert.equal(postCount, 5);
     await page.evaluate(() => {
       Object.defineProperty(document, 'hidden', { configurable: true, value: true });
       document.dispatchEvent(new Event('visibilitychange'));
@@ -227,7 +262,7 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
     invalidCurrent = null; stateCharging = null;
     for (const target of ['/diagramme', '/einstellungen']) {
       await page.goto(new URL(target, base).href);
-      assert.equal(await page.locator('nav .nav-link').count(), 4);
+      assert.equal(await page.locator('nav .nav-link').count(), 3);
       assert.equal(await page.locator('nav .nav-link[aria-current="page"]').count(), 1);
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     }

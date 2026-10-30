@@ -1,6 +1,7 @@
 # Manuelle Webbedienung – Arbeitsvertrag Stufe 2
 
-Stand 2026-10-30; implementiert. Aktuellen Docker-Prüfstand über PR#65 prüfen;
+Stand 2026-10-30; implementiert. Aktuellen Docker-Prüfstand über PR#67 prüfen
+(Grundbefehlsweg PR#65, ARM64-Probe PR#66);
 kein Hardwareabnahmenachweis.
 Ausdrücklich ohne Login oder zusätzlichen Freischalter; jeder erreichbare Nutzer
 im vertrauenswürdigen LAN/VPN darf bedienen. Login folgt separat. Keine öffentliche
@@ -112,10 +113,19 @@ melden. Alle API-Zugriffe network-only/no-store, keine PWA-/Offline-POST-Queue.
 
 ## Oberfläche
 
-Gemeinsame Komponente auf Übersicht und neuem `/wallbox`-Detailtab. Start/Stop,
-Slider (1-A-Schritte innerhalb gültiger Grenzen), Ampereanzeige und „Übernehmen“;
+Eine Bedienkarte auf der Übersicht, technische Details dort einklappbar; kein
+doppelter Wallbox-Tab. Alte GET-/HEAD-URL `/wallbox` leitet302 nach `/`, andere
+Methoden liefern405 ohne Weiterleitung. `/api/wallbox-control` bleibt unabhängig.
+Start/Stop, Slider (1-A-Schritte), Ampereanzeige und „Übernehmen“;
 Ziehen ändert ausschließlich den Entwurf, niemals einen Modbuswert. Kein Speichern
 von Befehlen im localStorage und keine Wiederholung bei Reload/Pageshow/Retry.
+Ohne gültige Installationsgrenze bleibt der reine lokale Entwurf editierbar:
+6..32A als Softwareentwurfsbereich, bei bekannter gültiger Hardware enger.
+Das ist ausdrücklich KEINE Installationsfreigabe. Start/Übernehmen bleiben ohne
+gültige explizite Grenzen gesperrt, auch nach lokalem Verschieben. Ein einziger
+zulässiger Ganzamperewert6A wird als unverstellbarer Bereich erklärt.
+Metadatenrefresh erhält einen weiter gültigen Entwurf; er erfindet keine
+Stromfreigabe. Während Versand und pausierter Seite bleibt der Regler gesperrt.
 Details zeigen Wallbox-/Installationsmaximum, Rohfirmware, letzten angeforderten
 Wert, beide Befehlsbestätigungen und unabhängig die aktuellen realen Messwerte.
 Unbekannt/Fehler/Offline bleiben sichtbar; aktive Fehlerwarnung/Frische erhalten.

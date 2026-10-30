@@ -275,7 +275,7 @@ main > .warning-message:not([hidden]) { margin-bottom: 18px; }
 @media (max-width: 480px) {
   .sidebar { padding: 16px; gap: 12px; }
   .brand { width: 100%; }
-  .sidebar nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; width: 100%; }
+  .sidebar nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; width: 100%; }
   .nav-link { flex-direction: column; gap: 4px; padding: 8px 4px; font-size: .72rem; justify-content: center; }
   main { padding: 24px 16px; }
   .page-header { gap: 12px; }

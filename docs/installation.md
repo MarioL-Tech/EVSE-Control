@@ -150,11 +150,19 @@ Test gesondert freigeben. [Bedienvertrag](wallbox/web-control-contract.md).
   Wallbox-/Website-Compose-Auswahl inklusive benötigter Auth-/History-Overlays
   beibehalten und nur deren Dienste mit `up -d --build` erneuern. Keine Migration,
   kein Refresh, keine Storage-/Broker-/DB-Änderung oder zusätzlicher Modbusmaster.
-- Übersicht und `/wallbox`: zunächst nur Grenzen/Firmware/Livewerte ansehen;
+- Übersicht (kein zusätzlicher Wallbox-Tab): zunächst nur Grenzen/Firmware/Livewerte ansehen;
   **erst nach Testfreigabe** Übernehmen/Start/Stop betätigen. Start bereitet die
   ausgewählte Stromobergrenze vor und startet nur nach bestätigter Vorbereitung.
   Stop braucht keine Installationsgrenze, aber eine erreichbare frische Verbindung.
   Bei unbekanntem Ausgang nicht blind erneut drücken, sondern Istzustand prüfen.
+- Der Slider kann ohne Stromfreigabe als **lokaler Entwurf** bewegt werden;
+  Start/Übernehmen bleiben bei fehlenden technischen Grenzen gesperrt. Ein
+  Entwurfsbereich bis32A ist keine zulässige Installationsbelastung. Im
+  aufklappbaren Abschnitt „Technische Grenzen & Ergebnis“ auf der Übersicht
+  fehlen unbekannte Werte weiterhin ausdrücklich. Fachlich bestätigtes Maximum
+  über Settings → Wallbox konfigurieren und Reader bewusst neu erstellen;
+  keinen vermuteten16-A-Wert übernehmen. Bei geprüftem Maximum6A gibt es keinen
+  verstellbaren Ganzamperebereich. Alte `/wallbox`-Links führen zur Übersicht.
 
 Das Dockerimage baut libmosquitto2.0.21 aus gepinnter Quelle mit einem lokalen
 4096-Byte-Empfangsschutz vor Speicherallokation; es benötigt dafür beim Imagebau
