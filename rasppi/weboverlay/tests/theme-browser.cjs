@@ -129,6 +129,10 @@ async function protectedUI(page, route) {
   assert.equal(await page.locator('.sidebar').count(), 1);
   assert.deepEqual(await page.locator('button:not([data-calendar-period])').evaluateAll(nodes => nodes.map(n => n.id).sort()),
     (route === '/' ? ['control-apply', 'control-start', 'control-stop', 'esp32-lock', 'esp32-unlock'] : ['calendar-load', 'calendar-next', 'calendar-now', 'calendar-prev', 'reset-display']).sort());
+  if (route === '/') {
+    assert(await page.locator('#esp32-lock').isDisabled());
+    assert(await page.locator('#esp32-unlock').isDisabled(), 'Unavailable ESP32 never enables management');
+  }
   assert.equal(await page.locator('[role="button"], #theme-mode[role]').count(), 0);
   assert.equal(await page.locator('.display-options, #metric-options, .history-note').count(), 0);
   assert.equal(await page.locator('ul.chart-options input[type="checkbox"]').count(), route === '/' ? 0 : 16);

@@ -35,6 +35,12 @@ ohne Automatikthread/Zusatzreads. Neue isolierte Broker-/PTY-/HTTP-Fixture nur
 registriert, nicht ausgeführt. Parent integriert Backend/DNS/UI/zentralen
 Installationsguide und führt Docker-/GitHub-CI sowie unabhängigen Review aus.
 Kein Pi-/Hardware-/Hosttest, keine Phasen-/Topologieannahmen aus bestätigten32A.
+ESP32-Integrations-CI ba7088e besteht neue PHP-/HTTP-/JS-Prüfungen und echte
+native Vollpfadfixture sowie UART41122141975/41122105792. Web41122141913 scheitert
+nur am alten Theme-Buttoninventory (beauftragte zwei Servotasten); erwartetes Set
+gezielt ergänzt, disabled bei Gatewayausfall zusätzlich geprüft. Abschluss-CI
+noch offen, kein vollständiger Erfolg/Hardware-/Pi-Nachweis behauptet.
+
 Web-/UART-Integration auf Featurebranch: Übersicht mit manuellen Servozielen,
 RFID-Kartenanzahl/Anlernfenster/Abbrechen/write-only-Widerruf in Settings.
 Neue `/api/esp32-control` mit eigenem CSRF, StrictJson, separatem begrenztem
