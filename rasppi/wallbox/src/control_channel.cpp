@@ -318,6 +318,16 @@ struct ControlChannel::Impl {
             callback(u, [mid](Impl &s) { if (s.result_mid == mid) s.result_mid = 0; });
         });
     }
+    void stop_network(bool &running) {
+        // Forced pthread cancellation can enter a C++ callback at getrandom()
+        // and cannot safely cross its noexcept/catch-all boundary. Request a
+        // normal disconnect and join outside mutex instead; never cancel it.
+        if (running) {
+            mosquitto_disconnect(client);
+            mosquitto_loop_stop(client, false);
+        }
+        running = false;
+    }
     void run() noexcept {
         bool running = false;
         unsigned backoff = 1;
@@ -354,8 +364,7 @@ struct ControlChannel::Impl {
                 }
                 // Do not hold mutex while joining callbacks. Destroy, rather than
                 // reconnecting an old object: no queued QoS1 replay across sessions.
-                if (running) mosquitto_loop_stop(client, true);
-                running = false;
+                stop_network(running);
                 mosquitto_destroy(client);
                 client = nullptr;
                 std::unique_lock<std::mutex> lock(mutex);
@@ -365,7 +374,7 @@ struct ControlChannel::Impl {
                 backoff = std::min(30U, backoff * 2);
             }
         } catch (...) { /* No payload/error logging, no failure reaches serial owner. */ }
-        if (running) mosquitto_loop_stop(client, true);
+        stop_network(running);
         if (client) mosquitto_destroy(client);
         client = nullptr;
         std::lock_guard<std::mutex> lock(mutex);

@@ -156,6 +156,12 @@ Test gesondert freigeben. [Bedienvertrag](wallbox/web-control-contract.md).
   Stop braucht keine Installationsgrenze, aber eine erreichbare frische Verbindung.
   Bei unbekanntem Ausgang nicht blind erneut drücken, sondern Istzustand prüfen.
 
+Das Dockerimage baut libmosquitto2.0.21 aus gepinnter Quelle mit einem lokalen
+4096-Byte-Empfangsschutz vor Speicherallokation; es benötigt dafür beim Imagebau
+neben Debianpaketen den öffentlichen Upstreamdownload. Keine zusätzliche
+Hostinstallation oder Brokerkonfiguration. Die passende Bibliothek ist im Image;
+kein Austausch gegen eine ungepatchte Systembibliothek. [Technischer Vertrag](wallbox/web-control-contract.md).
+
 Vollständig isolierter End-to-End-Test (kein Produktionsgerät/-netz):
 
 ```bash
@@ -504,8 +510,8 @@ mit leerem NVS wechselt der Start von **0° auf 90°**.
 UART bleibt 115200/8N1 mit denselben Pins. Die Python-Brücke ist unverändert:
 Managementbefehle unten als rohe Zeilen eingeben. Physischer UART und Pi bilden
 die Vertrauensgrenze; ein bösartiger Pi kann Karten aufnehmen/Bootpolicy ändern.
-Keine Anbindung an anonyme MQTT-Befehlstopics oder aktuelle lesende HTTP-Controls.
-Gateway und Webbedienung sind geplant und benötigen später geschützte,
+Keine Anbindung des RFID-/Servomanagements an anonyme MQTT-Befehlstopics oder die
+neue manuelle Wallbox-Webbedienung. RFID-Gateway und -Webbedienung sind geplant und benötigen später geschützte,
 authentifizierte, autorisierte Weiterleitung.
 
 Bei neuem Erststart mit leerem NVS und bereits lauschender Brücke erwartet:

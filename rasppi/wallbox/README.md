@@ -1,4 +1,4 @@
-# Lesender ABB-Terra-AC-Dienst
+# ABB-Terra-AC-Reader mit manuellem Befehlsweg
 
 C++17-Dienst mit libmodbus, der **im Docker-Container auf dem Raspberry Pi** läuft. Er liest
 Holding Registers über Modbus RTU (FC03), dekodiert sie und gibt pro Abfrage
@@ -18,6 +18,9 @@ für Start/Stromvorgabe; Stop benötigt kein Installationsmaximum.
 [Bedienvertrag und Grenzen](../../docs/wallbox/web-control-contract.md).
 Vor echten Schreibtests informiert der Projektinhaber seine Leitung; gesondertes
 Hardware-Go erforderlich. Kein Pi-Schreibtest durch den Agenten.
+Docker baut die SHA256-gepinnte libmosquitto2.0.21 mit lokalem
+4096-Byte-Empfangsschutz vor Allokation. Kein ungepatchter Host-Library-Ersatz;
+Build/Tests bleiben Docker-only. Details und Lizenzpfad im Bedienvertrag.
 
 ## Start auf dem Pi
 

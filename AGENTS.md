@@ -10,6 +10,12 @@ Statische Gegenprüfung: HTTP-Ablehnungen dürfen bei `command_sent=false` keine
 unklaren Hardwareausgang vortäuschen. Libmosquitto braucht Empfangsgrenze VOR
 Payloadallokation: gepinnte2.0.21 mit kleinem4096-Byte-Patch und zwingendem
 Link-/Laufzeitmarker, reine Docker-TCP-/PTY-Regressionen. Keine Produktionsprobe.
+Gegenprüfung bestätigt beide statischen P2-Korrekturen, kein Laufzeittestersatz.
+Weitere Docker-CI fand realen Authfehlerabsturz (`FATAL: exception not rethrown`):
+Controlcallback + erzwungenes pthread_cancel; Controlchannel daher normales
+Disconnect/Join ohne Forcedcancel. Authregression dreimal ohne gelockerte Read-
+Anforderung. 4096/4097-/64MiB-Präallokationsprüfung auf beiden Debianvarianten
+bereits bestanden; Gesamt-CI/Abnahme weiterhin offen.
 Weiterentwicklung jetzt ausdrücklich OHNE Passwort/Login oder zusätzlichen
 Freischalter; jeder erreichbare Nutzer im vertrauenswürdigen LAN/VPN darf
 manuell bedienen. Login folgt erst zum Schluss. Diese Freigabe ersetzt die

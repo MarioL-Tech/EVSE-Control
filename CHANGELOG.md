@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-30 13:57 (Europe/Vienna)
+
+- Docker-CI deckt echten Readerabsturz bei abgewiesenen MQTT-Zugangsdaten auf:
+  erzwungenes Threadcancel konnte einen `noexcept`-Controlcallback während der
+  Entropieabfrage abbrechen. ControlChannel fordert jetzt normales Disconnect
+  an und joint außerhalb seines Mutex, ohne `pthread_cancel`. Authfehlerfall
+  dreimal mit unveränderter Mindestanzahl Modbusabfragen geprüft.
+- Neuer Serializer-Test hatte die nicht geheime Request-ID fälschlich als
+  Fehlernummernausgabe erkannt; prüft jetzt das numerische JSON-Feldmuster.
+  READMEs trennen inzwischen manuelle Befehle von unverändert lesenden Daten-APIs
+  und weiterhin geplanter RFID-/Automatisierungsbedienung. Gesamt-CI noch offen.
+
 ## 2026-10-30 13:42 (Europe/Vienna)
 
 - Manuelle Bedienung nach statischer Gegenprüfung nachgebessert: explizite

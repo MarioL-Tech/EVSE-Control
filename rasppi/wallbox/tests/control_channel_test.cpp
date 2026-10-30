@@ -163,7 +163,7 @@ void json_tests() {
     contains(body, "\"status\":\"acknowledged\",\"reason\":\"protocol_ack_only\"");
     contains(body, "\"effective_current_ma\":0");
     contains(body, "\"charging_state_raw\":34048,\"charging_observed\":false");
-    check(body.find("transport_errno") == std::string::npos && body.find("12345") == std::string::npos,
+    check(body.find("transport_errno") == std::string::npos && body.find(":12345") == std::string::npos,
           "transport details not exposed");
     reply.write->reason = "secret\"raw";
     reply.write->charging_observed.reset();
