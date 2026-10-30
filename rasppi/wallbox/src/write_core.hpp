@@ -53,8 +53,9 @@ std::array<std::uint16_t, 2> current_register_words(std::uint32_t milliamps) noe
 // Synchronous, thread-confined internal seam. The caller owns the ONE connected
 // libmodbus context and must serialize polls/commands on that thread. This core
 // never opens, closes, reconnects or queues a device. No arbitrary register API.
-// Production wiring is permanently Disabled in stage 1; only build-stage tests
-// supply an enabled policy, and their probe accepts only validated Linux PTYs.
+// Production owner supplies explicit policy for manual/opt-in automation actions;
+// isolated build-stage probes accept only validated Linux PTYs. HTTP/network
+// threads never own this core or the serial context.
 class WriteCore {
 public:
     using Now = std::function<WriteClock::time_point()>;

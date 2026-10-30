@@ -4,6 +4,18 @@ Stand: 2026-10-30. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
+Separater Ownerintegrationsstand (2026-10-30, noch NICHT Docker-/CI-geprüft):
+Core4ea5c00/8b82d7d/Safety935f2a9 in Readerowner verdrahtet. Optionales
+`WALLBOX_AUTOMATION_WEB_URL` leer=deaktiviert; ein HTTP-Lesethread, einziger
+RS485-Owner, manuelle Priorität und kausaler Guard je Boot/manuellem Auftrag/
+Busverlust/Unknown. Frische Hardwarecapabfrage, compound Start und aggregierte
+Outcomes, keine Wiederholung; Inspect heilt Transport, nicht Enginefreeze.
+Ownerantworten haben optionalen festen `automation`-Status. `--once` unverändert
+ohne Automatikthread/Zusatzreads. Neue isolierte Broker-/PTY-/HTTP-Fixture nur
+registriert, nicht ausgeführt. Parent integriert Backend/DNS/UI/zentralen
+Installationsguide und führt Docker-/GitHub-CI sowie unabhängigen Review aus.
+Kein Pi-/Hardware-/Hosttest, keine Phasen-/Topologieannahmen aus bestätigten32A.
+
 Aktueller Webbedienauftrag (2026-10-30): PR#64 vom Projektinhaber gemergt.
 Neuer Auftrag nach gemergtemPR#67 (main8acecb1): wiederholte Bedienhinweise kürzen;
 Screenshot belegt geprüfte Verbindung/Gerätemaximum32A, aber unbekanntes

@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-30 21:16 (Europe/Vienna)
+
+- Optionalen HTTP-Automationscore in den einzigen Readerowner integriert:
+  leeres `WALLBOX_AUTOMATION_WEB_URL` deaktiviert, `--once` bleibt rein lesend
+  ohne HTTP-Thread/Zusatzabfragen. Keine geratenen Installations-/Topologiewerte.
+- Kausaler CSPRNG-Guard und additive feste Automationsstatusfelder in
+  Ownerantworten; manuelle Priorität, Cancellation vor jedem WriteCore-I/O,
+  frisches Capabilityread und aggregiertes compound Startoutcome. Unknown
+  friert ein; Inspect repariert ausschließlich Transport, kein Auto-Replay.
+- Neue isolierte Reader-/Broker-/PTY-/HTTP-CTest-Fixture registriert. Tests/Build
+  nicht ausgeführt: Parentreview und Docker-/GitHub-CI noch zwingend offen.
+  Kein SSH-/Pi-/Hardwarezugriff, keine Änderungen an PHP/JS oder Corelogik.
+
 ## 2026-10-30 18:10 (Europe/Vienna)
 
 - Erste vollständige Konfigurations-CI da7980e besteht191JS-/43neuePHP-/HTTP-

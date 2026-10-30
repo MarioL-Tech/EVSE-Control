@@ -33,7 +33,7 @@ if(BUILD_WALLBOX_SERVICE)
     target_include_directories(wallbox_write PUBLIC src)
     target_link_libraries(wallbox_write PUBLIC wallbox_data PkgConfig::LIBMODBUS Threads::Threads)
     add_library(wallbox_control src/control_channel.cpp)
-    target_link_libraries(wallbox_control PUBLIC wallbox_write PkgConfig::LIBMOSQUITTO)
+    target_link_libraries(wallbox_control PUBLIC wallbox_write wallbox_automation PkgConfig::LIBMOSQUITTO)
     add_executable(evse-wallbox src/main.cpp src/mqtt.cpp)
     target_link_libraries(evse-wallbox PRIVATE wallbox_control)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -91,6 +91,10 @@ if(BUILD_TESTING)
             find_program(MOSQUITTO_BROKER mosquitto)
             find_program(MOSQUITTO_SUB mosquitto_sub)
             if(MOSQUITTO_BROKER AND MOSQUITTO_SUB)
+                add_test(NAME wallbox-automation-owner
+                    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/automation_owner_test.py
+                            $<TARGET_FILE:evse-wallbox>)
+                set_tests_properties(wallbox-automation-owner PROPERTIES TIMEOUT 120)
                 add_test(NAME wallbox-mqtt-integration
                     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/mqtt_test.py
                             $<TARGET_FILE:evse-wallbox>)

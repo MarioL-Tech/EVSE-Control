@@ -1,17 +1,21 @@
-# Unverdrahtete Ladeautomatisierung: Integrationsvertrag
+# Ladeautomatisierung: Core- und Owner-Integrationsvertrag
 
-Stand: 2026-10-30. Eigenständige Module auf Basis `c5ac0d7`; kein Hardwarezugriff,
-kein neuer Dienst/Container, keine Änderung bestehender APIs/Worker. Der Parent
-muss HTTP-API, Env/Compose, Statusanzeige und Owner-Schleife separat integrieren.
+Stand: 2026-10-30. Eigenständige Module auf Basis `c5ac0d7`, jetzt in den einzigen
+Reader-Owner integriert; kein Hardwarezugriff und kein neuer Dienst/Container.
+HTTP-API, Website-DNS-Alias, Statusanzeige und zentraler Installationsguide werden
+vom Parent integriert/geprüft. Docker-/CI-Abnahme dieses Ownerstands steht aus.
 Diese Datei ist zugleich das Änderungsledger dieses eng begrenzten Teilauftrags.
 
 ## Öffentliche Schnittstellen (`wallbox::automation`)
 
 - `initialize_vienna_timezone()` **vor Threads** aufrufen: setzt pro Prozess einmal
   `TZ=Europe/Vienna`/`tzset`. UTC-Ausgaben müssen weiter `gmtime_r` verwenden.
-- `HttpSource(string base_url)`, `environment_base_url()`, `snapshot()` liefern
-  `shared_ptr<const Snapshot>`. Default ausschließlich technischer DNS-Name
-  `http://weboverlay:8080`, Env `WALLBOX_WEB_BASE_URL`. Nur HTTP(S)-Origins ohne
+- `HttpSource(string base_url)`, `snapshot()` liefern
+  `shared_ptr<const Snapshot>`. Der produktive Owner verwendet ausschließlich
+  `WALLBOX_AUTOMATION_WEB_URL`, Default leer = deaktiviert. Der ältere reine
+  Core-Helper `environment_base_url()` (`WALLBOX_WEB_BASE_URL`/technischer DNS-
+  Default) bleibt ABI-unverändert, wird vom Owner ausdrücklich NICHT benutzt.
+  Nur HTTP(S)-Origins ohne
   Zugangsdaten, Pfad, Query oder Fragment; angehängt werden ausschließlich
   `/api/charging-plan` und `/api/smartmeter`. Keine Browser-URL, MQTT oder Modbus.
   Ein Thread, Zwei-Sekunden-Zyklus, Abbruch und Join im Destruktor.
@@ -124,6 +128,36 @@ Feste Enginestatuscodes: `awaiting_activation`, `manual`, `manual_override`,
 `invalid_response`, `disabled`, `clock_error`, `invalid_base`.
 
 ## Änderungs-/Prüfledger
+
+2026-10-30 18:43 (Europe/Vienna): Ownerverdrahtung mit einem HTTP-Thread und
+genau einem seriellen Owner, höchstens einer Aktion je Poll. Manuelle Requests
+haben Vorrang; vor jedem WriteCore-I/O werden aktuelle Quelle, Guard, Session und
+queued manuelle Requests geprüft. Schutz-/Startaktionen behalten die Core-
+Outcomezuordnung; sichere Teilvorbereitung friert ein, ohne einen bereits
+wartenden manuellen Stop wegzuwerfen. Echte Unknown-/Transportfehler widerrufen
+die Controlsitzung. Inspect repariert nur den Transport, nicht die Engine.
+Hardwaremaximum stammt ausschließlich aus höchstens zehn Sekunden altem
+`0x4004..0x4007`-Read; autonome Capabfrage verbraucht eine Pollaktion. Telemetrie-
+Readzeit ist die Samplezeit; Verfall spätestens zehn Sekunden, bei kurzen
+Intervallen konservativ früher. `--once` startet keinen HTTP-Thread und liest
+keine zusätzlichen Capabilityregister.
+
+Ownerantworten enthalten optional `automation` mit exakt `schema_version`,
+`guard`, `requested_mode`, `activation_id`, `config_revision`, `state`, `plan`,
+`house`. Feste Enumlabels und validierte Hexstrings, keine URLs/Rohfehler.
+Channelsynthetische Antworten liefern `null`. Guard aus demselben begrenzten
+getrandom/urandom-Pfad wie Controlleases; bei Entropiefehler keine Automatik,
+Monitoring/manueller Pfad bleiben bestehen. Guardwechsel vor JEDEM manuellen
+Owner-Schreibauftrag (auch abgelaufenen/gesperrten), bei Busverlust/Unknown.
+Keine Authentifizierungszusage. HTTP-Inspektion der Website sollte höchstens alle
+15 Sekunden erfolgen, nicht alle zwei Sekunden, damit sie keine Pollaktionen
+verdrängt. Konkrete Phasen/Zählertopologie niemals aus bestätigten32A ableiten.
+
+Neue Docker-CTest-Fixture kombiniert echten Reader, isolierten Broker, PTY und
+Loopback-HTTP: Bootbaseline, fehlende Topologie, Ganzampere-PV-Start, Schutzstop,
+alte Guards nach manuellem Stop, abgelaufene Hausdaten, ACK-Verlust ohne Retry,
+Inspect ohne Enginefreigabe, Custom-Teilvorbereitung und Stop während I/O.
+Nicht ausgeführt; auch keine Hostprojektläufe, SSH-/Pi-/Hardwareaktionen.
 
 2026-10-30 19:27 CET (Europe/Vienna): Basis `8b82d7d`, enger Safety-Folgeauftrag:
 gleichzeitige Clock-/Noncefehler, Sampleverlust beim Schutz-Stop, ausstehende

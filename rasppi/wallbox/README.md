@@ -1,4 +1,4 @@
-# ABB-Terra-AC-Reader mit manuellem Befehlsweg
+# ABB-Terra-AC-Reader mit manuellem Befehlsweg und optionaler Automatik
 
 C++17-Dienst mit libmodbus, der **im Docker-Container auf dem Raspberry Pi** läuft. Er liest
 Holding Registers über Modbus RTU (FC03), dekodiert sie und gibt pro Abfrage
@@ -9,6 +9,26 @@ Snapshot und die Verfügbarkeit auf MQTT. Diagnosen gehen auf stderr.
 angebunden.** Kein zusätzlicher Modbusmaster, keine Datenbank im Reader.
 `rasppi/src/main.py` bleibt die separate ESP32-UART-Brücke. Telemetrieformat und
 Publisher unverändert; `--once` ist ausschließlich lesend.
+
+## Optionale Hintergrundregelung (Docker-/CI-Abnahme offen)
+
+`WALLBOX_AUTOMATION_WEB_URL` bleibt standardmäßig leer. Nur bei ausdrücklicher
+Operatoraktivierung erhält der bestehende Reader einen HTTP-Lesethread für die
+festen Websitepfade `/api/charging-plan` und `/api/smartmeter`. Als Basis ist nur
+eine intern erreichbare HTTP(S)-Origin ohne Pfad/Query/Credentials zulässig.
+Der Website-DNS-Alias muss auf dem vorhandenen `evse-mqtt` vorbereitet sein;
+kein weiterer Container oder Modbusmaster. Einmaltest `--once` bleibt ohne
+HTTP-Thread, Zusatzabfragen oder automatische Writes.
+
+PV/Custom laufen browserunabhängig, aber NICHT allein durch Speichern/Reload oder
+Readerneustart an. Erst eine neue bewusste Aktivierungs-ID mit aktuellem Reader-
+Guard aktiviert. Manuelle Start/Stop/Stromvorgaben sperren die Automatik bis zu
+einer neuen passenden Aktivierung. Guard ist keine Anmeldung. Fehlende Phasen,
+erforderliche Zählertopologie, Grenzen oder frische Rückkopplung bleiben unbekannt;
+die bestätigten32A einer konkreten Installation sind kein Default dafür.
+ACK ist keine Ladebestätigung; Unknown friert ein, Inspect entsperrt nur den
+Transport. Keine Wiederholung unklarer Writes und keine sofortige absolute
+Netzbezugsgrenzengarantie. Details: [Automationsvertrag](../../docs/wallbox/automation-contract.md).
 
 Die vorherige interne Schreibkern-Stufe1 ist um einen begrenzten ControlChannel
 mit nicht-retained Befehlen, einmaligen Sitzungsleases und Dedupe ergänzt.
