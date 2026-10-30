@@ -20,6 +20,11 @@ const { FIELDS } = require('../static/newcalendar.js');
     current_a: [0, 0, 0], voltage_v: [235, 234, 236], active_power_w: 1500, session_energy_wh: 2 };
   const iso = t => new Date(t).toISOString();
   await page.clock.install({ time: new Date('2026-10-28T12:00:00Z') });
+  await page.route('**/api/wallbox-control', route => {
+    assert.equal(route.request().method(), 'GET', 'History navigation never sends control commands');
+    return route.fulfill({ json: { status: 'unavailable', csrf: null, inspection: null,
+      command: null, command_sent: false } });
+  });
   await page.route('**/api/state', async route => {
     const now = await page.evaluate(() => Date.now());
     await route.fulfill({ json: { schema_version: 1, read_only: true, status: live ? 'live' : 'offline',
@@ -129,7 +134,7 @@ const { FIELDS } = require('../static/newcalendar.js');
     assert((await path()).includes('L'), 'Archive renders while MQTT is offline');
     assert.equal(await page.locator('#chart-grid > figure').count(), 4);
     assert.equal(await page.locator('#chart-diagnostics-grid > figure').count(), 5);
-    assert.deepEqual(await page.locator('.sidebar nav a').allTextContents(), ['Übersicht', 'Diagramme', 'Settings']);
+    assert.deepEqual(await page.locator('.sidebar nav a').allTextContents(), ['Übersicht', 'Wallbox', 'Diagramme', 'Settings']);
     assert.equal(await page.locator('#theme-toggle').getAttribute('role'), 'switch');
     assert.equal(await page.locator('#chart-range').inputValue(), '5');
     assert.equal(await page.locator('.display-options, #metric-options, .history-note').count(), 0);

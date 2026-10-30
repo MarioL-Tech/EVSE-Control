@@ -13,8 +13,9 @@ Die genannten 16 A sind nur eine Vermutung. Die Oberfläche liest das Wallboxmax
 aus 0x4006/07; das ist KEIN Beleg für eine zulässige Installationsbelastung.
 `WALLBOX_INSTALLATION_MAX_MA` muss separat tatsächlich konfiguriert werden, ohne
 16-/32-A-Default (6000–32000 mA). Obergrenze = Minimum aus gemeldeter Geräte-,
-konfigurierter Installations- und konservativer 32-A-Softwaregrenze. Ohne gültige
-Grenzen kein Start/keine Stromvorgabe, jedoch kein Login/Freischalter. Stop benötigt
+konfigurierter Installations- und konservativer 32-A-Softwaregrenze. Ausgelesene
+Gerätegrenzen außerhalb6000..32000 mA sind nicht nutzbar und werden nicht still
+heruntergerechnet. Ohne gültige Grenzen kein Start/keine Stromvorgabe, jedoch kein Login/Freischalter. Stop benötigt
 keine Stromerhöhung und daher kein Installationsmaximum; Verbindung/Frische bleiben
 nötig. Die Hardwaregrenze und Firmware-Rohwert werden nur gelesen, nicht gesetzt.
 
@@ -36,6 +37,14 @@ Body schnell abgewiesen, Telemetrie läuft weiter. Keine solche Netzprobe an
 Produktionsbroker/-reader ausführen. Der Website-End-to-End-Test verwendet
 dieselbe Readerbibliothek. Upstreamlizenzen liegen unter
 `/usr/share/doc/evse-libmosquitto/` im Image.
+
+MQTT3 liefert RETAIN bei Livezustellung an bereits abonnierte Clients als false.
+PHP publiziert deshalb nie retained; der Reader verwirft zusätzlich ankommendes
+RETAIN=true. Primärer Schutz gegen Altwiederholungen sind neue Sessions,
+einmalige monotone Leases und Dedupe, nicht dieses Bit allein. Der Wegwerf-
+End-to-End-Fall kombiniert einen retained gespeicherten Auftrag mit ungültiger
+alter Session/Lease; er belegt die kombinierte Ablehnung, keinen eigenständigen
+RETAIN-Bit-Nachweis mit ansonsten gültiger unverbrauchter Lease.
 
 Pro HTTP-Anfrage ein kurzlebiger PHP-MQTT-Client mit eindeutiger Client-ID und
 denselben Backend-Zugangsdaten. Erfolgreichen SUBACK der eindeutigen Ergebnistopics

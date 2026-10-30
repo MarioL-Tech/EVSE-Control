@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-30 14:09 (Europe/Vienna)
+
+- Reader-Matrix und echter isolierter HTTP-/MQTT-/PTY-Controlpfad bestehen auf
+  Codehead5ac3ff3. Vollständige Website-CI erreicht alle neuen Controlbrowserfälle,
+  scheitert allein an alter Dreier-Navigationsannahme im Historienbrowser:
+  Erwartung ausdrücklich um Wallbox ergänzt, nicht entfernt. Archivtest isoliert
+  Controlmetadaten und verbietet dort weiterhin jeden POST.
+- Vertrags-/Testnachweis präzisiert: Retained-/Stale-Fall prüft kombinierte
+  Session-/Lease-/Neustartbarriere, keinen eigenständigen RETAIN-Bit-Nachweis.
+  Noch keine Gesamtfreigabe, echte Hardware weiterhin ungetestet.
+
 ## 2026-10-30 13:57 (Europe/Vienna)
 
 - Docker-CI deckt echten Readerabsturz bei abgewiesenen MQTT-Zugangsdaten auf:

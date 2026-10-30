@@ -228,8 +228,8 @@ def main():
             subprocess.run(publish, check=True, capture_output=True, timeout=3)
             time.sleep(.3)
             check(simulator.count() == 6, 'Duplicate logical command repeated a write')
-            # Retained commands MUST NOT affect even a valid lease. A stale
-            # wrong session likewise cannot enter the serial write path.
+            # Combined stale-session + retained-delivery/restart evidence,
+            # not an independent retained-bit proof with a valid unused lease.
             inspect = recovered['inspection']
             # MQTT 3.1.1 clears RETAIN for live subscription deliveries. Therefore
             # only reader-issued leases/current sessions authorize an action;
@@ -262,7 +262,7 @@ def main():
             code, stop_without_cap = request(body={'operation': 'stop', 'current_ma': 0}, token=token)
             check(code == 200 and stop_without_cap['command']['write']['acknowledged'] and simulator.count() == 7,
                   'Stop must remain usable without an installation cap or feature unlock')
-            print('HTTP -> PHP -> MQTT -> C++ -> PTY: inspect, limits, Apply/Start/Stop, unknown commit, recovery, retained/stale rejection passed')
+            print('HTTP -> PHP -> MQTT -> C++ -> PTY: inspect, limits, Apply/Start/Stop, unknown commit, recovery, duplicate/stale-session/restart rejection passed')
     finally:
         for process in reversed(processes):
             if process.poll() is None:

@@ -16,6 +16,12 @@ Controlcallback + erzwungenes pthread_cancel; Controlchannel daher normales
 Disconnect/Join ohne Forcedcancel. Authregression dreimal ohne gelockerte Read-
 Anforderung. 4096/4097-/64MiB-Präallokationsprüfung auf beiden Debianvarianten
 bereits bestanden; Gesamt-CI/Abnahme weiterhin offen.
+Code5ac3ff3 besteht Reader41059437073/41059443951, einschließlich dreifachem
+Authfehlerfall. Website41059437220/41059444094 besteht neuen echten HTTP-/MQTT-/
+PTY-Controlpfad und neue Controlbrowsersuite, scheitert jedoch am alten Drei-
+Navigationspunkte-Assert im Historienbrowser. Assert um Wallbox ergänzen, nicht
+löschen; finale Gesamt-CI noch erforderlich. Kombinierte Retained-/Stale-
+Ablehnung nicht als eigenständigen RETAIN-Bit-Test ausgeben.
 Weiterentwicklung jetzt ausdrücklich OHNE Passwort/Login oder zusätzlichen
 Freischalter; jeder erreichbare Nutzer im vertrauenswürdigen LAN/VPN darf
 manuell bedienen. Login folgt erst zum Schluss. Diese Freigabe ersetzt die
