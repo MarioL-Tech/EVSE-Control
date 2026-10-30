@@ -121,6 +121,15 @@ vorauszusetzen. Keine lokalen Änderungen mit Reset/Force überschreiben.
 
 ## 3. Wallbox-Reader bauen und einmal testen
 
+Die zusätzliche interne **Schreibkern-Stufe 1** wird nur gegen simulierte PTYs
+im Docker-Build getestet. Der ausgelieferte Reader bleibt ausschließlich lesend,
+ohne Schreib-Aktivierungsoption oder Befehlseingang; bestehende `.env`-/Compose-
+Dateien bleiben unverändert. Reproduzierbare isolierte Tests und Voraussetzungen
+für eine spätere gesonderte Hardwarefreigabe stehen im
+[Schreibkernvertrag](wallbox/write-core-contract.md). Vor echten Schreibtests muss
+der Projektinhaber seine Leitung informieren. **Die folgenden Pi-Befehle bleiben
+reine Lesetests**, keine Schreib-/Automationsfreigabe.
+
 Vom Repository-Hauptverzeichnis:
 
 ```bash

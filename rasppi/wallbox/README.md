@@ -9,6 +9,14 @@ Snapshot und die Verfügbarkeit auf MQTT. Diagnosen gehen auf stderr.
 keine Weboberfläche in diesem Entwicklungsschritt.** Das bestehende
 `rasppi/src/main.py` bleibt die separate ESP32-UART-Brücke.
 
+**Neu: interne Schreibkern-Stufe 1 für Docker-Simulation.** Start/Stop und
+Stromlimit sind als typisierte libmodbus-Operationen vorbereitet. Der ausgelieferte
+Reader bleibt gesperrt und hat **keinen Aktivierungs-/Befehlseingang**; nur ein
+nicht ausgeliefertes PTY-Testprogramm darf den Core aktiviert verwenden.
+[Vertrag, Grenzen und spätere Testfreigabe](../../docs/wallbox/write-core-contract.md).
+Vor echten Schreibtests informiert der Projektinhaber seine Leitung; gesondertes
+Hardware-Go erforderlich. Kein Pi-Schreibtest durch den Agenten.
+
 ## Start auf dem Pi
 
 Docker/Compose, Repository und Wallbox-Verbindung müssen vorhanden sein.
@@ -82,6 +90,10 @@ zusätzlicher Python-Standardbibliothek-Test eine simulierte RTU-Gegenstelle
 Zusätzlich werden unvollständige Antworten, Shutdown während einer laufenden
 Abfrage, volle stdout-Pipes und Wiederherstellung der Port-Einstellungen geprüft.
 Diese Tests ersetzen **keinen Test an der echten Wallbox**.
+Zusätzliche Schreibkern-Tests prüfen ausschließlich im Buildcontainer Validierung,
+FC06-/FC16-Telegramme, vollständige ACK-Echos, Stromgrenzen, frische Startvorbereitung,
+unklare Ausgänge ohne Wiederholung und Abbruch. Die Runtime bleibt FC03-only;
+der schreibfähige Testprobe akzeptiert nur PTYs und fehlt im Runtimeimage.
 Ein weiterer Test startet ausschließlich im Build-Container einen isolierten
 Loopback-Broker und PTY-Reader: retained State, Online/Offline bei Readfehlern,
 Brokerneustart, fortlaufendes Polling ohne Broker, Shutdown und Last Will.

@@ -14,9 +14,28 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        debian: [bookworm, trixie]
     steps:
       - uses: actions/checkout@v4
       - name: Build and run isolated tests inside Docker
-        run: docker build --progress=plain -t evse-wallbox:test rasppi/wallbox
+        run: docker build --progress=plain --build-arg DEBIAN_RELEASE=${{ matrix.debian }} -t evse-wallbox:test rasppi/wallbox
       - name: Runtime dependencies and entrypoint smoke test
         run: docker run --rm evse-wallbox:test --help
+      - name: Runtime has no test probe or write activation interface
+        run: |
+          docker run --rm --entrypoint sh evse-wallbox:test -ec '
+            test ! -e /usr/local/bin/wallbox-write-probe
+            test ! -e /src/build/wallbox-write-probe
+            for option in --enable-writes --write --set-current-ma --start --stop; do
+              set +e
+              /usr/local/bin/evse-wallbox "$option" >/tmp/out 2>/tmp/err
+              code=$?
+              set -e
+              test "$code" -eq 2
+              test ! -s /tmp/out
+              grep -q "Unknown option" /tmp/err
+            done
+          '

@@ -31,6 +31,9 @@ bestehende Wallbox-Anzeigen und Diagramme bleiben erhalten. Separat ergänzt sin
 kompakte Theme-/Einstellungszugriffe und die optionale Haus-Smartmeter-Anzeige.
 
 > **Entwicklungsstand:** Der Wallbox-Dienst ist ausschließlich lesend.
+> Ein interner libmodbus-Schreibkern für Start/Stop/Stromlimit wird separat im
+> Docker-Build gegen PTYs geprüft; die Runtime hat keinen Aktivierungsweg.
+> Echte Schreibtests brauchen nach Information der Leitung eine gesonderte Freigabe.
 > MQTT-Empfang echter Wallboxdaten am Pi ist bestätigt. Das neue lesende
 > PHP-Weboverlay ist implementiert und Docker-getestet;
 > Pi-Start und Live-Übersicht am 26.10.2026 vom Projektinhaber bestätigt;
@@ -83,6 +86,7 @@ noch keine Modusauswahl oder Einrichtung; Geräte-/Sicherheitsgrenzen gelten wei
 | Diebstahlsicherungsmodell | Erlaubte RFID-UID toggelt 0°/90°; NVS-Allowlist und Bootpolicy; neuer Erststart verriegelt, Hardwareprüfung offen |
 | UART-Testbrücke | Interaktive Python-Brücke im Docker-Container |
 | Wallbox-Reader | C++17/libmodbus, zyklische FC03-Abfragen, dekodierte Messwerte als JSON |
+| Schreibkern, Stufe 1 | Interne typisierte Operationen, nur Docker-PTY-Simulation; keine produktive Aktivierung, Hardwareabnahme offen |
 | MQTT-Publisher | retained State und Verfügbarkeit mit libmosquitto; vorhandener Broker wird wiederverwendet |
 | Weboverlay | PHP-/Apache-Backend mit MQTT-Worker; lesende Anzeige, Frischeprüfung und Browser-Zeitverläufe; Docker-getestet |
 | Haus-Smartmeter | Optionaler separater PHP-HTTP-Worker: Wert 7 als Netzleistung mit Vorzeichen und eigenem Datenstatus; Docker-getestet, Pi-Prüfung offen |
