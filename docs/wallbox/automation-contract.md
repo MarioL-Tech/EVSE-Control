@@ -1,0 +1,93 @@
+# Unverdrahtete Ladeautomatisierung: Integrationsvertrag
+
+Stand: 2026-10-30. Eigenständige Module auf Basis `c5ac0d7`; kein Hardwarezugriff,
+kein neuer Dienst/Container, keine Änderung bestehender APIs/Worker. Der Parent
+muss HTTP-API, Env/Compose, Statusanzeige und Owner-Schleife separat integrieren.
+Diese Datei ist zugleich das Änderungsledger dieses eng begrenzten Teilauftrags.
+
+## Öffentliche Schnittstellen (`wallbox::automation`)
+
+- `initialize_vienna_timezone()` **vor Threads** aufrufen: setzt pro Prozess einmal
+  `TZ=Europe/Vienna`/`tzset`. UTC-Ausgaben müssen weiter `gmtime_r` verwenden.
+- `HttpSource(string base_url)`, `environment_base_url()`, `snapshot()` liefern
+  `shared_ptr<const Snapshot>`. Default ausschließlich technischer DNS-Name
+  `http://weboverlay:8080`, Env `WALLBOX_WEB_BASE_URL`. Nur HTTP(S)-Origins ohne
+  Zugangsdaten, Pfad, Query oder Fragment; angehängt werden ausschließlich
+  `/api/charging-plan` und `/api/smartmeter`. Keine Browser-URL, MQTT oder Modbus.
+  Ein Thread, Zwei-Sekunden-Zyklus, Abbruch und Join im Destruktor.
+- `Input`: `now` monotone Sekunden; `utc` Epochsekunden; kopierte `Sources`;
+  `bus_connected`; optionales bestehendes `Telemetry sample` mit explizitem
+  `sample_expires`; `hardware_max_ma` mit `hardware_expires`; explizite
+  `installation_max_ma`. **Kein Standortdefault**; 32 A sind nur Softwareobergrenze.
+- `Engine::step(Input)` ergibt null oder genau eine `Action` mit `Operation::Stop`,
+  `SetCurrent`, `Start`, Ziel-mA, Seriennummer, Generation, Aktivierungs-ID,
+  Konfigurationsrevision und gemeinsamer monotoner Drei-Sekunden-Deadline.
+- Vor **jedem** WriteCore-I/O (auch zwischen SetCurrent und Start)
+  `engine.accepts(action, latest_input)` prüfen. Dies prüft auch manuelle Sperren;
+  die freie Funktion `action_is_current` prüft nur Quellen/Ticket. Bei false nichts mehr senden;
+  `complete(action,{attempted, acknowledged})` melden. Owner priorisiert manuelle
+  Befehle, hält den einzigen RS485-Port und führt maximal eine Aktion je Poll aus.
+  `Start` bedeutet ausdrücklich **SetCurrent, danach Start im selben WriteCore
+  und derselben Deadline**. Aggregat-ACK nur bei beiden strikten ACKs. Wenn nur der
+  erste Teil versucht wurde und der zweite entfällt, `attempted=true,
+  acknowledged=false`: Automatik friert ein. Kein Retry, kein zweiter Master.
+- `manual_override()` vor jedem manuellen Start/Stop/SetCurrent: verriegelt die
+  Automatik bis neuer Aktivierungs-ID. Manuelles Stoppen bleibt unabhängig vom
+  Enginezustand verfügbar. Doppelte/veraltete `complete`-Meldungen werden ignoriert.
+- `status()`/`status_name()`; reine `schedule_contains(Profile, utc)`.
+
+HTTP-Vertrag: Schema 1 aus dem Parentauftrag, inklusive nullable Site-Feldern.
+Unbekannte/fehlende Pflichtwerte erlauben keinen automatischen Start. Smartmeter
+bleibt bestehendes Schema 1: signed `power_w`, `fetched_at` ISO8601 UTC mit optional
+bis sechs Nachkommastellen, `age_seconds`, **verbleibende** `fresh_for_seconds`.
+TLS-Prüfung/CA bleiben aktiv, Proxy und Redirect aus; Verbindung 500 ms, Gesamt
+1500 ms je Request; Header 8 KiB, Body 16 KiB, HTTP 200, endliche Zahlen, keine
+doppelten JSON-Schlüssel. Keine URL-/Credential-/Rohdatenlogs. Transportausfall
+behält nur ursprüngliche Frist; explizite Unknown-/NULL-/Fehlerantwort sperrt.
+Gleiches `fetched_at` kann seine erste Frist niemals verlängern. Generationen
+ändern sich bei Publikation und verhindern veraltete Owner-Aktionen.
+
+## Regeln und Sicherheitsgrenzen
+
+Erste gültige Aktivierung nach Boot ist nur Baseline, auch bei persistiertem PV.
+Nur neue explizite ID aktiviert; Speichern/GET/Reload nicht. Revision ohne neue ID,
+Busverlust, Zeitfehler und nicht bestätigter versuchter Write frieren bis zur
+nächsten expliziten Aktivierung ein. ACK ist kein Nachweis tatsächlichen Ladens.
+Start wartet auf frisches `charging=true`, Stop auf `false`; keine Wiederholung.
+Nach beobachtetem Fahrzeugende kein Blindstart bis Ab-/Anstecken oder Aktivierung.
+
+PV: bekannte Phasenzahl und Zählertopologie erforderlich. Mindestens so viele
+gültige Spannungen 150–300 V; W/A = Phasenanzahl × größte gültige Spannung.
+Budget = erlaubter Bezug − Hausleistung + Wallboxleistung (nur wenn mitgemessen).
+Abgerundete ganze Ampere, begrenzt durch Profil, Standort, frisches Hardwaremaximum
+und Software32A, Minimum6A. Darunter verzögert pausieren, darüber verzögert starten;
+Anpassung nach konfigurierter Verzögerung. Alle fünf Profilparameter sind Pflicht,
+keine geratenen Defaults. Custom ohne PV benötigt keine Hausleistung.
+Bestätigtes Sollziel statt wirksamen Limits merken: internes Lastmanagement löst
+keine Wiederholungen aus. Quellenablauf während aktiver Automatik löst höchstens
+eine noch mögliche Stopaktion aus; Wiederanlauf braucht frische Daten/Verzögerung.
+
+Custom: feste Wiener Ortszeit, Wochentage 1–7, maximal16 Fenster, ODER-Verknüpfung,
+Ende exklusiv. Übernachtfenster gehören zum Startwochentag. Gleiche Endpunkte sind
+ungültig (kein geratenes 24h-Fenster). Zeitumstellung gilt nach echter Ortszeit;
+beide wiederholten Herbststunden werden gleich behandelt. Außerhalb `pause` stoppt,
+`manual` lässt bestehendes Laden unverändert und erzeugt keine Automatikaktion.
+Ohne manuellen Override kann innen wieder Automatik laufen.
+
+**Keine harte Netzanschluss-Schutzfunktion:** abgetastete Rückkopplung/Verzögerungen
+garantieren keine augenblickliche absolute W-Grenze.
+
+Feste Enginestatuscodes: `awaiting_activation`, `manual`, `manual_override`,
+`frozen`, `invalid_configuration`, `source_unavailable`, `manual_handling`,
+`unplugged`, `adjusting`, `pausing`, `resuming`, `awaiting_start`, `awaiting_stop`,
+`charging`, `vehicle_finished`. HTTP: `waiting`, `ok`, `transport_unavailable`,
+`invalid_response`, `disabled`, `clock_error`, `invalid_base`.
+
+## Änderungs-/Prüfledger
+
+2026-10-30 19:09 CET (Europe/Vienna): Engine, HTTP-Snapshotthread, Release-aktive native Fälle,
+Loopback-HTTP-Fixtures, additive CMake-Ziele, Docker-Abhängigkeiten und separater
+ASan/UBSan-Enginebuild ergänzt. Bestehende sieben Tests/der Mosquitto-Guard bleiben.
+Kein Docker lokal verfügbar: **keine Projektprüfung ausgeführt**, kein Build-/CI-
+oder Hardwareerfolg behauptet. Nur statische Prüfung und `git diff --check`.
+Parent muss vor Integration Docker/GitHub-CI ausführen und Änderungen prüfen.

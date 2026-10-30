@@ -2,7 +2,7 @@ ARG DEBIAN_RELEASE=bookworm
 FROM debian:${DEBIAN_RELEASE}-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ cmake make pkg-config libmodbus-dev mosquitto mosquitto-clients python3 \
-    curl ca-certificates patch libssl-dev \
+    curl ca-certificates patch libssl-dev libcurl4-openssl-dev nlohmann-json3-dev tzdata \
     && rm -rf /var/lib/apt/lists/*
 COPY docker/libmosquitto-incoming.patch /tmp/libmosquitto-incoming.patch
 # Same Debian release in both stages: no newer-libc dependency in the runtime.
@@ -32,10 +32,14 @@ RUN dpkg-query -W libmodbus-dev \
     && printf '%s\n' 'libmosquitto: pinned upstream 2.0.21 + EVSE preallocation guard (4096 bytes)' \
     && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
     && cmake --build build --parallel 2 \
-    && ctest --test-dir build --output-on-failure
+    && ctest --test-dir build --output-on-failure \
+    && cmake -S . -B build-automation-sanitized -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_WALLBOX_SERVICE=OFF -DAUTOMATION_SANITIZERS=ON \
+    && cmake --build build-automation-sanitized --parallel 2 \
+    && ctest --test-dir build-automation-sanitized --output-on-failure -R '^wallbox-automation$'
 
 FROM debian:${DEBIAN_RELEASE}-slim
-RUN apt-get update && apt-get install -y --no-install-recommends libmodbus5 libmosquitto1 \
+RUN apt-get update && apt-get install -y --no-install-recommends libmodbus5 libmosquitto1 libcurl4 ca-certificates tzdata \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/build/evse-wallbox /usr/local/bin/evse-wallbox
 COPY --from=build /usr/local/lib/libmosquitto.so* /usr/local/lib/
