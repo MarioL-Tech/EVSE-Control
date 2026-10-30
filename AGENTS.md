@@ -35,7 +35,10 @@ Startfristen-/Recovery-/Shutdownprüfungen; bestehende drei Decoder-/FC03-/MQTT-
 Suiten unverändert erhalten. CI jetzt Bookworm/Trixie, Bookworm Produktionsdefault.
 Unabhängiger statischer Review fand zwei Startvorbereitungsfehler; korrigiert,
 gezielt regressionsabgedeckt und danach gezielt ohne weitere Befunde gegengeprüft.
-Dockerabschluss noch offen, keine Hosttests.
+Codehead ed32b18 besteht Wallbox-Docker41050330438 (Push) und41050371128 (PR)
+vollständig: je fünf Suiten mit Bookworm/libmodbus3.1.6 und Trixie/3.1.11 sowie
+Runtime-/Nichtaktivierbarkeitsprüfung. Kein Host-, ARM- oder echter Schreibtest.
+Finalen Dokumentations-/Freigabestand über PR#64 prüfen; Merge beim Projektinhaber.
 Vertrag `docs/wallbox/write-core-contract.md`, Einrichtung zentral dokumentiert;
 historische mbpoll-Notizen ausdrücklich keine freigegebene Schreibtestanleitung.
 MQTT-Bedienvertrag/Zugriffsschutz, Slider, Netzbezugsabschaltung, Automationswerte

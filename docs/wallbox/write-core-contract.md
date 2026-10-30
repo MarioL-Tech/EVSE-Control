@@ -142,8 +142,10 @@ gegen Wiederholungen. Der Testprobe verweigert reale serielle Gerätepfade.
 
 CI baut/testet Bookworm und Trixie; Bookworm bleibt unveränderter Produktionsdefault.
 Die tatsächlichen libmodbus-/libmosquitto-Paketversionen stehen im Buildlog.
-Konkrete erfolgreiche Runs erst nach tatsächlicher CI-Ausführung nennen. Kein
-ARM-, Firmware-, Dauerbetriebs- oder Hardwarefreigabenachweis durch diese Tests.
+Der erste vollständige Codeabgleich besteht beide Distributionen mit allen fünf
+Suiten und Runtime-Sperrprüfung. Konkreter Code-/Run-/Freigabestand zentral in
+[PR #64](https://github.com/MarioL-Tech/EVSE-Control/pull/64). Kein ARM-, Firmware-,
+Dauerbetriebs- oder Hardwarefreigabenachweis durch diese Tests.
 
 ## Spätere Hardwareabnahme – noch nicht freigegeben
 
