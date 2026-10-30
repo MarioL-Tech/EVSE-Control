@@ -4,6 +4,14 @@ Stand: 2026-10-30. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
+Gesamtbranch/PR#72 enthält jetzt auch den unveränderten Firmwarestand4e5b213
+aus Teil-PR#69 sowie UI#70 und Gateway#71. Ein Gesamtmerge kann damit alle
+Teilstände übernehmen; die Teil-PRs bleiben getrennt überprüfbare Referenzen.
+Featurebranchzusammenführung ist kein Agent-Merge nach main und kein Deployment.
+ESP-Watchdog10s misst Zeit seit ausgeführtem MIRROR, nicht seit ursprünglicher
+Wallboxmessung. Gateway sendet bei Ablauf UNKNOWN; bei UARTverlust wirkt nur der
+Empfangswatchdog. Kein messzeitexakter Ende-zu-Ende-/elektrischer Schutznachweis.
+
 Prüfstand175e479: native Matrix41130422012 und41130429446 auf AMD64/ARM64,
 Bookworm/Trixie mit zehn Suiten plus Sanitizer-Core vollständig grün. Web zeigt
 noch zwei konkrete Browserprobleme: Pfeiltasten folgten Enum- statt DOMreihenfolge,
@@ -104,6 +112,18 @@ integriert getrennte Firmware/PHP/UI und zentrale Installationsanleitung; noch
 kein gemeinsamer CI-/Pi-/Hardwareabnahmenachweis. Verträge in
 `docs/esp32-gateway-contract.md`, Start-/Secretmountdetails in
 `rasppi/README.uart.md`. Keine SSH-/Pi-/Hosttests oder Paketinstallation.
+Historischer ESP32-Teilscope (2026-10-30, Basis PR#68/c5ac0d7; spätere grüne
+Firmware-/Gatewaynachweise stehen oben): manuelles Website-
+Antitheft ACTIVE/INACTIVE und RFID-Settings sowie frischer Pi-Ladespiegel jetzt
+ausdrücklich autorisiert. Firmwareteil implementiert: Security::setLocked(bool),
+persistierter idempotenter Zielwert, keine Änderung am 188-Byte-NVS-Format;
+Gateway-RPC v2 mit Bootsession/8-s-Einmalleases/acht 10-s-ACK-Cacheplätzen.
+Ladespiegel initial UNKNOWN, nach 10 s ohne neu ausgeführtes Update UNKNOWN;
+kein Wallboxeffekt. Vertrag/Entropiegrenzen in docs/uart-protocol.md. Reine und
+simulierte Adaptertests ergänzt, ausschließlich Docker/CI vorgesehen; lokal kein
+Docker, Tests/Targetcompile noch nicht ausgeführt. Kein Flash/Pi/SSH/Hardware-
+Nachweis. Pi-Gateway und Website sind separate Integrationsarbeit, keine MQTT-
+Implementierung auf ESP32; bestehende Legacy-UID-Zeilen dort niemals weiterleiten.
 
 Aktueller Webbedienauftrag (2026-10-30): PR#64 vom Projektinhaber gemergt.
 Neuer Folgeauftrag nach PR#68/mainc5ac0d7: Betreiber bestätigt jetzt ausdrücklich

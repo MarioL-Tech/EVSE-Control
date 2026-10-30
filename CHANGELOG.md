@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-30 23:01 (Europe/Vienna)
+
+- Unveränderten, separat Docker-geprüften Firmwarestand4e5b213 im Gesamtbranch
+  zusammengeführt. PR#72 umfasst damit Firmware#69, UI#70, Gateway#71 und neuen
+  Regler als gemeinsam prüfbaren Stand; kein Main-Merge/Deployment durch Agenten.
+- Grenzen des Ladespiegels präzisiert: Firmware-Watchdog gilt ab MIRROR-Empfang,
+  nicht ab ursprünglicher Messzeit. Unterbrochener UART kann die UNKNOWN-Meldung
+  verzögern; kein messzeitexakter Ende-zu-Ende-/elektrischer Schutz. ESP steuert
+  keine reale Wallbox. Gesamt-CI noch offen.
+
 ## 2026-10-30 22:29 (Europe/Vienna)
 
 - Reglercode175e479 besteht native Matrix41130422012 vollständig: Bookworm/
@@ -137,6 +147,17 @@
   Paho-Bodygrenze vor Speicherwachstum, Docker-Teststage mit Fakeclock/PTY/
   Loopbackbroker und verpflichtendem Runtime-Testmarker vorbereitet. Tests hier
   nicht ausgeführt; Docker-/GitHub-CI und Hardwareabnahme bleiben offen.
+## 2026-10-30 18:57 (Europe/Vienna)
+
+- ESP32: manueller persistierter Servo-Zielwert ohne Toggle, Gateway-RPC v2 mit
+  Bootsession, einmaligen 8-s-Leases und begrenztem 10-s-ID-/ACK-Cache vorbereitet.
+  Bestehendes NVS-Format, Bootpolicy, Karten und RFID-Präsentationsregeln erhalten.
+- Ladezustand als veraltbarer ON/OFF/UNKNOWN-Spiegel, initial/bei 10-s-Ausfall
+  UNKNOWN; Legacy-Charge-Befehle bleiben kompatibel. Gatewayaufnahme ohne UID-Echo.
+- Reine Protokoll-/Persistenz-/Watchdog- und simulierte Firmwareadaptertests für
+  Docker ergänzt; lokal mangels Docker nicht ausgeführt. Targetcompile/CI offen,
+  kein Flash, Pi-/SSH-/Hardwarezugriff und keine physische Entropie-/Servozusage.
+
 
 ## 2026-10-30 18:10 (Europe/Vienna)
 

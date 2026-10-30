@@ -169,5 +169,9 @@ geprüft; erneute Autorisierung verlangt einen echt neueren, aktuell gültigen
 Messzeitpunkt. Diese Historie besteht nur im RAM, nicht über Prozessneustarts;
 UTC-Altersprüfung bleibt auch beim Neustart erforderlich.
 Spiegelung viersekündlich über eigene STATUS-Lease, Management
-hat Vorrang. Firmware-Watchdog: nach zehn Sekunden ohne bestätigte Aktualisierung
-UNKNOWN. Kein automatischer Servo-Lock, keine reale Wallboxsteuerung.
+hat Vorrang. Firmware-Watchdog: nach zehn Sekunden ohne ausgeführtes MIRROR-Update
+UNKNOWN. Diese zehn Sekunden beginnen beim Firmwareempfang, nicht am ursprünglichen
+Modbus-Messzeitpunkt. Der Gateway sendet bei Quellenablauf UNKNOWN; bei unterbrochenem
+UART bleibt nur der Empfangswatchdog. Deshalb keine harte messzeitbezogene
+Ende-zu-Ende-Frische oder elektrische Schutzfunktion aus diesem Spiegel ableiten.
+Kein automatischer Servo-Lock, keine reale Wallboxsteuerung durch den ESP32.
