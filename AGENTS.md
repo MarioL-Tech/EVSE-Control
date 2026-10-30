@@ -4,6 +4,21 @@ Stand: 2026-10-30. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
+UART-Teilscope des explizit freigegebenen Web-Antitheft-/RFID-Auftrags
+(2026-10-30): bestehende `uart-bridge` erhält opt-in `UART_MODE=gateway`, Default
+bleibt interaktiv. Ein serieller Owner, MQTT-v1-Sechsfeld-RPC, Firmware-v2-
+HELLO/STATUS/Lease, keine Legacy-Managementfallbacks, strikte UID-Redaktion.
+Tatsächliches frisches Wallbox-`charging` wird unabhängig vom Servo gespiegelt,
+sonst UNKNOWN; keine neue reale Wallboxsteuerung. Paho2.1.0-Bodygrenze vor
+Allocation, begrenzte Queues/Leases/Dedupe, keine Wiederholung ungewisser Writes.
+Firmwarecommit4e5b213 read-only abgeglichen: Quelle `query`, SESSION_MISMATCH,
+GATEWAY_UNAVAILABLE, HELLO/STATUS zählen zum8er-Cache/10s. Docker-Teststage mit
+Fakeclock/PTY/isoliertem Broker vorbereitet, hier NICHT ausgeführt. Elternagent
+integriert getrennte Firmware/PHP/UI und zentrale Installationsanleitung; noch
+kein gemeinsamer CI-/Pi-/Hardwareabnahmenachweis. Verträge in
+`docs/esp32-gateway-contract.md`, Start-/Secretmountdetails in
+`rasppi/README.uart.md`. Keine SSH-/Pi-/Hosttests oder Paketinstallation.
+
 Aktueller Webbedienauftrag (2026-10-30): PR#64 vom Projektinhaber gemergt.
 Neuer Auftrag nach gemergtemPR#67 (main8acecb1): wiederholte Bedienhinweise kürzen;
 Screenshot belegt geprüfte Verbindung/Gerätemaximum32A, aber unbekanntes

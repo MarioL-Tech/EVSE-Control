@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-30 19:07 (Europe/Vienna)
+
+- UART-Teilscope: bestehenden interaktiven Dienst um opt-in Gatewaymodus mit
+  Paho2.1.0/pyserial3.5, einzigem seriellen Owner, korrelierten Firmware-v2-
+  Leases, begrenzten Queues/Dedupe, UID-Redaktion und tatsächlichem frischen
+  Wallbox-Ladespiegel ergänzt. Keine reale Wallboxsteuerung oder Pi-Aktion.
+- MQTT-v1-RPC hat sechs Felder; Firmware4e5b213 read-only abgeglichen,
+  SESSION_MISMATCH und acht Cacheplätze einschließlich HELLO/STATUS beachtet.
+  Paho-Bodygrenze vor Speicherwachstum, Docker-Teststage mit Fakeclock/PTY/
+  Loopbackbroker und verpflichtendem Runtime-Testmarker vorbereitet. Tests hier
+  nicht ausgeführt; Docker-/GitHub-CI und Hardwareabnahme bleiben offen.
+
 ## 2026-10-30 18:10 (Europe/Vienna)
 
 - Erste vollständige Konfigurations-CI da7980e besteht191JS-/43neuePHP-/HTTP-

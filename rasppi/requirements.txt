@@ -1,4 +1,5 @@
 # Raspberry Pi dependencies
 # Installed inside Dockerfile.uart only; no Python packages on the Pi host.
 
-pyserial>=3.5
+pyserial==3.5
+paho-mqtt==2.1.0

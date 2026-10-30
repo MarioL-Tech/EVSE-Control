@@ -1,6 +1,18 @@
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim-bookworm AS dependencies
 WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
-COPY src/main.py ./src/main.py
+
+FROM dependencies AS test
+RUN apt-get update && apt-get install -y --no-install-recommends mosquitto \
+    && rm -rf /var/lib/apt/lists/*
+COPY src/ ./src/
+COPY tests/uart_gateway* ./tests/
+RUN PYTHONPATH=/app/src python -m unittest discover -s tests -p 'uart_gateway*.py' -v \
+    && printf 'uart-gateway-tests-complete\n' > /uart-tests-passed
+
+FROM dependencies AS runtime
+COPY --from=test /uart-tests-passed /app/uart-tests-passed
+COPY src/main.py src/uart_gateway.py ./src/
+ENV PYTHONDONTWRITEBYTECODE=1
 ENTRYPOINT ["python", "-u", "src/main.py"]
