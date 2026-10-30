@@ -271,9 +271,9 @@ function clean(run) {
           const { x, y, width, height } = link.getBoundingClientRect(); return { x, y, width, height };
         }));
         if (width > 900) {
-          assert(navBoxes[3].y >= navBoxes[2].y + navBoxes[2].height, 'Settings below Diagramme');
+          assert(navBoxes[2].y >= navBoxes[1].y + navBoxes[1].height, 'Settings below Diagramme');
         } else {
-          assert(navBoxes.every(box => Math.abs(box.y - navBoxes[0].y) <= 1), 'Four compact navigation tabs in one row');
+          assert(navBoxes.every(box => Math.abs(box.y - navBoxes[0].y) <= 1), 'Three compact navigation tabs in one row');
           assert(navBoxes.every(box => box.x >= 0 && box.x + box.width <= width), 'Tabs fit viewport');
         }
         assert.equal(await page.locator('nav [aria-current="page"]').count(), 1);

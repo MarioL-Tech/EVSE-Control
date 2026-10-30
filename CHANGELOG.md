@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-30 16:17 (Europe/Vienna)
+
+- Docker-CI besteht neue lokalen Entwurfs-/Maus-/6-A-/Nichtversandfälle und
+  Altlink-/API-/SQL-/PWA-Prüfungen. Layoutsuite hatte noch den früheren vierten
+  Navigationsindex für Settings verwendet; auf dritten Link nach Diagramme
+  korrigiert, Anordnung/Viewportprüfung ausdrücklich erhalten. Finale CI offen.
+
 ## 2026-10-30 16:07 (Europe/Vienna)
 
 - Controlbrowsertest prüft zusätzlich die gültige6-A-Einzelgrenze ausdrücklich:
