@@ -93,6 +93,8 @@
     if (draftAmps(draft, editing) === null) draft = editing.min;
     if (range.max !== String(editing.max)) range.max = String(editing.max);
     if (range.value !== String(draft)) range.value = String(draft);
+    const fill = `${editing.max > editing.min ? (draft - editing.min) / (editing.max - editing.min) * 100 : 0}%`;
+    if (range.style.getPropertyValue('--control-fill') !== fill) range.style.setProperty('--control-fill', fill);
     disabled('current', busy || document.hidden || suspended);
     disabled('apply', !usable || !limits || mode !== 'manual');
     disabled('start', !usable || !limits || mode !== 'manual');
