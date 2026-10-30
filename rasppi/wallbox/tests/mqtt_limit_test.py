@@ -5,7 +5,6 @@ this: malloc may reserve virtual memory without committing resident pages.
 """
 
 import ctypes
-import ctypes.util
 from pathlib import Path
 import socket
 import sys
@@ -67,6 +66,7 @@ class HeaderAttackBroker:
         self.done = threading.Event()
         self.attack = threading.Event()
         self.lock = threading.Lock()
+        self.claimed = set()
         self.ready = set()
         self.closed = {}
         self.errors = []
@@ -82,6 +82,13 @@ class HeaderAttackBroker:
                 continue
             except OSError:
                 return
+            with self.lock:
+                measured_clients_connected = len(self.claimed) == 2
+            if measured_clients_connected:
+                # Later reconnects are intentionally not probe participants;
+                # they may close even before sending CONNECT during teardown.
+                connection.close()
+                continue
             worker = threading.Thread(target=self.client, args=(connection,), daemon=True)
             self.workers.append(worker)
             worker.start()
@@ -89,6 +96,8 @@ class HeaderAttackBroker:
     def client(self, connection):
         with connection:
             connection.settimeout(0.1)
+            kind = "unidentified"
+            stage = "connect"
             try:
                 # CONNECT is small and immediately emitted by both clients.
                 connection.settimeout(2)
@@ -100,7 +109,17 @@ class HeaderAttackBroker:
                 kind = "control" if client_id.startswith("evse-control-") else "publisher"
                 check(kind == "control" or client_id == "isolated-reader",
                       "Unexpected client identifier")
+                with self.lock:
+                    # Both clients normally reconnect after the deliberately
+                    # rejected header. Only the FIRST socket per kind belongs
+                    # to this measurement: a reconnect must neither replace
+                    # its evidence nor start a second boundary handshake while
+                    # the original attack flag is already set.
+                    if kind in self.claimed:
+                        return
+                    self.claimed.add(kind)
                 connection.sendall(b"\x20\x02\x00\x00")
+                stage = "boundary"
                 # Boundary-positive control: retained QoS1 PUBLISH with EXACTLY
                 # 4096 remaining bytes must be accepted and PUBACKed by both.
                 topic = b"test/wallbox/control/request"
@@ -136,6 +155,7 @@ class HeaderAttackBroker:
                 if self.done.is_set():
                     return
                 started = time.monotonic()
+                stage = "oversize-header"
                 # No variable header, topic, packet id or body follows this.
                 # Retained QoS1 exercises the path before application checks.
                 connection.sendall(b"\x33" + varint(self.remaining))
@@ -153,7 +173,7 @@ class HeaderAttackBroker:
             except Exception as error:
                 if not self.done.is_set():
                     with self.lock:
-                        self.errors.append(repr(error))
+                        self.errors.append(f"{kind}/{stage}: {error!r}")
 
     def close(self):
         self.done.set()
@@ -209,7 +229,12 @@ def test(binary, remaining):
 
 
 if __name__ == "__main__":
-    library = ctypes.CDLL(ctypes.util.find_library("mosquitto") or "libmosquitto.so.1")
+    # Deliberately do not use find_library/SONAME lookup here: on ARM64 the
+    # distro library can win that lookup despite the reader's build RUNPATH.
+    # Require the artifact installed by our Dockerfile, with NO fallback.
+    # test() independently checks the actual reader's /proc maps, so pinning
+    # this probe cannot conceal a reader loading the unguarded system copy.
+    library = ctypes.CDLL("/usr/local/lib/libmosquitto.so.1")
     marker = library.evse_mosquitto_incoming_limit  # Missing symbol is a hard failure.
     marker.restype = ctypes.c_int
     marker.argtypes = []
@@ -221,5 +246,7 @@ if __name__ == "__main__":
     version(ctypes.byref(major), ctypes.byref(minor), ctypes.byref(revision))
     check((major.value, minor.value, revision.value) == (2, 0, 21), "Wrong pinned library")
     print("Guarded upstream libmosquitto 2.0.21, incoming remaining-length cap 4096")
-    test(sys.argv[1], 4097)
-    test(sys.argv[1], 64 * 1024 * 1024)
+    for cycle in range(3):
+        print(f"Original-socket rejection and reconnect isolation cycle {cycle + 1}/3")
+        test(sys.argv[1], 4097)
+        test(sys.argv[1], 64 * 1024 * 1024)

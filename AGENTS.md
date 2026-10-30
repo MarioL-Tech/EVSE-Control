@@ -5,6 +5,21 @@ die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
 Aktueller Webbedienauftrag (2026-10-30): PR#64 vom Projektinhaber gemergt.
+PR#65 inzwischen ebenfalls vom Projektinhaber gemergt (maina0c828b). Betreiber-
+ARM64-Build kompiliert vollständig und besteht6/7Suiten; die neue Python-Probe
+lädt durch generische ctypes-Suche jedoch die ungepatchte Systembibliothek.
+Hotfix verlangt explizit `/usr/local/lib/libmosquitto.so.1` ohne Fallback;
+unabhängige Prüfung tatsächlicher Reader-Mappings/Marker/Grenzwerte bleibt.
+Native ARM64-Bookworm-/Trixie-CI plus eager Runtime-Symbolauflösung ergänzt,
+Prüfstand von Hotfix-PR#66 prüfen; noch keinen Pi-Neubauerfolg daraus ableiten.
+Ersthead85d96e1 besteht native Matrix41064617992/41064740474. Webgegenprüfung
+findet zusätzlich Fixture-EOF durch normale spätere Reconnects nach absichtlicher
+Headerabweisung. Fixture reserviert nur die beiden ursprünglichen Clienttypen-
+Sockets, spätere Verbindungen dürfen Messbelege nicht ersetzen; dreifacher
+vollständiger Grenztest bei unveränderten Originalsocket-/Zeit-/RSS-/Readprüfungen.
+Finale CI über PR#66 prüfen, kein Hardwareergebnis.
+Der gezeigte Buildabbruch belegt weder Containerneustart noch Betriebsstatus;
+Websitefolgekommando wurde wegen `&&` nicht ausgeführt. Keine Schreibfreigabe.
 Umsetzung in PR#65. Endgültigen Docker-Prüf-/Freigabestand und visuell geprüfte
 Artefakte über PR#65 prüfen; nachfolgend dokumentierte Fehler sind Zwischenstände,
 kein Ersatz für dessen Abschlussnachweis. Keine reale Schreibabnahme.

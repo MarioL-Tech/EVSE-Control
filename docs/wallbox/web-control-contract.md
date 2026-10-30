@@ -39,6 +39,14 @@ Produktionsbroker/-reader ausführen. Der Website-End-to-End-Test verwendet
 dieselbe Readerbibliothek. Upstreamlizenzen liegen unter
 `/usr/share/doc/evse-libmosquitto/` im Image.
 
+Die Docker-Probe lädt dieses Artefakt ausdrücklich über
+`/usr/local/lib/libmosquitto.so.1`, ohne generische System-/SONAME-Fallbacksuche.
+Das ersetzt nicht den unabhängigen Abgleich der tatsächlich im Reader geladenen
+Bibliothek über `/proc/<pid>/maps`, Marker, Version und reale TCP-/PTY-Prüfung.
+Native AMD64-/ARM64-Reader-CI deckt Bookworm/Trixie ab; Runtime-Smoke verlangt
+sofortige Symbolauflösung (`LD_BIND_NOW=1`). CI-Ergebnis am jeweiligen Commit
+prüfen, nicht daraus reale Pi-/Wallboxabnahme ableiten.
+
 MQTT3 liefert RETAIN bei Livezustellung an bereits abonnierte Clients als false.
 PHP publiziert deshalb nie retained; der Reader verwirft zusätzlich ankommendes
 RETAIN=true. Primärer Schutz gegen Altwiederholungen sind neue Sessions,

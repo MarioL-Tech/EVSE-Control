@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-10-30 14:46 (Europe/Vienna)
+
+- ARM64-Ladekorrektur besteht Reader41064617992/41064740474 nativ auf ARM64 und
+  AMD64, je Bookworm/Trixie und sieben Suiten. Web-CI findet zusätzlich eine
+  Reconnect-Race in derselben Wegwerf-Probe: Nach absichtlich abgewiesenem Header
+  erneut verbundene Clients wurden fälschlich als weitere Messsockets behandelt.
+- Fixture reserviert nur den ersten Socket je Clienttyp, weist spätere Verbindungen
+  ab und lässt sie ursprüngliche Belege weder ersetzen noch als Erfolg zählen.
+  Beide ursprünglichen positiven 4096-/negativen Headerfälle sowie Zeit-/RSS-/
+  Pollinggrenzen bleiben zwingend. Drei vollständige Zyklen und genauere feste
+  Typ-/Phasendiagnose ergänzt. Keine Produktionsänderung; neue Gesamt-CI offen.
+
+## 2026-10-30 14:35 (Europe/Vienna)
+
+- Betreiber meldet ARM64-Buildabbruch nach PR#65: Kompilierung und sechs von
+  sieben Readersuiten bestanden, aber der Python-Empfangsschutz-Probe lud per
+  generischer Bibliothekssuche die ungepatchte Multiarch-Systemkopie. Probe
+  verlangt jetzt ausdrücklich `/usr/local/lib/libmosquitto.so.1`, ohne Fallback.
+  Marker-/Versionsprüfung, tatsächliche Reader-Mappings, Header-only-Abweisung,
+  4096-Byte-Positivfall, fortgesetzte PTY-Abfragen und RSS-Grenze bleiben erhalten.
+- Reader-CI um native ARM64-Runner auf Bookworm/Trixie ergänzt, neben bestehenden
+  AMD64-Fällen. Runtime-Smoke erzwingt mit `LD_BIND_NOW=1` sofortige Symbolauflösung
+  und prüft die Containerarchitektur. Kein Testskip oder gelockerter Grenzwert,
+  keine Produktionscode-/Brokeränderung und keine Agent-Pi-Aktion. Neue CI offen.
+
 ## 2026-10-30 14:13 (Europe/Vienna)
 
 - Betriebs-/Bedienvertrag und READMEs verweisen für den endgültigen isolierten
