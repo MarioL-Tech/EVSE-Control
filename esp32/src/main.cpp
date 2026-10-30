@@ -3,6 +3,8 @@
 #include <SPI.h>
 #include <nvs.h>
 #include <nvs_flash.h>
+#include <bootloader_random.h>
+#include <esp_system.h>
 
 #include <cstdarg>
 #include <cstdio>
@@ -11,6 +13,7 @@
 #include "config.h"
 #include "protocol.h"
 #include "security.h"
+#include "gateway.h"
 
 namespace {
 // Separate from Arduino default NVS, which the framework may automatically erase.
@@ -70,7 +73,9 @@ evse::Presence presence;
 evse::LineReader uart;
 LockOutput lockOutput;
 MFRC522 reader(RFID_SS_PIN, RFID_RST_PIN);
-bool chargingOn = false; // mirror only; never controls the ABB Wallbox
+evse::ChargeMirror charging; // tri-state telemetry, never controls the ABB Wallbox
+evse::Gateway gateway;
+bool enrollmentUidAllowed = false;
 bool readerReady = false;
 bool radioFault = false;
 uint32_t lastPoll = 0;
@@ -87,7 +92,7 @@ void emit(const char *format, ...) {
   Serial.printf("%s\n", line);
 }
 void sendCharging(const char *source) {
-  emit("EVSE:STATUS:CHARGING:%s:SRC:%s", chargingOn ? "ON" : "OFF", source);
+  emit("EVSE:STATUS:CHARGING:%s:SRC:%s", charging.name(), source);
 }
 void sendLock(const char *source) {
   emit("EVSE:STATUS:ANTITHEFT:%s:SRC:%s", security.locked() ? "ACTIVE" : "INACTIVE", source);
@@ -107,7 +112,49 @@ void applyTarget(bool previous, const char *source) {
   if (lockOutput.ready()) lockOutput.write(security.locked());
   sendLock(source); // explicitly a requested target; not an end-position sensor
 }
+class FirmwareGateway final : public evse::GatewayIo {
+public:
+  void output(const char *line) override { emit("%s",line); }
+  void snapshot() override {
+    if (charging.tick(millis())) sendCharging("watchdog");
+    sendCharging("query"); sendLock("query"); sendSecurity();
+  }
+  const char *execute(const char *op, const char *argument, uint32_t now) override {
+    const bool previous = security.locked();
+    evse::Result code = evse::Result::InvalidArgument;
+    if (std::strcmp(op,"MIRROR") == 0) {
+      const auto old = charging.value();
+      charging.update(std::strcmp(argument,"ON") == 0 ? evse::Charge::On :
+                      std::strcmp(argument,"OFF") == 0 ? evse::Charge::Off : evse::Charge::Unknown,now);
+      if (old != charging.value()) sendCharging("pi");
+      return "OK";
+    }
+    if (std::strcmp(op,"LOCK") == 0 || std::strcmp(op,"UNLOCK") == 0) {
+      // An explicit set always closes enrollment, including a rejected attempt.
+      security.cancelEnrollment(); enrollmentUidAllowed = false;
+      code = lockOutput.ready() ? security.setLocked(std::strcmp(op,"LOCK") == 0) : evse::Result::NotReady;
+      presence.requireRemoval();
+    } else if (std::strcmp(op,"ENROLL") == 0) {
+      code = readerReady && lockOutput.ready() ? security.startEnrollment(now) : evse::Result::NotReady;
+      if (code == evse::Result::EnrollStarted) {
+        presence.requireRemoval(); enrollmentUidAllowed = false;
+      }
+    } else if (std::strcmp(op,"CANCEL") == 0) {
+      code = security.ready() ? security.cancelEnrollment() : evse::Result::NotReady;
+      enrollmentUidAllowed = false;
+    } else if (std::strcmp(op,"REVOKE") == 0) {
+      evse::Uid uid; evse::parseUid(argument,uid);
+      code = security.revoke(uid); enrollmentUidAllowed = false;
+    }
+    applyTarget(previous,code == evse::Result::StorageError ? "storage_fault" : "pi");
+    sendSecurity();
+    return evse::resultName(code);
+  }
+};
+FirmwareGateway gatewayIo;
 void command(const char *line) {
+  if (charging.tick(millis())) sendCharging("watchdog");
+  if (gateway.handle(line,millis(),gatewayIo)) return;
   const auto parsed = evse::parseCommand(line);
   const bool previous = security.locked();
   const char *action = "";
@@ -115,8 +162,9 @@ void command(const char *line) {
   switch (parsed.kind) {
     case evse::CommandKind::ChargeOn:
     case evse::CommandKind::ChargeOff: {
-      const bool requested = parsed.kind == evse::CommandKind::ChargeOn;
-      if (requested != chargingOn) { chargingOn = requested; sendCharging("pi"); }
+      const auto old = charging.value();
+      charging.update(parsed.kind == evse::CommandKind::ChargeOn ? evse::Charge::On : evse::Charge::Off,millis());
+      if (old != charging.value()) sendCharging("pi");
       return;
     }
     case evse::CommandKind::Status:
@@ -124,7 +172,9 @@ void command(const char *line) {
     case evse::CommandKind::EnrollStart: {
       if (!readerReady || !lockOutput.ready()) { emit("EVSE:ERROR:NOT_READY"); return; }
       code = security.startEnrollment(millis());
-      if (code == evse::Result::EnrollStarted) presence.requireRemoval();
+      if (code == evse::Result::EnrollStarted) {
+        presence.requireRemoval(); enrollmentUidAllowed = true;
+      }
       action = "ENROLL";
       break;
     }
@@ -218,7 +268,8 @@ void handleRfid() {
   const bool enrollment = security.enrolling();
   const auto code = security.card(uid, millis());
   applyTarget(previous, code == evse::Result::StorageError ? "storage_fault" : "rfid");
-  if (enrollment && (code == evse::Result::Enrolled || code == evse::Result::AlreadyAllowed)) {
+  if (enrollment && enrollmentUidAllowed &&
+      (code == evse::Result::Enrolled || code == evse::Result::AlreadyAllowed)) {
     // Card identity only for explicit administration, not ordinary actions or USB logs.
     char text[30];
     evse::formatUid(uid, text);
@@ -230,6 +281,13 @@ void handleRfid() {
 } // namespace
 
 void setup() {
+  // ESP32/IDF 4.4: enable the internal SAR-ADC entropy source before SPI/PWM.
+  // No WiFi and no software PRNG/time seed. API is void: see protocol limitations.
+  uint8_t entropy[16]{};
+  bootloader_random_enable();
+  esp_fill_random(entropy,sizeof(entropy));
+  bootloader_random_disable();
+  gateway.begin(entropy,true);
   Serial.begin(115200);
   Serial2.begin(UART_BAUD, SERIAL_8N1, UART_RX_PIN, UART_TX_PIN);
   security.begin(); // no auto-erase or insecure empty-list recovery on corruption
@@ -244,6 +302,8 @@ void setup() {
   sendCharging("boot"); sendLock("boot"); sendSecurity();
 }
 void loop() {
+  gateway.tick(millis());
+  if (charging.tick(millis())) sendCharging("watchdog");
   const auto expired = security.tick(millis());
   if (expired == evse::Result::EnrollExpired) { result("ENROLL", expired); sendSecurity(); }
   handleUart();

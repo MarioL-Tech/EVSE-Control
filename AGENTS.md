@@ -4,7 +4,171 @@ Stand: 2026-10-30. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
+Abschluss-Codehead d4d60ef besteht vollständig: Web41135320070, native Reader-
+Matrix41135320145 (AMD64/ARM64, Bookworm/Trixie, zehn Suiten plus Sanitizer-Core),
+UART41135320067 sowie Firmware41135320025/41135313126 mit Targetcompile und
+Artefakten/Flash-CLI ohne Upload. Früher vollständiger Gesamtweblaufab2cf02:
+41134227758/41134222093. Neue Standalone-/integrierte Modebrowserfälle, echte
+HTTP→PHP→Broker→UART-PTY→Firmwarekerne und autonome Reader-/HTTP-/Broker-/PTY-
+Fälle einschließlich Brokerausfall/Schutzstop bestehen neben bisherigen
+SQL/HOUSE/TLS/PWA/Provisioning/Runtime-/Browserprüfungen. Finale synthetische
+Desktopübersicht, geschlossene Settings mit unbekannter Topologie und mobile
+RFID-Karte angesehen: kein Horizontalüberlauf, keine UID-Ausgabe. Fester mobiler
+Themeschalter absichtlich unverändert; Fullpagebild zeigt ihn am ursprünglichen
+Viewportende. Nur Dokumentationsnachtrag seit d4d60ef, finalen PR-Check beachten.
+Kein zusätzlicher unabhängiger finaler Modellreview (Kontingent vor Tools), kein
+Pi-/Flash-/Hardware-/Dauerbetriebsnachweis.32A nur Sitefreigabe, produktive Env
+unverändert. Phasen/Zählereinschluss weiterhin unbekannt und nicht geraten;
+Hintergrundregelung verlangt explizite konfigurierte Parameter/Moduswahl.
+Merge des Gesamt-PR#72 durch Projektinhaber genügt für alle enthaltenen Teilstände.
+
+Gesamtbranch/PR#72 enthält jetzt auch den unveränderten Firmwarestand4e5b213
+aus Teil-PR#69 sowie UI#70 und Gateway#71. Ein Gesamtmerge kann damit alle
+Teilstände übernehmen; die Teil-PRs bleiben getrennt überprüfbare Referenzen.
+Featurebranchzusammenführung ist kein Agent-Merge nach main und kein Deployment.
+ESP-Watchdog10s misst Zeit seit ausgeführtem MIRROR, nicht seit ursprünglicher
+Wallboxmessung. Gateway sendet bei Ablauf UNKNOWN; bei UARTverlust wirkt nur der
+Empfangswatchdog. Kein messzeitexakter Ende-zu-Ende-/elektrischer Schutznachweis.
+
+Prüfstand175e479: native Matrix41130422012 und41130429446 auf AMD64/ARM64,
+Bookworm/Trixie mit zehn Suiten plus Sanitizer-Core vollständig grün. Web zeigt
+noch zwei konkrete Browserprobleme: Pfeiltasten folgten Enum- statt DOMreihenfolge,
+und eine neue Testkonstante war doppelt benannt. DOMnavigation/Fixture gezielt
+korrigiert, Browserimage prüft künftig alle CJS-Dateien schon beim Build auf
+Syntax. Finaler Weblauf offen. Unveränderte ESP-Liveregionen/Schalter nicht200ms
+lang neu mutieren; eigene Nullmutationsregression. Keine zusätzliche unabhängige
+Modellprüfung (Kontingent vor Tools), keine Pi-/Flash-/Hardwareaktion.
+
+Gesamtintegration (anfänglicher Prüfstand, Abschlussnachweis oben): API für
+immutable aktive Mode-Snapshots samt kausalem Readerguard und zwei Revisionen;
+Speichern bleibt Entwurf, ModePOST erst bewusste Aktivierung. Phasen/Zählertopologie
+nullable und nicht geraten,32A nur explizite Site-Envfreigabe. Modeclient besitzt
+Radios; Manualclient behält Strom/Start/Stop, Stop unabhängig von Modepending/ESP.
+Nur einmaliger frischer Guardinspect vor ModePOST, kein2sBrowserinspectpoller,
+der Owneraktionen aushungert. Shellv22, vorhandene Overlay-/Settingsgrenzen bleiben.
+P1-Zeit-/Pending-/Schutzstopbefunde aus935f2a9 integriert. Zusätzliche eigene
+Prüfung: auch abgelaufene, aber bereits angenommene manuelle Absicht muss Override
+auslösen; Queueadmissionmarker wird nur vom Owner konsumiert. Uhrfehler im zuvor
+laufenden Regler erlauben höchstens einen monoton befristeten Schutz-Stop und
+frieren sonst ein. Zwei stabile Beobachtungen können neue Zeitbasis bilden,
+niemals selbst aktivieren; neue bewusste Aktivierungs-ID bleibt nötig.
+FirmwarePR#69 und UI-PR#70 grün, UI-Screenshots Desktop/Mobil angesehen; ESP-PR#71
+besteht UART-Docker und native HTTP→Broker→PTY→Firmwarekernfixture, volle Web-CI
+scheitert noch am alten Theme-Buttoninventory (neue zwei Servotasten) und wird
+gezielt angepasst. Keine Hardware-/Pi-Abnahme. Owneragent nach erfolgten Tools
+am Modellkontingent gestoppt, Teilstand gesichert und vom Hauptagent weitergeführt;
+kein zusätzlicher unabhängiger Owner-Abschlussreview behauptet.
+Erneuter finaler gpt-6.1-sol-Reviewversuch scheitert vor Tools am Kontingent,
+null Prüfergebnis. Hauptagent führt gezielte Gegenprüfung/echte Docker-CI fort.
+Pure-Suite fand zusätzlich unzulässige NaN/Inf→UInt32-Fixturekonvertierungen:
+jetzt repräsentierbare Double-Haus-/Spannungsfehler statt undefiniertem Overflow
+testen. Keine Telemetrietypenänderung. UI zeigt neue passende-Guard-Absicht als
+angefordert trotz vorherigem Override; neuer manueller Guardwechsel gewinnt.
+Erste native Matrix d499b7c besteht echte Owner-/HTTP-/Broker-/PTY- und bisherige
+Protokoll-/RTU-/MQTT-Fälle, scheitert an Pure-Core-Fixture „manual stop latch“:
+Aktivierungshelper hatte Absicht nie in Engine beobachtet. Vor späteren Ereignissen
+jetzt initiales Ticket tatsächlich verarbeiten und ohne I/O verbuchen; Zeitfehler-
+Regression setzt weiterhin ausdrücklich neue gleichzeitige Nonce. Eigene weitere
+Prüfung: gesunder HTTP-Heartbeat/TTL darf keine Aktionssitzung stornieren;
+kanonischen Planinhalt vergleichen, Budget/Fenster vor I/O erneut prüfen,
+Hausausfälle bleiben bei Custom ohne PV unabhängig. Frühere Aktivierungs-IDs
+bleiben in begrenzter4096er-Registry ohne Eviction gesperrt; Überlauf verlangt
+Readerneustart und neue bewusste Aktivierung. Neue Pure-/HTTP-Regressionen noch
+Docker-gegenzuprüfen. ESP-Headf298de9 besteht vollständigen Weblauf41124920191,
+kein realer ESP32-/Pi-Nachweis; finale Reglerfreigabe weiter offen.
+
+Separater Ownerintegrationsstand (2026-10-30, noch NICHT Docker-/CI-geprüft):
+Core4ea5c00/8b82d7d/Safety935f2a9 in Readerowner verdrahtet. Optionales
+`WALLBOX_AUTOMATION_WEB_URL` leer=deaktiviert; ein HTTP-Lesethread, einziger
+RS485-Owner, manuelle Priorität und kausaler Guard je Boot/manuellem Auftrag/
+Busverlust/Unknown. Frische Hardwarecapabfrage, compound Start und aggregierte
+Outcomes, keine Wiederholung; Inspect heilt Transport, nicht Enginefreeze.
+Ownerantworten haben optionalen festen `automation`-Status. `--once` unverändert
+ohne Automatikthread/Zusatzreads. Neue isolierte Broker-/PTY-/HTTP-Fixture nur
+registriert, nicht ausgeführt. Parent integriert Backend/DNS/UI/zentralen
+Installationsguide und führt Docker-/GitHub-CI sowie unabhängigen Review aus.
+Kein Pi-/Hardware-/Hosttest, keine Phasen-/Topologieannahmen aus bestätigten32A.
+ESP32-Integrations-CI ba7088e besteht neue PHP-/HTTP-/JS-Prüfungen und echte
+native Vollpfadfixture sowie UART41122141975/41122105792. Web41122141913 scheitert
+nur am alten Theme-Buttoninventory (beauftragte zwei Servotasten); erwartetes Set
+gezielt ergänzt, disabled bei Gatewayausfall zusätzlich geprüft. Abschluss-CI
+noch offen, kein vollständiger Erfolg/Hardware-/Pi-Nachweis behauptet.
+
+Web-/UART-Integration auf Featurebranch: Übersicht mit manuellen Servozielen,
+RFID-Kartenanzahl/Anlernfenster/Abbrechen/write-only-Widerruf in Settings.
+Neue `/api/esp32-control` mit eigenem CSRF, StrictJson, separatem begrenztem
+MQTT-RPC, frischer Vorinspektion und keinem Retry/Legacyfallback. Alte Firmware
+bleibt unverfügbar. Keine UIDs in Antworten/URLs/Storage/Logs; kein Listenlesen.
+Unbekannter Wallbox-Ladespiegel darf unabhängiges Servomanagement nicht sperren.
+Browserinspektion5s, Frist8s ab Requestbeginn, keine ACK=Mechanikbehauptung.
+Shellv19; vorhandene Browserfixtures mocken Gatewayfehler getrennt, nie Wallbox-
+Stop/Monitoring wegen ESP blockieren. Neue UART-Docker-CI und Webprüfungen
+vorbereitet, gemeinsame Ausführung noch offen. Firmware4e5b213 besteht separat
+41103980187: Sanitizer/Adapter, Xtensa-Targetcompile, Artefakte, Flash-CLI ohne
+USB/Upload. PR#69 bereit zur Prüfung, Merge beim Projektinhaber, Hardware/Flash
+weiterhin ausdrücklich separat freizugeben. Unabhängiger Gatewayreview fand
+readonly-Inspect fälschlich command_sent/Unknown, asynchrone Statuszeilen und
+Frischeerneuerung gleicher Messzeit nach Reconnect. Korrektur7a6e2bb integriert:
+readonly nie command_sent/Unknown, Querysequenz getrennt von asynchronen Zeilen,
+Watermark/Clockanker über Reconnect erhalten. Neue native Vollpfadfixture nutzt
+echte Firmwarekerne aus gepinntem4e5b213 mit Speicher-/UART-Adapter im Wegwerf-
+Dockerimage, keinen ESP32/echte NVS/Mechanik. Ausführung noch offen.
+Keine daraus behauptete Gateway-/Pi-Abnahme. Zentraler Operatorablauf in
+Installation Abschnitt6. Keine .env-/Secret-/Pi-/Flashänderung durch Agenten.
+
+UART-Teilscope des explizit freigegebenen Web-Antitheft-/RFID-Auftrags
+(2026-10-30): bestehende `uart-bridge` erhält opt-in `UART_MODE=gateway`, Default
+bleibt interaktiv. Ein serieller Owner, MQTT-v1-Sechsfeld-RPC, Firmware-v2-
+HELLO/STATUS/Lease, keine Legacy-Managementfallbacks, strikte UID-Redaktion.
+Tatsächliches frisches Wallbox-`charging` wird unabhängig vom Servo gespiegelt,
+sonst UNKNOWN; keine neue reale Wallboxsteuerung. Paho2.1.0-Bodygrenze vor
+Allocation, begrenzte Queues/Leases/Dedupe, keine Wiederholung ungewisser Writes.
+Firmwarecommit4e5b213 read-only abgeglichen: Quelle `query`, SESSION_MISMATCH,
+GATEWAY_UNAVAILABLE, HELLO/STATUS zählen zum8er-Cache/10s. Docker-Teststage mit
+Fakeclock/PTY/isoliertem Broker vorbereitet, hier NICHT ausgeführt. Elternagent
+integriert getrennte Firmware/PHP/UI und zentrale Installationsanleitung; noch
+kein gemeinsamer CI-/Pi-/Hardwareabnahmenachweis. Verträge in
+`docs/esp32-gateway-contract.md`, Start-/Secretmountdetails in
+`rasppi/README.uart.md`. Keine SSH-/Pi-/Hosttests oder Paketinstallation.
+Historischer ESP32-Teilscope (2026-10-30, Basis PR#68/c5ac0d7; spätere grüne
+Firmware-/Gatewaynachweise stehen oben): manuelles Website-
+Antitheft ACTIVE/INACTIVE und RFID-Settings sowie frischer Pi-Ladespiegel jetzt
+ausdrücklich autorisiert. Firmwareteil implementiert: Security::setLocked(bool),
+persistierter idempotenter Zielwert, keine Änderung am 188-Byte-NVS-Format;
+Gateway-RPC v2 mit Bootsession/8-s-Einmalleases/acht 10-s-ACK-Cacheplätzen.
+Ladespiegel initial UNKNOWN, nach 10 s ohne neu ausgeführtes Update UNKNOWN;
+kein Wallboxeffekt. Vertrag/Entropiegrenzen in docs/uart-protocol.md. Reine und
+simulierte Adaptertests ergänzt, ausschließlich Docker/CI vorgesehen; lokal kein
+Docker, Tests/Targetcompile noch nicht ausgeführt. Kein Flash/Pi/SSH/Hardware-
+Nachweis. Pi-Gateway und Website sind separate Integrationsarbeit, keine MQTT-
+Implementierung auf ESP32; bestehende Legacy-UID-Zeilen dort niemals weiterleiten.
+
 Aktueller Webbedienauftrag (2026-10-30): PR#64 vom Projektinhaber gemergt.
+Neuer Folgeauftrag nach PR#68/mainc5ac0d7: Betreiber bestätigt jetzt ausdrücklich
+32A als Installationsmaximum und beauftragt weitere Freigabe. Diese32A gelten
+für seine Installation, NICHT als neuer universeller Default. Produktiver
+`WALLBOX_INSTALLATION_MAX_MA=32000`-Save/Recreate ist Operatoraufgabe, kein Agent-
+Pi-Zugriff. Grenzen/Frische/CSRF/ACK-/Unknown-/Keine-Retry-Prüfungen bleiben.
+Markierter Settingsscreenshot: rote Boilerplate entfernen, Fehler/ungewisser
+Speicherstand aber kurz sichtbar erhalten; drei Profile native aufklappbar,
+mehr Abstand vor Wochentagen, max.drei Feldspalten. Übersicht größere Moduskarten,
+14px-Slidertrack/28px-Griff, größere Aktionstasten. Steuerdetails innerhalb
+bestehender Diagnose, tatsächliche Auftragsergebnisse bleiben außen. Shellv18.
+Neue ausdrückliche Umsetzungsfreigabe für tatsächlichen PV-/Custom-Hintergrund-
+regler und ESP32-Webfunktionen. Backendcontroller/Pi-UART-Gateway/Firmware/Web
+werden getrennt implementiert/geprüft, keine vorgetäuschte Gesamtfreigabe.
+Hauszähler-Wallbox-Einschluss und Phasengrundlage sind noch beim Betreiber
+angefragt; nicht raten. Verzögerungen/Grenzen bleiben explizite Settings.
+Codeprüfung bestätigt bisherigen Zustand: UART nur interaktiv, kein automatischer
+Ladebeginn an ESP. RFID-Whitelist/NVS/30sAnlernen im Firmwarecode vorhanden,
+aber kein Webgateway/sofortiger Lock-/Unlock-Befehl. Neue Firmware benötigt
+gesonderten Flash-/Hardwaretestauftrag, kein Agent-Flash/SSH/Pi-Test.
+Unabhängige Firmwaregegenprüfung von4e5b213 ohne konkreten Befund, CI offen.
+Unabhängige Reglerprüfung8b82d7d fand drei P1 (Zeitfehler durch Aktivierung
+aufgehoben, unbekannte Werte verhinderten möglichen Stop, Pending-Aktion beim
+Aktivierungswechsel verloren); gezielte Korrektur beauftragt. Noch nicht als
+funktionierenden/abgenommenen Regler ausgeben. Frühere Aussagen „32A nicht
+bestätigt“ unten sind historische Zwischenstände.
 Neuer Auftrag nach gemergtemPR#67 (main8acecb1): wiederholte Bedienhinweise kürzen;
 Screenshot belegt geprüfte Verbindung/Gerätemaximum32A, aber unbekanntes
 Installationsmaximum/wirksames Maximum. Daher Start/Übernehmen korrekt gesperrt;

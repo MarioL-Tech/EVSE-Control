@@ -14,6 +14,7 @@ final class ChargingSettings
         $limits = ['max_import_w' => null, 'max_current_ma' => null,
             'adjust_seconds' => null, 'pause_seconds' => null, 'resume_seconds' => null];
         return ['schema_version' => 1, 'timezone' => 'Europe/Vienna',
+            'installation' => ['phases' => null, 'meter_includes_wallbox' => null],
             'manual' => ['current_ma' => null], 'pv' => $limits,
             'custom' => [...$limits, 'use_schedule' => null, 'pv_enabled' => null,
                 'weekdays' => [], 'windows' => [], 'outside_window' => null]];
@@ -29,8 +30,15 @@ final class ChargingSettings
     public static function validate(mixed $v): array
     {
         $defaults = self::defaults();
+        if ($v instanceof \stdClass && !property_exists($v, 'installation')) {
+            $v = clone $v;
+            $v->installation = (object)$defaults['installation'];
+        }
         if (!self::keys($v, array_keys($defaults)) || $v->schema_version !== 1 ||
             $v->timezone !== 'Europe/Vienna') throw new \InvalidArgumentException();
+        if (!self::keys($v->installation, ['phases', 'meter_includes_wallbox']) ||
+            ($v->installation->phases !== null && (!is_int($v->installation->phases) || $v->installation->phases < 1 || $v->installation->phases > 3)) ||
+            ($v->installation->meter_includes_wallbox !== null && !is_bool($v->installation->meter_includes_wallbox))) throw new \InvalidArgumentException();
         foreach (['manual', 'pv', 'custom'] as $profile) {
             if (!self::keys($v->$profile, array_keys($defaults[$profile]))) throw new \InvalidArgumentException();
             foreach (get_object_vars($v->$profile) as $key => $value) {
@@ -77,7 +85,7 @@ final class ChargingSettings
     private static function fail(): never { throw new \RuntimeException(); }
 
     /** Cooperating writers use the same persistent lock; no hostile-same-UID CAS promise. */
-    public function operate(?string $revision = null, ?array $changes = null): array
+    public function operate(?string $revision = null, ?array $changes = null, ?callable $snapshot = null): array
     {
         if (!$this->enabled) return ['status' => 'disabled', 'revision' => null, 'config' => self::defaults()];
         $lock = null; $temp = null;
@@ -121,6 +129,9 @@ final class ChargingSettings
             $config = $body === null ? self::defaults() : self::validate(StrictJson::decode($body));
             if ($changes !== null) {
                 if ($revision !== $current) return ['status' => 'conflict'];
+                if (!array_key_exists('installation', $changes) &&
+                    ($config['installation']['phases'] !== null || $config['installation']['meter_includes_wallbox'] !== null))
+                    return ['status' => 'invalid'];
                 $config = self::validate(json_decode(json_encode($changes, JSON_THROW_ON_ERROR), false, 16, JSON_THROW_ON_ERROR));
                 $encoded = json_encode($config, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n";
                 if (strlen($encoded) > 16384) self::fail();
@@ -134,7 +145,14 @@ final class ChargingSettings
                 if (!@rename($temp, $path)) self::fail();
                 $temp = null; $current = hash('sha256', $encoded);
             }
-            return ['status' => 'ok', 'revision' => $current, 'config' => $config];
+            $result = ['status' => 'ok', 'revision' => $current, 'config' => $config];
+            // Always acquire charging.lock before charging-active.lock. The callback's
+            // final recheck detects ordinary external editors, not hostile same-UID races.
+            if ($snapshot !== null) return $snapshot($result, static function () use ($read, $current): bool {
+                $again = $read();
+                return ($again === null ? null : hash('sha256', $again)) === $current;
+            });
+            return $result;
         } catch (\Throwable) { return ['status' => 'unavailable']; }
         finally {
             if ($temp !== null) @unlink($temp);

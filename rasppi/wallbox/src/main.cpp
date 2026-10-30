@@ -145,6 +145,18 @@ private:
 };
 
 int run(const Options &o) {
+    using namespace wallbox::automation;
+    const auto monotonic = [] { return std::chrono::duration<double>(wallbox::WriteClock::now().time_since_epoch()).count(); };
+    const auto utc = [] { return std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count(); };
+    Engine engine; // Sole owner: never accessed by network callbacks.
+    auto guard = o.once ? std::optional<std::string>{} : wallbox::new_opaque_guard();
+    auto rotate_guard = [&] { guard = wallbox::new_opaque_guard(); };
+    std::unique_ptr<HttpSource> source;
+    const char *base = std::getenv("WALLBOX_AUTOMATION_WEB_URL");
+    if (!o.once && guard && base && *base) {
+        try { source = std::make_unique<HttpSource>(base); }
+        catch (...) { std::cerr << "Automation HTTP unavailable; manual monitoring remains active\n"; }
+    }
     JsonOutput output;
     const auto mqtt_config = wallbox::mqtt_options_from_environment();
     wallbox::MqttPublisher mqtt(mqtt_config,
@@ -179,10 +191,13 @@ int run(const Options &o) {
     std::optional<std::string> last_success;
     int result = 0;
     bool recovery_required = false;
+    std::optional<int> hardware_max_ma;
+    double hardware_at = -1;
     while (!stopped) {
         const auto cycle = std::chrono::steady_clock::now();
         std::optional<std::string> error;
         std::optional<wallbox::Telemetry> values;
+        double sample_at = -1;
         if (!connected) {
             if (modbus_connect(ctx.get()) == -1)
                 error = std::string("connect: ") + modbus_strerror(errno);
@@ -192,11 +207,15 @@ int run(const Options &o) {
             wallbox::Registers registers{};
             const int count = modbus_read_registers(ctx.get(), wallbox::first_register,
                                                     wallbox::register_count, registers.data());
-            if (count == wallbox::register_count) values = wallbox::decode(registers);
+            if (count == wallbox::register_count) {
+                sample_at = monotonic();
+                values = wallbox::decode(registers);
+            }
             else {
                 error = count == -1 ? std::string("read: ") + modbus_strerror(errno)
                                     : "read: incomplete register block";
                 control.invalidate_session();
+                rotate_guard(); hardware_max_ma.reset();
                 modbus_close(ctx.get());
                 connected = false; // reopen on the next cycle, including after USB disconnect
             }
@@ -215,13 +234,108 @@ int run(const Options &o) {
             break;
         }
         const auto next_poll = cycle + std::chrono::milliseconds(o.interval_ms);
+        auto latest_input = [&] {
+            Input input;
+            // Exactly one immutable HTTP publication per decision/check.
+            if (source) input.sources = source->snapshot()->sources;
+            input.activation_guard = guard.value_or("");
+            input.now = monotonic(); input.utc = utc();
+            input.bus_connected = connected && !recovery_required && !stopped && guard.has_value();
+            input.sample = values; input.sample_at = sample_at;
+            input.sample_expires = sample_at + std::min(10.0, std::max(1.0, o.interval_ms / 1000.0 * 3));
+            input.hardware_max_ma = hardware_max_ma; input.hardware_expires = hardware_at + 10;
+            if (installation_max_ma) input.installation_max_ma = static_cast<int>(installation_max_ma);
+            return input;
+        };
+        auto automation_reply = [&]() -> std::optional<wallbox::AutomationReply> {
+            if (!guard) return {};
+            wallbox::AutomationReply a; a.guard = *guard; a.state = engine.status();
+            a.plan = a.house = HttpStatus::Disabled;
+            if (source) {
+                const auto s = source->snapshot();
+                a.requested_mode = s->sources.settings.mode;
+                a.activation_id = s->sources.settings.activation;
+                a.config_revision = s->sources.settings.revision;
+                a.plan = s->plan_status; a.house = s->house_status;
+            }
+            return a;
+        };
+        auto action = source ? engine.step(latest_input()) : std::optional<Action>{};
         // One control action per poll interval, never an unbounded drain that
         // starves telemetry. Network callbacks only enqueue; all serial I/O here.
         bool handled = false;
         while (!stopped && std::chrono::steady_clock::now() < next_poll) {
+            // Accepted manual intent must win even when a blocking automatic
+            // operation lets its transport deadline expire before take().
+            if (control.consume_manual_override()) { engine.manual_override(); rotate_guard(); }
             const auto command = handled ? std::optional<wallbox::ControlRequest>{} : control.take();
-            if (!command) { std::this_thread::sleep_for(std::chrono::milliseconds(20)); continue; }
+            if (!command) {
+                if (!handled && source && connected && !recovery_required) {
+                    // Autonomous decisions use the current HTTP plan/causal
+                    // guard, not the unrelated manual MQTT connection's lease.
+                    if (action) {
+                        handled = true;
+                        wallbox::WriteCore core(ctx.get(), {true, installation_max_ma}, stopped,
+                            [] { return wallbox::WriteClock::now(); }, [&] {
+                                return control.manual_pending() || !engine.accepts(*action, latest_input());
+                            });
+                        const auto deadline = wallbox::WriteClock::time_point(
+                            std::chrono::duration_cast<wallbox::WriteClock::duration>(std::chrono::duration<double>(action->deadline)));
+                        const auto op = action->operation == Operation::Stop ? wallbox::WriteOperation::Stop :
+                            action->operation == Operation::Start ? wallbox::WriteOperation::Start : wallbox::WriteOperation::SetCurrent;
+                        wallbox::WriteResult result;
+                        std::optional<wallbox::WriteResult> preparation;
+                        if (op == wallbox::WriteOperation::Start) {
+                            preparation = core.execute({wallbox::WriteOperation::SetCurrent, static_cast<std::uint32_t>(action->target_ma), deadline});
+                            if (preparation->acknowledged && preparation->effective_current_ma &&
+                                *preparation->effective_current_ma <= static_cast<std::uint32_t>(action->target_ma) &&
+                                preparation->reason == std::string("protocol_ack_only"))
+                                result = core.execute({op, static_cast<std::uint32_t>(action->target_ma), deadline});
+                        } else result = core.execute({op, static_cast<std::uint32_t>(action->target_ma), deadline});
+                        const bool attempted = result.attempted || (preparation && preparation->attempted);
+                        const bool acknowledged = result.acknowledged && (!preparation || preparation->acknowledged) &&
+                            (op != wallbox::WriteOperation::SetCurrent ||
+                                (result.reason == std::string("protocol_ack_only") && result.effective_current_ma &&
+                                 *result.effective_current_ma <= static_cast<std::uint32_t>(action->target_ma)));
+                        engine.complete(*action, {attempted, acknowledged});
+                        const auto unknown = [](const wallbox::WriteResult &r) {
+                            return r.status == wallbox::WriteStatus::OutcomeUnknown || r.transport_errno != 0;
+                        };
+                        // A safe partial preparation still freezes the engine,
+                        // but must not discard an already queued manual Stop.
+                        // Only genuine unknown/transport failures revoke leases.
+                        if (unknown(result) || (preparation && unknown(*preparation))) {
+                            recovery_required = true; hardware_max_ma.reset();
+                            control.invalidate_session(); rotate_guard();
+                        }
+                        (void)modbus_set_response_timeout(ctx.get(), o.timeout_ms / 1000, (o.timeout_ms % 1000) * 1000);
+                        action.reset();
+                    } else if (!hardware_max_ma || hardware_at + 10 <= monotonic()) {
+                        // One bounded capability read is this interval's action;
+                        // never borrow a stale inspection value or another master.
+                        handled = true;
+                        std::array<std::uint16_t,4> registers{};
+                        if (!control.manual_pending()) {
+                            if (modbus_read_registers(ctx.get(),0x4004,4,registers.data()) == 4) {
+                                const auto cap = (static_cast<std::uint32_t>(registers[2]) << 16) | registers[3];
+                                hardware_max_ma = cap >= 6000 && cap <= 32000 ? std::optional<int>(static_cast<int>(cap)) : std::nullopt;
+                                hardware_at = monotonic();
+                            } else {
+                                hardware_max_ma.reset(); control.invalidate_session(); rotate_guard();
+                                modbus_close(ctx.get()); connected = false;
+                            }
+                        }
+                    }
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(20)); continue;
+            }
             handled = true;
+            if (action) { engine.complete(*action, {}); action.reset(); }
+            if (command->operation != wallbox::ControlOperation::Inspect) {
+                // Even an expired/recovery-blocked manual request cancels the
+                // causal epoch before eligibility and before any serial IO.
+                engine.manual_override(); rotate_guard();
+            }
             wallbox::ControlReply reply;
             reply.installation_max_ma = installation_max_ma ? std::optional<std::uint32_t>(installation_max_ma) : std::nullopt;
             if (command->deadline <= wallbox::WriteClock::now() || stopped) {
@@ -248,11 +362,15 @@ int run(const Options &o) {
                     command->deadline > wallbox::WriteClock::now() && control.matches_session(command->session) && !stopped) {
                     reply.firmware_raw = (static_cast<std::uint32_t>(registers[0]) << 16) | registers[1];
                     reply.hardware_max_ma = (static_cast<std::uint32_t>(registers[2]) << 16) | registers[3];
+                    hardware_max_ma = *reply.hardware_max_ma >= 6000 && *reply.hardware_max_ma <= 32000 ?
+                        std::optional<int>(static_cast<int>(*reply.hardware_max_ma)) : std::nullopt;
+                    hardware_at = monotonic();
                     reply.status = "ok"; reply.reason = "read_only_inspection";
                     recovery_required = false;
                 } else {
                     reply.reason = "inspection_read_failed";
                     control.invalidate_session();
+                    rotate_guard(); hardware_max_ma.reset();
                     if (connected) modbus_close(ctx.get());
                     connected = false;
                 }
@@ -283,10 +401,15 @@ int run(const Options &o) {
                 if (outcome.status == wallbox::WriteStatus::OutcomeUnknown || outcome.transport_errno != 0) {
                     recovery_required = true;
                     control.invalidate_session();
+                    rotate_guard(); hardware_max_ma.reset();
                 }
             }
+            (void)modbus_set_response_timeout(ctx.get(), o.timeout_ms / 1000, (o.timeout_ms % 1000) * 1000);
+            reply.automation = automation_reply();
             control.finish(*command, reply);
         }
+        // An issued ticket must never survive a poll boundary without completion.
+        if (action) engine.complete(*action, {});
     }
     return o.once ? result : 0;
 }
@@ -299,6 +422,7 @@ int main(int argc, char **argv) {
             if (std::string(argv[i]) == "--help") { help(); return 0; }
         }
         const auto config = options(argc, argv);
+        wallbox::automation::initialize_vienna_timezone(); // before ANY thread
         std::signal(SIGINT, stop);
         std::signal(SIGTERM, stop);
         std::signal(SIGPIPE, SIG_IGN); // A disconnected consumer is an output error, not a crash.

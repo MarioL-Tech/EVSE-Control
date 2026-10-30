@@ -6,10 +6,12 @@ werden. Die Betriebsschritte setzen einen vorbereiteten Pi voraus. Hardware-
 und Erstvorbereitungsreferenz stehen in Abschnitt 8; eine vollständige OS-,
 Docker- oder Broker-Neuinstallation ist damit noch nicht beschrieben.
 
-**Stand:** 2026-10-28. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
+**Stand:** 2026-10-30. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
 zyklischer Betrieb wurden vom Projektinhaber bestätigt. Der vorhandene MQTT-Broker ist
 erreichbar; der Empfang der echten Reader-Messwerte wurde ebenfalls bestätigt.
-Das rein lesende PHP-Weboverlay ist implementiert und Docker-getestet;
+Der Mess-/Archivteil des PHP-Weboverlays bleibt rein lesend. Separat autorisierte
+manuelle Bedienung, optionaler Hintergrundregler und ESP32-Webgateway sind als
+Gesamt-Codeheadd4d60ef Docker-geprüft (PR#72); keine reale Schreib-/Flashabnahme.
 Pi-Start und Live-Übersicht vom Projektinhaber am 2026-10-26 bestätigt;
 gezielte Ausfalltests, Diagramme und neuer manueller Theme-Schalter noch offen
 (Abschnitt 9).
@@ -82,15 +84,15 @@ Projektstacks; gemeinsames Stoppen darf diese Infrastruktur nicht beenden.
 Kontrollierte Übernahme der bisherigen Stacks, Hardwareport-Eigentum, externe
 Netzwerke, Secrets und Startabhängigkeiten werden erst bei Umsetzung dokumentiert.
 
-### Spätere Lademodi (noch nicht einrichtbar)
+### Lademodi und Freigabegrenzen
 
-Geplant sind **Laden wenn Solarstrom**, **Laden ohne Solarstrom** und
-**Benutzerdefiniert**. Die Modi sind noch nicht implementiert; aktuell gibt es
-weder Modusauswahl noch zugehörige Konfigurationsschritte oder Steuerbefehle.
-Solar-Messquelle/-Messpunkt, PV-Überschussregel, Schwellwerte, Ausfallverhalten,
-benutzerdefinierte Vorgaben und Moduswechsel sind noch zu klären.
-Die heutigen lesenden Dienste und Startbefehle bleiben unverändert. Sobald die
-Modi umgesetzt werden, ihre Einrichtung und Bedienung hier dokumentieren.
+Die implementierte Auswahl heißt **PV-Regelung**, **Manuell** und
+**Benutzerdefiniert**. Ihre bewusste opt-in-Einrichtung steht bei
+[Bedienung und Hintergrundregler](#manuelle-bedienung-vorbereiten-operator-später-separat-freigeben).
+Softwarestand ist kein realer Schreib-/Hardwaretest. Tatsächliche Ladephasen und
+Hauszähler-Wallbox-Einschluss bleiben bis zur Betreiberklärung ungesetzt;
+32A-Installationsbestätigung ersetzt diese Angaben nicht. Alte Installationen
+werden nicht automatisch auf schreibende Automatik umgestellt.
 
 ## 2. Repository bereitstellen und Stand notieren
 
@@ -131,11 +133,50 @@ Test gesondert freigeben. [Bedienvertrag](wallbox/web-control-contract.md).
 
 ### Manuelle Bedienung vorbereiten (Operator, später separat freigeben)
 
-Die Übersicht bietet jetzt zusätzlich die Auswahl PV-Regelung/Manuell/
-Benutzerdefiniert; die beiden neuen Automatikmodi sind ausdrücklich noch nicht
-ausführbar. Ihre Parameter lassen sich unter Settings → Lademodi als Vorlagen
-speichern. Das ist KEINE aktive PV-/Zeitsteuerung und sendet nichts an die
-Wallbox. Einzelheiten: [Regelvorlagenvertrag](wallbox/charging-profiles.md).
+Die Übersicht bietet PV-Regelung/Manuell/Benutzerdefiniert. Einstellungen speichern
+bleibt ein Entwurf, kein Hardwareauftrag und keine Änderung einer bereits aktiven
+Regelung. Die spätere bewusste Moduswahl erfasst diesen Entwurf als unveränderlichen
+Snapshot. Gesamt-Codeheadd4d60ef besteht Web/Reader-/UART-/Firmware-Docker-CI;
+keine reale Schreibabnahme. Einzelheiten: [Modusvertrag](wallbox/charging-profiles.md).
+
+#### Optionalen Hintergrundregler vorbereiten
+
+**Erst nach erfolgreicher Softwareprüfung und eigener Schreibfreigabe aktivieren.**
+Keine automatische Anwendung auf dem Pi durch Agenten. Im bestehenden Reader-
+`.env` braucht die hier ausdrücklich mit32A bestätigte Installation
+`WALLBOX_INSTALLATION_MAX_MA=32000`; andere Installationen übernehmen diesen Wert
+nicht ungeprüft. Zusätzlich `WALLBOX_AUTOMATION_WEB_URL=http://weboverlay:8080`
+setzen. Das ist die interne Website-Origin über das vorhandene `evse-mqtt`, keine
+neue Hausquelle. Leer bleibt deaktiviert. Kein Pfad/Query/Credentials in der URL.
+Vorhandene Reader-/Websitecontainer bewusst neu erstellen; Speichern≠Anwenden:
+
+```sh
+git pull --ff-only &&
+(cd rasppi/weboverlay && docker compose -f compose.yaml -f compose.history.yaml up -d --build weboverlay) &&
+(cd rasppi/wallbox && docker compose up -d --build wallbox-reader)
+```
+
+Nur tatsächlich verwendete Overlays ergänzen; kein unkonfiguriertes Authoverlay.
+Website und Reader bleiben getrennt, bestehender Broker/MariaDB unverändert.
+Unter Settings → Lademodi zuerst tatsächliche Ladephasenzahl und Hauszähler-
+Wallbox-Einschluss festlegen. Beides ist noch beim Betreiber angefragt: nichts
+raten. W/A-Grenzen und Anpassungs-/Pause-/Wiederaufnahmeverzögerungen bewusst
+eintragen. NULL bleibt unbekannt und verhindert automatische Ladefreigabe.
+Custom benötigt zusätzlich explizite Zeit-/PV-Schalter und bei Zeitsteuerung
+Wochentage, Zeitfenster und Verhalten außerhalb. Erst danach bewusst die
+entsprechende Übersichtskarte wählen; fehlende Parameter werden benannt.
+
+Der vorhandene Reader regelt browserunabhängig, verwendet den bestehenden
+Haus-API-Wert und besitzt weiterhin allein RS485. Nach Readerneustart vorhandene
+Aktivierung nicht automatisch fortsetzen: bewusst erneut wählen. Manuelle
+Start/Stromvorgabe/Stop unterbrechen Automatik bis zu einer neuen Aktivierung;
+alte unterwegs befindliche Moduswahlen können Stop nicht zurücknehmen.
+Unbekannter Writeausgang friert ein, ohne Retry; Inspektion repariert nur den
+Transport. Quellenausfall bei zuvor laufender Automatik erlaubt höchstens einen
+begrenzt versuchten Stop, kein Start-/Stop-Pendeln. Bei Uhrfehler ist ebenfalls
+nur ein monoton befristeter Schutz-Stop erlaubt. Danach neue stabile Zeitbasis
+und neue bewusste Aktivierung erforderlich. ACK ist keine tatsächliche Ladung.
+Kein Ersatz für elektrische Schutzorgane oder eine sofortige Netzlastbegrenzung.
 
 Die vorhandene Settings-Dateibereitstellung (`setup-settings.sh`, Abschnitt zum
 Konfigurationseditor) stellt bereits das benötigte `weboverlay`-Verzeichnis im
@@ -150,7 +191,9 @@ Installationsstrommaximum. Fehlt es, bleiben Start und Übernehmen gesperrt.
 - Nur vertrauenswürdiges LAN/VPN, **jeder erreichbare Nutzer kann ohne Passwort
   bedienen**. Keine öffentliche Freigabe. Login folgt separat; CSRF ist kein Login.
 - Hardwaremaximum wird ausgelesen, ist aber keine Installationsfreigabe. Die
-  vermuteten16A sind **nicht bestätigt**. Fachlich freigegebenes Maximum zuerst
+  früher vermuteten16A wurden nicht als Default übernommen. Der Projektinhaber
+  hat für seine Installation inzwischen32A bestätigt; das ist kein allgemeiner
+  Installationsdefault. Fachlich freigegebenes Maximum zuerst
   klären und im Wallbox-`.env` als `WALLBOX_INSTALLATION_MAX_MA` in mA eintragen
   (6000..32000, leer = keine Start-/Stromvorgabe). Dasselbe Feld ist im Settings-
   editor für Wallbox verfügbar. Speichern allein ändert keine laufende Runtime.
@@ -174,10 +217,12 @@ Installationsstrommaximum. Fehlt es, bleiben Start und Übernehmen gesperrt.
 - Der Slider kann ohne Stromfreigabe als **lokaler Entwurf** bewegt werden;
   Start/Übernehmen bleiben bei fehlenden technischen Grenzen gesperrt. Ein
   Entwurfsbereich bis32A ist keine zulässige Installationsbelastung. Im
-  aufklappbaren Abschnitt „Technische Grenzen & Ergebnis“ auf der Übersicht
+  Abschnitt „Wallbox-Steuerung“ unter „Diagnose“ auf der Übersicht
   fehlen unbekannte Werte weiterhin ausdrücklich. Fachlich bestätigtes Maximum
   über Settings → Wallbox konfigurieren und Reader bewusst neu erstellen;
-  keinen vermuteten16-A-Wert übernehmen. Bei geprüftem Maximum6A gibt es keinen
+  für die hier bestätigte32-A-Installation lautet der Eintrag32000mA, nicht32.
+  Bei anderen Installationen keine32A aus diesem Beispiel übernehmen.
+  Bei geprüftem Maximum6A gibt es keinen
   verstellbaren Ganzamperebereich. Alte `/wallbox`-Links führen zur Übersicht.
 
 Das Dockerimage baut libmosquitto2.0.21 aus gepinnter Quelle mit einem lokalen
@@ -508,7 +553,8 @@ angeschlossen/nicht ladend, Fehlercode 0, Limit 6 A, Ströme/Leistung 0 und
 Spannungen ungefähr 233–236 V. Das bestätigt Wallbox → Reader → vorhandener
 Broker → Subscriber, nicht Langzeitstabilität oder Ausfallverhalten am Pi.
 Weboverlay siehe Abschnitt 9, MariaDB-Speicherung Abschnitt 10;
-UART-MQTT-Bridge und Ladesteuerung bleiben geplant.
+Die bisherige UART-Testbrücke erhält den separat freigegebenen opt-in-
+Gatewaymodus (Abschnitt6); reale Hardwareabnahme weiterhin offen.
 
 ## 6. Optionale ESP32-UART-Testbrücke
 
@@ -525,7 +571,58 @@ Host-Pfad vorab mit `UART_DEVICE` setzen. Firmware, Verdrahtung und UART-
 Hardwarefreigabe müssen vorhanden sein. `on`/`off` ändern nur den ESP32-Spiegel,
 nicht die reale Wallbox. Details: [UART-Protokoll](uart-protocol.md).
 
-### Neue Firmware und Erwartungsgrenzen
+### Opt-in Webgateway für Diebstahlsicherung und RFID
+
+**Separater Umstieg, nicht ungefragt ausführen:** neue Gateway-Firmwarev2 aus
+PR#69 erforderlich. Firmwarehead4e5b213 besteht Dockerlauf41103980187 einschließlich
+Targetcompile; das ist kein Flash-/Servo-/UART-/Pi-Nachweis. Ältere Firmware
+wird nicht über Legacybefehle umgangen. Erst nach gesonderter Flashfreigabe und
+sicherer Koordination des Servos den dokumentierten Flashablauf verwenden.
+
+Danach jeden interaktiven UART-Container stoppen: nur **ein** Prozess darf den
+Port besitzen. In der lokalen `rasppi/.env` setzen (vorhandene Werte/Secrets
+erhalten, nach Settings-Provisionierung dem bestehenden Dateilink folgen):
+
+```dotenv
+UART_MODE=gateway
+UART_RESTART_POLICY=unless-stopped
+UART_DEVICE=/dev/serial0
+UART_NETWORK_MODE=evse-mqtt
+MQTT_HOST=mqtt-broker
+MQTT_PORT=1883
+ESP32_MQTT_CLIENT_ID=evse-uart-gateway
+ESP32_MQTT_TOPIC_PREFIX=evse/esp32
+WALLBOX_MQTT_TOPIC_PREFIX=evse/wallbox
+```
+
+```sh
+git pull --ff-only &&
+docker compose -f rasppi/compose.yaml --profile tools up -d --build uart-bridge &&
+docker compose -f rasppi/compose.yaml --profile tools ps
+```
+
+Vorhandenes `evse-mqtt` und derselbe Broker werden wiederverwendet; keine
+Netzneuanlage. Abweichende echte Topicpräfixe weiterverwenden. Weboverlay muss
+denselben `ESP32_MQTT_TOPIC_PREFIX` erhalten und nach dem Webupdate neu erstellt
+werden; vorhandene History-/Auth-Overlays unverändert mitnehmen. Bei Broker-
+Authentifizierung eigene passende MQTT-Zugangsdaten/ACL verwenden; Passwortdatei
+nur über bewussten read-only-Einzelmount aus
+[UART-Anleitung](../rasppi/README.uart.md) einbinden. Keine vorhandenen Secrets
+kopieren/anzeigen, keinen anonymen zweiten Broker oder öffentlichen Zugriff.
+
+Übersicht (manuell): explizites Aktivieren/Deaktivieren des **Servoziels**.
+Settings: 30-s-Anlernfenster/eine frische Karte, Abbrechen, Kartenanzahl und
+Widerruf über private write-only UID. Keine UID-Liste, URL-/Storage-/Logausgabe.
+Firmware-ACK bedeutet Ziel/Persistierung, keine mechanische Endposition.
+Die tatsächliche frische Wallbox-Ladeaussage wird browserunabhängig über den
+bestehenden Gatewayprozess gespiegelt; fehlend/veraltet wird UNKNOWN, niemals
+aus Start-ACK oder0W erraten. Daraus folgt kein automatisches Verriegeln.
+Wallbox-/Haus-/Archivpfade bleiben unabhängig; Gatewayausfall darf Stop und
+Monitoring nicht sperren. Mehr Details im
+[Gatewayvertrag](esp32-gateway-contract.md); Gesamt-Codeheadd4d60ef Docker-geprüft,
+keine reale Gateway-/Servo-/Pi-Abnahme.
+
+### Historische Allowlist-Basis und unveränderte Hardwaregrenzen
 
 Die frühere Firmware war ein **UART-Kommunikationstest**, startete bei 0° und
 ließ jede lesbare Karte toggeln. Die neue Allowlist-/Persistenzimplementierung
@@ -538,12 +635,13 @@ ist ein Plan, kein Erfolg.
 Vor dem Upgrade [Flash-/Sicherheitsablauf](#esp32-bauen-und-flashen) beachten:
 mit leerem NVS wechselt der Start von **0° auf 90°**.
 
-UART bleibt 115200/8N1 mit denselben Pins. Die Python-Brücke ist unverändert:
-Managementbefehle unten als rohe Zeilen eingeben. Physischer UART und Pi bilden
-die Vertrauensgrenze; ein bösartiger Pi kann Karten aufnehmen/Bootpolicy ändern.
-Keine Anbindung des RFID-/Servomanagements an anonyme MQTT-Befehlstopics oder die
-neue manuelle Wallbox-Webbedienung. RFID-Gateway und -Webbedienung sind geplant und benötigen später geschützte,
-authentifizierte, autorisierte Weiterleitung.
+UART bleibt115200/8N1 mit denselben Pins. Der interaktive Default bleibt erhalten;
+Managementbefehle unten dort als rohe Zeilen eingeben, niemals parallel zum
+Gateway. Physischer UART und Pi bilden die Vertrauensgrenze; ein bösartiger Pi
+kann Karten aufnehmen/Bootpolicy ändern. Neu separat freigegeben ist das obige
+Webgateway **ohne Login im vertrauenswürdigen LAN/VPN**. CSRF/Host-/Originprüfung
+und Einmalleases sind keine Authentifizierung: erreichbare Nutzer können bedienen.
+Keine öffentliche Freigabe. Brokerrechte müssen die Managementtopics begrenzen.
 
 Bei neuem Erststart mit leerem NVS und bereits lauschender Brücke erwartet:
 
@@ -618,7 +716,8 @@ sicher abgestimmten Testplan.
 
 UIDs sind klonbar, keine kryptografische Authentifizierung. SG90 ist keine
 zertifizierte physische Diebstahlsicherung; kein mechanischer Sensor oder
-Sicherheitsversprechen bei Stromverlust. Kein direkter UART-Unlock-Befehl.
+Sicherheitsversprechen bei Stromverlust. Die neue Gateway-v2-Schnittstelle ergänzt
+explizite idempotente LOCK-/UNLOCK-Zielbefehle; keine Bootpolicy als Ersatz benutzen.
 Vollständige Frames/Fehler/Antworten: [UART-Vertrag](uart-protocol.md),
 Firmwareübersicht: [ESP32-README](../esp32/README.md).
 

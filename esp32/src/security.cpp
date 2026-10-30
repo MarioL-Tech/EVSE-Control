@@ -236,6 +236,15 @@ Result Security::revoke(const Uid &uid) {
   if (!commit(candidate)) return Result::StorageError;
   return Result::Revoked;
 }
+Result Security::setLocked(bool locked) {
+  enrolling_ = false;
+  if (!ready()) return Result::NotReady;
+  if (record_.locked == locked) return locked ? Result::Locked : Result::Unlocked;
+  Record candidate = record_;
+  candidate.locked = locked;
+  if (!commit(candidate)) return Result::StorageError;
+  return locked ? Result::Locked : Result::Unlocked;
+}
 Result Security::setBootMode(BootMode mode) {
   if (!ready()) return Result::NotReady;
   if (static_cast<uint8_t>(mode) > 2) return Result::InvalidArgument;

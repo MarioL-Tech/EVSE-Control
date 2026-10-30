@@ -18,7 +18,13 @@ final class EnvSettingsCatalog
         };
         if ($service === 'uart') {
             $add('UART_DEVICE', 'device');
-            return $keys;
+            $add('UART_MODE', 'enum', null, null, false, false, ['interactive', 'gateway']);
+            $add('UART_RESTART_POLICY', 'enum', null, null, false, true, ['no', 'unless-stopped']);
+            // Network/mount provisioning stays an explicit operator step.
+            $add('UART_NETWORK_MODE', 'network', null, null, false, true);
+            $add('ESP32_MQTT_CLIENT_ID', 'identifier', 1, 128);
+            $add('ESP32_MQTT_TOPIC_PREFIX', 'topic');
+            $add('WALLBOX_MQTT_TOPIC_PREFIX', 'topic');
         }
         $add('MQTT_HOST', 'host');
         $add('MQTT_PORT', 'integer', 1, 65535);
@@ -28,6 +34,11 @@ final class EnvSettingsCatalog
         $add('MQTT_PASSWORD', 'text', 0, 4096, true);
         foreach (['MQTT_PASSWORD_FILE', 'MQTT_PASSWORD_HOST_FILE'] as $key) {
             $add($key, 'mount', null, null, true, true);
+        }
+        if ($service === 'uart') {
+            $keys['MQTT_TOPIC_PREFIX']['readonly'] = true;
+            $keys['MQTT_CLIENT_ID']['readonly'] = true;
+            return $keys;
         }
         if ($service === 'wallbox') {
             $add('WALLBOX_DEVICE', 'device');
@@ -40,6 +51,7 @@ final class EnvSettingsCatalog
             $add('WALLBOX_INTERVAL_MS', 'integer', 100, 30000);
             $add('WALLBOX_TIMEOUT_MS', 'integer', 10, 10000);
             $add('WALLBOX_INSTALLATION_MAX_MA', 'integer', 6000, 32000);
+            $add('WALLBOX_AUTOMATION_WEB_URL', 'url', null, null, true);
             $add('MQTT_ENABLED', 'enum', null, null, false, false, ['true', 'false', '1', '0']);
         }
         if ($service === 'storage') {
@@ -61,6 +73,7 @@ final class EnvSettingsCatalog
             }
         }
         if ($service === 'weboverlay') {
+            $add('ESP32_MQTT_TOPIC_PREFIX', 'topic');
             $add('WEB_PORT', 'integer', 1, 65535);
             $add('WEB_BIND_ADDRESS', 'ipv4');
             $add('WEB_HTTPS_PORT', 'integer', 1, 65535);

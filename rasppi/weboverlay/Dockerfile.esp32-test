@@ -1,0 +1,28 @@
+# Test-only image. Build existing Web runtime as evse-weboverlay:test first.
+# Named firmware context must be a git archive of reviewed commit 4e5b213:
+#   mkdir -p /tmp/evse-firmware-source
+#   git archive 4e5b213 esp32 | tar -x -C /tmp/evse-firmware-source
+#   docker build --build-context firmware=/tmp/evse-firmware-source \
+#     -f rasppi/weboverlay/Dockerfile.esp32-test -t evse-esp32-e2e:test .
+#   docker run --rm --network none --cap-drop ALL \
+#     --security-opt no-new-privileges evse-esp32-e2e:test
+# No Git, Python, compiler or broker is added to the production Web image.
+FROM evse-weboverlay:test
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 python3-venv mosquitto g++ \
+    && rm -rf /var/lib/apt/lists/*
+COPY rasppi/requirements.txt /esp32-e2e/requirements.txt
+RUN python3 -m venv /esp32-e2e/venv \
+    && /esp32-e2e/venv/bin/pip install --no-cache-dir -r /esp32-e2e/requirements.txt
+COPY --from=firmware /esp32/include/ /esp32-e2e/firmware/include/
+COPY --from=firmware /esp32/src/gateway.cpp /esp32/src/security.cpp /esp32/src/protocol.cpp /esp32-e2e/firmware/src/
+COPY rasppi/weboverlay/tests/esp32-firmware-probe.cpp /esp32-e2e/
+RUN g++ -std=c++17 -Wall -Wextra -Werror -O2 \
+      -I/esp32-e2e/firmware/include /esp32-e2e/esp32-firmware-probe.cpp \
+      /esp32-e2e/firmware/src/gateway.cpp /esp32-e2e/firmware/src/security.cpp \
+      /esp32-e2e/firmware/src/protocol.cpp -o /esp32-e2e/firmware-probe
+COPY rasppi/src/uart_gateway.py /esp32-e2e/uart_gateway.py
+COPY rasppi/weboverlay/tests/esp32-e2e.py /esp32-e2e/esp32-e2e.py
+USER 10001:10001
+ENTRYPOINT ["/esp32-e2e/venv/bin/python", "/esp32-e2e/esp32-e2e.py"]

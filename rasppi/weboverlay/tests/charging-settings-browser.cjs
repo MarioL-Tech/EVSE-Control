@@ -6,12 +6,19 @@ const base = process.env.WEB_TEST_URL || 'http://127.0.0.1:8080';
 const defaults = () => {
   const limits = { max_import_w: null, max_current_ma: null, adjust_seconds: null, pause_seconds: null, resume_seconds: null };
   return { schema_version: 1, timezone: 'Europe/Vienna', manual: { current_ma: null }, pv: { ...limits },
+    installation: { phases: null, meter_includes_wallbox: null },
     custom: { ...limits, use_schedule: null, pv_enabled: null, weekdays: [], windows: [], outside_window: null } };
 };
 (async () => {
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: 'dark', locale: 'de-AT', serviceWorkers: 'block' });
+    // Independent inspection fixture: never contact the ESP32 MQTT gateway.
+    await context.route('**/api/esp32-control', route => {
+      assert.equal(route.request().method(), 'GET', 'No ESP32 commands in this fixture');
+      return route.fulfill({ json: { status: 'unavailable', csrf: null, inspection: null,
+        command: null, command_sent: false } });
+    });
     let config = defaults(), revision = null, posts = 0, conflict = false, disabled = false, drop = false, hold = false, release = null;
     const requests = [], errors = [], allRequests = [];
     context.on('request', req => allRequests.push([req.method(), new URL(req.url()).pathname]));
@@ -37,8 +44,19 @@ const defaults = () => {
     const page = await context.newPage(); page.on('pageerror', e => errors.push(String(e)));
     await page.goto(base + '/einstellungen');
     await page.waitForFunction(() => !document.getElementById('charging-fields').disabled);
+    assert.equal(await page.locator('details.charging-profile').count(), 3);
+    assert.equal(await page.locator('details.charging-profile[open]').count(), 0, 'Profiles initially collapse');
+    assert(await page.locator('#charging-status').isHidden(), 'No boilerplate while idle');
+    fs.mkdirSync('/artifacts', { recursive: true });
+    await page.screenshot({ path: '/artifacts/charging-settings-collapsed-1440-dark.png', fullPage: true });
+    for (const summary of await page.locator('details.charging-profile > summary').all()) await summary.click();
     assert.equal(await page.locator('#charging-pv-max_import_w').inputValue(), '');
     assert(await page.locator('#charging-save').isDisabled());
+    await page.locator('#charging-pv-max_import_w').fill('-1');
+    await page.locator('details.charging-profile').nth(1).locator('summary').click();
+    await page.locator('#charging-save').click();
+    await page.waitForFunction(() => document.getElementById('charging-pv-max_import_w').closest('details').open);
+    assert.equal(posts, 0, 'Invalid collapsed profile opens without saving');
     await page.locator('#charging-pv-max_import_w').fill('123');
     await page.locator('#charging-pv-max_current_ma').fill('10');
     await page.locator('#charging-custom-use_schedule').selectOption('true');
@@ -52,11 +70,13 @@ const defaults = () => {
     }
     assert.equal(posts, 0, 'Configuration editing has no write until Save');
     await page.locator('#charging-save').click();
-    await page.waitForFunction(() => document.getElementById('charging-status').textContent.includes('Vorlagen gespeichert'));
+    await page.waitForFunction(() => document.getElementById('charging-status').textContent === 'Gespeichert.');
     assert.equal(posts, 1); assert.equal(config.pv.max_current_ma, 10000);
     assert.deepEqual(config.custom.weekdays, [1, 5]); assert.equal(config.custom.windows.length, 2);
     assert.equal(config.pv.pause_seconds, null, 'No invented timing default');
     await page.reload(); await page.waitForFunction(() => !document.getElementById('charging-fields').disabled);
+    assert.equal(await page.locator('details.charging-profile[open]').count(), 0);
+    for (const summary of await page.locator('details.charging-profile > summary').all()) await summary.click();
     assert.equal(await page.locator('#charging-pv-max_import_w').inputValue(), '123');
     assert.equal(await page.locator('.charging-window').count(), 2); assert.equal(posts, 1);
     for (const [width, colorScheme] of [[1440, 'dark'], [390, 'light'], [320, 'light']]) {

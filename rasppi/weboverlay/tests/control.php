@@ -79,4 +79,15 @@ foreach (['attempted' => false, 'acknowledged' => false, 'status' => 'outcome_un
     $copy = clone $r; $copy->write = clone $r->write; $copy->write->$key = $value;
     check(ControlMqttTransport::validateResult($encode($copy), $id, 'start') === null);
 }
+$automatic = (object) ['schema_version' => 1, 'guard' => str_repeat('a', 32), 'requested_mode' => 'pv',
+    'activation_id' => str_repeat('b', 32), 'config_revision' => str_repeat('c', 64), 'state' => 'frozen', 'plan' => 'ok', 'house' => 'clock_error'];
+check(ControlMqttTransport::validAutomation(null));
+check(ControlMqttTransport::validAutomation($automatic));
+$with = clone $r; $with->automation = $automatic;
+check(ControlMqttTransport::validateResult($encode($with), $id, 'start') instanceof stdClass);
+foreach (['schema_version' => 2, 'guard' => '-', 'requested_mode' => 'other', 'activation_id' => 'bad',
+    'config_revision' => '', 'state' => 'secret', 'plan' => 'unknown', 'house' => 'secret', 'extra' => true] as $field => $value) {
+    $copy = clone $automatic; $copy->$field = $value;
+    check(!ControlMqttTransport::validAutomation($copy));
+}
 echo "Control pure validation checks passed ($checks, Docker only)\n";

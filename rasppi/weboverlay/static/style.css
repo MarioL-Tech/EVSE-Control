@@ -1,18 +1,31 @@
 .wallbox-controls { margin-top: 18px; }
+.esp32-panel { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.esp32-panel h3 { font-size: .95rem; }
+.esp32-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 14px 0; }
+.esp32-actions button, .esp32-revoke button { min-height: 44px; padding: 10px 18px; }
+.esp32-revoke { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; margin-top: 20px; }
+.esp32-revoke label { grid-column: 1 / -1; }
+.esp32-revoke input { min-width: 0; min-height: 44px; padding: 8px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 5px; }
+@media (max-width: 650px) { .esp32-revoke { grid-template-columns: minmax(0, 1fr); } }
 .control-modes { border: 0; padding: 0; margin: 12px 0; min-width: 0; }
 .control-modes legend { font-size: .8rem; margin-bottom: 8px; }
-.control-mode-options { display: flex; flex-wrap: wrap; gap: 8px; }
-.control-mode-options label { display: flex; align-items: center; gap: 8px; padding: 10px 12px; min-height: 44px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: .8rem; }
+.control-mode-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.control-mode-options label { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 22px 16px; min-height: 112px; border: 1px solid var(--border); border-radius: 10px; background: linear-gradient(135deg, var(--surface-top), var(--surface)); box-shadow: var(--shadow); cursor: pointer; font-size: 1rem; font-weight: 700; }
 .control-mode-options label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 .control-mode-options label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
-.control-mode-options input { accent-color: var(--accent); margin: 0; }
-.charging-profile { border: 1px solid var(--border); border-radius: 6px; padding: 14px; margin-top: 14px; min-width: 0; }
-.charging-profile legend { font-weight: 700; padding: 0 6px; }
-.charging-profile-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px 20px; }
+.control-mode-options label { position: relative; flex-direction: column; }
+.control-mode-options svg { width: 30px; height: 30px; fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.control-mode-options input { accent-color: var(--accent); margin: 0; position: absolute; top: 12px; right: 12px; }
+.charging-profile { border: 1px solid var(--border); border-radius: 8px; padding: 0 16px 16px; margin-top: 16px; min-width: 0; }
+.charging-profile:not([open]) { padding-bottom: 0; }
+.charging-profile > summary { font-weight: 700; padding: 16px 0; min-height: 54px; cursor: pointer; }
+.charging-profile-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 24px; }
 .charging-profile-fields label { display: grid; gap: 5px; font-size: .8rem; }
 .charging-profile-fields input, .charging-profile-fields select { min-width: 0; width: 100%; }
+.charging-profile-fields select { min-height: 44px; }
+.charging-installation { margin: 12px 0 20px; }
 .charging-profile input[type=number], .charging-window input { min-height: 44px; padding: 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); font: inherit; }
-.charging-days { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.charging-days { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 20px; margin-bottom: 16px; }
 .charging-days label { display: flex; align-items: center; gap: 5px; }
 .charging-window { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
 .charging-window input { width: 120px; max-width: 100%; }
@@ -21,9 +34,15 @@
 .control-editor { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 20px; margin-top: 12px; align-items: center; }
 .control-editor label { display: flex; justify-content: space-between; gap: 12px; font-size: .85rem; }
 .control-editor output { font-weight: 700; font-variant-numeric: tabular-nums; }
-.control-editor input[type=range] { grid-column: 1; width: 100%; min-width: 0; min-height: 44px; margin: 0; accent-color: var(--accent); }
+.control-editor input[type=range] { grid-column: 1; width: 100%; min-width: 0; min-height: 56px; margin: 0; appearance: none; background: transparent; accent-color: var(--accent); }
+.control-editor input[type=range]:disabled { opacity: .5; cursor: not-allowed; }
+.control-editor input[type=range]::-webkit-slider-runnable-track { height: 14px; border-radius: 8px; background: linear-gradient(to right, var(--accent) var(--control-fill, 0%), var(--border) var(--control-fill, 0%)); }
+.control-editor input[type=range]::-webkit-slider-thumb { appearance: none; margin-top: -7px; width: 28px; height: 28px; border: 2px solid var(--surface); border-radius: 50%; background: var(--accent); }
+.control-editor input[type=range]::-moz-range-track { height: 14px; border-radius: 8px; background: var(--border); }
+.control-editor input[type=range]::-moz-range-progress { height: 14px; border-radius: 8px; background: var(--accent); }
+.control-editor input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border: 2px solid var(--surface); border-radius: 50%; background: var(--accent); }
 .control-actions { grid-column: 2; grid-row: 1 / 3; display: flex; flex-wrap: wrap; gap: 8px; }
-.control-actions button { min-height: 44px; }
+.control-actions button { min-height: 58px; padding: 14px 22px; font-size: .95rem; font-weight: 700; }
 .control-actions button:disabled { opacity: .5; cursor: not-allowed; }
 #control-start { border-color: var(--accent); }
 #control-stop { border-color: var(--warn); }
@@ -32,9 +51,13 @@
 .control-facts dt { font-size: .72rem; }
 .control-facts dd { text-align: left; font-size: .8rem; margin-top: 3px; }
 .control-details { margin-top: 12px; }
+.technical-details .control-details { grid-column: 1 / -1; margin-top: 0; }
 .control-details summary { padding: 4px 0; }
 .wallbox-controls .subtle { margin-top: 8px; overflow-wrap: anywhere; }
 @media (max-width: 650px) {
+  .charging-profile-fields { grid-template-columns: minmax(0, 1fr); }
+  .control-mode-options { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .control-mode-options label { min-height: 80px; }
   .control-editor { grid-template-columns: minmax(0, 1fr); }
   .control-actions { grid-column: 1; grid-row: auto; }
   .control-actions button { flex: 1 1 auto; }

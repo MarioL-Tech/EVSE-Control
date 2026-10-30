@@ -7,6 +7,16 @@ const fs = require('node:fs');
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1050 }, colorScheme: 'dark' });
   const errors = [];
+  // Independent inspection fixture: never contact the ESP32 MQTT gateway.
+  await page.route('**/api/charging-mode', route => {
+    assert.equal(route.request().method(), 'GET');
+    return route.fulfill({ json: { schema_version: 1, status: 'disabled', csrf: null, automation_available: true, semantics: 'activation_requested' } });
+  });
+  await page.route('**/api/esp32-control', route => {
+    assert.equal(route.request().method(), 'GET', 'No ESP32 commands in this fixture');
+    return route.fulfill({ json: { status: 'unavailable', csrf: null, inspection: null,
+      command: null, command_sent: false } });
+  });
   page.on('pageerror', error => errors.push(String(error)));
   const stamp = new Date().toISOString();
   let data = { schema_version: 1, read_only: true, status: 'live', reason: 'Aktuelle Wallbox-Messdaten',
@@ -47,7 +57,8 @@ const fs = require('node:fs');
     assert.equal(await page.locator('#voltage-0').innerText(), '235,7 V');
     assert.deepEqual(await page.locator('input:not([type="checkbox"]), form').evaluateAll(nodes => nodes.map(n => n.id)),
       ['control-mode-pv', 'control-mode-manual', 'control-mode-custom', 'control-current']);
-    assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()), ['control-apply', 'control-start', 'control-stop']);
+    assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()),
+      ['control-apply', 'control-start', 'control-stop', 'esp32-lock', 'esp32-unlock']);
     assert.equal(await page.locator('.display-options, #metric-options, #reset-display').count(), 0);
     assert.equal(await page.locator('.status-panel.current-data h2').innerText(), 'Aktuelle Wallbox-Messdaten');
     assert(await page.locator('.current-data').evaluate(panel => {

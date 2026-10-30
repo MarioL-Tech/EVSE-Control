@@ -33,10 +33,11 @@
   const form = document.getElementById('charging-form'); if (!form) return;
   const byId = id => document.getElementById(id);
   const fields = byId('charging-fields'), status = byId('charging-status');
+  function message(value) { status.textContent = value; status.hidden = !value; }
   let revision = null, csrf = null, available = false, dirty = false, busy = false, active = null, activeSave = false, generation = 0;
   function element(tag, value) { const el = document.createElement(tag); if (value) el.textContent = value; return el; }
   function profile(name, title) {
-    const el = element('fieldset'); el.className = 'charging-profile'; el.append(element('legend', title));
+    const el = element('details'); el.className = 'charging-profile'; el.append(element('summary', title));
     const grid = element('div'); grid.className = 'charging-profile-fields'; el.append(grid); fields.append(el);
     return { el, grid, name };
   }
@@ -52,6 +53,11 @@
     label.htmlFor = input.id; label.append(input); parent.grid.append(label);
   }
   const manual = profile('manual', 'Manuell');
+  const installation = { name: 'installation', grid: element('div') };
+  installation.grid.className = 'charging-profile-fields charging-installation';
+  fields.insertBefore(installation.grid, manual.el);
+  select(installation, 'phases', 'Ladephasen (geprüfte Konfiguration)', [['', 'Nicht festgelegt'], ['1', '1'], ['2', '2'], ['3', '3']]);
+  select(installation, 'meter_includes_wallbox', 'Hauszähler erfasst die Wallbox mit', [['', 'Nicht festgelegt'], ['true', 'Ja'], ['false', 'Nein']]);
   numeric(manual, 'current_ma', 'Ladestromvorlage (A)', 6, 32, .001);
   const pv = profile('pv', 'PV-Regelung'), custom = profile('custom', 'Benutzerdefiniert');
   for (const parent of [pv, custom]) for (const item of NUMBERS) numeric(parent, ...item);
@@ -68,7 +74,7 @@
   custom.el.append(days);
   const windows = element('div'); windows.id = 'charging-windows'; custom.el.append(windows);
   const add = element('button', 'Zeitfenster hinzufügen'); add.id = 'charging-add-window'; add.type = 'button'; custom.el.append(add);
-  function mark() { dirty = true; status.textContent = 'Ungespeichert · noch keine aktive Regelung.'; render(); }
+  function mark() { dirty = true; message('Ungespeichert.'); render(); }
   function windowRow(value = { from: '', to: '' }) {
     if (windows.children.length >= 16) return;
     const row = element('div'); row.className = 'charging-window';
@@ -80,7 +86,7 @@
     remove.addEventListener('click', () => { row.remove(); mark(); }); row.append(remove); windows.append(row);
   }
   function fill(config) {
-    for (const [p, data] of Object.entries({ manual: config.manual, pv: config.pv, custom: config.custom })) {
+    for (const [p, data] of Object.entries({ installation: config.installation || { phases: null, meter_includes_wallbox: null }, manual: config.manual, pv: config.pv, custom: config.custom })) {
       for (const [key, value] of Object.entries(data)) {
         const input = byId(`charging-${p}-${key}`); if (!input) continue;
         input.value = value === null ? '' : key.endsWith('_ma') ? String(value / 1000) : String(value);
@@ -90,7 +96,10 @@
     windows.replaceChildren(); config.custom.windows.forEach(windowRow);
   }
   function collect() {
-    const config = { schema_version: 1, timezone: 'Europe/Vienna', manual: {}, pv: {}, custom: {} };
+    const config = { schema_version: 1, timezone: 'Europe/Vienna', installation: {
+      phases: number(byId('charging-installation-phases').value),
+      meter_includes_wallbox: byId('charging-installation-meter_includes_wallbox').value === '' ? null : byId('charging-installation-meter_includes_wallbox').value === 'true'
+    }, manual: {}, pv: {}, custom: {} };
     config.manual.current_ma = number(byId('charging-manual-current_ma').value, true);
     for (const p of ['pv', 'custom']) for (const [key] of NUMBERS)
       config[p][key] = number(byId(`charging-${p}-${key}`).value, key.endsWith('_ma'));
@@ -112,36 +121,40 @@
   async function exchange(save = false) {
     if (busy || save && (!available || !dirty || !form.reportValidity())) return;
     let config;
-    try { if (save) config = collect(); } catch (_) { status.textContent = 'Werte oder Zeitfenster ungültig.'; return; }
+    try { if (save) config = collect(); } catch (_) { message('Werte oder Zeitfenster ungültig.'); return; }
     busy = true; const controller = new AbortController(), token = ++generation; active = controller; activeSave = save; render();
     const timeout = setTimeout(() => controller.abort(), 5000);
     try {
       const response = await fetch(ENDPOINT, { method: save ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
         ...(save ? { headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify({ revision, config }) } : {}) });
       const body = parseResponse(await response.json()); if (token !== generation) return;
-      if (body.status === 'conflict') { status.textContent = 'Zwischenzeitlich geändert. Neu laden; Entwurf bleibt erhalten.'; return; }
+      if (body.status === 'conflict') { message('Zwischenzeitlich geändert. Bitte neu laden.'); return; }
       if (!response.ok || body.status !== 'ok') {
         if (!save || body.status === 'forbidden') available = false;
-        status.textContent = body.status === 'disabled' ? 'Regelkonfiguration nicht freigegeben.' : body.status === 'invalid' ?
-          'Werte oder Zeitfenster ungültig.' : 'Regelkonfiguration nicht verfügbar. Settings-Dateibereitstellung prüfen.';
+        message(body.status === 'disabled' ? 'Regelkonfiguration nicht freigegeben.' : body.status === 'invalid' ?
+          'Werte oder Zeitfenster ungültig.' : 'Regelkonfiguration nicht verfügbar.');
         return;
       }
       revision = body.revision; csrf = body.csrf; available = true; dirty = false; fill(body.config);
-      status.textContent = save ? 'Vorlagen gespeichert · Automatik noch nicht aktiv.' : 'Regelvorlagen · noch keine aktive Regelung.';
+      message(save ? 'Gespeichert.' : '');
     } catch (_) {
       if (token === generation) {
         available = false;
-        status.textContent = save ? 'Speicherstatus unklar. Vor erneutem Speichern neu laden.' : 'Regelkonfiguration nicht erreichbar.';
+        message(save ? 'Speicherstatus unklar. Bitte neu laden.' : 'Regelkonfiguration nicht erreichbar.');
       }
     } finally { clearTimeout(timeout); if (active === controller) { active = null; activeSave = false; } busy = false; render(); }
   }
   fields.addEventListener('input', mark); fields.addEventListener('change', mark);
+  fields.addEventListener('invalid', event => {
+    const section = event.target.closest('details.charging-profile');
+    if (section) section.open = true;
+  }, true);
   add.addEventListener('click', () => { windowRow(); mark(); });
   form.addEventListener('submit', event => { event.preventDefault(); void exchange(true); });
   byId('charging-reload').addEventListener('click', () => { void exchange(); });
   window.addEventListener('pagehide', () => {
     generation++;
-    if (activeSave) { available = false; status.textContent = 'Speicherstatus unklar. Vor erneutem Speichern neu laden.'; }
+    if (activeSave) { available = false; message('Speicherstatus unklar. Bitte neu laden.'); }
     if (active) active.abort();
   });
   window.addEventListener('pageshow', event => { if (event.persisted && !dirty && !busy) void exchange(); });

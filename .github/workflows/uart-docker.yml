@@ -1,0 +1,36 @@
+name: UART gateway Docker tests
+on:
+  push:
+    paths:
+      - 'rasppi/src/**'
+      - 'rasppi/tests/uart_gateway*'
+      - 'rasppi/Dockerfile.uart'
+      - 'rasppi/requirements.txt'
+      - 'rasppi/compose.yaml'
+      - '.github/workflows/uart-docker.yml'
+  pull_request:
+    paths:
+      - 'rasppi/src/**'
+      - 'rasppi/tests/uart_gateway*'
+      - 'rasppi/Dockerfile.uart'
+      - 'rasppi/requirements.txt'
+      - 'rasppi/compose.yaml'
+      - '.github/workflows/uart-docker.yml'
+permissions:
+  contents: read
+jobs:
+  gateway:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate interactive and explicit gateway Compose configuration
+        run: |
+          docker compose -f rasppi/compose.yaml --profile tools config --quiet
+          UART_MODE=gateway UART_NETWORK_MODE=evse-mqtt docker compose -f rasppi/compose.yaml --profile tools config --quiet
+      - name: Test bounded RPC, PTY, isolated broker and shutdown in Docker
+        run: docker build --progress=plain -f rasppi/Dockerfile.uart -t evse-uart:test rasppi
+      - name: Verify pinned runtime dependencies without serial hardware
+        run: |
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --entrypoint python evse-uart:test -c 'import paho.mqtt, serial; assert paho.mqtt.__version__ == "2.1.0"; assert serial.__version__ == "3.5"'

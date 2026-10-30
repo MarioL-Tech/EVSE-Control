@@ -100,6 +100,23 @@ std::string write_json(const std::optional<WriteResult> &r) {
 bool valid_limit(const std::optional<std::uint32_t> &n) {
     return n && *n >= minimum_write_current_ma && *n <= maximum_write_current_ma;
 }
+std::string automation_json(const std::optional<AutomationReply> &value) {
+    if (!value) return "null";
+    const auto hex = [](const std::string &s, std::size_t n) {
+        return s.size() == n && s.find_first_not_of("0123456789abcdef") == std::string::npos;
+    };
+    const auto &a = *value;
+    if (!hex(a.guard, 32)) return "null";
+    const auto nullable = [&](const std::string &s, std::size_t n) {
+        return hex(s, n) ? "\"" + s + "\"" : std::string("null");
+    };
+    const char *mode = a.requested_mode == automation::Mode::Pv ? "pv" :
+        a.requested_mode == automation::Mode::Custom ? "custom" : "manual";
+    return "{\"schema_version\":1,\"guard\":\"" + a.guard + "\",\"requested_mode\":\"" + mode +
+        "\",\"activation_id\":" + nullable(a.activation_id,32) + ",\"config_revision\":" + nullable(a.config_revision,64) +
+        ",\"state\":\"" + automation::status_name(a.state) + "\",\"plan\":\"" + automation::http_status_name(a.plan) +
+        "\",\"house\":\"" + automation::http_status_name(a.house) + "\"}";
+}
 std::string serialize(const ControlRequest &request, const ControlReply &reply,
                       const std::string &session, const std::string &lease) {
     std::optional<std::uint32_t> effective;
@@ -114,11 +131,16 @@ std::string serialize(const ControlRequest &request, const ControlReply &reply,
         ",\"minimum_ma\":6000,\"software_max_ma\":32000,\"hardware_max_ma\":" + number(reply.hardware_max_ma) +
         ",\"installation_max_ma\":" + number(reply.installation_max_ma) +
         ",\"effective_max_ma\":" + number(effective) + ",\"firmware_raw\":" + number(reply.firmware_raw) +
-        ",\"write\":" + write_json(reply.write) + ",\"preparation\":" + write_json(reply.preparation) + "}";
+        ",\"write\":" + write_json(reply.write) + ",\"preparation\":" + write_json(reply.preparation) +
+        ",\"automation\":" + automation_json(reply.automation) + "}";
     if (result.size() > 4096) throw std::runtime_error("Control result too large");
     return result;
 }
 } // namespace
+
+std::optional<std::string> new_opaque_guard() noexcept {
+    try { return nonce(); } catch (...) { return std::nullopt; }
+}
 
 const char *control_operation_name(ControlOperation op) noexcept {
     switch (op) {
@@ -187,6 +209,7 @@ struct ControlChannel::Impl {
     std::map<std::string, WriteClock::time_point> leases;
     std::map<std::string, Entry> entries;
     std::deque<ControlRequest> waiting;
+    bool manual_override_pending = false;
     std::optional<ControlRequest> active;
     std::deque<std::pair<std::string, std::string>> results;
 
@@ -281,6 +304,7 @@ struct ControlChannel::Impl {
             // The wire inspector uses '-', but the owner needs the actual
             // admission session for cancellation before every serial read.
             request->session = session;
+            if (!inspect) manual_override_pending = true;
             waiting.push_back(std::move(*request));
         }
     }
@@ -409,6 +433,28 @@ bool ControlChannel::matches_session(const std::string &session) const {
     if (!impl_) return false;
     std::lock_guard<std::mutex> lock(impl_->mutex);
     return impl_->ready && !impl_->restart && !impl_->stopping && impl_->session == session;
+}
+
+std::optional<std::string> ControlChannel::owner_session() const {
+    if (!impl_) return {};
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (!impl_->ready || impl_->restart || impl_->stopping) return {};
+    return impl_->session;
+}
+bool ControlChannel::manual_pending() const {
+    if (!impl_) return false;
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    return impl_->manual_override_pending || std::any_of(impl_->waiting.begin(), impl_->waiting.end(), [](const ControlRequest &r) {
+        return r.operation != ControlOperation::Inspect;
+    });
+}
+
+bool ControlChannel::consume_manual_override() {
+    if (!impl_) return false;
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    const bool pending = impl_->manual_override_pending;
+    impl_->manual_override_pending = false;
+    return pending;
 }
 
 void ControlChannel::invalidate_session() {

@@ -16,11 +16,18 @@ Requires pyserial inside the image; do not install it on the Pi host.
 import select
 import serial
 import sys
+import os
+
+if os.getenv("UART_MODE", "interactive") == "gateway":
+    from uart_gateway import main
+    sys.exit(main())
+if os.getenv("UART_MODE", "interactive") != "interactive":
+    sys.exit("Unsupported UART_MODE")
 
 PORT = "/dev/serial0"
 BAUD = 115200
 
-ser = serial.Serial(PORT, BAUD, timeout=0.1)
+ser = serial.Serial(PORT, BAUD, timeout=0.1, write_timeout=0.2, exclusive=True)
 print(f"EVSE UART bridge: listening on {PORT} @ {BAUD} baud")
 print("Commands: 'on' | 'off' | 'status' | <raw line> | Ctrl+C to stop")
 
@@ -37,13 +44,20 @@ try:
                 "status": "CMD:STATUS",
             }.get(line.lower(), line)
             ser.write((cmd + "\n").encode())
-            print(f"TX -> ESP32: {cmd}")
+            print("TX -> ESP32: command sent")
 
         # ESP32 -> Pi: status / RFID events
         line = ser.readline()
         if line:
-            text = line.decode("utf-8", errors="replace").rstrip()
-            print(f"RX <- ESP32: {text}")
+            # Legacy enrollment lines can contain private UIDs. Never echo raw
+            # commands, UART lines or exceptions, even in interactive mode.
+            text = line.decode("ascii", errors="replace").rstrip()
+            if text.startswith(("EVSE:STATUS:CHARGING:", "EVSE:STATUS:ANTITHEFT:")):
+                import re
+                if re.fullmatch(r"EVSE:STATUS:(?:CHARGING:(?:ON|OFF|UNKNOWN)|ANTITHEFT:(?:ACTIVE|INACTIVE)):SRC:(?:boot|pi|query|watchdog|rfid|storage_fault)", text):
+                    print(f"RX <- ESP32: {text}")
+            else:
+                print("RX <- ESP32: message received (private contents omitted)")
 except KeyboardInterrupt:
     print("\nStopped by user")
 finally:

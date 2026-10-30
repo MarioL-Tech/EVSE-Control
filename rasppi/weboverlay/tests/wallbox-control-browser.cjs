@@ -7,6 +7,8 @@ const base = process.env.TEST_URL || process.env.WEB_TEST_URL || 'http://127.0.0
 const artifacts = process.env.ARTIFACT_DIR || '/artifacts';
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const inspection = (extra = {}) => ({ schema_version: 1, status: 'ok', minimum_ma: 6000, software_max_ma: 32000,
+  id: 'a'.repeat(32), operation: 'inspect', reason: 'read_only_inspection', session: 'b'.repeat(32),
+  lease: 'c'.repeat(32), fresh_for_seconds: 8, read_only: true,
   hardware_max_ma: 22000, installation_max_ma: 13700, effective_max_ma: 13700, firmware_raw: 123,
   write: null, preparation: null, ...extra });
 const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
@@ -15,8 +17,33 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ serviceWorkers: 'block' });
+    // Independent inspection fixture: never contact the ESP32 MQTT gateway.
+    await context.route('**/api/esp32-control', route => {
+      assert.equal(route.request().method(), 'GET', 'No ESP32 commands in this fixture');
+      return route.fulfill({ json: { status: 'unavailable', csrf: null, inspection: null,
+        command: null, command_sent: false } });
+    });
     let configMissing = false, hardwareUnknown = false, onlySix = false, getFailure = false, outcomeUnknown = false, partial = false, live = true;
     let postCount = 0, getCount = 0;
+    let modePosts = 0;
+    let automatic = { schema_version: 1, guard: 'd'.repeat(32), requested_mode: 'manual', activation_id: '0'.repeat(32),
+      config_revision: 'e'.repeat(64), state: 'manual', plan: 'ok', house: 'ok' };
+    const modeEnvelope = () => ({ schema_version: 1, status: 'ok', csrf: 'f'.repeat(64),
+      automation_available: true, semantics: 'activation_requested', required: [],
+      mode_revision: modePosts ? modePosts.toString(16).padStart(64, '0') : null, config_revision: automatic.config_revision,
+      activation: { mode: automatic.requested_mode, id: automatic.activation_id, guard: automatic.guard } });
+    await context.route('**/api/charging-mode', route => {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON();
+        assert.equal(body.guard, automatic.guard);
+        assert.equal(route.request().headers()['x-csrf-token'], 'f'.repeat(64));
+        assert.deepEqual(Object.keys(body).sort(), ['config_revision', 'guard', 'mode', 'revision']);
+        modePosts++;
+        automatic = { ...automatic, requested_mode: body.mode, activation_id: modePosts.toString(16).padStart(32, '0'),
+          state: body.mode === 'manual' ? 'manual' : 'resuming' };
+      }
+      return route.fulfill({ json: modeEnvelope() });
+    });
     let postMode = null, hangState = false, stateCharging = null, invalidCurrent = null, freshSeconds = 10;
     let stateResponses = 0, onStateHang = null;
     const payloads = [], errors = [];
@@ -24,6 +51,7 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
       schema_version: 1, status: 'disabled', csrf: null, automation_available: false
     } }));
     const envelope = () => ({ status: 'ok', csrf: 'fixture-csrf', inspection: inspection({
+      automation: automatic,
       installation_max_ma: configMissing ? null : onlySix ? 6000 : 13700, hardware_max_ma: hardwareUnknown ? null : 22000,
       effective_max_ma: configMissing || hardwareUnknown ? null : onlySix ? 6000 : 13700 }), command: null, command_sent: false });
     await context.route('**/api/wallbox-control', async route => {
@@ -92,28 +120,35 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
     assert.equal(await page.locator('.page-header .readonly').count(), 0);
     assert.equal(await page.locator('main > section.current-data').evaluate(el => el.nextElementSibling.tagName), 'NOSCRIPT');
     assert(await page.locator('#control-result').isHidden(), 'No empty no-command explanation before an action');
-    assert.equal(await page.locator('.control-details').getAttribute('open'), null);
+    assert.equal(await page.locator('details.technical-details').getAttribute('open'), null);
+    assert.equal(await page.locator('#wallbox-control .control-details').count(), 0);
+    assert.equal(await page.locator('details.technical-details .control-details #control-actual').count(), 1,
+      'Control details belong to existing Diagnose, not a second control disclosure');
     assert.equal(await page.locator('.control-details #control-actual').count(), 1, 'Duplicated live summary stays in collapsed details');
     assert.equal(await page.locator('.control-details #control-requested').count(), 1);
     assert.equal(await page.locator('#control-hint').textContent(), '6–13 A');
     assert.deepEqual(await page.locator('.control-mode-options label').allTextContents(), ['PV-Regelung', 'Manuell', 'Benutzerdefiniert']);
     assert.equal(await page.locator('input[name="charging-mode"]:checked').count(), 1);
     for (const mode of ['pv', 'custom']) {
-      await page.locator(`#control-mode-${mode}`).check();
+      await page.locator(`#control-mode-${mode}`).click();
+      await page.waitForFunction(id => document.getElementById(id).checked && !document.getElementById(id).disabled, `control-mode-${mode}`);
       assert.equal(await page.locator('input[name="charging-mode"]:checked').count(), 1);
-      await untilText('control-hint', /Automatik noch nicht verfügbar/);
+      await untilText('control-hint', /Manuelle Stromvorgaben nur/);
       assert(await page.locator('#control-start').isDisabled());
       assert(await page.locator('#control-apply').isDisabled());
       assert(!await page.locator('#control-stop').isDisabled());
       await page.locator('#control-apply').evaluate(el => el.click());
-      assert.equal(postCount, 0, 'Mode selection is UI-only, never a hardware action');
+      assert.equal(postCount, 0, 'Mode activation never sends a manual Wallbox POST');
     }
-    await page.locator('#control-mode-manual').check();
+    await page.locator('#control-mode-manual').click();
+    await page.waitForFunction(() => !document.getElementById('control-apply').disabled);
     assert(!await page.locator('#control-apply').isDisabled());
     await page.locator('#control-mode-manual').focus(); await page.keyboard.press('ArrowRight');
-    assert(await page.locator('#control-mode-custom').isChecked());
-    await page.keyboard.press('ArrowLeft'); assert(await page.locator('#control-mode-manual').isChecked());
-    assert.equal(postCount, 0, 'Native exclusive keyboard selection does not send');
+    await page.waitForFunction(() => document.getElementById('control-mode-custom').checked && !document.getElementById('control-mode-custom').disabled);
+    await page.keyboard.press('ArrowLeft');
+    await page.waitForFunction(() => document.getElementById('control-mode-manual').checked && !document.getElementById('control-apply').disabled);
+    assert.equal(postCount, 0, 'Keyboard activation never sends a manual Wallbox command');
+    assert.equal(modePosts, 5, 'Every explicit mouse/keyboard choice posts one guarded mode intent');
     await untilText('control-actual', /Limit 6 A.*Lädt: Unbekannt/);
     await page.evaluate(() => {
       window.controlMutations = 0;
@@ -138,7 +173,7 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
     await page.locator('#control-apply').evaluate(el => { el.click(); el.click(); });
     await untilText('control-write', /Protokoll-ACK/); await ready();
     assert(await page.locator('#control-result').isVisible(), 'Actual command outcome stays visible outside details');
-    assert.equal(await page.locator('.control-details').getAttribute('open'), null);
+    assert.equal(await page.locator('details.technical-details').getAttribute('open'), null);
     assert.equal(postCount, 1); assert.deepEqual(payloads[0], { operation: 'set_current', current_ma: 10000 });
     assert.equal(await page.locator('#limit').textContent(), '6,0 A', 'ACK never overwrites actual telemetry');
     partial = true;
@@ -160,6 +195,9 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
       assert.equal(await page.locator('nav .nav-link[aria-current="page"]').count(), 1);
       assert.deepEqual(await page.locator('nav .nav-link').allTextContents(), ['Übersicht', 'Diagramme', 'Settings']);
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.body.scrollWidth <= innerWidth));
+      assert(await page.locator('.control-mode-options label').evaluateAll(cards => cards.every(card => card.getBoundingClientRect().height >= 80)), 'Large selectable mode cards');
+      assert(await page.locator('.control-actions button').evaluateAll(buttons => buttons.every(button => button.getBoundingClientRect().height >= 58)), 'Larger manual actions');
+      assert(await page.locator('#control-current').evaluate(input => input.getBoundingClientRect().height >= 56), 'Touch-sized thicker slider');
       await page.screenshot({ path: path.join(artifacts, `overview-control-${width}-${colorScheme}.png`), fullPage: true, animations: 'disabled' });
     }
     configMissing = true; await refresh(); await ready();

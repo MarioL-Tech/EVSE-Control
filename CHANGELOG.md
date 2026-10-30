@@ -1,5 +1,179 @@
 # Changelog
 
+## 2026-10-30 23:18 (Europe/Vienna)
+
+- Abschluss-Codehead d4d60ef besteht Web41135320070, native Reader-Matrix
+  41135320145 (Bookworm/Trixie, AMD64/ARM64, zehn Suiten plus Sanitizer-Core),
+  UART41135320067 und Firmware41135320025/41135313126 mit Targetcompile,
+  Artefaktextraktion und Flash-CLI ohne USB/Upload. Neuer Regler-/Mode-/ESP-Vollpfad
+  und bestehende SQL/HOUSE/TLS/PWA/Provisioning/Runtime-/Browserprüfungen grün.
+- Finale simulierte Desktopübersicht, geschlossene Settings/Topologie und mobile
+  RFID-Karte visuell geprüft, keine horizontale Überbreite/UID-Ausgabe. Kein
+  physischer Servo-/NVS-/RFID-/Wallbox-/Pi-/Dauerbetrieb aus CI abgeleitet.
+- Gesamt-PR#72 enthält Teilstände69–71; Merge allein beim Projektinhaber.
+  Reiner Abschlussdokumentationsnachtrag, Laufzeitcode seit d4d60ef unverändert.
+  32A nicht global voreingestellt, reale Env/Container unangetastet. Phasen und
+  Hauszähler-Wallbox-Einschluss weiterhin vor Aktivierung zu bestätigen.
+
+## 2026-10-30 23:01 (Europe/Vienna)
+
+- Unveränderten, separat Docker-geprüften Firmwarestand4e5b213 im Gesamtbranch
+  zusammengeführt. PR#72 umfasst damit Firmware#69, UI#70, Gateway#71 und neuen
+  Regler als gemeinsam prüfbaren Stand; kein Main-Merge/Deployment durch Agenten.
+- Grenzen des Ladespiegels präzisiert: Firmware-Watchdog gilt ab MIRROR-Empfang,
+  nicht ab ursprünglicher Messzeit. Unterbrochener UART kann die UNKNOWN-Meldung
+  verzögern; kein messzeitexakter Ende-zu-Ende-/elektrischer Schutz. ESP steuert
+  keine reale Wallbox. Gesamt-CI noch offen.
+
+## 2026-10-30 22:29 (Europe/Vienna)
+
+- Reglercode175e479 besteht native Matrix41130422012 vollständig: Bookworm/
+  Trixie auf AMD64/ARM64, zehn Suiten einschließlich realem Owner-/HTTP-/Broker-/
+  PTY-Weg, bisheriger manueller RTU-/MQTT-Prüfungen und zusätzlichem Sanitizer-
+  Corelauf. Web-Gesamtprüfung noch offen; keine Pi-/Hardwaregarantie.
+- Unveränderte ESP32-Zustands-/Ergebnis-Liveregionen und Schalterattribute nicht
+  bei jedem200ms-Frischetick erneut setzen. Eigene Browserregression auf null
+  unveränderte Statusmutationen; Mode-Liveregion ebenfalls nur bei Änderung.
+  Shellv22. Keine Daten-/Regelungs-/Hardwarelogik geändert; neuer Weblauf offen.
+- Weblauf41130421584 erreicht nach Backend/HTTP/SQL/TLS/PWA die Browserphase:
+  Modustasten folgten bei Pfeilen fälschlich Enum- statt DOMreihenfolge, neue
+  Fixturekonstante doppelt benannt. Beides gezielt korrigiert; native exklusive
+  Tastaturbedienung und Nichtversandprüfungen erhalten. Syntaxcheck aller CJS-
+  Browserfixtures bereits im Dockerbuild, nicht erst am Ende der Gesamtsuite.
+- Standalone-Modusbrowser zusätzlich früh vor Backendbuilds ausführen, damit
+  Interaktionsfehler nicht erst am Suiteende auffallen. Vollpfad auch bei UART-
+  Quelländerungen auslösen. Root-Testbuildkontext schließt Git, private Settings,
+  echte Envdateien und lokale Abhängigkeiten explizit aus.
+
+## 2026-10-30 22:10 (Europe/Vienna)
+
+- Weitere Pure-Fixturekorrektur: NaN/Infinity/negative Werte sind nicht als
+  UInt32-Wallboxleistung repräsentierbar; solche C++-Zuweisungen testeten nur
+  Overflowkonvertierung. Jetzt echte nicht endliche Double-Hauswerte/Spannungen
+  injizieren und Ablehnung unverändert verlangen; Telemetrietypen nicht ändern.
+- Neue Modusabsicht mit aktuellem Guard als angefordert zeigen, auch solange die
+  Readerbeobachtung noch den vorherigen manuellen Override trägt. Ein späterer
+  manueller Guardwechsel gewinnt weiterhin. Uhrsprung verwirft den laufenden
+  Browserauftrag, eine neue bewusste Wahl kann mit frischer Zeitbasis neu prüfen;
+  kein automatischer Retry und keine nachträgliche Gewissheit über alte POSTs.
+  Browserregressionen ergänzt, Shellv21. Regler-Gesamt-CI noch offen.
+- Gateway-Neustarts sind opt-in per `UART_RESTART_POLICY=unless-stopped`, damit
+  bewusst bereitgestellter Betrieb wiederkommt; interaktiver Default bleibtno.
+  Keine persistente Befehlsqueue oder Wiederholung bei Containerneustart.
+- Finaler unabhängiger Reglerreviewversuch scheitert am Modellkontingent vor
+  jeder Toolausführung; keine zusätzliche unabhängige Abschlussprüfung behauptet.
+
+## 2026-10-30 21:57 (Europe/Vienna)
+
+- Erste native Matrix für d499b7c: neuer realer Owner-/HTTP-/Broker-/PTY-Fall und
+  bisherige Protokoll-/RTU-/MQTT-Prüfungen bestanden, aber Pure-Core-Tests scheitern
+  an der nicht im Engine beobachteten Aktivierungsfixture. Fixture verarbeitet
+  die Absicht jetzt tatsächlich und verbucht das erste Ticket ohne I/O, bevor
+  spätere Override-/Zeit-/Save-Ereignisse geprüft werden; Schutzassertionen bleiben.
+- Weitere eigene statische Gegenprüfung: HTTP-Heartbeat/TTL ist kein neuer
+  Befehlskontext. Kanonischen Planinhalt vergleichen, Budget/Zeitfenster direkt vor
+  jedem I/O erneut prüfen; unabhängige Hausantworten dürfen Custom ohne PV nicht
+  stornieren. Bereits beobachtete Aktivierungs-IDs nicht wiederverwenden,
+  begrenzte4096er-Historie ohne Verdrängung, danach sichere Neustartsperre.
+  Regressionsfälle ergänzt, neue Docker-CI noch offen; keine reale Schreibaktion.
+
+## 2026-10-30 21:37 (Europe/Vienna)
+
+- Reglerintegration: explizite, revisions-/guardgebundene Moduswahl erfasst
+  unveränderliche Settingssnapshots; Speichern/Reload/Neustart aktiviert nichts.
+  Read-only interne Plan-API und bestehende Haus-API, Reader bleibt alleiniger
+  Modbusowner. Sitephasen/Zählertopologie zwingend explizit,32A kein Globaldefault.
+- Browserradioeigenschaft an separaten Modusclient übergeben; manuelle Aktionen
+  mit bisherigen Grenzen, Stop bleibt unabhängig. Neues Mode-HTTP-/JS-/Browser-
+  und Owner-PTY-/HTTP-/Brokerharness, additive strikte Statusvalidierung,
+  zentrale Operatoranleitung und Shellv20. Gemeinsame Docker-CI noch offen.
+- Zusätzliche Schutzbarrieren: angenommene manuelle Absicht überlebt Queueexpiry;
+  Uhrfehler im zuvor laufenden Regler erlauben höchstens einen monoton befristeten
+  Schutz-Stop, danach Freeze und neue bewusste Aktivierung. Stabile korrigierte
+  Zeitbasis darf eine Sperre nicht selbst aufheben. Keine Pi-/Hardwareaktion.
+- Automatik nicht an manuelle MQTT-Verbindung koppeln: bestehender HTTP-Plan und
+  Modbusowner bleiben bei Brokerausfall regelungs-/schutzstopfähig. Eigene
+  isolierte Regression ergänzt; unveränderte Monitor-/Hausquellen bleiben getrennt.
+- ESP32-Web-CI ba7088e besteht PHP-/HTTP-/JS- und native Vollpfadfixture
+  HTTP→PHP→Broker→Python-Gateway→PTY→unveränderte Firmwarekerne. UART-Dockerläufe
+  41122141975/41122105792 grün. Keine Hardware-/Flash-/Pi-Aussage.
+- Volle Webprüfung41122141913 scheitert am alten exakten Theme-Buttoninventory:
+  zwei explizit beauftragte Servotasten fehlten im erwarteten Set. Inventar genau
+  um diese zwei IDs ergänzt und disabled bei unavailable-Fixture ausdrücklich
+  geprüft; übrige Theme-/NoPOST-/Monitoring-/Frischeprüfungen nicht gelockert.
+  Abschlusslauf noch offen.
+
+## 2026-10-30 21:16 (Europe/Vienna)
+
+- Optionalen HTTP-Automationscore in den einzigen Readerowner integriert:
+  leeres `WALLBOX_AUTOMATION_WEB_URL` deaktiviert, `--once` bleibt rein lesend
+  ohne HTTP-Thread/Zusatzabfragen. Keine geratenen Installations-/Topologiewerte.
+- Kausaler CSPRNG-Guard und additive feste Automationsstatusfelder in
+  Ownerantworten; manuelle Priorität, Cancellation vor jedem WriteCore-I/O,
+  frisches Capabilityread und aggregiertes compound Startoutcome. Unknown
+  friert ein; Inspect repariert ausschließlich Transport, kein Auto-Replay.
+- Neue isolierte Reader-/Broker-/PTY-/HTTP-CTest-Fixture registriert. Tests/Build
+  nicht ausgeführt: Parentreview und Docker-/GitHub-CI noch zwingend offen.
+  Kein SSH-/Pi-/Hardwarezugriff, keine Änderungen an PHP/JS oder Corelogik.
+
+## 2026-10-30 19:17 (Europe/Vienna)
+
+- Betreiber bestätigt32A als sein Installationsmaximum; kein universeller
+  32-A-Default und keine Agent-Pi-Konfigurationsänderung. Operator muss explizite
+  mA-Konfiguration speichern und Reader neu erstellen, technische Schutzprüfungen
+  bleiben erhalten. Bisherige16A-Vermutung nicht übernommen.
+- Markierte UI-Nachbesserung: drei Settingsprofile native auf-/zuklappbar, max.
+  drei Feldspalten, mehr Abstand vor Wochentagen, Boilerplate entfernt und Fehler-
+  bzw.unbestätigte Save-Zustände kurz erhalten. Große Moduskarten mit Symbolen,
+  doppelter Slidertrack14px/28px-Griff, größere Aktionstasten. Steuerungsdetails
+  in bestehende Diagnose, wirkliche Auftragsergebnisse bleiben außen.
+- Regressionen für Klappen/ungültiges geschlossenes Profil, große Touchziele,
+  Keyboard/Pointer/Nichtversand und vorhandene Schutzfälle angepasst. Shellv18.
+  UI-Docker-CI noch offen; Regler-/ESP-/Gatewayerweiterung getrennte Teilstände,
+  keine reale Freigabe/Flash-/Pi-Aktion durch den Agenten.
+
+## 2026-10-30 21:16 (Europe/Vienna) — ESP32-Integration
+
+- Webgatewayintegration: separater CSRF-/MQTT-RPC-Endpunkt für explizite
+  Servoziele, RFID-Anlernen/Abbrechen und privaten write-only UID-Widerruf.
+  Übersicht manuell, Kartenanzahl/Management in Settings; keine UID-Liste,
+  keine Log-/URL-/Storagespeicherung. Firmware-ACK ist keine Mechanikbestätigung.
+- Neue Firmwarev2 erforderlich, kein Legacyfallback. Unbekannter Wallboxspiegel
+  sperrt unabhängiges Servomanagement nicht. Browserinspektion5s/8sFrist ab
+  Requestbeginn; kein Retry/Offlinequeue. Shellv19. Config-only-Katalog und
+  Operatoranleitung um Gatewaymodus ergänzt, vorhandene Overlays/Secrets erhalten.
+- UART-Dockerworkflow, PHP-/HTTP-/JS-/Browserprüfungen und unabhängige unavailable-
+  Fixtures vorbereitet; gemeinsame Docker-CI noch offen. Firmware4e5b213 besteht
+  separat41103980187 mit Sanitizern/Adaptern/Targetcompile/Artefakten/Flash-CLI.
+  Kein Flash, Pi-/SSH-Zugriff oder Hardwaretest. Drei konkrete statische
+  Gatewaybefunde gezielt korrigiert: readonly nicht als Write/Unknown ausgeben,
+  asynchrone UART-Statuszeilen von Querysequenz trennen, Messzeit-/Clockevidenz
+  über Reconnect erhalten. Native Vollpfadfixture mit gepinnten unveränderten
+  Firmwarekernen, PTY und echtem Broker vorbereitet; noch kein Laufzeiterfolg.
+
+## 2026-10-30 19:07 (Europe/Vienna)
+
+- UART-Teilscope: bestehenden interaktiven Dienst um opt-in Gatewaymodus mit
+  Paho2.1.0/pyserial3.5, einzigem seriellen Owner, korrelierten Firmware-v2-
+  Leases, begrenzten Queues/Dedupe, UID-Redaktion und tatsächlichem frischen
+  Wallbox-Ladespiegel ergänzt. Keine reale Wallboxsteuerung oder Pi-Aktion.
+- MQTT-v1-RPC hat sechs Felder; Firmware4e5b213 read-only abgeglichen,
+  SESSION_MISMATCH und acht Cacheplätze einschließlich HELLO/STATUS beachtet.
+  Paho-Bodygrenze vor Speicherwachstum, Docker-Teststage mit Fakeclock/PTY/
+  Loopbackbroker und verpflichtendem Runtime-Testmarker vorbereitet. Tests hier
+  nicht ausgeführt; Docker-/GitHub-CI und Hardwareabnahme bleiben offen.
+## 2026-10-30 18:57 (Europe/Vienna)
+
+- ESP32: manueller persistierter Servo-Zielwert ohne Toggle, Gateway-RPC v2 mit
+  Bootsession, einmaligen 8-s-Leases und begrenztem 10-s-ID-/ACK-Cache vorbereitet.
+  Bestehendes NVS-Format, Bootpolicy, Karten und RFID-Präsentationsregeln erhalten.
+- Ladezustand als veraltbarer ON/OFF/UNKNOWN-Spiegel, initial/bei 10-s-Ausfall
+  UNKNOWN; Legacy-Charge-Befehle bleiben kompatibel. Gatewayaufnahme ohne UID-Echo.
+- Reine Protokoll-/Persistenz-/Watchdog- und simulierte Firmwareadaptertests für
+  Docker ergänzt; lokal mangels Docker nicht ausgeführt. Targetcompile/CI offen,
+  kein Flash, Pi-/SSH-/Hardwarezugriff und keine physische Entropie-/Servozusage.
+
+
 ## 2026-10-30 18:10 (Europe/Vienna)
 
 - Erste vollständige Konfigurations-CI da7980e besteht191JS-/43neuePHP-/HTTP-

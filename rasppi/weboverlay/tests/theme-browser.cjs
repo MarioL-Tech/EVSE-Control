@@ -128,7 +128,11 @@ async function protectedUI(page, route) {
   assert.notEqual(await page.locator('#freshness').innerText(), '—');
   assert.equal(await page.locator('.sidebar').count(), 1);
   assert.deepEqual(await page.locator('button:not([data-calendar-period])').evaluateAll(nodes => nodes.map(n => n.id).sort()),
-    (route === '/' ? ['control-apply', 'control-start', 'control-stop'] : ['calendar-load', 'calendar-next', 'calendar-now', 'calendar-prev', 'reset-display']).sort());
+    (route === '/' ? ['control-apply', 'control-start', 'control-stop', 'esp32-lock', 'esp32-unlock'] : ['calendar-load', 'calendar-next', 'calendar-now', 'calendar-prev', 'reset-display']).sort());
+  if (route === '/') {
+    assert(await page.locator('#esp32-lock').isDisabled());
+    assert(await page.locator('#esp32-unlock').isDisabled(), 'Unavailable ESP32 never enables management');
+  }
   assert.equal(await page.locator('[role="button"], #theme-mode[role]').count(), 0);
   assert.equal(await page.locator('.display-options, #metric-options, .history-note').count(), 0);
   assert.equal(await page.locator('ul.chart-options input[type="checkbox"]').count(), route === '/' ? 0 : 16);
@@ -155,6 +159,16 @@ async function pageshow(page) {
 }
 async function setup(browser, options = {}, blocked = null) {
   const context = await browser.newContext(options), errors = [], requests = [];
+  // Independent inspection fixture: never contact the ESP32 MQTT gateway.
+  await context.route('**/api/charging-mode', route => {
+    assert.equal(route.request().method(), 'GET');
+    return route.fulfill({ json: { schema_version: 1, status: 'disabled', csrf: null, automation_available: true, semantics: 'activation_requested' } });
+  });
+  await context.route('**/api/esp32-control', route => {
+    assert.equal(route.request().method(), 'GET', 'No ESP32 commands in this fixture');
+    return route.fulfill({ json: { status: 'unavailable', csrf: null, inspection: null,
+      command: null, command_sent: false } });
+  });
   context.setDefaultTimeout(7000); context.setDefaultNavigationTimeout(15000);
   if (blocked) await context.addInitScript(kind => {
     // Playwright also initializes about:blank; its opaque origin has no storage.
@@ -187,7 +201,7 @@ function clean(run) {
     assert.equal(request.method, 'GET', 'Theme controls must not send commands');
     const url = new URL(request.url); assert.equal(url.origin, origin, 'No foreign resources');
     if (url.pathname === '/api/history') assert.equal(url.search, '?minutes=15');
-    assert(routes.includes(url.pathname) || ['/einstellungen', '/api/state', '/api/smartmeter', '/api/history', '/api/house-history', '/api/settings-env', '/api/charging-settings', '/api/wallbox-control'].includes(url.pathname) || url.pathname.startsWith('/static/')
+    assert(routes.includes(url.pathname) || ['/einstellungen', '/api/state', '/api/smartmeter', '/api/history', '/api/house-history', '/api/settings-env', '/api/charging-settings', '/api/charging-mode', '/api/wallbox-control', '/api/esp32-control'].includes(url.pathname) || url.pathname.startsWith('/static/')
       || ['/favicon.ico', '/manifest.webmanifest', '/service-worker.js'].includes(url.pathname), request.url);
   }
   cases++;
@@ -267,8 +281,9 @@ function clean(run) {
         assert.equal(await page.locator('#env-fields').evaluate(fieldset => fieldset.disabled), true);
         assert.equal(await page.locator('#env-fields input:enabled').count(), 0);
         assert.equal(await page.locator('#env-form').count(), 1);
-        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id)),
-          ['charging-add-window', 'charging-save', 'charging-reload', 'env-save', 'env-reload', 'theme-system']);
+        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()),
+          ['charging-add-window', 'charging-save', 'charging-reload', 'env-save', 'env-reload',
+            'esp32-enroll', 'esp32-cancel', 'esp32-revoke', 'theme-system'].sort());
         assert.equal(await page.locator('.pwa-card, #pwa-heading, #pwa-install, #pwa-update').count(), 0);
         assert.equal(await page.getByRole('link', { name: 'Settings', exact: true }).getAttribute('aria-current'), 'page');
         await mode(page, 'system'); await switchLayout(page);
@@ -281,15 +296,16 @@ function clean(run) {
         await page.locator('#theme-system').click(); await mode(page, 'system');
         assert.equal(await page.evaluate(key => localStorage.getItem(key), key), null);
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-        const cardWidths = await page.locator('.settings-placeholder > .card').evaluateAll(cards => cards.map(el => {
+        const cardWidths = await page.locator('.settings-placeholder > .card, #esp32-rfid').evaluateAll(cards => cards.map(el => {
           const main = el.closest('main'), css = getComputedStyle(main);
           return Math.abs(el.getBoundingClientRect().width - (main.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight))) < 2;
         }));
         assert(cardWidths.every(Boolean), 'Settings cards use the full available browser content width');
-        assert.deepEqual(run.requests.filter(request => new URL(request.url).pathname.startsWith('/api/'))
-          .map(request => [request.method, new URL(request.url).pathname]).sort((a, b) => a[1].localeCompare(b[1])),
-          [['GET', '/api/charging-settings'], ['GET', '/api/settings-env']],
-          'Settings reads only configuration, never measurement/SQL APIs or commands');
+        const apiRequests = run.requests.filter(request => new URL(request.url).pathname.startsWith('/api/'));
+        assert(apiRequests.every(request => request.method === 'GET'), 'Settings never sends commands while inspecting');
+        assert.deepEqual([...new Set(apiRequests.map(request => new URL(request.url).pathname))].sort(),
+          ['/api/charging-settings', '/api/esp32-control', '/api/settings-env'],
+          'Settings reads only configuration and periodic ESP32 inspection, never measurement/SQL APIs');
         if (width === 320 || width === 1440) await page.screenshot({
           path: `/artifacts/settings-${scheme}-${width}.png`, fullPage: true
         });

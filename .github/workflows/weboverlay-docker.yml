@@ -2,12 +2,18 @@ name: Weboverlay Docker tests
 on:
   push:
     paths:
+      - '.dockerignore'
+      - 'rasppi/src/**'
+      - 'rasppi/requirements.txt'
       - 'rasppi/weboverlay/**'
       - 'rasppi/storage/**'
       - 'rasppi/wallbox/**'
       - '.github/workflows/weboverlay-docker.yml'
   pull_request:
     paths:
+      - '.dockerignore'
+      - 'rasppi/src/**'
+      - 'rasppi/requirements.txt'
       - 'rasppi/weboverlay/**'
       - 'rasppi/storage/**'
       - 'rasppi/wallbox/**'
@@ -39,6 +45,8 @@ jobs:
           WEB_BIND_ADDRESS=192.0.2.10 docker compose -f rasppi/weboverlay/compose.yaml -f rasppi/weboverlay/compose.auth.yaml -f rasppi/weboverlay/compose.history.yaml config --format json | grep -Eq '"host_ip"[[:space:]]*:[[:space:]]*"192\.0\.2\.10"'
       - name: Build disposable browser test image
         run: docker build -f rasppi/weboverlay/Dockerfile.browser -t evse-web-browser:test rasppi/weboverlay
+      - name: Check standalone charging-mode browser contract before backend builds
+        run: docker run --rm --network none evse-web-browser:test node charging-mode-browser.cjs
       - name: Render PWA product icons in disposable Docker image
         run: |
           mkdir -p artifacts/pwa-icons
@@ -54,6 +62,15 @@ jobs:
           done
       - name: Build and test in Docker with isolated broker
         run: docker build --progress=plain -t evse-weboverlay:test rasppi/weboverlay
+      - name: ESP32 HTTP, broker, UART PTY and native firmware cores without hardware
+        run: |
+          # Reviewed immutable firmware; no upload, device or production broker.
+          git fetch --no-tags --depth=1 origin 4e5b213e66e415fd0192efc2334eb3fa7eed0881
+          firmware="$RUNNER_TEMP/evse-firmware-source"
+          mkdir -p "$firmware"
+          git archive 4e5b213e66e415fd0192efc2334eb3fa7eed0881 esp32 | tar -x -C "$firmware"
+          docker build --build-context "firmware=$firmware" -f rasppi/weboverlay/Dockerfile.esp32-test -t evse-esp32-e2e:test .
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges:true evse-esp32-e2e:test
       - name: Build reader and test complete manual control path without hardware
         run: |
           docker build --progress=plain -t evse-wallbox:control-test rasppi/wallbox

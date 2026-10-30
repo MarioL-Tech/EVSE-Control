@@ -1,6 +1,7 @@
 'use strict';
 // Docker-only: trusted local TLS -> real PHP workers -> isolated broker.
-// No certificate bypass, browser routes, production services, or external assets.
+// No certificate bypass, production services, or external assets.
+// Only unrelated ESP32 inspection is mocked; TLS, live data and PWA stay real.
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const net = require('node:net');
@@ -103,6 +104,11 @@ async function networkPhase(request, confirmed) {
     // TLS is trusted by the parent-installed OS/NSS root, not ignored by flags.
     browser = await chromium.launch({ headless: true });
     const plainContext = await browser.newContext();
+    await plainContext.route('**/api/esp32-control', route => {
+      assert.equal(route.request().method(), 'GET', 'No ESP32 commands in this fixture');
+      return route.fulfill({ json: { status: 'unavailable', csrf: null, inspection: null,
+        command: null, command_sent: false } });
+    });
     try {
       const plain = await plainContext.newPage();
       await plain.goto(new URL('/einstellungen', process.env.PWA_HTTP_URL || 'http://weboverlay:8080').href);
@@ -110,6 +116,15 @@ async function networkPhase(request, confirmed) {
       assert.equal(await plain.evaluate(async () => 'serviceWorker' in navigator ? (await navigator.serviceWorker.getRegistrations()).length : 0), 0);
     } finally { await plainContext.close(); }
     context = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark' });
+    await context.route('**/api/charging-mode', route => {
+      assert.equal(route.request().method(), 'GET');
+      return route.fulfill({ json: { schema_version: 1, status: 'disabled', csrf: null, automation_available: true, semantics: 'activation_requested' } });
+    });
+    await context.route('**/api/esp32-control', route => {
+      assert.equal(route.request().method(), 'GET', 'No ESP32 commands in this fixture');
+      return route.fulfill({ json: { status: 'unavailable', csrf: null, inspection: null,
+        command: null, command_sent: false } });
+    });
     context.setDefaultTimeout(15000); context.setDefaultNavigationTimeout(20000);
     context.on('page', page => page.on('pageerror', error => errors.push(String(error))));
     context.on('request', request => { if (request.method() === 'POST') posts.push(request.url()); });

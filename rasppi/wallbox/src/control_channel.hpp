@@ -2,6 +2,7 @@
 
 #include "mqtt.hpp"
 #include "write_core.hpp"
+#include "automation_http.hpp"
 
 #include <memory>
 #include <optional>
@@ -25,6 +26,17 @@ struct ControlRequest {
 };
 std::optional<ControlRequest> parse_control_payload(const std::string &payload);
 
+// Public causal version, not an authentication token. Entropy failure disables
+// automation without taking manual monitoring/control down.
+std::optional<std::string> new_opaque_guard() noexcept;
+struct AutomationReply {
+    std::string guard;
+    automation::Mode requested_mode = automation::Mode::Manual;
+    std::string activation_id, config_revision;
+    automation::Status state = automation::Status::AwaitingActivation;
+    automation::HttpStatus plan = automation::HttpStatus::Disabled;
+    automation::HttpStatus house = automation::HttpStatus::Disabled;
+};
 struct ControlReply {
     std::string status = "unavailable";
     std::string reason = "reader_unavailable";
@@ -33,6 +45,7 @@ struct ControlReply {
     std::optional<std::uint32_t> hardware_max_ma;
     std::optional<std::uint32_t> installation_max_ma;
     std::optional<std::uint32_t> firmware_raw;
+    std::optional<AutomationReply> automation;
 };
 
 // Separate bounded network connection; NEVER performs serial I/O. Needs the
@@ -50,6 +63,9 @@ public:
     std::optional<ControlRequest> take(); // Main thread; queue <=4, one active.
     void finish(const ControlRequest &request, const ControlReply &reply);
     bool matches_session(const std::string &session) const;
+    std::optional<std::string> owner_session() const;
+    bool manual_pending() const;
+    bool consume_manual_override(); // Admission intent survives expiry/reconnect; owner consumes once.
     void invalidate_session(); // Bus disconnect: rotate session, drop leases/queue.
 private:
     struct Impl;

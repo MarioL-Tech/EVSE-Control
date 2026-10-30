@@ -59,9 +59,10 @@ final class ChargingSettingsHttp
                     ($v->revision !== null && (!is_string($v->revision) || !preg_match('/\A[a-f0-9]{64}\z/D', $v->revision))))
                     throw new \InvalidArgumentException();
                 $config = ChargingSettings::validate($v->config);
+                if (!property_exists($v->config, 'installation')) unset($config['installation']);
             } catch (\Throwable) { $respond(['status' => 'invalid'], 400); }
             $data = $store->operate($v->revision, $config);
         }
-        $respond($data, match ($data['status']) { 'ok', 'disabled' => 200, 'conflict' => 409, default => 503 });
+        $respond($data, match ($data['status']) { 'ok', 'disabled' => 200, 'invalid' => 400, 'conflict' => 409, default => 503 });
     }
 }

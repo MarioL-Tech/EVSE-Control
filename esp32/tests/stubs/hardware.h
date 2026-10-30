@@ -22,6 +22,7 @@ struct SimulatedHardware {
   bool nvsWrongType = false, nvsSetFail = false, nvsCommitFail = false;
   bool ambiguousCommit = false, pwmFail = false;
   bool nvsReadSizeChanged = false;
+  bool entropyBroken = false;
   bool found = false;
   std::vector<uint8_t> durable, pending;
   std::vector<std::string> trace;

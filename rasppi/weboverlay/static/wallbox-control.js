@@ -83,7 +83,7 @@
   };
   const disabled = (id, value) => { const el = get(id); if (el.disabled !== value) el.disabled = value; };
   let inspection = null, csrf = null, ready = false, draft = null, busy = false;
-  let mode = 'manual'; // UI selection only; no controller handover or persistence.
+  let mode = 'manual', modePending = false, reportedBusy = null;
   let activeGet = null, activePost = null, timer = null, generation = 0, suspended = document.hidden;
   let lastActual = undefined;
   function render() {
@@ -93,13 +93,14 @@
     if (draftAmps(draft, editing) === null) draft = editing.min;
     if (range.max !== String(editing.max)) range.max = String(editing.max);
     if (range.value !== String(draft)) range.value = String(draft);
+    const fill = `${editing.max > editing.min ? (draft - editing.min) / (editing.max - editing.min) * 100 : 0}%`;
+    if (range.style.getPropertyValue('--control-fill') !== fill) range.style.setProperty('--control-fill', fill);
     disabled('current', busy || document.hidden || suspended);
-    disabled('apply', !usable || !limits || mode !== 'manual');
-    disabled('start', !usable || !limits || mode !== 'manual');
-    for (const id of ['pv', 'manual', 'custom']) {
-      const radio = get(`mode-${id}`);
-      radio.disabled = busy || document.hidden || suspended;
-      radio.checked = mode === id;
+    disabled('apply', !usable || !limits || mode !== 'manual' || modePending);
+    disabled('start', !usable || !limits || mode !== 'manual' || modePending);
+    if (reportedBusy !== busy) {
+      reportedBusy = busy;
+      window.dispatchEvent(new CustomEvent('evse:wallbox-busy', { detail: { busy } }));
     }
     // A configured installation maximum is intentionally NOT a Stop condition.
     disabled('stop', !usable);
@@ -109,7 +110,7 @@
     text('effective-max', amp(inspection?.effective_max_ma));
     text('firmware', integer(inspection?.firmware_raw) ? String(inspection.firmware_raw) : 'Unbekannt');
     const blocked = busy ? 'Auftrag läuft.' : document.hidden || suspended ? 'Bedienung pausiert.' :
-      mode !== 'manual' ? `${mode === 'pv' ? 'PV-Regelung' : 'Benutzerdefiniert'}: Automatik noch nicht verfügbar.` :
+      mode !== 'manual' ? 'Manuelle Stromvorgaben nur im Modus Manuell.' : modePending ? 'Moduswahl wird geprüft.' :
       !ready || !csrf ? 'Keine geprüfte Bedienverbindung.' : limits ? '' : limitReason(inspection);
     text('hint', blocked || (limits?.max === 6 ? 'Nur 6 A zulässig (1-A-Schritte).' : `6–${limits.max} A`));
     for (const id of ['apply', 'start']) {
@@ -122,6 +123,9 @@
     csrf = body.csrf;
     ready = body.status === 'ok' && inspection?.status === 'ok';
     text('status', ready ? 'Verbindung geprüft.' : 'Bedienverbindung nicht verfügbar.');
+    window.dispatchEvent(new CustomEvent('evse:automation-observation', { detail: {
+      automation: body.command?.automation ?? body.inspection?.automation ?? null
+    } }));
   }
   async function inspect() {
     if (document.hidden || suspended || busy || activeGet) return;
@@ -146,7 +150,7 @@
   }
   async function send(operation) {
     if (busy || document.hidden || suspended || !ready || !csrf) return;
-    if (mode !== 'manual' && operation !== 'stop') return;
+    if ((mode !== 'manual' || modePending) && operation !== 'stop') return;
     const payload = commandBody(operation, draft, bounds(inspection));
     if (!payload) return;
     busy = true;
@@ -190,10 +194,15 @@
     const value = Number(event.target.value);
     if (draftAmps(value, draftBounds(inspection)) !== null) { draft = value; render(); }
   });
-  for (const id of ['pv', 'manual', 'custom']) get(`mode-${id}`).addEventListener('change', event => {
-    if (!event.target.checked || busy || document.hidden || suspended) return;
-    mode = id; render();
+  window.addEventListener('evse:automation-mode', event => {
+    if (!['manual', 'pv', 'custom'].includes(event.detail?.mode)) return;
+    const changed = mode !== event.detail.mode;
+    mode = event.detail.mode; modePending = event.detail.pending === true;
+    if (changed)
+    window.dispatchEvent(new CustomEvent('evse:manual-mode', { detail: { manual: mode === 'manual' } }));
+    render();
   });
+  window.addEventListener('evse:refresh-control', () => { if (!busy && !activeGet) void inspect(); });
   for (const [id, op] of [['apply', 'set_current'], ['start', 'start'], ['stop', 'stop']]) get(id).addEventListener('click', () => { void send(op); });
   window.addEventListener('evse:state', event => {
     const v = event.detail?.values;
