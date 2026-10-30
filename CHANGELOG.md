@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-30 14:46 (Europe/Vienna)
+
+- ARM64-Ladekorrektur besteht Reader41064617992/41064740474 nativ auf ARM64 und
+  AMD64, je Bookworm/Trixie und sieben Suiten. Web-CI findet zusätzlich eine
+  Reconnect-Race in derselben Wegwerf-Probe: Nach absichtlich abgewiesenem Header
+  erneut verbundene Clients wurden fälschlich als weitere Messsockets behandelt.
+- Fixture reserviert nur den ersten Socket je Clienttyp, weist spätere Verbindungen
+  ab und lässt sie ursprüngliche Belege weder ersetzen noch als Erfolg zählen.
+  Beide ursprünglichen positiven 4096-/negativen Headerfälle sowie Zeit-/RSS-/
+  Pollinggrenzen bleiben zwingend. Drei vollständige Zyklen und genauere feste
+  Typ-/Phasendiagnose ergänzt. Keine Produktionsänderung; neue Gesamt-CI offen.
+
 ## 2026-10-30 14:35 (Europe/Vienna)
 
 - Betreiber meldet ARM64-Buildabbruch nach PR#65: Kompilierung und sechs von
