@@ -5,15 +5,17 @@ Holding Registers über Modbus RTU (FC03), dekodiert sie und gibt pro Abfrage
 eine JSON-Zeile auf stdout aus. Zusätzlich veröffentlicht libmosquitto denselben
 Snapshot und die Verfügbarkeit auf MQTT. Diagnosen gehen auf stderr.
 
-**Keine Schreibbefehle, keine Ladefreigabe, keine Datenbank und
-keine Weboberfläche in diesem Entwicklungsschritt.** Das bestehende
-`rasppi/src/main.py` bleibt die separate ESP32-UART-Brücke.
+**Manuelle Start/Stop-/Stromlimitbefehle sind separat über das Weboverlay/MQTT
+angebunden.** Kein zusätzlicher Modbusmaster, keine Datenbank im Reader.
+`rasppi/src/main.py` bleibt die separate ESP32-UART-Brücke. Telemetrieformat und
+Publisher unverändert; `--once` ist ausschließlich lesend.
 
-**Neu: interne Schreibkern-Stufe 1 für Docker-Simulation.** Start/Stop und
-Stromlimit sind als typisierte libmodbus-Operationen vorbereitet. Der ausgelieferte
-Reader bleibt gesperrt und hat **keinen Aktivierungs-/Befehlseingang**; nur ein
-nicht ausgeliefertes PTY-Testprogramm darf den Core aktiviert verwenden.
-[Vertrag, Grenzen und spätere Testfreigabe](../../docs/wallbox/write-core-contract.md).
+Die vorherige interne Schreibkern-Stufe1 ist um einen begrenzten ControlChannel
+mit nicht-retained Befehlen, einmaligen Sitzungsleases und Dedupe ergänzt.
+Kein Passwort/zusätzlicher Freischalter; nur vertrauenswürdiges LAN/VPN.
+`WALLBOX_INSTALLATION_MAX_MA` ohne geratenen Default bleibt technische Voraussetzung
+für Start/Stromvorgabe; Stop benötigt kein Installationsmaximum.
+[Bedienvertrag und Grenzen](../../docs/wallbox/web-control-contract.md).
 Vor echten Schreibtests informiert der Projektinhaber seine Leitung; gesondertes
 Hardware-Go erforderlich. Kein Pi-Schreibtest durch den Agenten.
 
@@ -93,7 +95,9 @@ Diese Tests ersetzen **keinen Test an der echten Wallbox**.
 Zusätzliche Schreibkern-Tests prüfen ausschließlich im Buildcontainer Validierung,
 FC06-/FC16-Telegramme, vollständige ACK-Echos, Stromgrenzen, frische Startvorbereitung,
 unklare Ausgänge ohne Wiederholung und Abbruch. Die Runtime bleibt FC03-only;
-der schreibfähige Testprobe akzeptiert nur PTYs und fehlt im Runtimeimage.
+der schreibfähige Testprobe akzeptiert nur PTYs und fehlt im Runtimeimage. Die
+produktive Bedienung verwendet stattdessen ausschließlich den separaten begrenzten
+MQTT-Kanal; ohne Auftrag weiterhin nur FC03. Kein direkter CLI-Schreibzugang.
 Ein weiterer Test startet ausschließlich im Build-Container einen isolierten
 Loopback-Broker und PTY-Reader: retained State, Online/Offline bei Readfehlern,
 Brokerneustart, fortlaufendes Polling ohne Broker, Shutdown und Last Will.

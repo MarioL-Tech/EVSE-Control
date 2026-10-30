@@ -81,8 +81,9 @@ void test_validation(modbus_t *context) {
         for (const auto limit : {0U, 1U, 5999U, 32001U, 65536U,
                                 std::numeric_limits<std::uint32_t>::max()}) {
             WriteCore bad_policy(context, {true, limit}, cancelled, [=] { return now; });
-            unsent(bad_policy.execute(request(op, future)), WriteStatus::InvalidRequest,
-                   "explicit_installation_limit_required");
+            unsent(bad_policy.execute(request(op, future)),
+                   op == WriteOperation::Stop ? WriteStatus::NotConnected : WriteStatus::InvalidRequest,
+                   op == WriteOperation::Stop ? "connected_context_required" : "explicit_installation_limit_required");
         }
         for (const auto limit : {6000U, 16000U, 32000U}) {
             WriteCore bounded(context, {true, limit}, cancelled, [=] { return now; });

@@ -45,8 +45,9 @@ const fs = require('node:fs');
     assert.equal(await page.locator('#charging').innerText(), 'Nein');
     assert.equal(await page.locator('#limit').innerText(), '6,0 A');
     assert.equal(await page.locator('#voltage-0').innerText(), '235,7 V');
-    assert.equal(await page.locator('input:not([type="checkbox"]), form').count(), 0);
-    assert.equal(await page.locator('button, .display-options, #metric-options, #reset-display').count(), 0);
+    assert.deepEqual(await page.locator('input:not([type="checkbox"]), form').evaluateAll(nodes => nodes.map(n => n.id)), ['control-current']);
+    assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()), ['control-apply', 'control-start', 'control-stop']);
+    assert.equal(await page.locator('.display-options, #metric-options, #reset-display').count(), 0);
     assert.equal(await page.locator('.status-panel.current-data h2').innerText(), 'Aktuelle Wallbox-Messdaten');
     assert(await page.locator('.current-data').evaluate(panel => {
       const sections = [...document.querySelectorAll('main > section')].filter(el => !el.hidden);

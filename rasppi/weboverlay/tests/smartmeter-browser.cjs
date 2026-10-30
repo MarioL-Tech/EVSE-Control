@@ -16,6 +16,9 @@ function sample(power_w = 1549.4, overrides = {}) {
   try {
     const context = await browser.newContext();
     const errors = [], requests = [];
+    await context.route('**/api/wallbox-control', route => route.fulfill({ json: {
+      status: 'unavailable', csrf: null, inspection: null, command: null, command_sent: false
+    } }));
     let mode = 'positive', count = 0, frozen = null;
     await context.route('**/api/house-history?**', route => {
       const now = Date.now(), query = new URL(route.request().url()).searchParams;

@@ -4,7 +4,40 @@ Stand: 2026-10-30. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
-Aktueller Schreibauftrag (2026-10-30): Nach bestätigter Funktion von PR#63
+Aktueller Webbedienauftrag (2026-10-30): PR#64 vom Projektinhaber gemergt.
+Weiterentwicklung jetzt ausdrücklich OHNE Passwort/Login oder zusätzlichen
+Freischalter; jeder erreichbare Nutzer im vertrauenswürdigen LAN/VPN darf
+manuell bedienen. Login folgt erst zum Schluss. Diese Freigabe ersetzt die
+frühere produktive Nichtaktivierbarkeit aus Stufe1, NICHT das Verbot von Agent-
+Hardwaretests/SSH/Pi-Deployment. Erster realer Schreibtest später ausdrücklich
+über das Weboverlay, nach vorheriger Information der Leitung und gesondertem Go.
+Übersicht mit kompakter Start/Stop-/Slider-/Übernehmen-Bedienung, eigener neuer
+Tab `/wallbox` für vollständige Details. Angefordert, Protokoll-ACK, wirksames Limit
+und tatsächliche frische Messwerte getrennt; Sliderbewegung allein sendet nichts.
+Nutzer vermutet16A, bestätigt aber KEINE Installationsgrenze. Keine16-/32-A-
+Defaultfreigabe: `WALLBOX_INSTALLATION_MAX_MA` explizit6000..32000 konfigurieren,
+Hardwaremaximum aus4006/07 und Firmware-Rohwert4004/05 neu lesen. Stop benötigt
+keine stromerhöhende Vorgabe und deshalb kein Installationsmaximum. Fehlende
+technische Grenzen verhindern nur Start/Stromvorgabe, keine Auth-Sperre.
+Neuer Weg Browser→PHP-ControlHttp/ControlMqttTransport→bestehender Broker→eigener
+ControlChannel im bestehenden C++-Reader→libmodbus. Keine neuen Container/Worker
+im Produktionsstack, kein SQL-/State-JSON-/Historien- oder Fremddatenumbau.
+Clean-Session, QoS0/nicht-retained Befehle, eindeutige IDs, begrenzte Queue/Dedupe,
+Reader-Sitzung und einmalige monotone8s-Inspect-Lease verhindern Nachholen/Replay.
+Nur Portbesitzerthread führt aus; Callback nie seriell. Start ist explizit zwei
+Schritte SetCurrent+Start derselben Webaktion/Lease, beide Ergebnisse erhalten.
+Keine Wiederholung bei Timeout/HTTP-Abbruch, unklar bleibt unklar. Frischeinspektion
+nach Fehlern read-only, kein altes Write wird nachgeholt. Origin/Host/CSRF bleiben
+erhalten (kein Login). `WEB_CONTROL_ORIGIN` erbt explizite Settings-/Compose-Origin;
+bei anderem Browserhostname/HTTPS passend konfigurieren. Kein öffentliches Hosting.
+PWA v15, Control-API und POST immer network-only/no-store, keine Offlinequeue.
+Docker-/Browser-/durchgängige HTTP→MQTT→C++→PTY-Abnahme noch offen. Agentabbrüche
+am Codex-Kontingent lieferten keinen Abschluss; auf ausdrücklichen Wunsch mit
+openai/gpt-6.1-sol neu gestartet, Änderungen vom Hauptagent prüfen.
+Vertrag `docs/wallbox/web-control-contract.md`. Netzbezugs-/Solarautomationen,
+Schwellen und echte Hardwaretests bleiben separate Aufträge, keine Werte raten.
+
+Vorheriger Schreibauftrag (2026-10-30, PR#64 gemergt): Nach bestätigter Funktion von PR#63
 ausdrückliches Go ausschließlich für **Stufe 1: C++-/libmodbus-Schreibkern und
 isolierte Docker-Simulation**, NICHT für reale Writes, Pi-Aktivierung oder
 Automationen. Der Projektinhaber muss vor Schreibtests seine Leitung informieren;

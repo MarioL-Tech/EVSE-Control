@@ -1,5 +1,11 @@
 # Wallbox-Schreibkern – Stufe 1, ausschließlich Simulation
 
+> Historischer Stufe-1-Vertrag. Die fehlende produktive Aktivierbarkeit und das
+> erforderliche Installationslimit auch für Stop wurden inzwischen ausdrücklich
+> durch [manuelle Webbedienung, Stufe2](web-control-contract.md) ersetzt: ohne
+> Login/Freischalter, Stop ohne Strommaximum. Die Core-Register-/Fristen-/ACK-/
+> Unsicherheitsregeln bleiben erhalten. Keine tatsächlichen Hardwaretests erfolgt.
+
 Stand: 2026-10-30. Beauftragt sind ein C++17-/libmodbus-Schreibkern und isolierte
 Docker-Tests, **keine echten Wallbox-Schreibtests oder Pi-Aktivierung**. Vor einem
 späteren Schreibtest muss der Projektinhaber seine Leitung informieren und den
