@@ -4,7 +4,47 @@ Stand: 2026-10-30. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
-Aktueller Folgeauftrag (2026-10-30): Haus-Netzleistung auf der Diagrammseite direkt
+Aktueller Schreibauftrag (2026-10-30): Nach bestätigter Funktion von PR#63
+ausdrückliches Go ausschließlich für **Stufe 1: C++-/libmodbus-Schreibkern und
+isolierte Docker-Simulation**, NICHT für reale Writes, Pi-Aktivierung oder
+Automationen. Der Projektinhaber muss vor Schreibtests seine Leitung informieren;
+Hardwaretest erst nach gesondertem Go, keine Garantie durch Simulatorerfolg.
+Manuelle spätere Stromvorgabe ausdrücklich als Schieberegler; „Übernehmen“ ist
+der bisherige Interaktionsvorschlag, UI/Bedienanbindung noch nicht implementiert.
+Neue `write_core.hpp/.cpp`: typisierte Start/Stop/SetCurrent-Aufträge, bestehender
+Reader bleibt einziger Kontext-/Portbesitzer. Unveränderlich deaktivierte Runtime-
+Policy, **kein** Env-/CLI-/Compose-/MQTT-/HTTP-/stdin-Aktivierungsweg. Nur separater
+Build-Testprobe mit geprüften devpts-Slaves aktivierbar, nicht im Runtimeimage.
+FC06 `0x4105`:0 Start/1 Stop; FC16 `0x4100`:zwei MSW-first-UInt32-mA-Wörter.
+Explizites Installationsmaximum nötig, kein16-/32-A-Default; konservative Software-
+obergrenze32A ist keine Installationsfreigabe. Mindestvorgabe6A, Hardwaremaximum
+`0x4006` für jede Strom-/Startanfrage frisch prüfen. Stop eigenständiger Auftrag.
+Start erst nach frischem bestätigtem SetCurrent und zulässigem beobachtetem Limit,
+passender Vorgabe und erneuter fehlerfreier/bekannter Telemetrie. Vorbereitung
+einmalig, auch ungültige/abgelaufene Ersatzversuche verwerfen sie; ursprüngliche
+Vorbereitungsfrist bleibt bis zum Start-Senden wirksam. Keine impliziten Writes.
+ACK, wirksames Limit und beobachtetes Laden strikt getrennt, unknown bleibt unknown.
+Libmodbus3.1.6 prüft High-level-Schreibechos nicht vollständig; deshalb öffentliche
+Raw-send/receive-APIs mit Library-Framing/CRC und zusätzlichem komplettem Echo-
+vergleich. Genau ein Send je Auftrag, Recovery NONE, keine automatischen Retries,
+Kompensationen oder Reconnects. Unklarer Ausgang sperrt Core bis bewusstem Neuaufbau;
+spätere Istwerte beweisen keinen Erfolg. Exception5 ist angenommen/in Bearbeitung,
+nicht Geräteablehnung. Monotone maximal10s-Deadline, Abbruch/Responsebudget vor I/O;
+kein hartes OS-/Treiber-Gesamtzeitversprechen. Neue No-I/O-/PTY-Fehler-/Grenz-/ACK-/
+Startfristen-/Recovery-/Shutdownprüfungen; bestehende drei Decoder-/FC03-/MQTT-
+Suiten unverändert erhalten. CI jetzt Bookworm/Trixie, Bookworm Produktionsdefault.
+Unabhängiger statischer Review fand zwei Startvorbereitungsfehler; korrigiert,
+gezielt regressionsabgedeckt und danach gezielt ohne weitere Befunde gegengeprüft.
+Codehead ed32b18 besteht Wallbox-Docker41050330438 (Push) und41050371128 (PR)
+vollständig: je fünf Suiten mit Bookworm/libmodbus3.1.6 und Trixie/3.1.11 sowie
+Runtime-/Nichtaktivierbarkeitsprüfung. Kein Host-, ARM- oder echter Schreibtest.
+Finalen Dokumentations-/Freigabestand über PR#64 prüfen; Merge beim Projektinhaber.
+Vertrag `docs/wallbox/write-core-contract.md`, Einrichtung zentral dokumentiert;
+historische mbpoll-Notizen ausdrücklich keine freigegebene Schreibtestanleitung.
+MQTT-Bedienvertrag/Zugriffsschutz, Slider, Netzbezugsabschaltung, Automationswerte
+und reale Schreibtests bleiben separate Aufträge; keine Schwellen raten.
+
+Vorheriger Folgeauftrag (2026-10-30, PR#63 gemergt, Funktion vom Nutzer bestätigt): Haus-Netzleistung auf der Diagrammseite direkt
 unter die gemeinsame Zeitraumwahl und oberhalb sämtlicher Wallboxdiagramme.
 Reihenfolge im echten DOM geändert, keine CSS-Umsortierung/Komprimierung oder
 zweite Instanz. Diagnose unten, Status-/Frische-/Fehler und Datenpfade unverändert;
@@ -36,8 +76,9 @@ private JSON-Datei nicht ins Repository übernehmen. Statische Gegenprüfung ohn
 weiteren Datenpfadbefund, zugänglichen Beobachtungstitel auch bei Inspektion erhalten.
 Docker-/Bildabnahme und finaler Freigabestand für diese Diagnosekorrektur in PR#63;
 keine produktive Pi- oder Hardwareabnahme daraus ableiten.
-Keine DB-/Aufzeichnungs-/Steueränderung oder Produktionszugriff; Wallbox-Go weiter
-ausdrücklich ausstehend.
+Keine DB-/Aufzeichnungs-/Steueränderung oder Produktionszugriff durch diesen
+Darstellungsauftrag; damaliges fehlendes Wallbox-Go nun ausschließlich durch den
+oben begrenzten Simulationsauftrag ersetzt, reale Writes weiter nicht freigegeben.
 
 Vorheriger Darstellungsauftrag (2026-10-30, implementiert; PR#62 gemergt):
 Live-/Diagnosekurven auf Abschneiden prüfen, Phasenspannungen auch Live voll

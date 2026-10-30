@@ -8,6 +8,12 @@ Chargelimit  read:
 mbpoll /dev/ttyUSBEVSEcontrol -m rtu -a 9 -c 1 -B -0 -1 -b 57600 -P even -s 1 -r 16398 -t3:int
 Chargelimit  write:
 mbpoll /dev/ttyUSBEVSEcontrol -m rtu -a 9 -B -0 -1 -b 57600 -P even -s 1 -r 16640 -t4:int 10000
+HISTORISCHE NOTIZEN - KEINE FREIGEGEBENE SCHREIBTESTANLEITUNG.
+Funktionscodes, Registerbreiten und die spaetere Start/Stop-Umkehr sind teils
+widerspruechlich. ABB-Hersteller-PDF v1.7 und write-core-contract.md beachten:
+0x4105: Start=0, Stop=1; 0x4100: FC16, zwei 16-Bit-Woerter, UInt32-mA/MSW zuerst.
+Echte Schreibtests erst nach Information der Leitung und gesonderter Freigabe.
+Aktuelle Stufe 1: ausschliesslich isolierte Docker-PTY-Simulation.
 
 Unlock Cable (int16):
 size is one byte, therefore write with int16 or t4, that defaults to int16

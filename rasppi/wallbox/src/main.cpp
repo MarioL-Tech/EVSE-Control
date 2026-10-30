@@ -1,5 +1,6 @@
 #include "telemetry.hpp"
 #include "mqtt.hpp"
+#include "write_core.hpp"
 
 #include <modbus.h>
 #include <fcntl.h>
@@ -160,6 +161,11 @@ int run(const Options &o) {
                                    (o.timeout_ms % 1000) * 1000) == -1)
         throw std::runtime_error(modbus_strerror(errno));
 
+    // Stage 1: internal seam only. No command source or activation option is
+    // wired to this core. Production remains FC03-only; enabled policies exist
+    // exclusively in a separate PTY probe that is NOT shipped in the image.
+    wallbox::WriteCore writes(ctx.get(), wallbox::WritePolicy{}, stopped);
+
     std::cerr << "Read-only polling " << o.device << ", slave " << o.slave
               << ", FC03, 0x4008..0x401F; no write commands\n";
     bool &connected = ctx.get_deleter().connected;
@@ -182,6 +188,7 @@ int run(const Options &o) {
             else {
                 error = count == -1 ? std::string("read: ") + modbus_strerror(errno)
                                     : "read: incomplete register block";
+                writes.invalidate_session();
                 modbus_close(ctx.get());
                 connected = false; // reopen on the next cycle, including after USB disconnect
             }

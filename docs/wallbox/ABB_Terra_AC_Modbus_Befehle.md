@@ -1,5 +1,12 @@
 # ABB Terra AC Wallbox – Modbus RTU Befehlsübersicht
 
+> **Historische Notizen, keine freigegebene Schreibtestanleitung.** Die folgenden
+> `mbpoll`-Beispiele sind bei Funktionscode/Registerbreite nicht durchgehend
+> belastbar. Maßgeblich sind das Hersteller-PDF v1.7 und der
+> [Schreibkernvertrag](write-core-contract.md): Stromlimit braucht FC16/zwei Wörter;
+> Start=0, Stop=1 an `0x4105`. Echte Schreibtests erst nach Information der Leitung
+> und gesonderter Freigabe; Stufe 1 bleibt reine Docker-PTY-Simulation.
+
 > **Schnittstelle:** Modbus RTU über `/dev/ttyUSBEVSEcontrol`  
 > **Konfiguration:** 57600 Baud | Parität: Even (8E1) | Modbus ID (Address): 9
 
