@@ -453,8 +453,9 @@ test('categorical unknown, partial and pre-data intervals stay distinct in every
         last: field === 'charging' ? lastKnown : Number(lastKnown) });
       const partial = summary(b, field);
       assert.deepEqual(partial.qualityPaths.map(p => p.kind), ['partial']);
-      assert.equal(partial.stateMarkers.length, 1);
-      assert(Number.isFinite(partial.stateMarkers[0].y));
+      assert.equal(partial.stateMarkers.length, 0, 'A known last observation is a regular data point, not an extra uncertainty marker');
+      assert.equal(partial.markers.length, 1);
+      assert(Number.isFinite(partial.markers[0].y));
       assert.equal((partial.path.match(/[HV]/g) || []).length, 0, 'Partial known state has no curve edge');
       stat.last = null;
       let unknown = summary(b, field);
@@ -505,19 +506,65 @@ test('512 categorical buckets batch quality into at most three paths below the p
     assert.equal((numeric.path.match(/L/g) || []).length, 511, 'Numeric mean-line behavior is unchanged');
   }
 });
-test('each categorical quality barrier independently isolates a known last without changing regular marker semantics', () => {
+test('coarse and partial acquisition quality preserve actual known categorical last-observation steps', () => {
   for (const change of [bin => { bin.has_gap = true; }, bin => { bin.complete = false; },
     bin => { bin.metrics.charging.count = 29; bin.metrics.charging.nulls = 1; }]) {
     const b = hourSeries('day'); b.buckets = b.buckets.slice(0, 5);
     b.buckets.forEach(bin => { bin.has_gap = false; bin.complete = true; bin.coverage_seconds = 60; });
     change(b.buckets[2]);
     const s = summary(b, 'charging');
-    assert.equal((s.path.match(/M/g) || []).length, 3, 'Partial bucket is still its own existing move-only path');
-    assert.equal((s.path.match(/H/g) || []).length, 2, 'No incoming/outgoing edge crosses the barrier');
+    assert.equal((s.path.match(/M/g) || []).length, 1, 'A known unmixed last observation is not a missing value');
+    assert.equal((s.path.match(/H/g) || []).length, 4, 'Connect the five actual last observations, not just hidden marker overlays');
     assert.deepEqual(s.qualityPaths.map(p => p.kind), ['partial']);
-    assert.equal(s.stateMarkers.length, 1);
-    assert(s.markers.some(p => p.x === s.stateMarkers[0].x && p.y === s.stateMarkers[0].y),
-      'Existing isolated regular marker is preserved rather than rewritten');
+    assert.equal(s.stateMarkers.length, 0);
+    assert.equal(s.markers.length, 1, 'Only the normal last-point marker remains');
+  }
+});
+test('day diagnostics retain 136 known last observations despite 13 partial NULL bins and 3 coarse quality bins', () => {
+  // Structural regression for the reported pattern; never imports a private dump.
+  const b = hourSeries('day'), start = calendar.utc(b.range.from);
+  b.range.to = new Date(start + 86400000).toISOString();
+  b.selection.date = '2026-10-27';
+  const states = { plugged_in: true, charging: false, below_commanded_current: true,
+    error_code: 0, charging_state: 1, charging_state_raw: 33024, socket_lock_state: 257 };
+  b.buckets = Array.from({ length: 288 }, (_, i) => {
+    const samples = i < 136 ? i < 8 ? 147 : 148 : 0;
+    const partial = i <= 120 && i % 10 === 0, coarse = [1, 2, 135].includes(i);
+    const stat = metrics(samples);
+    for (const [field, value] of Object.entries(states)) if (samples) Object.assign(stat[field], {
+      count: samples - Number(partial), nulls: Number(partial), mean: null,
+      min: Number(value), max: Number(value), last: value, mixed: false
+    });
+    return { from: new Date(start + i * 300000).toISOString(), to: new Date(start + (i + 1) * 300000).toISOString(),
+      samples, has_gap: !samples || partial || coarse, complete: Boolean(samples) && i !== 135,
+      coverage_seconds: !samples || coarse ? 0 : partial ? 180 : 300, metrics: stat };
+  });
+  assert(calendar.validate(b, now));
+  assert.equal(b.buckets.reduce((n, bin) => n + bin.samples, 0), 20120);
+  for (const period of ['hour', 'day', 'week', 'month', 'year']) {
+    b.selection.period = period;
+    for (const field of Object.keys(states)) {
+      const s = summary(b, field);
+      assert.equal((s.path.match(/M/g) || []).length, 1, `${period}/${field}: one observed-last trend`);
+      assert.equal((s.path.match(/H/g) || []).length, 135);
+      assert.equal((s.path.match(/V/g) || []).length, 135);
+      assert.equal(s.stateMarkers.length, 0);
+      assert.equal(s.qualityPaths.reduce((n, p) => n + (p.path.match(/M/g) || []).length, 0), 16,
+        'Acquisition uncertainty stays below the main state metric');
+      assert.match(s.labelAt(0), /Lücken \/ unvollständig/);
+    }
+  }
+  b.selection.period = 'day';
+  for (const damage of ['null-last', 'all-null', 'mixed', 'empty', 'missing']) {
+    const broken = structuredClone(b), bin = broken.buckets[50], s = bin.metrics.charging;
+    if (damage === 'null-last') Object.assign(s, { count: bin.samples - 1, nulls: 1, last: null });
+    if (damage === 'all-null') Object.assign(s, { count: 0, nulls: bin.samples, min: null, max: null, last: null });
+    if (damage === 'mixed') Object.assign(s, { min: 0, max: 1, last: false, mixed: true });
+    if (damage === 'empty') { bin.samples = 0; bin.metrics = metrics(0); bin.coverage_seconds = 0; bin.complete = false; bin.has_gap = true; }
+    if (damage === 'missing') broken.buckets.splice(50, 1);
+    const series = summary(broken, 'charging');
+    assert.equal((series.path.match(/M/g) || []).length, 2, `${damage}: split both neighbouring edges`);
+    assert.equal((series.path.match(/H/g) || []).length, 133);
   }
 });
 test('legacy long-range constant zero W and 6 A retain local aggregates despite incomplete/gap context', () => {

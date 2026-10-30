@@ -4,7 +4,42 @@ Stand: 2026-10-30. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
-Aktueller Darstellungsauftrag (2026-10-30, implementiert; Prüf-/Freigabestand PR#62):
+Aktueller Folgeauftrag (2026-10-30): Haus-Netzleistung auf der Diagrammseite direkt
+unter die gemeinsame Zeitraumwahl und oberhalb sämtlicher Wallboxdiagramme.
+Reihenfolge im echten DOM geändert, keine CSS-Umsortierung/Komprimierung oder
+zweite Instanz. Diagnose unten, Status-/Frische-/Fehler und Datenpfade unverändert;
+Browser prüft tatsächliche Reihenfolge bei320..2560px. PWA-Shell v13. Codehead
+4577675 besteht Web41037745303/41037726231 vollständig (180 JS-Fälle und bisherige
+Backend-/SQL-/HTTP-/TLS-/PWA-/Chromium-/Runtime-/Provisioningprüfungen). Simulierte
+dunkle Desktop-Liveansicht und helle mobile Hauswochenansicht visuell geprüft:
+Hauskurve oberhalb der Wallbox, gleiche Dimensionen, Diagnose unten. Finaler
+Prüf-/Freigabestand in PR#63; kein Pi-Deployment.
+Nutzer meldet weiterhin unverbundene Diagnosepunkte nach PR#62. Screenshot der
+Tagesansicht und privat lokal bereitgestellter API-Auszug nun ausgewertet (kein
+Produktionsabruf):136 belegte/288 Intervalle,20120 Messwerte; alle sieben Diagnose-
+felder haben136 bekannte, nicht gemischte letzte Werte, keinerlei unknown-last.
+16 Intervalle wurden fälschlich zu separaten Beobachtungspunkten:13 mit einzelnen
+vorangehenden NULLs,3 ausschließlich groben Qualitätsflags. Reine Qualitätslane
+und Marker aus PR#62 haben diesen Nutzerfehler nicht behoben.
+Gezielte neue Semantik: Kalenderdiagnose zeigt ausdrücklich **letzte beobachtete
+Intervallwerte**, keine dauerhafte Zustandsbelegung. Bekannte, nicht gemischte
+letzte Werte bilden schematische Stufen durch benachbarte Intervallmittelpunkte,
+auch bei vorherigen Teil-NULLs oder grober Erfassungsqualität. Kein gemessener
+Übergangszeitpunkt, keine Zusage, der Zustand habe während einer Aufnahmelücke
+bestanden. Qualität bleibt unter der Hauptkurve und in Inspektionslabels erhalten;
+letzter Wert NULL, komplett unbekannte/fehlende/leere Intervalle und gemischte
+Zustände brechen beide Kanten weiterhin. Mixed mit bekanntem letztem Wert bleibt
+isoliert. Keine Bool-/Codemittel, echte false/0 bleiben Werte, keine NULL-Füllung.
+Live-/Raw-/Lifecycle-/SQL-Live-/Frischeregeln unverändert. PWA-Shell v14. Synthetische
+136-Intervall-Regressionsstruktur und Tagesbrowserprüfung aller sieben Kurven;
+private JSON-Datei nicht ins Repository übernehmen. Statische Gegenprüfung ohne
+weiteren Datenpfadbefund, zugänglichen Beobachtungstitel auch bei Inspektion erhalten.
+Docker-/Bildabnahme und finaler Freigabestand für diese Diagnosekorrektur in PR#63;
+keine produktive Pi- oder Hardwareabnahme daraus ableiten.
+Keine DB-/Aufzeichnungs-/Steueränderung oder Produktionszugriff; Wallbox-Go weiter
+ausdrücklich ausstehend.
+
+Vorheriger Darstellungsauftrag (2026-10-30, implementiert; PR#62 gemergt):
 Live-/Diagnosekurven auf Abschneiden prüfen, Phasenspannungen auch Live voll
 statt gestrichelt; Übersicht/Diagramme wie Settings volle verfügbare Breite.
 Überflüssige Wiederholungen kürzen, Status/Frische/Messzeit/Fehler und wichtige

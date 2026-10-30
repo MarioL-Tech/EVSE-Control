@@ -394,7 +394,8 @@
           (point ? `${s.metric.label}: ${point.values[s.metric.id] === null ? 'unbekannt' : point.values[s.metric.id]} ${g.unit} · ${timeFmt.format(point.t)}` : null)).filter(Boolean);
         const title = entry.nodes.get('title');
         if (title) {
-          const text = titles.length ? titles.join('\n') : `Intervall ${entry.inspection + 1}: keine Messwerte`;
+          const text = (entry.plot?.stateObservations ? 'Letzte beobachtete Intervallwerte · ' : '') +
+            (titles.length ? titles.join('\n') : `Intervall ${entry.inspection + 1}: keine Messwerte`);
           if (title.textContent !== text) title.textContent = text;
           const aria = `${g.label}: ${text}`;
           if (svg.getAttribute('aria-label') !== aria) svg.setAttribute('aria-label', aria);
@@ -532,7 +533,7 @@
           if (text !== null && element.textContent !== text) element.textContent = text;
           return element;
         };
-        put('title', 'title', `${g.label}: historischer Verlauf, ${plot.count} Messzeitpunkte`);
+        put('title', 'title', `${g.label}: ${plot.stateObservations ? 'letzte beobachtete Intervallwerte' : 'historischer Verlauf'}, ${plot.count} Messzeitpunkte`);
         const ticks = g.boolean ? [0, 1] : [...new Set(Array.from({ length: 5 }, (_, tick) => {
           const value = plot.lo + (plot.hi - plot.lo) * tick / 4;
           return g.step ? Math.min(Math.floor(plot.hi), Math.max(Math.ceil(plot.lo), Math.round(value))) : value;
@@ -570,7 +571,7 @@
         entry.inspect(entry.inspection);
         const descriptionText = !plot.metrics.length ? 'Keine Kurve ausgewählt. Oben wieder einschalten.' : archiveMode ? archived
           ? `${plot.count} Messwerte${g.id === 'energy' ? ' · letzter Sessionzähler'
-            : plot.paths.some(p => p.qualityPaths?.length) ? ' · gemischt / unbekannt markiert' : ''}`
+            : plot.stateObservations ? ' · letzte Intervallwerte' : ''}${plot.paths.some(p => p.qualityPaths?.length) ? ' · Erfassungsqualität markiert' : ''}`
           : 'Keine Archivmesswerte.'
           : plot.count ? `${plot.count} Messzeitpunkte${g.id === 'energy' ? ' · letzter Sessionzähler' : ''}`
             : 'Keine Messwerte im Zeitfenster.';

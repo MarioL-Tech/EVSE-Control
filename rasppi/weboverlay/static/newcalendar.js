@@ -154,6 +154,9 @@
     const y = v => bounds.bottom - (v - plot.lo) / (plot.hi - plot.lo) * (bounds.bottom - bounds.top);
     plot.bucketCount = batch.buckets.length;
     plot.lineMode = lineMode;
+    // Categorical centre points represent actual last observations per bin,
+    // NOT continuous state occupancy or a measured transition time.
+    plot.stateObservations = lineMode && Boolean(group.step);
     plot.paths = plot.metrics.map(m => {
       const renderPaths = [], runs = [], logical = [], labels = new Map(), stateMarkers = [], quality = new Map();
       const xy = (a, b) => `${a.toFixed(2)},${b.toFixed(2)}`;
@@ -184,7 +187,7 @@
           const kind = !stat.count || stat.last === null ? 'unknown' : stat.mixed ? 'mixed' : uncertain ? 'partial' : null;
           if (kind) quality.set(kind, (quality.get(kind) || '')
             + `M${xy(left + inset, bounds.bottom + 14)}H${(right - inset).toFixed(2)}`);
-          if (stat.count && stat.last !== null && (stat.mixed || uncertain))
+          if (stat.count && stat.last !== null && stat.mixed)
             stateMarkers.push({ x: (left + right) / 2, y: y(Number(stat.last) / m.divisor) });
         }
         if (!stat.count) { finish(); continue; }
@@ -201,9 +204,12 @@
         // reconstruction of uninterrupted raw acquisition. Coarse coverage /
         // processing flags remain in inspection labels, but must not isolate
         // every known mean until background quality processing catches up.
-        // A partial NULL does not erase a known numeric mean/last. Entirely
-        // unknown/empty intervals still split; categorical evidence stays strict.
-        const safe = value !== null && (lineMode && !categorical || !attributes.gap);
+        // A partial NULL/coarse quality flag does not erase an actual known
+        // last observation. This stepped observational trend does not assert
+        // an uninterrupted state throughout a partly sampled interval. The
+        // separate quality lane and inspection retain that uncertainty.
+        // Missing/empty/unknown-last and mixed categorical bins still split.
+        const safe = value !== null && (lineMode || !attributes.gap);
         const previous = run.at(-1);
         if (!safe || (previous && previous.to !== from)) finish();
         const point = { left, right, middle, min, max, value, ...attributes, to };

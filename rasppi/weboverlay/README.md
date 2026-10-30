@@ -2,10 +2,15 @@
 
 Übersicht, Diagramme und Settings nutzen dieselbe volle Inhaltsbreite neben der
 Sidebar. Phasenspannungen sind auch Live durchgezogen. Diagnosecodes haben
-ganzzahlige Achsen; gemischte/unbekannte Archivzustände bleiben separat markiert,
+ganzzahlige Achsen; bekannte, nicht gemischte letzte Intervallbeobachtungen bilden
+Stufenlinien, auch wenn frühere Einzelbeobachtungen desselben Intervalls fehlen.
+Das ist kein Nachweis dauerhafter Zustandsbelegung. Gemischte/unbekannte
+Archivzustände und teilweise Erfassung bleiben separat markiert,
 ohne daraus konstante Zustände zu erfinden. Ein belegter Vorgänger darf eine
 Kurve am linken Fensterrand optisch anschneiden, echte Lücken/SQL-Live-Wechsel
 bleiben erhalten. Wallbox-Schreibfunktionen sind weiterhin nicht freigegeben.
+Das Haus-Netzleistungsdiagramm steht direkt unter der gemeinsamen Zeitraumwahl
+und vor den Wallboxkurven, ohne Änderung an der unabhängigen Datenerfassung.
 
 Eigenständiger Docker-Dienst, **PHP-Migration implementiert und Docker-getestet**:
 ein PHP-CLI-MQTT-Subscriber → privater atomarer Snapshot → PHP 8.4/Apache →

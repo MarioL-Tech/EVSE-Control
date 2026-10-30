@@ -41,7 +41,7 @@
       <header class="page-header"><h1>Diagramme</h1><span class="readonly">Nur lesen</span></header>
       <p id="wallbox-warning" class="warning-message" data-tone="warning" role="status" hidden></p>
       <section class="history-section" aria-labelledby="history-heading">
-        <div class="section-heading history-heading"><h2 id="history-heading">Wallbox-Verlauf</h2><button id="reset-display" type="button">Alle Kurven anzeigen</button></div>
+        <div class="section-heading history-heading"><h2 id="history-heading">Verlauf</h2><button id="reset-display" type="button">Alle Kurven anzeigen</button></div>
         <div class="calendar-toolbar" role="group" aria-label="Kalenderhistorie">
           <div class="calendar-periods" role="group" aria-label="Zeitraumart"><button type="button" data-calendar-period="live" aria-pressed="true">Live</button><button type="button" data-calendar-period="hour" aria-pressed="false">Stunde</button><button type="button" data-calendar-period="day" aria-pressed="false">Tag</button><button type="button" data-calendar-period="week" aria-pressed="false">Woche</button><button type="button" data-calendar-period="month" aria-pressed="false">Monat</button><button type="button" data-calendar-period="year" aria-pressed="false">Jahr</button><button type="button" data-calendar-period="custom" aria-pressed="false">Zeitraum</button></div>
           <select id="calendar-mode" aria-label="Ansicht" hidden><option value="live">Live</option><option value="hour">Stunde</option><option value="day">Tag</option><option value="week">Woche</option><option value="month">Monat</option><option value="year">Jahr</option><option value="custom">Zeitraum</option></select>
@@ -51,15 +51,15 @@
           <p id="calendar-label" class="calendar-label" role="status">Live-Verlauf</p>
           <form id="calendar-custom" hidden><label for="calendar-from">Von · Europe/Vienna<input id="calendar-from" type="datetime-local" required></label><label for="calendar-to">Bis (exklusiv) · Europe/Vienna<input id="calendar-to" type="datetime-local" required></label><button id="calendar-load" type="submit">Zeitraum laden</button><span>Maximal ein Kalenderjahr; Grenzen werden serverseitig geprüft.</span></form>
         </div>
+        <section class="card house-history" id="smartmeter" aria-labelledby="house-title">
+          <div class="card-top"><h2 id="house-title">Netzleistung Haus</h2><span id="grid-status" class="badge" data-tone="muted" role="status">Warten</span></div>
+          <div class="smartmeter-reading"><p id="grid-power" class="hero-value">—</p><p id="grid-direction" class="smartmeter-direction">Unbekannt</p></div>
+          <p id="grid-reason" class="subtle">Verbindung zum Haus-Smartmeter wird hergestellt.</p>
+          <div class="metadata"><span>Letzter Abruf <strong id="grid-fetched">—</strong></span><span>Abrufalter <strong id="grid-age">—</strong></span></div>
+          <figure id="chart-house" class="chart-card"><figcaption>Netzleistung · kW</figcaption><label class="house-choice"><input id="show-house-power" type="checkbox" checked> Netzleistung anzeigen</label><svg id="house-chart-svg" role="img" aria-label="Netzleistung Haus im gewählten Zeitraum"></svg><p id="house-chart-description" class="chart-description">Verlauf wird geladen.</p></figure>
+        </section>
         <p class="history-state" role="status"><span id="history-source">Live-Verlauf</span><span id="history-detail">Browserverlauf seit Seitenöffnung.</span></p>
         <div id="chart-grid" class="chart-grid"></div>
-      </section>
-      <section class="card house-history" id="smartmeter" aria-labelledby="house-title">
-        <div class="card-top"><h2 id="house-title">Netzleistung Haus</h2><span id="grid-status" class="badge" data-tone="muted" role="status">Warten</span></div>
-        <div class="smartmeter-reading"><p id="grid-power" class="hero-value">—</p><p id="grid-direction" class="smartmeter-direction">Unbekannt</p></div>
-        <p id="grid-reason" class="subtle">Verbindung zum Haus-Smartmeter wird hergestellt.</p>
-        <div class="metadata"><span>Letzter Abruf <strong id="grid-fetched">—</strong></span><span>Abrufalter <strong id="grid-age">—</strong></span></div>
-        <figure id="chart-house" class="chart-card"><figcaption>Netzleistung · kW</figcaption><label class="house-choice"><input id="show-house-power" type="checkbox" checked> Netzleistung anzeigen</label><svg id="house-chart-svg" role="img" aria-label="Netzleistung Haus im gewählten Zeitraum"></svg><p id="house-chart-description" class="chart-description">Verlauf wird geladen.</p></figure>
       </section>
       <details class="technical-details history-diagnostics"><summary>Zustände &amp; Diagnose</summary><div id="chart-diagnostics-grid" class="chart-grid"></div></details>
       <section class="status-panel current-data" aria-labelledby="current-data-heading">
