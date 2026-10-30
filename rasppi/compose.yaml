@@ -8,6 +8,7 @@ services:
       - "${UART_DEVICE:-/dev/serial0}:/dev/serial0"
     stdin_open: true
     tty: true
+    restart: "${UART_RESTART_POLICY:-no}"
     environment:
       UART_MODE: "${UART_MODE:-interactive}"
       MQTT_HOST: "${MQTT_HOST:-mqtt-broker}"

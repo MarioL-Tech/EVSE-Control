@@ -10,7 +10,7 @@ Speichern bleibt Entwurf, ModePOST erst bewusste Aktivierung. Phasen/Zählertopo
 nullable und nicht geraten,32A nur explizite Site-Envfreigabe. Modeclient besitzt
 Radios; Manualclient behält Strom/Start/Stop, Stop unabhängig von Modepending/ESP.
 Nur einmaliger frischer Guardinspect vor ModePOST, kein2sBrowserinspectpoller,
-der Owneraktionen aushungert. Shellv20, vorhandene Overlay-/Settingsgrenzen bleiben.
+der Owneraktionen aushungert. Shellv21, vorhandene Overlay-/Settingsgrenzen bleiben.
 P1-Zeit-/Pending-/Schutzstopbefunde aus935f2a9 integriert. Zusätzliche eigene
 Prüfung: auch abgelaufene, aber bereits angenommene manuelle Absicht muss Override
 auslösen; Queueadmissionmarker wird nur vom Owner konsumiert. Uhrfehler im zuvor
@@ -23,6 +23,12 @@ scheitert noch am alten Theme-Buttoninventory (neue zwei Servotasten) und wird
 gezielt angepasst. Keine Hardware-/Pi-Abnahme. Owneragent nach erfolgten Tools
 am Modellkontingent gestoppt, Teilstand gesichert und vom Hauptagent weitergeführt;
 kein zusätzlicher unabhängiger Owner-Abschlussreview behauptet.
+Erneuter finaler gpt-6.1-sol-Reviewversuch scheitert vor Tools am Kontingent,
+null Prüfergebnis. Hauptagent führt gezielte Gegenprüfung/echte Docker-CI fort.
+Pure-Suite fand zusätzlich unzulässige NaN/Inf→UInt32-Fixturekonvertierungen:
+jetzt repräsentierbare Double-Haus-/Spannungsfehler statt undefiniertem Overflow
+testen. Keine Telemetrietypenänderung. UI zeigt neue passende-Guard-Absicht als
+angefordert trotz vorherigem Override; neuer manueller Guardwechsel gewinnt.
 Erste native Matrix d499b7c besteht echte Owner-/HTTP-/Broker-/PTY- und bisherige
 Protokoll-/RTU-/MQTT-Fälle, scheitert an Pure-Core-Fixture „manual stop latch“:
 Aktivierungshelper hatte Absicht nie in Engine beobachtet. Vor späteren Ereignissen

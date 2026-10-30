@@ -64,7 +64,9 @@ std::optional<int> integer(const Json &v,int lo,int hi) {
     double n=number(v); if(n<lo || n>hi) throw std::runtime_error("range"); return static_cast<int>(n);
 }
 std::optional<bool> boolean(const Json &v) {
-    if(v.is_null()) return {}; if(!v.is_boolean()) throw std::runtime_error("bool"); return v.get<bool>();
+    if(v.is_null()) return {};
+    if(!v.is_boolean()) throw std::runtime_error("bool");
+    return v.get<bool>();
 }
 const Json &field(const Json &v,const char *key) {
     static const Json nil;

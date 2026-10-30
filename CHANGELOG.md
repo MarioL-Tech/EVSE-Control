@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-30 22:10 (Europe/Vienna)
+
+- Weitere Pure-Fixturekorrektur: NaN/Infinity/negative Werte sind nicht als
+  UInt32-Wallboxleistung repräsentierbar; solche C++-Zuweisungen testeten nur
+  Overflowkonvertierung. Jetzt echte nicht endliche Double-Hauswerte/Spannungen
+  injizieren und Ablehnung unverändert verlangen; Telemetrietypen nicht ändern.
+- Neue Modusabsicht mit aktuellem Guard als angefordert zeigen, auch solange die
+  Readerbeobachtung noch den vorherigen manuellen Override trägt. Ein späterer
+  manueller Guardwechsel gewinnt weiterhin. Uhrsprung verwirft den laufenden
+  Browserauftrag, eine neue bewusste Wahl kann mit frischer Zeitbasis neu prüfen;
+  kein automatischer Retry und keine nachträgliche Gewissheit über alte POSTs.
+  Browserregressionen ergänzt, Shellv21. Regler-Gesamt-CI noch offen.
+- Gateway-Neustarts sind opt-in per `UART_RESTART_POLICY=unless-stopped`, damit
+  bewusst bereitgestellter Betrieb wiederkommt; interaktiver Default bleibtno.
+  Keine persistente Befehlsqueue oder Wiederholung bei Containerneustart.
+- Finaler unabhängiger Reglerreviewversuch scheitert am Modellkontingent vor
+  jeder Toolausführung; keine zusätzliche unabhängige Abschlussprüfung behauptet.
+
 ## 2026-10-30 21:57 (Europe/Vienna)
 
 - Erste native Matrix für d499b7c: neuer realer Owner-/HTTP-/Broker-/PTY-Fall und

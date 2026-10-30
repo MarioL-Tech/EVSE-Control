@@ -19,6 +19,7 @@ final class EnvSettingsCatalog
         if ($service === 'uart') {
             $add('UART_DEVICE', 'device');
             $add('UART_MODE', 'enum', null, null, false, false, ['interactive', 'gateway']);
+            $add('UART_RESTART_POLICY', 'enum', null, null, false, true, ['no', 'unless-stopped']);
             // Network/mount provisioning stays an explicit operator step.
             $add('UART_NETWORK_MODE', 'network', null, null, false, true);
             $add('ESP32_MQTT_CLIENT_ID', 'identifier', 1, 128);

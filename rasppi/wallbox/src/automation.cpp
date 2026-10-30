@@ -84,7 +84,7 @@ bool action_is_current(const Action &a, const Input &i) noexcept {
             && range(i.hardware_max_ma,6000,32000) && fresh(i.hardware_expires,i.now) && range(i.installation_max_ma,6000,32000)
             && a.target_ma>=6000 && a.target_ma<=std::min({32000,*i.hardware_max_ma,*i.installation_max_ma})
             && (!a.requires_house || (i.sources.house.valid && fresh(i.sources.house.expires,i.now)
-                && std::isfinite(i.sources.house.power_w) && std::isfinite(i.sample->active_power_w) && i.sample->active_power_w>=0)));
+                && std::isfinite(i.sources.house.power_w))));
     if (!context_ok) return false;
     const auto &s=i.sources.settings;
     const auto &p=s.mode==Mode::Pv?s.pv:s.custom;
@@ -218,8 +218,7 @@ std::optional<Action> Engine::step(const Input &i) {
     if (sources_ok && feedback) {
         int count=0; double max_v=0;
         for (double voltage:v->voltage_v) if(std::isfinite(voltage) && voltage>=150 && voltage<=300) { ++count; max_v=std::max(max_v,voltage); }
-        sources_ok=count>=*s.phases && i.sources.house.valid && fresh(i.sources.house.expires,i.now) && std::isfinite(i.sources.house.power_w)
-            && std::isfinite(v->active_power_w) && v->active_power_w>=0;
+        sources_ok=count>=*s.phases && i.sources.house.valid && fresh(i.sources.house.expires,i.now) && std::isfinite(i.sources.house.power_w);
         per_amp=*s.phases*max_v;
         if (sources_ok) {
             budget=*p.max_import_w-i.sources.house.power_w+(*s.meter_includes_wallbox?v->active_power_w:0.0);

@@ -27,6 +27,7 @@ In der lokalen Compose-Umgebung konfigurieren:
 
 ```dotenv
 UART_MODE=gateway
+UART_RESTART_POLICY=unless-stopped
 UART_DEVICE=/dev/serial0
 UART_NETWORK_MODE=evse-mqtt
 MQTT_HOST=mqtt-broker
@@ -43,6 +44,9 @@ docker compose -f rasppi/compose.yaml --profile tools up -d --build uart-bridge
 ```
 
 Kein neuer Containerdienst, Broker, Hardware-Master oder Wallboxschreiber.
+Der interaktive Default bleibt ohne automatische Neustarts. Für den bewusst
+bereitgestellten Gatewaybetrieb setzt der Betreiber `UART_RESTART_POLICY` auf
+`unless-stopped`; dabei werden keine Managementbefehle gespeichert/wiederholt.
 `UART_NETWORK_MODE` wählt das bereits vorhandene externe Docker-Netz (keine
 Neuanlage). Default `none` hält das interaktive Werkzeug ohne MQTT-Netz nutzbar;
 für den Gatewaymodus bewusst auf das vorhandene `evse-mqtt` setzen.

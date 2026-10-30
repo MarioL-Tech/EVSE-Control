@@ -113,9 +113,13 @@
     const radios = MODES.map(m => doc.getElementById(`control-mode-${m}`));
     if (radios.some(r => !r)) return null;
     let observed = null, desired = null, message = '', uncertain = false, busy = false, active = null, generation = 0;
+    let pendingFrom; // At most two exact pre-POST observations, never random-ID ordering.
     let suspended = doc.hidden, clock = Date.now(), monotonic = win.performance.now();
     const emit = (name, detail) => win.dispatchEvent(new win.CustomEvent(name, { detail }));
-    const effective = () => !observed || observed.state === 'manual_override' ? 'manual' : desired?.activation.mode || observed.requested_mode;
+    const awaitingDesired = () => !!(observed && desired && desired.activation.guard === observed.guard &&
+      pendingFrom !== undefined && pendingFrom.includes(observed.activation_id) && observed.activation_id !== desired.activation.id);
+    const effective = () => !observed ? 'manual' : awaitingDesired() ? desired.activation.mode :
+      observed.state === 'manual_override' ? 'manual' : observed.requested_mode;
     function render() {
       const mode = effective(), supported = !!observed && !['disabled', 'invalid_base'].includes(observed.plan);
       radios.forEach((r, index) => { r.checked = mode === MODES[index]; r.disabled = !!active || busy || suspended || (!supported && MODES[index] !== 'manual'); });
@@ -123,9 +127,8 @@
       if (!feedback) {
         if (!observed) feedback = 'Manuell – Automatik benötigt einen aktualisierten Reader.';
         else if (!supported) feedback = 'Reglerquelle nicht eingerichtet – Reader-Konfiguration prüfen.';
+        else if (awaitingDesired()) feedback = `${observed.state === 'frozen' ? STATE.frozen + ' · ' : ''}${LABEL[mode]} angefordert – Readerbestätigung ausstehend.`;
         else if (['manual_override', 'awaiting_activation', 'frozen'].includes(observed.state)) feedback = STATE[observed.state];
-        else if (desired && (observed.activation_id !== desired.activation.id || observed.guard !== desired.activation.guard ||
-            observed.config_revision !== desired.config_revision)) feedback = `${LABEL[mode]} angefordert – Readerbestätigung ausstehend.`;
         else feedback = STATE[observed.state];
       }
       status.textContent = feedback;
@@ -154,28 +157,37 @@
     function check(token) {
       if (token !== generation || !active || active.controller.signal.aborted || suspended) throw Error('cancelled');
       const now = Date.now(), mono = win.performance.now();
-      if (now < clock || Math.abs((now - clock) - (mono - monotonic)) > 2000) { cancel(); throw Error('clock'); }
+      if (now < clock || Math.abs((now - clock) - (mono - monotonic)) > 2000) {
+        const posted = active.posted;
+        cancel(); clock = now; monotonic = mono;
+        if (!posted) message = 'Zeitfehler – Auswahl verworfen. Bitte erneut bewusst wählen.';
+        render(); throw Error('clock');
+      }
       clock = now; monotonic = mono;
     }
     async function run(mode = null) {
       if (active || busy || suspended || (mode && !MODES.includes(mode))) return;
       if (mode && !observed) { message = 'Kein frischer Automatik-Guard verfügbar – Reader prüfen.'; render(); return; }
       const token = ++generation;
+      const focus = radios.includes(doc.activeElement) ? doc.activeElement : null;
       active = { controller: new win.AbortController(), posted: false, guard: null };
       if (mode) { uncertain = false; message = 'Moduswahl wird geprüft …'; }
       render();
       try {
-        let guard;
+        let guard, baseline;
         if (mode) {
           const control = await request('/api/wallbox-control', 12000); check(token);
           if (!control.response.ok) throw Error('control');
           const a = controlResponse(control.body); if (!a) { observed = null; throw Error('legacy'); }
-          observed = a; guard = a.guard; active.guard = guard;
+          observed = a; guard = a.guard; baseline = a.activation_id; active.guard = guard;
         }
         const get = await request('/api/charging-mode', 4000); check(token);
         const draft = modeResponse(get.body);
         if (!get.response.ok || draft.status !== 'ok' || !draft.csrf) throw Error('get');
-        if (!mode) { desired = draft; if (!uncertain) message = ''; return; }
+        if (!mode) {
+          if (!desired || desired.activation.id !== draft.activation.id || desired.activation.guard !== draft.activation.guard) pendingFrom = undefined;
+          desired = draft; if (!uncertain) message = ''; return;
+        }
         active.posted = true;
         const post = await request('/api/charging-mode', 5000, { method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': draft.csrf },
@@ -194,7 +206,7 @@
         }
         if (result.activation.mode !== mode || result.activation.guard !== guard || result.config_revision !== draft.config_revision ||
             result.activation.id === draft.activation.id || !hex(result.mode_revision, 64)) throw Error('mismatch');
-        desired = result; active.posted = false; message = '';
+        desired = result; pendingFrom = [baseline, draft.activation.id]; active.posted = false; message = '';
       } catch (_) {
         if (token === generation) {
           if (active?.posted) { uncertain = true; message = 'Aktivierungsausgang unbekannt – nicht automatisch wiederholt. Erneute Wahl nur bewusst.'; }
@@ -202,7 +214,11 @@
           else if (!uncertain) message = 'Modusstatus nicht verfügbar – keine Aktivierung gesendet.';
         }
       } finally {
-        if (token === generation) { const posted = !!mode; active = null; render(); if (posted) emit('evse:refresh-control', {}); }
+        if (token === generation) {
+          const posted = !!mode; active = null; render();
+          if (focus && !focus.disabled && !doc.hidden && doc.activeElement === doc.body) focus.focus();
+          if (posted) emit('evse:refresh-control', {});
+        }
       }
     }
     // Radio arrows synthesize click in browsers. Prevent native arrow selection and
@@ -224,6 +240,8 @@
       const next = automation(event.detail?.automation);
       if (active?.guard && (!next || next.guard !== active.guard)) cancel();
       observed = next;
+      if (!next || !desired || next.guard !== desired.activation.guard || next.activation_id === desired.activation.id ||
+          pendingFrom !== undefined && !pendingFrom.includes(next.activation_id)) pendingFrom = undefined;
       if (!uncertain && !active) message = '';
       render();
     });

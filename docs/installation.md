@@ -583,6 +583,7 @@ erhalten, nach Settings-Provisionierung dem bestehenden Dateilink folgen):
 
 ```dotenv
 UART_MODE=gateway
+UART_RESTART_POLICY=unless-stopped
 UART_DEVICE=/dev/serial0
 UART_NETWORK_MODE=evse-mqtt
 MQTT_HOST=mqtt-broker

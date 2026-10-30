@@ -74,8 +74,16 @@ const control = automation => ({ status: 'ok', csrf: H(64), command_sent: false,
     await checked('pv');
     reader = auto({ requested_mode: 'pv', activation_id: current.activation.id, state: 'adjusting' });
     await observe(reader); assert.match(await text(), /passt Strom an/);
+    const beforeForeign = posts.length;
+    reader = auto({ requested_mode: 'custom', activation_id: H(32, '9'), state: 'resuming' });
+    await observe(reader); await checked('custom');
+    assert.equal(posts.length, beforeForeign, 'Another operator activation is observed, never overwritten or replayed');
     reader = auto({ guard: H(32, 'e'), state: 'manual_override', requested_mode: 'pv' });
     await observe(reader); await checked('manual'); assert.match(await text(), /manuellen Eingriff/);
+    await select('pv'); await checked('pv');
+    assert.match(await text(), /angefordert/, 'New matching-guard intent is pending, not the old manual override');
+    reader = auto({ guard: H(32, 'd'), state: 'manual_override', requested_mode: 'pv' });
+    await observe(reader); await checked('manual');
     // Reader restart requires deliberate reselection, no automatic replay.
     reader = auto({ guard: H(32, 'f'), requested_mode: 'pv', state: 'awaiting_activation' });
     const beforeRestart = posts.length; await observe(reader); await checked('pv');
@@ -140,6 +148,13 @@ const control = automation => ({ status: 'ok', csrf: H(64), command_sent: false,
     const beforeForeground = posts.length, beforeControl = controlCount, beforeGet = getCount;
     await page.evaluate(() => { dispatchEvent(new Event('pagehide')); dispatchEvent(new PageTransitionEvent('pageshow')); });
     await settle(); assert.equal(posts.length, beforeForeground); assert.equal(controlCount, beforeControl); assert.ok(getCount > beforeGet);
+    // Clock correction cancels the current flow, but a later explicit fresh
+    // selection must work without reviving/retrying the cancelled request.
+    const beforeClock = posts.length;
+    await page.evaluate(() => { window.realModeNow = Date.now; Date.now = () => window.realModeNow() + 10000; });
+    await select('pv'); assert.equal(posts.length, beforeClock); assert.match(await text(), /Zeitfehler/);
+    await select('pv'); assert.equal(posts.length, beforeClock + 1);
+    await page.evaluate(() => { Date.now = window.realModeNow; delete window.realModeNow; });
     assert.deepEqual(await page.evaluate(() => [localStorage.length, sessionStorage.length]), [0, 0]);
     assert.deepEqual(errors, []);
     await context.close();

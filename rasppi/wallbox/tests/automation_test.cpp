@@ -214,9 +214,12 @@ void tests() {
       if(fault==0) i.sources.settings.pv.max_import_w=100001;
       if(fault==1) i.hardware_max_ma=32001;
       if(fault==2) i.hardware_max_ma=5999;
-      if(fault==3) i.sample->active_power_w=std::numeric_limits<double>::quiet_NaN();
-      if(fault==4) i.sample->active_power_w=std::numeric_limits<double>::infinity();
-      if(fault==5) i.sample->active_power_w=-1;
+      // Wallbox power is UInt32, so NaN/Inf/negative injections there only
+      // produce invalid C++ conversions, not malformed telemetry. Exercise
+      // representable untrusted floating-point source values instead.
+      if(fault==3) i.sources.house.power_w=std::numeric_limits<double>::quiet_NaN();
+      if(fault==4) i.sources.house.power_w=std::numeric_limits<double>::infinity();
+      if(fault==5) i.sample->voltage_v.fill(std::numeric_limits<double>::quiet_NaN());
       check(!e.step(i),"invalid feedback budget/cap cannot start");
     }
     { Profile p; p.weekdays={1}; p.windows={{23*60,60}};

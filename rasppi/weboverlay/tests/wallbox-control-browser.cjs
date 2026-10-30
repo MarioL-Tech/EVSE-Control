@@ -130,7 +130,8 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
     assert.deepEqual(await page.locator('.control-mode-options label').allTextContents(), ['PV-Regelung', 'Manuell', 'Benutzerdefiniert']);
     assert.equal(await page.locator('input[name="charging-mode"]:checked').count(), 1);
     for (const mode of ['pv', 'custom']) {
-      await page.locator(`#control-mode-${mode}`).check();
+      await page.locator(`#control-mode-${mode}`).click();
+      await page.waitForFunction(id => document.getElementById(id).checked && !document.getElementById(id).disabled, `control-mode-${mode}`);
       assert.equal(await page.locator('input[name="charging-mode"]:checked').count(), 1);
       await untilText('control-hint', /Manuelle Stromvorgaben nur/);
       assert(await page.locator('#control-start').isDisabled());
@@ -139,7 +140,7 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
       await page.locator('#control-apply').evaluate(el => el.click());
       assert.equal(postCount, 0, 'Mode activation never sends a manual Wallbox POST');
     }
-    await page.locator('#control-mode-manual').check();
+    await page.locator('#control-mode-manual').click();
     await page.waitForFunction(() => !document.getElementById('control-apply').disabled);
     assert(!await page.locator('#control-apply').isDisabled());
     await page.locator('#control-mode-manual').focus(); await page.keyboard.press('ArrowRight');
