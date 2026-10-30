@@ -5,6 +5,31 @@ die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
 Aktueller Webbedienauftrag (2026-10-30): PR#64 vom Projektinhaber gemergt.
+Neuer Folgeauftrag nach PR#68/mainc5ac0d7: Betreiber bestätigt jetzt ausdrücklich
+32A als Installationsmaximum und beauftragt weitere Freigabe. Diese32A gelten
+für seine Installation, NICHT als neuer universeller Default. Produktiver
+`WALLBOX_INSTALLATION_MAX_MA=32000`-Save/Recreate ist Operatoraufgabe, kein Agent-
+Pi-Zugriff. Grenzen/Frische/CSRF/ACK-/Unknown-/Keine-Retry-Prüfungen bleiben.
+Markierter Settingsscreenshot: rote Boilerplate entfernen, Fehler/ungewisser
+Speicherstand aber kurz sichtbar erhalten; drei Profile native aufklappbar,
+mehr Abstand vor Wochentagen, max.drei Feldspalten. Übersicht größere Moduskarten,
+14px-Slidertrack/28px-Griff, größere Aktionstasten. Steuerdetails innerhalb
+bestehender Diagnose, tatsächliche Auftragsergebnisse bleiben außen. Shellv18.
+Neue ausdrückliche Umsetzungsfreigabe für tatsächlichen PV-/Custom-Hintergrund-
+regler und ESP32-Webfunktionen. Backendcontroller/Pi-UART-Gateway/Firmware/Web
+werden getrennt implementiert/geprüft, keine vorgetäuschte Gesamtfreigabe.
+Hauszähler-Wallbox-Einschluss und Phasengrundlage sind noch beim Betreiber
+angefragt; nicht raten. Verzögerungen/Grenzen bleiben explizite Settings.
+Codeprüfung bestätigt bisherigen Zustand: UART nur interaktiv, kein automatischer
+Ladebeginn an ESP. RFID-Whitelist/NVS/30sAnlernen im Firmwarecode vorhanden,
+aber kein Webgateway/sofortiger Lock-/Unlock-Befehl. Neue Firmware benötigt
+gesonderten Flash-/Hardwaretestauftrag, kein Agent-Flash/SSH/Pi-Test.
+Unabhängige Firmwaregegenprüfung von4e5b213 ohne konkreten Befund, CI offen.
+Unabhängige Reglerprüfung8b82d7d fand drei P1 (Zeitfehler durch Aktivierung
+aufgehoben, unbekannte Werte verhinderten möglichen Stop, Pending-Aktion beim
+Aktivierungswechsel verloren); gezielte Korrektur beauftragt. Noch nicht als
+funktionierenden/abgenommenen Regler ausgeben. Frühere Aussagen „32A nicht
+bestätigt“ unten sind historische Zwischenstände.
 Neuer Auftrag nach gemergtemPR#67 (main8acecb1): wiederholte Bedienhinweise kürzen;
 Screenshot belegt geprüfte Verbindung/Gerätemaximum32A, aber unbekanntes
 Installationsmaximum/wirksames Maximum. Daher Start/Übernehmen korrekt gesperrt;

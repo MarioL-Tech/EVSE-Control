@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-30 19:17 (Europe/Vienna)
+
+- Betreiber bestätigt32A als sein Installationsmaximum; kein universeller
+  32-A-Default und keine Agent-Pi-Konfigurationsänderung. Operator muss explizite
+  mA-Konfiguration speichern und Reader neu erstellen, technische Schutzprüfungen
+  bleiben erhalten. Bisherige16A-Vermutung nicht übernommen.
+- Markierte UI-Nachbesserung: drei Settingsprofile native auf-/zuklappbar, max.
+  drei Feldspalten, mehr Abstand vor Wochentagen, Boilerplate entfernt und Fehler-
+  bzw.unbestätigte Save-Zustände kurz erhalten. Große Moduskarten mit Symbolen,
+  doppelter Slidertrack14px/28px-Griff, größere Aktionstasten. Steuerungsdetails
+  in bestehende Diagnose, wirkliche Auftragsergebnisse bleiben außen.
+- Regressionen für Klappen/ungültiges geschlossenes Profil, große Touchziele,
+  Keyboard/Pointer/Nichtversand und vorhandene Schutzfälle angepasst. Shellv18.
+  UI-Docker-CI noch offen; Regler-/ESP-/Gatewayerweiterung getrennte Teilstände,
+  keine reale Freigabe/Flash-/Pi-Aktion durch den Agenten.
+
 ## 2026-10-30 18:10 (Europe/Vienna)
 
 - Erste vollständige Konfigurations-CI da7980e besteht191JS-/43neuePHP-/HTTP-

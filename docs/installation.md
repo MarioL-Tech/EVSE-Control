@@ -150,7 +150,9 @@ Installationsstrommaximum. Fehlt es, bleiben Start und Übernehmen gesperrt.
 - Nur vertrauenswürdiges LAN/VPN, **jeder erreichbare Nutzer kann ohne Passwort
   bedienen**. Keine öffentliche Freigabe. Login folgt separat; CSRF ist kein Login.
 - Hardwaremaximum wird ausgelesen, ist aber keine Installationsfreigabe. Die
-  vermuteten16A sind **nicht bestätigt**. Fachlich freigegebenes Maximum zuerst
+  früher vermuteten16A wurden nicht als Default übernommen. Der Projektinhaber
+  hat für seine Installation inzwischen32A bestätigt; das ist kein allgemeiner
+  Installationsdefault. Fachlich freigegebenes Maximum zuerst
   klären und im Wallbox-`.env` als `WALLBOX_INSTALLATION_MAX_MA` in mA eintragen
   (6000..32000, leer = keine Start-/Stromvorgabe). Dasselbe Feld ist im Settings-
   editor für Wallbox verfügbar. Speichern allein ändert keine laufende Runtime.
@@ -174,10 +176,12 @@ Installationsstrommaximum. Fehlt es, bleiben Start und Übernehmen gesperrt.
 - Der Slider kann ohne Stromfreigabe als **lokaler Entwurf** bewegt werden;
   Start/Übernehmen bleiben bei fehlenden technischen Grenzen gesperrt. Ein
   Entwurfsbereich bis32A ist keine zulässige Installationsbelastung. Im
-  aufklappbaren Abschnitt „Technische Grenzen & Ergebnis“ auf der Übersicht
+  Abschnitt „Wallbox-Steuerung“ unter „Diagnose“ auf der Übersicht
   fehlen unbekannte Werte weiterhin ausdrücklich. Fachlich bestätigtes Maximum
   über Settings → Wallbox konfigurieren und Reader bewusst neu erstellen;
-  keinen vermuteten16-A-Wert übernehmen. Bei geprüftem Maximum6A gibt es keinen
+  für die hier bestätigte32-A-Installation lautet der Eintrag32000mA, nicht32.
+  Bei anderen Installationen keine32A aus diesem Beispiel übernehmen.
+  Bei geprüftem Maximum6A gibt es keinen
   verstellbaren Ganzamperebereich. Alte `/wallbox`-Links führen zur Übersicht.
 
 Das Dockerimage baut libmosquitto2.0.21 aus gepinnter Quelle mit einem lokalen

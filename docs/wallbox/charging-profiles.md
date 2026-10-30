@@ -14,10 +14,16 @@ steht ausdrücklich „Automatik noch nicht verfügbar“; Start/Übernehmen sin
 gesperrt. Stop bleibt bei geprüfter Verbindung unabhängig von der Auswahl
 möglich. Manuell behält alle bisherigen technischen Grenzen und CSRF-Prüfungen.
 
-Wiederholte Erklärtexte entfallen. Ohne Auftrag gibt es keine Ergebniszeile;
+Wiederholte Erklärtexte entfallen. Die drei Einstellungsprofile sind einzeln
+auf-/zuklappbar, standardmäßig geschlossen. Ungültige Eingaben öffnen beim
+Speicherversuch ihr Profil. Zahlen-/Zeitfelder bleiben44px groß; Wochentage
+bekommen eigenen Abstand, Felder maximaldrei Spalten statt langer Einzeilen.
+Ohne Auftrag gibt es keine Ergebniszeile;
 nach einem Auftrag bleibt dessen Ergebnis außerhalb eingeklappter Details
 sichtbar, insbesondere unklarer Ausgang/Teilstart/Ablehnung. Angeforderte Werte,
-Protokoll-ACK und echte Livewerte bleiben getrennt unter Details erhalten.
+Protokoll-ACK und echte Livewerte bleiben getrennt innerhalb der bestehenden
+„Diagnose“ erhalten. Große Moduskarten und Aktionstasten, Slidertrack14px und
+28px-Griff; Auswahl/Bewegen allein erzeugt weiterhin keine Hardwareaktion.
 Fehlende Installationsgrenze wird direkt als Sperrgrund angezeigt; ein
 ausgelesenes 32-A-Gerätemaximum ist niemals Installationsfreigabe.
 

@@ -180,7 +180,7 @@
           } else if (!Object.keys(changesFor(previous)).length) drafts.set(selected, createDraft(parsed.snapshot));
         }
         if (discard || posting) conflicted = false;
-        status.textContent = conflicted ? 'Konflikt: Änderungen bleiben erhalten. Zum Verwerfen ausdrücklich neu laden.' :
+        status.textContent = conflicted ? 'Konflikt: Änderungen erhalten; bitte neu laden.' :
           posting ? '.env gespeichert; laufende Container unverändert. Neuerstellung zum Anwenden nötig.' :
             parsed.snapshot.status === 'missing' ? 'Keine .env vorhanden. Anlegen ausdrücklich bestätigen; keine Vorgabewerte werden ergänzt.' : 'Konfiguration geladen.';
       } else {
@@ -193,8 +193,8 @@
       if (token !== generation || selected !== service) return;
       enabled = false;
       if (error.message === 'conflict') conflicted = true;
-      status.textContent = conflicted ? 'Konflikt: Änderungen bleiben erhalten. Zum Verwerfen ausdrücklich neu laden.' :
-        'Konfiguration nicht verfügbar. Änderungen bleiben erhalten; Speichern gesperrt. Bitte neu laden. Bei Speicherfehlern ist der Speicherstand unbestätigt.';
+      status.textContent = conflicted ? 'Konflikt: Änderungen erhalten; bitte neu laden.' :
+        posting ? 'Speicherstand unbestätigt. Bitte neu laden.' : 'Konfiguration nicht verfügbar.';
     } finally {
       root.clearTimeout(timeout);
       if (token === generation) { active = null; posting = false; controls(); }
