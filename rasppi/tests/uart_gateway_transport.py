@@ -33,6 +33,8 @@ class PtyFirmware:
                                   write_timeout=.2, exclusive=True)
         self.stop = threading.Event()
         self.count = 0
+        self.drop_status = False
+        self.async_status = False
         self.thread = threading.Thread(target=self.run)
         self.thread.start()
     def run(self):
@@ -49,7 +51,12 @@ class PtyFirmware:
                 if parts[2] == "HELLO":
                     response = f"EVSE:GATEWAY:HELLO:{parts[3]}:{'b'*32}:2\n"
                 elif parts[-1] == "STATUS":
+                    if self.drop_status:
+                        continue
                     response = "\n".join(STATUS) + f"\nEVSE:GATEWAY:RESULT:{parts[2]}:{parts[3]}:STATUS:OK:{'c'*32}:8\n"
+                    if self.async_status:
+                        response = ("EVSE:STATUS:ANTITHEFT:INACTIVE:SRC:rfid\n"
+                                    "EVSE:STATUS:CHARGING:UNKNOWN:SRC:watchdog\n" + response)
                 else:
                     response = f"EVSE:GATEWAY:RESULT:{parts[2]}:{parts[3]}:{parts[5]}:OK\n"
                 os.write(self.master, response.encode())
@@ -154,6 +161,7 @@ class BrokerTests(unittest.TestCase):
                 self.assertTrue(wait_until(lambda: not gateway.requests.empty()))
                 answer = gateway.handle(gateway.requests.get_nowait())
                 self.assertEqual(answer["reason"], "inspection_complete")
+                self.assertFalse(answer["command_sent"])
                 self.assertGreaterEqual(firmware.count, 2)
                 # Valid transport frame, invalid application body: no work admitted.
                 publisher.publish(gateway.prefix+"/control/request", b"x"*4096, qos=0).wait_for_publish(2)
@@ -211,21 +219,34 @@ class BrokerTests(unittest.TestCase):
                     owner.start()
                     self.assertTrue(wait_until(lambda: gateway.ready and firmware.count >= 3))
                     gateway.next_mirror = time.monotonic() + 60  # Isolate dedupe assertion from periodic refresh.
+                    firmware.async_status = True
                     publisher.publish(request_topic, b"", retain=True).wait_for_publish(2)
                     publisher.publish(request_topic, f"v1|{'a'*32}|-|-|inspect|-").wait_for_publish(2)
                     self.assertTrue(wait_until(lambda: len(answers) >= 1))
                     inspected = next(a for a in answers if a["id"] == "a"*32)
                     self.assertEqual(inspected["reason"], "inspection_complete")
+                    self.assertEqual(inspected["status"], "ok")
+                    self.assertFalse(inspected["command_sent"])
+                    self.assertIsNone(inspected["state"]["charging"])
                     command = f"v1|{'d'*32}|{inspected['session']}|{inspected['lease']}|unlock|-"
                     publisher.publish(request_topic, command).wait_for_publish(2)
                     self.assertTrue(wait_until(lambda: any(a["id"] == "d"*32 for a in answers)))
-                    self.assertEqual(next(a for a in answers if a["id"] == "d"*32)["status"], "acknowledged")
+                    managed = next(a for a in answers if a["id"] == "d"*32)
+                    self.assertEqual(managed["status"], "acknowledged")
+                    self.assertTrue(managed["command_sent"])
                     before = firmware.count
                     length = len(answers)
                     publisher.publish(request_topic, command).wait_for_publish(2)
                     self.assertTrue(wait_until(lambda: len(answers) > length))
                     self.assertEqual(firmware.count, before)
                     self.assertFalse(any(a["id"] == "f"*32 for a in answers))
+                    firmware.drop_status = True
+                    publisher.publish(request_topic, f"v1|{'e'*32}|-|-|inspect|-").wait_for_publish(2)
+                    self.assertTrue(wait_until(lambda: any(a["id"] == "e"*32 for a in answers), seconds=4))
+                    failed = next(a for a in answers if a["id"] == "e"*32)
+                    self.assertEqual((failed["status"], failed["reason"], failed["command_sent"]),
+                                     ("unavailable", "serial_timeout", False))
+                    self.assertIsNone(failed["lease"])
                     gateway.stopping = True
                     owner.join(4)
                     self.assertFalse(owner.is_alive())

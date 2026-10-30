@@ -42,8 +42,13 @@ Nicht jeder zulässige Status/Grund wird vom Gateway selbst erzeugt.
 
 Statewerte sind nullable bool; `cards` nullable int 0..16. `antitheft=true`
 bezeichnet den angeforderten aktiven Servozustand, keine mechanische Rückmeldung.
-`charging=null` bleibt UNKNOWN. `command_sent=true` bedeutet einen versuchten
-UART-Write, nicht den nachgewiesenen Empfang oder eine bestätigte reale Wirkung.
+`charging=null` bleibt UNKNOWN und sperrt unabhängige Managementaktionen nicht.
+`command_sent=true` bedeutet einen versuchten **Management**-UART-Write
+(einschließlich partiellem Write), nicht nachgewiesenen Empfang oder reale Wirkung.
+HELLO/STATUS sind ausschließlich lesend: `inspect` hat immer
+`command_sent=false`, niemals `outcome_unknown`. Ein Lesetimeout ergibt
+`unavailable/serial_timeout`; HELLO/STATUS-Fehler vor einer Mutation sind kein
+Managementversuch. Transportversuch und Mutationsversuch werden separat geführt.
 Nach Management-ACK sind Statefelder wieder null bis zur nächsten Inspektion.
 `acknowledged/protocol_ack_only` beweist nur die Firmwareantwort. Bei verlorener
 Antwort nach einem Writeversuch `outcome_unknown`, nie automatische Wiederholung.
@@ -111,7 +116,17 @@ EVSE:GATEWAY:RESULT:<id32>:<boot_session32>:<OP>:<fester Ergebniscode>
 `NONE/UNAVAILABLE/CORRUPT/WRITE`, Bootenum `RESTORE/LOCKED/UNLOCKED`.
 Die Statusabfrage verlangt exakt die Firmware-Quellkennung `query`. Alle drei
 Statuszeilen müssen in obiger Reihenfolge zum korrelierten ACK vollständig
-eingehen. Unkorrelierte Legacyzeilen werden nicht weitergereicht.
+eingehen. SECURITY hat tatsächlich **keine** SRC-Kennung. Vor dem UART-Write
+werden bereits gepufferte Eingabe und Framefragmente verworfen. Die neue Sequenz
+beginnt nur mit CHARGING/SRC:query, danach ANTITHEFT/SRC:query und SECURITY.
+Eindeutig nicht-query CHARGING-/ANTITHEFT-Zeilen (etwa RFID oder Watchdog) werden
+auch dazwischen ignoriert, SECURITY vor Sequenzbeginn ebenfalls. Innerhalb der
+Sequenz ist SECURITY nur an dritter Stelle zulässig. Doppelte, fehlende oder
+vertauschte Queryzeilen und fremde Gateway-Ergebnis-IDs sind Barrieren, kein
+Anlass zum Zusammensetzen mehrerer Snapshots. Höchstens 64 Antwortzeilen in
+zwei Sekunden; keine Verlängerung durch asynchrone Ereignisse. Die Firmware
+emittiert die drei Snapshotzeilen synchron im einzigen UART-Ownerpfad.
+Unkorrelierte Legacyzeilen werden nicht weitergereicht.
 Firmwarelease: einmalig, bootgebunden, monotone acht Sekunden, vor Versuch
 verbraucht. Firmware-IDcache: acht Einträge, mindestens Lease-TTL+2 Sekunden,
 kein Verdrängen lebender IDs, gleicher Inhalt nur ACK, anderer Inhalt ablehnen.
@@ -119,8 +134,21 @@ Diese Firmwarepflichten wurden gegen `esp32/src/gateway.cpp` und
 `esp32/include/gateway.h` aus Firmwarecommit `4e5b213` read-only abgeglichen.
 HELLO/STATUS belegen ebenfalls die acht Cacheplätze; der Gateway-Owner lässt
 daher lokal höchstens acht UART-Transaktionen pro konservativem
-10,2-Sekunden-Fenster zu. Zusätzliche Bedienung kann `busy` ergeben, nicht ein
-stiller Retry. Status-/HELLO-BUSY wird als feste Ablehnung erkannt, nicht als
+10,2-Sekunden-Fenster zu. Ein MIRROR-Zyklus benötigt STATUS+MIRROR (beim ersten
+Boot zusätzlich HELLO). Viersekündliches Spiegeln benötigt ungefähr fünf Plätze
+je zehn Sekunden; zweisekündliche UI-Inspektion würde weitere fünf verlangen
+und damit die acht Firmwareplätze überschreiten. Der Parent stellt das UI auf
+fünf Sekunden um (ungefähr zwei weitere Plätze); diese Datei ändert kein UI.
+Idle-Spiegelung wird nur als vollständiges Zwei-/Dreierbudget zugelassen, wenn
+danach höchstens sechs Plätze belegt sind. Damit bleiben zwei Plätze für eine
+frische HTTP-Inspektion plus bewusste Managementaktion. HTTP-Inspektion darf
+höchstens sieben Plätze belegen, Management den achten. Eine dringende
+UNKNOWN-Übermittlung darf die Reserve zum Widerruf eines vorherigen ON/OFF
+nutzen; gelingt das nicht, läuft der Firmware-Watchdog unabhängig ab.
+Boot-/Bedienbursts können weiterhin temporär `busy` ergeben; weder alte
+MIRROR-ON-Werte noch Mutationen werden automatisch erneut gesendet. Der Nutzer
+muss einen neuen Bedienversuch ausdrücklich auslösen. Es gibt keine Garantie
+unter dauernder konkurrierender Bedienung. Status-/HELLO-BUSY wird als feste Ablehnung erkannt, nicht als
 verlorenes ACK. Gatewaytests simulieren Firmware und beweisen keine echte
 ESP32-Laufzeit.
 
@@ -132,6 +160,14 @@ Schema1 `abb_terra_ac`, valide Messwerte einschließlich endlicher W/A/V-Werte,
 `values.charging` exakt bool/null. Nur neue nicht-retained Messzeitpunkte plus
 nicht-retained `online` erlauben ON/OFF. Initial/Retained/Reconnect/Fehler/Clock-
 sprung/Offline/Ablauf => UNKNOWN. Unveränderte Payload verlängert niemals die
-monotone Frische. Spiegelung viersekündlich über eigene STATUS-Lease, Management
+monotone Frische. Transportinvalidierung/Reconnect löschen nur Autorisierung,
+aktuellen Zustand und Onlinefrische, **nicht** Messzeit-Wasserzeichen, Digest,
+ursprünglichen Ablauf oder Wall-/Monotonic-Anker. Derselbe Messzeitpunkt darf
+auch mit anderen Bytes, nach Retainedzustellung oder bei zurückgesetzter
+Wanduhr keine neue Autorisierung erhalten. Uhrsprünge werden vor Deduplizierung
+geprüft; erneute Autorisierung verlangt einen echt neueren, aktuell gültigen
+Messzeitpunkt. Diese Historie besteht nur im RAM, nicht über Prozessneustarts;
+UTC-Altersprüfung bleibt auch beim Neustart erforderlich.
+Spiegelung viersekündlich über eigene STATUS-Lease, Management
 hat Vorrang. Firmware-Watchdog: nach zehn Sekunden ohne bestätigte Aktualisierung
 UNKNOWN. Kein automatischer Servo-Lock, keine reale Wallboxsteuerung.

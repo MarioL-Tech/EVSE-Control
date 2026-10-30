@@ -46,10 +46,21 @@ class Port:
         self.closed = False
         self.reject_code = None
         self.old_firmware = False
+        self.partial = False
+        self.silent = False
+        self.status_lines = STATUS
+        self.status_prefix = []
+        self.status_suffix = []
+    def reset_input_buffer(self):
+        self.data.clear()
     def write(self, data):
         self.writes.append(data)
         if self.failure:
             raise serial.SerialTimeoutException("private data must never escape")
+        if self.partial:
+            return len(data) - 1
+        if self.silent:
+            return len(data)
         wire = data.decode().strip().split(":")
         if wire[2] == "HELLO":
             response = "EVSE:ERROR:UNKNOWN_CMD\n" if self.old_firmware else f"EVSE:GATEWAY:HELLO:{wire[3]}:{self.boot}:2\n"
@@ -57,7 +68,7 @@ class Port:
             op = "STATUS" if wire[-1] == "STATUS" else wire[5]
             response = f"EVSE:GATEWAY:RESULT:{wire[2]}:{wire[3]}:{op}:{self.reject_code}\n"
         elif wire[-1] == "STATUS":
-            response = "\n".join(STATUS) + f"\nEVSE:GATEWAY:RESULT:{wire[2]}:{wire[3]}:STATUS:OK:{C}:8\n"
+            response = "\n".join(self.status_prefix + self.status_lines + self.status_suffix) + f"\nEVSE:GATEWAY:RESULT:{wire[2]}:{wire[3]}:STATUS:OK:{C}:8\n"
         else:
             response = "" if self.lost else f"EVSE:GATEWAY:RESULT:{wire[2]}:{wire[3]}:{wire[5]}:OK\n"
         self.data.extend(response.encode())
@@ -96,6 +107,70 @@ class GatewayTests(unittest.TestCase):
         self.assertIsNone(answer["state"]["charging"])
         self.assertTrue(answer["state"]["antitheft"])
         self.assertEqual(answer["firmware_version"], 2)
+        self.assertFalse(answer["command_sent"])
+        self.assertEqual(answer["status"], "ok")
+    def test_inspect_wire_shape_on_readonly_failure_and_partial_write(self):
+        for mode in ("silent", "failure", "partial", "old_firmware"):
+            with self.subTest(mode=mode):
+                self.setUp()
+                setattr(self.port, mode, True)
+                answer = json.loads(json.dumps(self.inspect()))
+                self.assertFalse(answer["command_sent"])
+                self.assertEqual(answer["status"], "unavailable")
+                self.assertEqual(answer["reason"], "firmware_unsupported" if mode == "old_firmware" else "serial_timeout")
+                self.assertIsNone(answer["lease"])
+                self.assertEqual(answer["fresh_for_seconds"], 0)
+                self.assertEqual(set(answer["state"]), set(EMPTY))
+                self.assertEqual(len(self.port.writes), 1)
+    def test_status_timeout_after_successful_hello_is_not_management_attempt(self):
+        self.gateway.boot = B
+        self.port.silent = True
+        answer = self.inspect()
+        self.assertEqual((answer["status"], answer["reason"], answer["command_sent"]),
+                         ("unavailable", "serial_timeout", False))
+        self.assertTrue(self.gateway.transport_attempted)
+        self.assertFalse(self.gateway.attempted)
+    def test_partial_management_write_is_unknown_once_and_never_retried(self):
+        inspected = self.inspect()
+        item = self.command(inspected)
+        self.port.partial = True
+        before = len(self.port.writes)
+        answer = json.loads(json.dumps(self.gateway.handle(item)))
+        self.assertEqual((answer["status"], answer["reason"], answer["command_sent"]),
+                         ("outcome_unknown", "outcome_unknown", True))
+        self.port.partial = False
+        self.assertEqual(self.gateway.handle(item), answer)
+        self.assertEqual(len(self.port.writes), before + 1)
+    def test_async_rfid_watchdog_and_security_before_query_are_ignored(self):
+        self.port.status_prefix = ["EVSE:STATUS:ANTITHEFT:INACTIVE:SRC:rfid",
+                                   "EVSE:STATUS:CHARGING:UNKNOWN:SRC:watchdog", STATUS[2]]
+        self.port.status_lines = [STATUS[0], "EVSE:STATUS:ANTITHEFT:ACTIVE:SRC:rfid",
+                                  STATUS[1], STATUS[2]]
+        self.assertEqual(self.inspect()["status"], "ok")
+    def test_query_order_missing_duplicate_and_foreign_result_fail_closed(self):
+        foreign = f"EVSE:GATEWAY:RESULT:{D}:{B}:STATUS:OK:{C}:8"
+        for lines in (STATUS[1:], [STATUS[1], STATUS[0], STATUS[2]],
+                      [STATUS[0], STATUS[0], *STATUS[1:]],
+                      [*STATUS, *STATUS], [STATUS[0], foreign, *STATUS[1:]],
+                      [STATUS[0], STATUS[2], STATUS[1]]):
+            with self.subTest(lines=lines):
+                self.setUp()
+                self.port.status_lines = lines
+                answer = self.inspect()
+                self.assertEqual(answer["status"], "unavailable")
+                self.assertFalse(answer["command_sent"])
+                self.assertIsNone(answer["lease"])
+    def test_buffered_old_query_cannot_supply_missing_new_snapshot(self):
+        self.gateway.boot = B
+        self.port.data.extend(("\n".join(STATUS) + "\n").encode())
+        self.port.status_lines = []
+        self.assertEqual(self.inspect()["status"], "unavailable")
+    def test_async_line_flood_has_bounded_inspection_and_no_mutation(self):
+        self.port.status_prefix = ["EVSE:STATUS:CHARGING:UNKNOWN:SRC:watchdog"] * 65
+        answer = self.inspect()
+        self.assertEqual(answer["status"], "unavailable")
+        self.assertFalse(answer["command_sent"])
+        self.assertEqual(len(self.port.writes), 2)
     def test_snapshot_rejects_unknown_codes_counts_and_order(self):
         for lines in [STATUS[:2], list(reversed(STATUS)),
                       [*STATUS[:2], STATUS[2].replace("CARDS:0", "CARDS:17")],
@@ -183,6 +258,24 @@ class GatewayTests(unittest.TestCase):
         self.gateway.firmware_admissions = [self.clock()] * 8
         self.assertEqual(self.inspect()["status"], "busy")
         self.assertFalse(self.port.writes)
+    def test_idle_mirror_reserves_fresh_inspect_and_management_capacity(self):
+        self.gateway.boot = B
+        self.gateway.firmware_admissions = [self.clock()] * 6
+        self.gateway.mirror_tick()
+        self.assertFalse(self.port.writes)
+        inspected = self.inspect()
+        self.assertEqual(inspected["status"], "ok")
+        self.assertEqual(self.gateway.handle(self.command(inspected))["status"], "acknowledged")
+        self.assertEqual(len(self.gateway.firmware_admissions), 8)
+        self.assertEqual(self.gateway.handle(self.item(rid="e"*32))["status"], "busy")
+    def test_local_capacity_rejection_is_not_a_mutation_write_attempt(self):
+        inspected = self.inspect()
+        self.gateway.firmware_admissions = [self.clock()] * 8
+        before = len(self.port.writes)
+        answer = self.gateway.handle(self.command(inspected))
+        self.assertEqual(answer["status"], "busy")
+        self.assertFalse(answer["command_sent"])
+        self.assertEqual(len(self.port.writes), before)
     def test_disconnect_before_write_attempt_cannot_execute(self):
         inspected = self.inspect()
         self.gateway.ready = False
@@ -247,6 +340,15 @@ class GatewayTests(unittest.TestCase):
         self.gateway.invalidate()
         self.assertEqual(self.gateway.handle(queued)["reason"], "deadline_elapsed")
         self.assertEqual(self.gateway.state, EMPTY)
+    def test_gateway_invalidate_never_revives_same_wallbox_measurement(self):
+        self.gateway.mirror.availability(b"online", False)
+        self.gateway.mirror.sample(payload(), False, 0, 1793361600)
+        self.clock.now = 9
+        self.gateway.invalidate()
+        self.gateway.mirror.availability(b"online", False)
+        self.gateway.mirror.sample(payload(), False, 9, 1793361600)
+        self.assertEqual(self.gateway.mirror.current(9, 1793361600), "UNKNOWN")
+        self.assertEqual(self.gateway.mirror.until, 10)
     def test_ledger_never_evicts_valid_entry(self):
         for n in range(128):
             self.gateway.ledger[f"{n:032x}"] = (100, b"hash", {})
@@ -295,6 +397,38 @@ class MirrorTests(unittest.TestCase):
         self.mirror.sample(payload(), False, 0, self.WALL)
         self.mirror.sample(payload(), False, 9, self.WALL+9)
         self.assertEqual(self.mirror.current(10, self.WALL+10), "UNKNOWN")
+    def test_reconnect_keeps_stamp_digest_expiry_and_clock_anchor(self):
+        self.mirror.availability(b"online", False)
+        self.mirror.sample(payload(), False, 0, self.WALL)
+        evidence = (self.mirror.stamp, self.mirror.digest, self.mirror.until, self.mirror.anchor)
+        self.mirror.reset()
+        self.assertEqual(evidence, (self.mirror.stamp, self.mirror.digest, self.mirror.until, self.mirror.anchor))
+        self.mirror.availability(b"online", False)
+        self.mirror.sample(payload(), False, 9, self.WALL)
+        self.assertEqual(self.mirror.current(9, self.WALL), "UNKNOWN")
+        # Changed bytes at the same timestamp cannot bypass the watermark.
+        self.mirror.sample(payload(False), False, 9, self.WALL)
+        self.assertEqual(self.mirror.current(9, self.WALL), "UNKNOWN")
+        self.mirror.sample(payload(), True, 9, self.WALL)
+        self.mirror.sample(payload(), False, 10, self.WALL)
+        self.assertEqual(self.mirror.current(10, self.WALL), "UNKNOWN")
+    def test_forward_fresh_timestamp_can_reauthorize_after_transport_loss(self):
+        self.mirror.availability(b"online", False)
+        self.mirror.sample(payload(), False, 0, self.WALL)
+        self.mirror.reset()
+        self.mirror.availability(b"online", False)
+        self.mirror.sample(payload(False, "2026-10-30T12:00:09Z"), False, 9, self.WALL+9)
+        self.assertEqual(self.mirror.current(9, self.WALL+9), "OFF")
+        self.assertEqual(self.mirror.until, 19)
+    def test_new_sample_cannot_hide_clock_rollback_with_same_timestamp(self):
+        self.mirror.availability(b"online", False)
+        self.mirror.sample(payload(), False, 0, self.WALL)
+        self.mirror.sample(payload(), False, 9, self.WALL)
+        self.assertEqual(self.mirror.current(9, self.WALL), "UNKNOWN")
+        self.mirror.reset()
+        self.mirror.availability(b"online", False)
+        self.mirror.sample(payload(False), False, 10, self.WALL)
+        self.assertEqual(self.mirror.current(10, self.WALL), "UNKNOWN")
     def test_unknown_bad_schema_offline_and_clock_jump(self):
         self.mirror.availability(b"online", False)
         self.mirror.sample(payload(None), False, 0, self.WALL)

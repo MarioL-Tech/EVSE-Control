@@ -103,29 +103,30 @@ def unique_pairs(pairs):
 
 class Mirror:
     def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.online = False
-        self.value = None
-        self.until = 0
         self.stamp = None
         self.anchor = None
         self.digest = None
+        self.until = 0
+        self.reset()
+
+    def reset(self):
+        # Transport loss revokes authorization, not measurement/clock history.
+        # Replaying the same device timestamp must never revive its old lease.
+        self.online = False
+        self.value = None
 
     def availability(self, payload, retained):
         # Retained availability is not a fresh proof either.
         self.online = not retained and payload == b"online"
         if not self.online:
             self.value = None
-            self.until = 0
 
     def sample(self, payload, retained, now, wall):
+        self.current(now, wall)  # Detect clock discontinuities before dedupe.
         digest = hashlib.sha256(payload).digest()
         if not retained and digest == self.digest:
             return  # Same observed measurement never renews monotonic freshness.
         self.value = None
-        self.until = 0
         if retained or len(payload) > 16384:
             return
         try:
@@ -170,7 +171,6 @@ class Mirror:
     def current(self, now, wall):
         if self.anchor and abs((wall - self.anchor[1]) - (now - self.anchor[0])) > 1:
             self.value = None
-            self.until = 0
         if not self.online or now >= self.until:
             return "UNKNOWN"
         return "ON" if self.value is True else "OFF" if self.value is False else "UNKNOWN"
@@ -208,6 +208,7 @@ class Gateway:
         self.epoch = 0
         self.operation_epoch = 0
         self.attempted = False
+        self.transport_attempted = False
         self.firmware_admissions = []
         self.submid = None
         self.stopping = False
@@ -351,13 +352,24 @@ class Gateway:
                 if len(self.firmware_admissions) >= 8:
                     raise DeviceRejected("BUSY")
                 self.firmware_admissions.append(now)
-                self.attempted = True
+                # No stale buffered query sequence may become the new snapshot.
+                self.port.reset_input_buffer()
+                self.rx.clear()
+                self.rx_start = None
+                self.discard = False
+                self.transport_attempted = True
+                if op not in {"HELLO", "STATUS"}:
+                    self.attempted = True
                 if self.port.write(data) != len(data):
                     raise SerialFailure()
             deadline = self.clock() + 2
             lines = []
+            count = 0
             while True:
                 text = self.line(deadline, epoch)
+                count += 1
+                if count > 64:
+                    raise SerialFailure()
                 if text == "EVSE:ERROR:UNKNOWN_CMD" and ":HELLO:" in wire:
                     raise FirmwareUnsupported()
                 if text == "EVSE:ERROR:GATEWAY_UNAVAILABLE" and hello:
@@ -368,10 +380,19 @@ class Gateway:
                 failed = reject.fullmatch(text)
                 if failed and failed[1] in CODES:
                     raise DeviceRejected(failed[1])
-                if statuses and text.startswith("EVSE:STATUS:"):
-                    lines.append(text)
-                    if len(lines) > 3:
+                if statuses:
+                    # A foreign result is a sequence barrier, never splice its
+                    # untagged snapshot onto the current request's result.
+                    if text.startswith("EVSE:GATEWAY:"):
                         raise SerialFailure()
+                    query_charge = text.startswith("EVSE:STATUS:CHARGING:") and text.endswith(":SRC:query")
+                    query_lock = text.startswith("EVSE:STATUS:ANTITHEFT:") and text.endswith(":SRC:query")
+                    security = text.startswith("EVSE:STATUS:SECURITY:")
+                    if query_charge or query_lock or (security and lines):
+                        expected = (query_charge, query_lock, security)
+                        if len(lines) >= 3 or not expected[len(lines)]:
+                            raise SerialFailure()
+                        lines.append(text)
                 # All other lines, particularly legacy ENROLLED:<uid>, discarded.
         except (OSError, serial.SerialException, ValueError) as error:
             raise SerialFailure() from None
@@ -398,6 +419,10 @@ class Gateway:
         return ack[1]
 
     def result(self, rid, op, status, reason, sent=False, code=None, lease=None):
+        if op == "inspect":
+            sent = False
+            if status == "outcome_unknown":
+                status, reason = "unavailable", "serial_timeout"
         return dict(schema_version=1, id=rid, operation=op, status=status, reason=reason,
                     session=self.session, lease=lease, fresh_for_seconds=8 if lease else 0,
                     firmware_version=2 if self.boot else None, state=self.state.copy(),
@@ -424,23 +449,24 @@ class Gateway:
         self.ledger[rid] = (now + 30, digest, self.result(rid, op, "rejected", "busy"))
         self.operation_epoch = epoch
         self.attempted = False
+        self.transport_attempted = False
         sent = False
         try:
             if op == "inspect":
                 if len(self.leases) >= 64:
                     answer = self.result(rid, op, "rejected", "busy")
                 else:
+                    self.reserve(2 if self.boot is None else 1, 7)
                     fwlease, expiry = self.inspect()
                     lease = secrets.token_hex(16)
                     self.leases[lease] = (expiry, fwlease)
-                    answer = self.result(rid, op, "ok", "inspection_complete", sent=self.attempted, lease=lease)
+                    answer = self.result(rid, op, "ok", "inspection_complete", lease=lease)
             elif session != self.session:
                 answer = self.result(rid, op, "rejected", "invalid_session")
             elif lease not in self.leases:
                 answer = self.result(rid, op, "rejected", "invalid_lease")
             else:
                 _, fwlease = self.leases.pop(lease)  # Consume BEFORE attempting serial.
-                sent = True
                 code = self.management(fwlease, op.upper(), uid)
                 self.state = EMPTY.copy()  # ACK is not a fresh mechanical snapshot.
                 rejected = code in {"INVALID_SESSION", "SESSION_MISMATCH", "GATEWAY_UNAVAILABLE", "INVALID_LEASE", "BUSY", "DUPLICATE_MISMATCH", "NOT_READY", "STORAGE_ERROR", "DENIED", "INVALID_ARGUMENT", "INVALID_UID", "FULL", "NOT_FOUND"}
@@ -474,6 +500,12 @@ class Gateway:
         self.ledger[rid] = (now + 30, digest, answer)
         return answer
 
+    def reserve(self, count, limit):
+        now = self.clock()
+        self.firmware_admissions = [t for t in self.firmware_admissions if now-t < 10.2]
+        if len(self.firmware_admissions) + count > limit:
+            raise DeviceRejected("BUSY")
+
     def mirror_tick(self):
         now = self.clock()
         self.drain_events()
@@ -485,6 +517,9 @@ class Gateway:
         self.mirror_retry_after = now + 4
         self.operation_epoch = self.epoch
         try:
+            # Idle work leaves two slots for a fresh HTTP inspect + mutation.
+            # An urgent UNKNOWN may use the reserve to revoke a previous ON.
+            self.reserve(3 if self.boot is None else 2, 8 if urgent_unknown else 6)
             lease, expiry = self.inspect()
             self.drain_events()
             # Query/ACK delays must not extend the Wallbox freshness window.
