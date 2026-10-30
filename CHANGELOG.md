@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-30 21:57 (Europe/Vienna)
+
+- Erste native Matrix für d499b7c: neuer realer Owner-/HTTP-/Broker-/PTY-Fall und
+  bisherige Protokoll-/RTU-/MQTT-Prüfungen bestanden, aber Pure-Core-Tests scheitern
+  an der nicht im Engine beobachteten Aktivierungsfixture. Fixture verarbeitet
+  die Absicht jetzt tatsächlich und verbucht das erste Ticket ohne I/O, bevor
+  spätere Override-/Zeit-/Save-Ereignisse geprüft werden; Schutzassertionen bleiben.
+- Weitere eigene statische Gegenprüfung: HTTP-Heartbeat/TTL ist kein neuer
+  Befehlskontext. Kanonischen Planinhalt vergleichen, Budget/Zeitfenster direkt vor
+  jedem I/O erneut prüfen; unabhängige Hausantworten dürfen Custom ohne PV nicht
+  stornieren. Bereits beobachtete Aktivierungs-IDs nicht wiederverwenden,
+  begrenzte4096er-Historie ohne Verdrängung, danach sichere Neustartsperre.
+  Regressionsfälle ergänzt, neue Docker-CI noch offen; keine reale Schreibaktion.
+
 ## 2026-10-30 21:37 (Europe/Vienna)
 
 - Reglerintegration: explizite, revisions-/guardgebundene Moduswahl erfasst

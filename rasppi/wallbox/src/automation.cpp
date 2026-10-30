@@ -75,7 +75,7 @@ bool action_is_current(const Action &a, const Input &i) noexcept {
     if (!ticket) return false;
     // A protective Stop needs no fresh measurement, house value or hardware cap.
     if (a.operation==Operation::Stop) return true;
-    return guard_matches(i) && a.guard==i.activation_guard
+    const bool context_ok=guard_matches(i) && a.guard==i.activation_guard
         && a.activation == i.sources.settings.activation && a.revision == i.sources.settings.revision
         && a.source_generation == i.sources.generation && !i.sources.clock_error
         && i.sample && std::isfinite(i.sample_at) && i.sample_at>=0 && i.sample_at<=i.now && fresh(i.sample_expires,i.now)
@@ -85,6 +85,20 @@ bool action_is_current(const Action &a, const Input &i) noexcept {
             && a.target_ma>=6000 && a.target_ma<=std::min({32000,*i.hardware_max_ma,*i.installation_max_ma})
             && (!a.requires_house || (i.sources.house.valid && fresh(i.sources.house.expires,i.now)
                 && std::isfinite(i.sources.house.power_w) && std::isfinite(i.sample->active_power_w) && i.sample->active_power_w>=0)));
+    if (!context_ok) return false;
+    const auto &s=i.sources.settings;
+    const auto &p=s.mode==Mode::Pv?s.pv:s.custom;
+    if (!range(p.max_current_ma,6000,32000) || a.target_ma>*p.max_current_ma) return false;
+    if (s.mode==Mode::Custom && p.use_schedule.value_or(false) && !schedule_contains(p,i.utc)) return false;
+    if (a.requires_house) {
+        if (!range(s.phases,1,3) || !s.meter_includes_wallbox.has_value() || !range(p.max_import_w,0,100000)) return false;
+        int count=0; double max_v=0;
+        for (double v:i.sample->voltage_v) if(std::isfinite(v) && v>=150 && v<=300) { ++count; max_v=std::max(max_v,v); }
+        if (count<*s.phases) return false;
+        const double budget=*p.max_import_w-i.sources.house.power_w+(*s.meter_includes_wallbox?i.sample->active_power_w:0.0);
+        if (!std::isfinite(budget) || budget<(*s.phases*max_v)*(a.target_ma/1000.0)) return false;
+    }
+    return true;
 }
 void Engine::reset_activation(const Settings &s) {
     activation_=s.activation; revision_=s.revision; mode_=s.mode; armed_=s.mode!=Mode::Manual;
@@ -146,16 +160,21 @@ std::optional<Action> Engine::step(const Input &i) {
     // Invalid observations must never poison the reference used by later gates.
     if (clock_ok) { last_now_=i.now; last_utc_=i.utc; have_clock_=true; }
     if (s.valid && fresh(s.expires,i.now) && !s.activation.empty()) {
+        const bool seen=std::find(seen_activations_.begin(),seen_activations_.end(),s.activation)!=seen_activations_.end();
+        if (!seen) {
+            if (seen_activations_.size()>=4096) { nonce_overflow_=frozen_=true; }
+            else seen_activations_.push_back(s.activation);
+        }
         if (!baseline_) { baseline_=true; activation_=s.activation; revision_=s.revision; mode_=s.mode; }
         // Consume a nonce seen while IO is outstanding, but retain the exact
         // action until complete(). It cannot rearm after a late unknown result.
         else if (pending_) { activation_=s.activation; }
         else if (s.activation!=activation_) {
             const bool consumed=std::find(consumed_activations_.begin(),consumed_activations_.end(),s.activation)!=consumed_activations_.end();
-            if (!consumed && !nonce_overflow_ && guard_matches(i) && clock_ok && i.bus_connected) {
+            if (!seen && !consumed && !nonce_overflow_ && guard_matches(i) && clock_ok && i.bus_connected) {
                 reset_activation(s);
             }
-            else { activation_=s.activation; if(consumed || nonce_overflow_) frozen_=true; } // not deferred
+            else { activation_=s.activation; if(seen || consumed || nonce_overflow_) frozen_=true; } // not deferred
         }
         else if (armed_ && (s.revision!=revision_ || s.mode!=mode_)) frozen_=true; // saving never activates
     }

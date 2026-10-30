@@ -19,6 +19,7 @@ struct Profile {
 };
 struct Settings {
     bool valid = false;
+    std::string context; // Canonical non-secret plan content, excluding heartbeat/TTL.
     double expires = 0;
     std::string revision, activation, guard;
     Mode mode = Mode::Manual;
@@ -80,6 +81,7 @@ public:
     Status status() const noexcept { return status_; }
 private:
     std::optional<std::pair<double,double>> clock_recovery_;
+    std::vector<std::string> seen_activations_; // No replay/eviction; 4096 per process, then fail closed.
     std::optional<Action> issue(Operation, int, const Input &);
     void reset_activation(const Settings &);
     void consume_pending_activation(const Settings &);

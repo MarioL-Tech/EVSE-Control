@@ -23,6 +23,18 @@ scheitert noch am alten Theme-Buttoninventory (neue zwei Servotasten) und wird
 gezielt angepasst. Keine Hardware-/Pi-Abnahme. Owneragent nach erfolgten Tools
 am Modellkontingent gestoppt, Teilstand gesichert und vom Hauptagent weitergeführt;
 kein zusätzlicher unabhängiger Owner-Abschlussreview behauptet.
+Erste native Matrix d499b7c besteht echte Owner-/HTTP-/Broker-/PTY- und bisherige
+Protokoll-/RTU-/MQTT-Fälle, scheitert an Pure-Core-Fixture „manual stop latch“:
+Aktivierungshelper hatte Absicht nie in Engine beobachtet. Vor späteren Ereignissen
+jetzt initiales Ticket tatsächlich verarbeiten und ohne I/O verbuchen; Zeitfehler-
+Regression setzt weiterhin ausdrücklich neue gleichzeitige Nonce. Eigene weitere
+Prüfung: gesunder HTTP-Heartbeat/TTL darf keine Aktionssitzung stornieren;
+kanonischen Planinhalt vergleichen, Budget/Fenster vor I/O erneut prüfen,
+Hausausfälle bleiben bei Custom ohne PV unabhängig. Frühere Aktivierungs-IDs
+bleiben in begrenzter4096er-Registry ohne Eviction gesperrt; Überlauf verlangt
+Readerneustart und neue bewusste Aktivierung. Neue Pure-/HTTP-Regressionen noch
+Docker-gegenzuprüfen. ESP-Headf298de9 besteht vollständigen Weblauf41124920191,
+kein realer ESP32-/Pi-Nachweis; finale Reglerfreigabe weiter offen.
 
 Separater Ownerintegrationsstand (2026-10-30, noch NICHT Docker-/CI-geprüft):
 Core4ea5c00/8b82d7d/Safety935f2a9 in Readerowner verdrahtet. Optionales

@@ -1,6 +1,7 @@
 #include "automation.hpp"
 #include "automation_http.hpp"
 #include <chrono>
+#include <ctime>
 #include <cstdlib>
 #include <iostream>
 #include <limits>
@@ -30,6 +31,9 @@ void tick(Input &i,double seconds=1) { i.now+=seconds; i.utc+=seconds; i.sample_
 void activate(Engine &e,Input &i) {
     check(!e.step(i),"boot must not activate");
     i.sources.settings.activation=std::string(32,'b'); tick(i);
+    // Observe the explicit activation before a case tests a later override,
+    // save or clock failure. Account for the initial ticket without any IO.
+    if (auto initial=e.step(i)) e.complete(*initial,{false,false});
 }
 Action need(Engine &e,Input &i,Operation op,int ma=0) {
     auto a=e.step(i); check(a.has_value(),"missing action"); check(a->operation==op,"wrong operation");
@@ -37,8 +41,28 @@ Action need(Engine &e,Input &i,Operation op,int ma=0) {
 }
 void tests() {
     initialize_vienna_timezone();
+    { Engine e; auto i=input(); i.utc+=58; i.sources.settings.mode=Mode::Custom;
+      const auto epoch=static_cast<time_t>(i.utc); tm local{}; localtime_r(&epoch,&local);
+      const int minute=local.tm_hour*60+local.tm_min;
+      auto &p=i.sources.settings.custom; p.use_schedule=true; p.weekdays={local.tm_wday==0?7:local.tm_wday};
+      p.windows={{minute,(minute+1)%1440}}; p.outside=Profile::Outside::Pause;
+      activate(e,i); auto a=need(e,i,Operation::Start,32000); tick(i);
+      check(!action_is_current(a,i),"time-window end cancels increase even inside its monotonic ticket"); }
+    { Engine e; auto i=input(); activate(e,i); auto a=need(e,i,Operation::Start,10000);
+      e.complete(a,{true,false});
+      for(char old : {'a','b'}) { i.sources.settings.activation=std::string(32,old); tick(i);
+        check(!e.step(i) && e.status()==Status::Frozen,"replayed activation cannot clear freeze"); }
+      i.sources.settings.activation=std::string(32,'c'); tick(i); need(e,i,Operation::Start,10000); }
+    { Engine e; auto i=input(); activate(e,i);
+      for(int n=0;n<4096;++n) { auto id=std::to_string(n); i.sources.settings.activation=std::string(32-id.size(),'0')+id;
+        tick(i); if(auto a=e.step(i)) e.complete(*a,{false,false}); }
+      check(!e.step(i) && e.status()==Status::Frozen,"bounded activation history never evicts replay evidence"); }
     { Engine e; auto i=input(); activate(e,i); auto a=need(e,i,Operation::Start,10000);
       check(action_is_current(a,i),"valid ticket"); ++i.sources.generation; check(!action_is_current(a,i),"cancel generation");
+      --i.sources.generation;
+      i.sources.house.power_w=-7300; check(action_is_current(a,i),"newer sufficient surplus is not a cancelled session");
+      i.sources.house.power_w=-7100; check(!action_is_current(a,i),"latest insufficient budget prevents IO");
+      i.sources.house.power_w=-7200; ++i.sources.generation;
       --i.sources.generation; i.sources.house.expires=i.now; check(!action_is_current(a,i),"cancel house expiry");
       i.sources.house.expires=10000; e.complete(a,{true,true}); tick(i); check(!e.step(i),"no duplicate start");
       i.sample->charging=true; tick(i); check(!e.step(i),"ACK desired target, ignore effective limit");
@@ -123,14 +147,14 @@ void tests() {
       e.complete(a,{true,true}); i.sources.settings.valid=false; tick(i); need(e,i,Operation::Stop); }
     // A new nonce must not erase a fault in the very same observation.
     for (int fault=0;fault<4;++fault) {
-      Engine e; auto i=input(); activate(e,i); auto good=i;
+      Engine e; auto i=input(); activate(e,i); i.sources.settings.activation=std::string(32,'c'); auto good=i;
       if(fault==0) i.utc=std::numeric_limits<double>::quiet_NaN();
       if(fault==1) i.utc=std::numeric_limits<double>::infinity();
       if(fault==2) i.utc-=10;
       if(fault==3) i.utc+=10;
       check(!e.step(i) && e.status()==Status::Frozen,"same-step nonce cannot erase clock fault");
       i=good; check(!e.step(i) && e.status()==Status::Frozen,"good clock cannot erase freeze");
-      i.sources.settings.activation=std::string(32,'c'); tick(i); need(e,i,Operation::Start,10000);
+      i.sources.settings.activation=std::string(32,'d'); tick(i); need(e,i,Operation::Start,10000);
     }
     for (int fault=0;fault<4;++fault) {
       Engine e; auto i=input(); activate(e,i); auto a=need(e,i,Operation::Start,10000); auto good=i;
@@ -214,13 +238,18 @@ void tests() {
 }
 int main(int argc,char **argv) {
     try {
-        if(argc==4 && std::string(argv[1])=="--http") {
+        if(argc==4 && (std::string(argv[1])=="--http" || std::string(argv[1])=="--http-stable")) {
             HttpSource source(argv[2]);
-            std::this_thread::sleep_for(std::chrono::milliseconds(std::stoi(argv[3])));
+            const bool stable=std::string(argv[1])=="--http-stable";
+            std::uint64_t initial=0;
+            if(stable) { std::this_thread::sleep_for(std::chrono::milliseconds(600)); initial=source.snapshot()->sources.generation; }
+            std::this_thread::sleep_for(std::chrono::milliseconds(std::stoi(argv[3])-(stable?600:0)));
             auto s=source.snapshot(); double now=std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
             std::cout<<http_status_name(s->plan_status)<<" "<<http_status_name(s->house_status)<<" "
                 <<(s->sources.settings.valid && s->sources.settings.expires>now)<<" "
-                <<(s->sources.house.valid && s->sources.house.expires>now)<<"\n";
+                <<(s->sources.house.valid && s->sources.house.expires>now);
+            if(stable) std::cout<<" "<<(initial>0 && initial==s->sources.generation);
+            std::cout<<"\n";
         } else { tests(); std::cout<<"automation checks passed\n"; }
         return EXIT_SUCCESS;
     } catch(const std::exception &e) { std::cerr<<e.what()<<"\n"; return EXIT_FAILURE; }

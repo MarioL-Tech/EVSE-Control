@@ -82,15 +82,15 @@ Projektstacks; gemeinsames Stoppen darf diese Infrastruktur nicht beenden.
 Kontrollierte Übernahme der bisherigen Stacks, Hardwareport-Eigentum, externe
 Netzwerke, Secrets und Startabhängigkeiten werden erst bei Umsetzung dokumentiert.
 
-### Spätere Lademodi (noch nicht einrichtbar)
+### Lademodi und Freigabegrenzen
 
-Geplant sind **Laden wenn Solarstrom**, **Laden ohne Solarstrom** und
-**Benutzerdefiniert**. Die Modi sind noch nicht implementiert; aktuell gibt es
-weder Modusauswahl noch zugehörige Konfigurationsschritte oder Steuerbefehle.
-Solar-Messquelle/-Messpunkt, PV-Überschussregel, Schwellwerte, Ausfallverhalten,
-benutzerdefinierte Vorgaben und Moduswechsel sind noch zu klären.
-Die heutigen lesenden Dienste und Startbefehle bleiben unverändert. Sobald die
-Modi umgesetzt werden, ihre Einrichtung und Bedienung hier dokumentieren.
+Die implementierte Auswahl heißt **PV-Regelung**, **Manuell** und
+**Benutzerdefiniert**. Ihre bewusste opt-in-Einrichtung steht bei
+[Bedienung und Hintergrundregler](#manuelle-bedienung-vorbereiten-operator-später-separat-freigeben).
+Softwarestand ist kein realer Schreib-/Hardwaretest. Tatsächliche Ladephasen und
+Hauszähler-Wallbox-Einschluss bleiben bis zur Betreiberklärung ungesetzt;
+32A-Installationsbestätigung ersetzt diese Angaben nicht. Alte Installationen
+werden nicht automatisch auf schreibende Automatik umgestellt.
 
 ## 2. Repository bereitstellen und Stand notieren
 
@@ -150,8 +150,8 @@ Vorhandene Reader-/Websitecontainer bewusst neu erstellen; Speichern≠Anwenden:
 
 ```sh
 git pull --ff-only &&
-docker compose -f rasppi/weboverlay/compose.yaml -f rasppi/weboverlay/compose.history.yaml up -d --build weboverlay &&
-docker compose -f rasppi/wallbox/compose.yaml up -d --build wallbox-reader
+(cd rasppi/weboverlay && docker compose -f compose.yaml -f compose.history.yaml up -d --build weboverlay) &&
+(cd rasppi/wallbox && docker compose up -d --build wallbox-reader)
 ```
 
 Nur tatsächlich verwendete Overlays ergänzen; kein unkonfiguriertes Authoverlay.

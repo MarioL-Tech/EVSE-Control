@@ -15,6 +15,13 @@ Queueablauf oder MQTT-Verlust wirksam. Bei Uhrfehler während zuvor laufender
 Automatik höchstens ein rein monoton befristeter Schutz-Stop, sonst Freeze.
 Zwei kohärente Zeitbeobachtungen können nur die Referenz reparieren, niemals
 selbst reaktivieren; neue explizite Aktivierung bleibt erforderlich.
+Gesunde HTTP-Heartbeats/TTL-Erneuerung sind kein Sitzungswechsel. Nur geänderter
+Planinhalt/Gültigkeit/Uhrfehler wechseln dessen Generation; vor jedem I/O werden
+aktuelles Budget und Zeitfenster erneut geprüft. Ausreichender neuer Überschuss
+oder ein unabhängiger Hausfehler im Custommodus ohne PV stornieren keine Aktion.
+Bereits beobachtete Aktivierungs-IDs dürfen nie wieder scharfstellen: maximal4096
+je Readerprozess ohne Verdrängung, danach sicher gesperrt bis Neustart und neuer
+bewusster Wahl mit neuem Guard. Keine versteckte unbegrenzte Replayliste.
 
 ## Öffentliche Schnittstellen (`wallbox::automation`)
 

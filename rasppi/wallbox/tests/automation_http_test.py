@@ -108,7 +108,7 @@ def run(case, expected, duration=600):
     thread.start()
     started = time.monotonic()
     try:
-        result = subprocess.run([sys.argv[1], "--http",
+        result = subprocess.run([sys.argv[1], "--http-stable" if case == "stable" else "--http",
                                  f"http://127.0.0.1:{server.server_port}", str(duration)],
                                 text=True, capture_output=True, timeout=duration/1000+5)
         if result.returncode or result.stdout.strip() != expected:
@@ -122,6 +122,7 @@ def run(case, expected, duration=600):
 
 
 run("ok", "ok ok 1 1")
+run("stable", "ok ok 1 1 1", 2700)
 for case in ("403", "302", "bad", "duplicate", "nested_duplicate", "nan", "body", "header"):
     run(case, "invalid_response invalid_response 0 0")
 for case in ("old", "future", "null"):

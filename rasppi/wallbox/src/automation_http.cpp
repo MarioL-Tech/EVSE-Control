@@ -112,6 +112,7 @@ Settings plan(const Json &j,double now,double utc,double elapsed) {
     if(mode=="manual") s.mode=Mode::Manual; else if(mode=="pv") s.mode=Mode::Pv;
     else if(mode=="custom") s.mode=Mode::Custom; else throw std::runtime_error("mode");
     const auto &c=j.at("config");
+    s.context=Json{{"config",c},{"activation",j.at("activation")},{"config_revision",j.at("config_revision")}}.dump();
     if(c.at("schema_version")!=1 || c.at("timezone")!="Europe/Vienna") throw std::runtime_error("config");
     integer(field(c.at("manual"),"current_ma"),6000,32000);
     s.pv=profile(c.at("pv"),false); s.custom=profile(c.at("custom"),true);
@@ -185,8 +186,15 @@ void HttpSource::run() {
             s.sources.clock_error=true;
         }
         last_m=m; last_w=w;
-        ++s.sources.generation;
-        std::lock_guard<std::mutex> lock(mutex_); snapshot_=std::make_shared<const Snapshot>(s);
+        std::lock_guard<std::mutex> lock(mutex_);
+        const auto &old=snapshot_->sources;
+        const bool changed=s.sources.settings.context!=old.settings.context ||
+            s.sources.settings.valid!=old.settings.valid || s.sources.clock_error!=old.clock_error;
+        // A heartbeat/unchanged configuration or independent house response is
+        // not a cancelled command session. Eligibility uses the latest measured
+        // budget and expiry before every IO instead.
+        s.sources.generation=old.generation+(changed?1:0);
+        snapshot_=std::make_shared<const Snapshot>(s);
     };
     while(!stop_) {
         const double cycle=mono();
