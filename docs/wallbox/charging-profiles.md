@@ -2,8 +2,8 @@
 
 Stand 2026-10-30. Modusauswahl und speicherbare Settings sind implementiert;
 **ein automatisch schreibender Hintergrundregler ist noch nicht angebunden**.
-Dies ist kein Nachweis aktiver PV-/Zeitsteuerung. Aktuellen Docker-Prüfstand im
-zugehörigen PR prüfen. Keine Agent-Pi-/Hardwaretests oder Installationsfreigabe.
+Dies ist kein Nachweis aktiver PV-/Zeitsteuerung. Aktuellen Docker-Prüfstand in
+PR#68 prüfen. Keine Agent-Pi-/Hardwaretests oder Installationsfreigabe.
 
 ## Übersicht
 

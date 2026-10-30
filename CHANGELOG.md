@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-30 17:57 (Europe/Vienna)
+
+- Config-only-Schreibpfad gegen Tempnam-Fallback außerhalb des validierten
+  Verzeichnisses abgesichert; Dateisystemwarnungen nicht an HTTP durchreichen.
+  Später Save nach Pagehide darf weder Erfolg vortäuschen noch erneut senden;
+  UI sperrt weiteres Speichern bis bewusstem Neuladen. Browserregression ergänzt.
+- Abschlussverweise für Konfigurationsstufe auf PR#68; Regler ausdrücklich noch
+  nicht angebunden. Erste Docker-CI besteht PHP-/HTTP-/JS-Konfigurationsprüfungen,
+  endgültiger Gesamt-/Browserstand noch offen.
+
 ## 2026-10-30 17:51 (Europe/Vienna)
 
 - Bedienbereich gekürzt: wiederholte Hilfs-/Leerauftragstexte entfernt, genaue

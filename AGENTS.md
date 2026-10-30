@@ -13,7 +13,8 @@ Sperrgrund statt pauschalem Langtext anzeigen. Aufträge/unklare Ergebnisse blei
 sichtbar, doppelte Live-/ACK-/Anforderungsdetails einklappbar.
 Zusätzlich ausdrücklich beauftragte drei Modi und Settings: PV maximaler erlaubter
 NetzbezugW; Custom Wochentage/mehrere Zeitfenster/PV-Berücksichtigung/Profilstrom/
-außerhalb-Zeit-Verhalten/Verzögerungen. Konfigurationsstufe ist jetzt in Arbeit:
+außerhalb-Zeit-Verhalten/Verzögerungen. Konfigurationsstufe implementiert;
+aktuellen Docker-Prüf-/Freigabestand über PR#68 prüfen:
 native Einzelauswahl, persistente streng begrenzte nicht geheime Regelvorlagen
 unter bestehendem Settings-only-Mount, keine geratenen Defaults. APIantwort
 `automation_available:false`, PV/Custom ausdrücklich noch NICHT aktive Automatik.
@@ -22,7 +23,7 @@ geprüfter Verbindung. Backend-/Reader-/Hausworker unverändert. Automatisch
 schreibender browserunabhängiger Regler bleibt eigener nachfolgender Prüf-/
 Implementierungsabschnitt; nicht als bereits umgesetzt melden. PWA-Shellv17.
 Vertrag `docs/wallbox/charging-profiles.md`. Modellplan scheitert am Kontingent
-vor Tools; keine unabhängige Plan-/Reviewprüfung behaupten. Docker-CI offen.
+vor Tools; keine unabhängige Plan-/Reviewprüfung behaupten. Keine reale Abnahme.
 Neuer Folgeauftrag: Betreiber meldet nach PR#66 sichtbare Bedienung, ohne damit
 echte Schreib-/Messwertabnahme zu bestätigen. Doppelten Wallbox-Tab entfernen;
 Bedienkarte samt einklappbaren technischen Details nur auf Übersicht. Alte URL

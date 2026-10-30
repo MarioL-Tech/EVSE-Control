@@ -124,14 +124,14 @@ final class ChargingSettings
                 $config = self::validate(json_decode(json_encode($changes, JSON_THROW_ON_ERROR), false, 16, JSON_THROW_ON_ERROR));
                 $encoded = json_encode($config, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n";
                 if (strlen($encoded) > 16384) self::fail();
-                $temp = tempnam($dir, '.charging-'); if (!$temp) self::fail();
+                $temp = @tempnam($dir, '.charging-'); if (!$temp || dirname($temp) !== $dir) self::fail();
                 $f = @fopen($temp, 'wb'); if (!$f) self::fail();
                 try {
-                    if (!chmod($temp, 0640) || fwrite($f, $encoded) !== strlen($encoded) || !fflush($f) || !fsync($f)) self::fail();
+                    if (!@chmod($temp, 0640) || @fwrite($f, $encoded) !== strlen($encoded) || !@fflush($f) || !@fsync($f)) self::fail();
                 } finally { fclose($f); }
                 $again = $read();
                 if (($again === null ? null : hash('sha256', $again)) !== $current) return ['status' => 'conflict'];
-                if (!rename($temp, $path)) self::fail();
+                if (!@rename($temp, $path)) self::fail();
                 $temp = null; $current = hash('sha256', $encoded);
             }
             return ['status' => 'ok', 'revision' => $current, 'config' => $config];

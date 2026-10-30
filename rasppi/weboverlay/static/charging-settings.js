@@ -33,7 +33,7 @@
   const form = document.getElementById('charging-form'); if (!form) return;
   const byId = id => document.getElementById(id);
   const fields = byId('charging-fields'), status = byId('charging-status');
-  let revision = null, csrf = null, available = false, dirty = false, busy = false, active = null, generation = 0;
+  let revision = null, csrf = null, available = false, dirty = false, busy = false, active = null, activeSave = false, generation = 0;
   function element(tag, value) { const el = document.createElement(tag); if (value) el.textContent = value; return el; }
   function profile(name, title) {
     const el = element('fieldset'); el.className = 'charging-profile'; el.append(element('legend', title));
@@ -113,7 +113,7 @@
     if (busy || save && (!available || !dirty || !form.reportValidity())) return;
     let config;
     try { if (save) config = collect(); } catch (_) { status.textContent = 'Werte oder Zeitfenster ungültig.'; return; }
-    busy = true; const controller = new AbortController(), token = ++generation; active = controller; render();
+    busy = true; const controller = new AbortController(), token = ++generation; active = controller; activeSave = save; render();
     const timeout = setTimeout(() => controller.abort(), 5000);
     try {
       const response = await fetch(ENDPOINT, { method: save ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
@@ -121,7 +121,7 @@
       const body = parseResponse(await response.json()); if (token !== generation) return;
       if (body.status === 'conflict') { status.textContent = 'Zwischenzeitlich geändert. Neu laden; Entwurf bleibt erhalten.'; return; }
       if (!response.ok || body.status !== 'ok') {
-        if (!save) available = false;
+        if (!save || body.status === 'forbidden') available = false;
         status.textContent = body.status === 'disabled' ? 'Regelkonfiguration nicht freigegeben.' : body.status === 'invalid' ?
           'Werte oder Zeitfenster ungültig.' : 'Regelkonfiguration nicht verfügbar. Settings-Dateibereitstellung prüfen.';
         return;
@@ -133,13 +133,17 @@
         available = false;
         status.textContent = save ? 'Speicherstatus unklar. Vor erneutem Speichern neu laden.' : 'Regelkonfiguration nicht erreichbar.';
       }
-    } finally { clearTimeout(timeout); if (active === controller) active = null; busy = false; render(); }
+    } finally { clearTimeout(timeout); if (active === controller) { active = null; activeSave = false; } busy = false; render(); }
   }
   fields.addEventListener('input', mark); fields.addEventListener('change', mark);
   add.addEventListener('click', () => { windowRow(); mark(); });
   form.addEventListener('submit', event => { event.preventDefault(); void exchange(true); });
   byId('charging-reload').addEventListener('click', () => { void exchange(); });
-  window.addEventListener('pagehide', () => { generation++; if (active) active.abort(); });
+  window.addEventListener('pagehide', () => {
+    generation++;
+    if (activeSave) { available = false; status.textContent = 'Speicherstatus unklar. Vor erneutem Speichern neu laden.'; }
+    if (active) active.abort();
+  });
   window.addEventListener('pageshow', event => { if (event.persisted && !dirty && !busy) void exchange(); });
   render(); void exchange();
 })();
