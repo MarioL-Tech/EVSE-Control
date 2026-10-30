@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-10-30 18:10 (Europe/Vienna)
+
+- Erste vollständige Konfigurations-CI da7980e besteht191JS-/43neuePHP-/HTTP-
+  Prüfungen und neun reguläre Browsersuiten einschließlich Save-Abbruch und
+  Mode-Nichtversand. Visuelle Prüfung fand zu kleine native Zahlen-/Zeitfelder:
+  an Theme angeglichen und44px-Mindesthöhe für Touchbedienung ergänzt.
+- Doppelten Vorlagenhinweis entfernt (Status bleibt), Browserfixture mit
+  deutschem Locale und gültigem deaktiviertem Envkatalog für aussagekräftige
+  Screenshots. Keine Änderung an Betriebs-/Schreibgrenzen; finalen Stand im PR prüfen.
+
+## 2026-10-30 17:57 (Europe/Vienna)
+
+- Config-only-Schreibpfad gegen Tempnam-Fallback außerhalb des validierten
+  Verzeichnisses abgesichert; Dateisystemwarnungen nicht an HTTP durchreichen.
+  Später Save nach Pagehide darf weder Erfolg vortäuschen noch erneut senden;
+  UI sperrt weiteres Speichern bis bewusstem Neuladen. Browserregression ergänzt.
+- Abschlussverweise für Konfigurationsstufe auf PR#68; Regler ausdrücklich noch
+  nicht angebunden. Erste Docker-CI besteht PHP-/HTTP-/JS-Konfigurationsprüfungen,
+  endgültiger Gesamt-/Browserstand noch offen.
+
+## 2026-10-30 17:51 (Europe/Vienna)
+
+- Bedienbereich gekürzt: wiederholte Hilfs-/Leerauftragstexte entfernt, genaue
+  Sperrursache sichtbar. Screenshot belegt fehlende Installationsgrenze trotz
+  Gerätemaximum32A; keine Grenze geraten oder Sperre umgangen. Angeforderte/ACK-/
+  Live-Details einklappbar; tatsächliche Auftragsergebnisse/Unknown bleiben außen.
+- Drei native, gegenseitig ausschließende Modusoptionen ergänzt. PV/Custom
+  ausdrücklich noch ohne aktive Automatik, kein Hardwarebefehl beim Wechsel;
+  Stop bleibt unabhängig von Auswahl. Manuell/Readerbefehlsweg unverändert.
+- Settings speichern strukturierte PV-/Custom-/Manuell-Vorlagen, inklusive
+  NetzbezugW, Profilstrom, Wochentagen, bis16Zeitfenstern und Verzögerungen.
+  Neue begrenzte CSRF-/Origin-/Revision-/Lock-/atomare Config-only-Dateispeicherung;
+  keine neuen Mounts/Container/Worker/DB-Tabellen, keine geratenen Defaults.
+  API meldet `automation_available:false`. Automatischer Hintergrundregler ist
+  weiterhin ausstehend, kein vorgetäuschter Ladebetrieb.
+- PWA-Shellv17, neue PHP-/HTTP-/JS-/Browserregressionen samt bestehenden Schutz-
+  prüfungen für Docker-CI eingebunden. Noch kein Test-/Pi-/Hardwareerfolg dieses
+  Stands. Modellplanung scheitert vor Toolausführung am Kontingent.
+
 ## 2026-10-30 16:18 (Europe/Vienna)
 
 - Aktuelle Bedienungs-/Prüfstandverweise auf Folge-PR#67 ausgerichtet;

@@ -5,6 +5,25 @@ die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
 Aktueller Webbedienauftrag (2026-10-30): PR#64 vom Projektinhaber gemergt.
+Neuer Auftrag nach gemergtemPR#67 (main8acecb1): wiederholte Bedienhinweise kürzen;
+Screenshot belegt geprüfte Verbindung/Gerätemaximum32A, aber unbekanntes
+Installationsmaximum/wirksames Maximum. Daher Start/Übernehmen korrekt gesperrt;
+keine32A-Installationsfreigabe und weiterhin keine bestätigten16A. Konkreten
+Sperrgrund statt pauschalem Langtext anzeigen. Aufträge/unklare Ergebnisse bleiben
+sichtbar, doppelte Live-/ACK-/Anforderungsdetails einklappbar.
+Zusätzlich ausdrücklich beauftragte drei Modi und Settings: PV maximaler erlaubter
+NetzbezugW; Custom Wochentage/mehrere Zeitfenster/PV-Berücksichtigung/Profilstrom/
+außerhalb-Zeit-Verhalten/Verzögerungen. Konfigurationsstufe implementiert;
+aktuellen Docker-Prüf-/Freigabestand über PR#68 prüfen:
+native Einzelauswahl, persistente streng begrenzte nicht geheime Regelvorlagen
+unter bestehendem Settings-only-Mount, keine geratenen Defaults. APIantwort
+`automation_available:false`, PV/Custom ausdrücklich noch NICHT aktive Automatik.
+Reload Manuell; Moduswechsel sendet nichts. Stop unabhängig von Auswahl bei
+geprüfter Verbindung. Backend-/Reader-/Hausworker unverändert. Automatisch
+schreibender browserunabhängiger Regler bleibt eigener nachfolgender Prüf-/
+Implementierungsabschnitt; nicht als bereits umgesetzt melden. PWA-Shellv17.
+Vertrag `docs/wallbox/charging-profiles.md`. Modellplan scheitert am Kontingent
+vor Tools; keine unabhängige Plan-/Reviewprüfung behaupten. Keine reale Abnahme.
 Neuer Folgeauftrag: Betreiber meldet nach PR#66 sichtbare Bedienung, ohne damit
 echte Schreib-/Messwertabnahme zu bestätigen. Doppelten Wallbox-Tab entfernen;
 Bedienkarte samt einklappbaren technischen Details nur auf Übersicht. Alte URL

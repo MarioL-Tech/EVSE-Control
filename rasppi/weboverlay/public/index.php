@@ -27,6 +27,7 @@ $assets = ['wallbox-control.js' => 'text/javascript', 'env-settings.js' => 'text
     'app-192.png' => 'image/png', 'app-512.png' => 'image/png',
     'app-maskable-512.png' => 'image/png', 'apple-touch-icon.png' => 'image/png',
     'offline.html' => 'text/html'];
+$assets['charging-settings.js'] = 'text/javascript';
 $rootAssets = ['/manifest.webmanifest' => ['manifest.webmanifest', 'application/manifest+json'],
     '/service-worker.js' => ['service-worker.js', 'text/javascript']];
 $pages = ['/' => 'index.html', '/diagramme' => 'diagrams.html', '/einstellungen' => 'settings.html'];
@@ -46,6 +47,9 @@ $known = isset($pages[$path ?? '']) || in_array($path, ['/api/state', '/api/smar
 
 if ($path === '/api/settings-env') {
     \EvseOverlay\EnvSettingsHttp::handle();
+}
+if ($path === '/api/charging-settings') {
+    \EvseOverlay\ChargingSettingsHttp::handle();
 }
 if ($path === '/api/wallbox-control') {
     \EvseOverlay\ControlHttp::handle();

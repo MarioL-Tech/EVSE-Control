@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { bounds, draftBounds, draftAmps, commandBody, parseResponse, stepText, resultText, GET_TIMEOUT_MS, POST_TIMEOUT_MS, REFRESH_MS } = require('../static/wallbox-control.js');
+const { bounds, draftBounds, limitReason, draftAmps, commandBody, parseResponse, stepText, resultText, GET_TIMEOUT_MS, POST_TIMEOUT_MS, REFRESH_MS } = require('../static/wallbox-control.js');
 const inspection = (extra = {}) => ({ schema_version: 1, status: 'ok', minimum_ma: 6000, software_max_ma: 32000,
   hardware_max_ma: 22000, installation_max_ma: 13700, effective_max_ma: 13700, firmware_raw: 123, write: null, preparation: null, ...extra });
 const envelope = (extra = {}) => ({ status: 'ok', csrf: 'test-csrf', inspection: inspection(), command: null, command_sent: false, ...extra });
@@ -62,6 +62,16 @@ test('Partial Start never claims charging or a Start ACK', () => {
   assert.match(resultText(body), /Start: Nicht gesendet/);
   assert.match(stepText(ack), /keine Ladebestätigung/);
   assert.match(stepText({ status: 'rejected_by_device', attempted: true, acknowledged: false }), /abgelehnt/);
+});
+test('Concise blocking reasons distinguish missing installation approval from device capability', () => {
+  assert.equal(limitReason(null), 'Stromgrenzen noch nicht geprüft.');
+  assert.equal(limitReason(inspection()), '');
+  assert.equal(limitReason(inspection({ hardware_max_ma: 32000, installation_max_ma: null, effective_max_ma: null })),
+    'Installationsmaximum fehlt.');
+  assert.equal(limitReason(inspection({ installation_max_ma: 0, effective_max_ma: null })), 'Installationsmaximum ungültig.');
+  assert.equal(limitReason(inspection({ hardware_max_ma: null, effective_max_ma: null })), 'Wallboxmaximum unbekannt.');
+  assert.equal(limitReason(inspection({ hardware_max_ma: 5999, effective_max_ma: null })), 'Wallboxmaximum ungültig.');
+  assert.equal(limitReason(inspection({ effective_max_ma: null })), 'Stromgrenzen nicht bestätigt.');
 });
 test('Editable local draft never authorizes missing or invalid installation limits', () => {
   assert.deepEqual(draftBounds(inspection()), { min: 6, max: 13 });

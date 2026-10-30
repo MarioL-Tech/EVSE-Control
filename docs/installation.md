@@ -131,6 +131,22 @@ Test gesondert freigeben. [Bedienvertrag](wallbox/web-control-contract.md).
 
 ### Manuelle Bedienung vorbereiten (Operator, später separat freigeben)
 
+Die Übersicht bietet jetzt zusätzlich die Auswahl PV-Regelung/Manuell/
+Benutzerdefiniert; die beiden neuen Automatikmodi sind ausdrücklich noch nicht
+ausführbar. Ihre Parameter lassen sich unter Settings → Lademodi als Vorlagen
+speichern. Das ist KEINE aktive PV-/Zeitsteuerung und sendet nichts an die
+Wallbox. Einzelheiten: [Regelvorlagenvertrag](wallbox/charging-profiles.md).
+
+Die vorhandene Settings-Dateibereitstellung (`setup-settings.sh`, Abschnitt zum
+Konfigurationseditor) stellt bereits das benötigte `weboverlay`-Verzeichnis im
+privaten `.evse-settings`-Baum bereit. Kein zusätzlicher Mount nötig. Erst
+bewusstes „Regeln speichern“ erzeugt dort `charging.json` (nicht geheim,0640),
+neben separatem `charging.lock` (0600). Diese Datei zusätzlich zu vorhandenen
+.env-Dateien in die private Konfigurationssicherung aufnehmen; kein Kopieren in
+öffentliche Beispiel-/Repositorydateien. Keine Verzeichnisse durch HTTP anlegen.
+Weder Speichern noch Modusauswahl aktiviert einen Regler oder ersetzt das echte
+Installationsstrommaximum. Fehlt es, bleiben Start und Übernehmen gesperrt.
+
 - Nur vertrauenswürdiges LAN/VPN, **jeder erreichbare Nutzer kann ohne Passwort
   bedienen**. Keine öffentliche Freigabe. Login folgt separat; CSRF ist kein Login.
 - Hardwaremaximum wird ausgelesen, ist aber keine Installationsfreigabe. Die

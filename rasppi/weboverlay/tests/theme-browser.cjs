@@ -168,6 +168,9 @@ async function setup(browser, options = {}, blocked = null) {
     }
   }, blocked);
   await context.route('**/api/state', route => route.fulfill({ json: sample() }));
+  await context.route('**/api/charging-settings', route => route.fulfill({ json: {
+    schema_version: 1, status: 'disabled', csrf: null, automation_available: false
+  } }));
   await context.route('**/api/wallbox-control', route => route.fulfill({ json: {
     status: 'unavailable', csrf: null, inspection: null, command: null, command_sent: false
   } }));
@@ -184,7 +187,7 @@ function clean(run) {
     assert.equal(request.method, 'GET', 'Theme controls must not send commands');
     const url = new URL(request.url); assert.equal(url.origin, origin, 'No foreign resources');
     if (url.pathname === '/api/history') assert.equal(url.search, '?minutes=15');
-    assert(routes.includes(url.pathname) || ['/einstellungen', '/api/state', '/api/smartmeter', '/api/history', '/api/house-history', '/api/settings-env', '/api/wallbox-control'].includes(url.pathname) || url.pathname.startsWith('/static/')
+    assert(routes.includes(url.pathname) || ['/einstellungen', '/api/state', '/api/smartmeter', '/api/history', '/api/house-history', '/api/settings-env', '/api/charging-settings', '/api/wallbox-control'].includes(url.pathname) || url.pathname.startsWith('/static/')
       || ['/favicon.ico', '/manifest.webmanifest', '/service-worker.js'].includes(url.pathname), request.url);
   }
   cases++;
@@ -264,7 +267,8 @@ function clean(run) {
         assert.equal(await page.locator('#env-fields').evaluate(fieldset => fieldset.disabled), true);
         assert.equal(await page.locator('#env-fields input:enabled').count(), 0);
         assert.equal(await page.locator('#env-form').count(), 1);
-        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id)), ['env-save', 'env-reload', 'theme-system']);
+        assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id)),
+          ['charging-add-window', 'charging-save', 'charging-reload', 'env-save', 'env-reload', 'theme-system']);
         assert.equal(await page.locator('.pwa-card, #pwa-heading, #pwa-install, #pwa-update').count(), 0);
         assert.equal(await page.getByRole('link', { name: 'Settings', exact: true }).getAttribute('aria-current'), 'page');
         await mode(page, 'system'); await switchLayout(page);
@@ -283,8 +287,9 @@ function clean(run) {
         }));
         assert(cardWidths.every(Boolean), 'Settings cards use the full available browser content width');
         assert.deepEqual(run.requests.filter(request => new URL(request.url).pathname.startsWith('/api/'))
-          .map(request => [request.method, new URL(request.url).pathname]), [['GET', '/api/settings-env']],
-          'Settings reads only its disabled catalog, never measurement/SQL APIs or commands');
+          .map(request => [request.method, new URL(request.url).pathname]).sort((a, b) => a[1].localeCompare(b[1])),
+          [['GET', '/api/charging-settings'], ['GET', '/api/settings-env']],
+          'Settings reads only configuration, never measurement/SQL APIs or commands');
         if (width === 320 || width === 1440) await page.screenshot({
           path: `/artifacts/settings-${scheme}-${width}.png`, fullPage: true
         });

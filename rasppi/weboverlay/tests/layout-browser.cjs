@@ -219,6 +219,9 @@ async function setup(browser, options = {}, denied = false) {
     Object.defineProperty(window, 'localStorage', { get() { throw new Error('Storage denied'); } });
   });
   await context.route('**/api/state', route => route.fulfill({ json: sample() }));
+  await context.route('**/api/charging-settings', route => route.fulfill({ json: {
+    schema_version: 1, status: 'disabled', csrf: null, automation_available: false
+  } }));
   await context.route('**/api/wallbox-control', route => route.fulfill({ json: {
     status: 'unavailable', csrf: null, inspection: null, command: null, command_sent: false
   } }));
@@ -283,7 +286,7 @@ function clean(run) {
           return new Set(ids).size === ids.length;
         }), 'Unique DOM IDs');
          assert.deepEqual(await page.locator('form, input:not([type="checkbox"]), [role="button"], [role="checkbox"]').evaluateAll(nodes => nodes.map(n => n.id).sort()),
-           route === '/' ? ['control-current'] : ['calendar-custom', 'calendar-date', 'calendar-from', 'calendar-to']);
+           route === '/' ? ['control-current', 'control-mode-custom', 'control-mode-manual', 'control-mode-pv'] : ['calendar-custom', 'calendar-date', 'calendar-from', 'calendar-to']);
          assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()),
            (route === '/' ? ['control-apply', 'control-start', 'control-stop'] : ['', '', '', '', '', '', '', 'calendar-load', 'calendar-next', 'calendar-now', 'calendar-prev', 'reset-display']).sort());
         if (route === '/diagramme') {
