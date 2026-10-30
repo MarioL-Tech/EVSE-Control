@@ -40,6 +40,7 @@ struct Input {
     Sources sources;
     bool bus_connected = false;
     std::optional<Telemetry> sample;
+    double sample_at = -1; // monotonic successful observation time, never an API heartbeat
     double sample_expires = 0, hardware_expires = 0;
     std::optional<int> hardware_max_ma, installation_max_ma;
 };
@@ -84,6 +85,7 @@ private:
     bool observed_running_ = false, finished_ = false, unplugged_ = false;
     std::optional<int> ack_target_, candidate_;
     double candidate_since_ = 0, last_now_ = 0, last_utc_ = 0;
+    double command_sample_at_ = -1;
     bool have_clock_ = false;
     std::optional<Action> pending_;
     std::uint64_t serial_ = 0;

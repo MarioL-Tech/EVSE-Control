@@ -15,7 +15,7 @@ Profile profile() {
     p.pause_seconds=0; p.resume_seconds=0; p.use_schedule=false; p.pv_enabled=false; return p;
 }
 Input input() {
-    Input i; i.now=100; i.utc=1793383200; i.bus_connected=true;
+    Input i; i.now=100; i.sample_at=100; i.utc=1793383200; i.bus_connected=true;
     i.sample_expires=i.hardware_expires=10000; i.installation_max_ma=32000; i.hardware_max_ma=32000;
     Telemetry v{}; v.plugged_in=true; v.charging=false; v.voltage_v={230,240,235}; v.active_power_w=0;
     i.sample=v; i.sources.settings.valid=true; i.sources.settings.expires=10000;
@@ -24,7 +24,7 @@ Input input() {
     i.sources.settings.phases=3; i.sources.settings.meter_includes_wallbox=false;
     i.sources.house={true,10000,1793383199,-7200}; return i;
 }
-void tick(Input &i,double seconds=1) { i.now+=seconds; i.utc+=seconds; }
+void tick(Input &i,double seconds=1) { i.now+=seconds; i.utc+=seconds; i.sample_at=i.now; }
 void activate(Engine &e,Input &i) {
     check(!e.step(i),"boot must not activate");
     i.sources.settings.activation=std::string(32,'b'); tick(i);
@@ -54,6 +54,10 @@ void tests() {
     { Engine e; auto i=input(); activate(e,i); auto a=need(e,i,Operation::Start,10000);
       check(e.accepts(a,i),"owner gate before IO"); e.manual_override();
       check(!e.accepts(a,i),"manual override cancels outstanding ticket"); }
+    { Engine e; auto i=input(); activate(e,i); i.sample->charging=true;
+      i.sources.house.power_w=1; auto a=need(e,i,Operation::Stop); e.complete(a,{true,true});
+      i.sample->charging=false; check(!e.step(i) && e.status()==Status::AwaitingStop,"pre-command false cannot prove stop");
+      tick(i); check(!e.step(i),"fresh stopped observation"); }
     { Engine e; auto i=input(); activate(e,i); i.sample->charging=true;
       auto a=need(e,i,Operation::SetCurrent,10000); e.complete(a,{true,true});
       i.sample->current_limit_a=6; tick(i); check(!e.step(i),"internal load manager not echo");

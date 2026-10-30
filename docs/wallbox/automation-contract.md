@@ -17,6 +17,7 @@ Diese Datei ist zugleich das Änderungsledger dieses eng begrenzten Teilauftrags
   Ein Thread, Zwei-Sekunden-Zyklus, Abbruch und Join im Destruktor.
 - `Input`: `now` monotone Sekunden; `utc` Epochsekunden; kopierte `Sources`;
   `bus_connected`; optionales bestehendes `Telemetry sample` mit explizitem
+  `sample_at` (monotoner erfolgreicher Readzeitpunkt, kein Heartbeat) und
   `sample_expires`; `hardware_max_ma` mit `hardware_expires`; explizite
   `installation_max_ma`. **Kein Standortdefault**; 32 A sind nur Softwareobergrenze.
 - `Engine::step(Input)` ergibt null oder genau eine `Action` mit `Operation::Stop`,
@@ -53,7 +54,9 @@ Erste gültige Aktivierung nach Boot ist nur Baseline, auch bei persistiertem PV
 Nur neue explizite ID aktiviert; Speichern/GET/Reload nicht. Revision ohne neue ID,
 Busverlust, Zeitfehler und nicht bestätigter versuchter Write frieren bis zur
 nächsten expliziten Aktivierung ein. ACK ist kein Nachweis tatsächlichen Ladens.
-Start wartet auf frisches `charging=true`, Stop auf `false`; keine Wiederholung.
+Start wartet auf neues `charging=true`, Stop auf `false` mit einem streng neueren
+`sample_at` als vor der Aktion; kein vorliegender Read beweist einen Writeeffekt.
+Keine Wiederholung.
 Nach beobachtetem Fahrzeugende kein Blindstart bis Ab-/Anstecken oder Aktivierung.
 
 PV: bekannte Phasenzahl und Zählertopologie erforderlich. Mindestens so viele

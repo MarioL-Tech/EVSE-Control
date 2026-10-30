@@ -60,7 +60,7 @@ bool action_is_current(const Action &a, const Input &i) noexcept {
     return std::isfinite(i.now) && i.bus_connected && i.now < a.deadline
         && a.activation == i.sources.settings.activation && a.revision == i.sources.settings.revision
         && a.source_generation == i.sources.generation && !i.sources.clock_error
-        && i.sample && fresh(i.sample_expires,i.now)
+        && i.sample && std::isfinite(i.sample_at) && i.sample_at>=0 && i.sample_at<=i.now && fresh(i.sample_expires,i.now)
         && (a.operation == Operation::Stop || (i.sources.settings.valid && fresh(i.sources.settings.expires,i.now)
             && i.sample->plugged_in.value_or(false) && i.sample->error_code==0
             && i.hardware_max_ma && fresh(i.hardware_expires,i.now) && i.installation_max_ma
@@ -79,6 +79,7 @@ bool Engine::accepts(const Action &a,const Input &i) const noexcept {
 std::optional<Action> Engine::issue(Operation op,int ma,const Input &i) {
     Action a{op,ma,++serial_,i.sources.generation,i.sources.settings.activation,i.sources.settings.revision,i.now+3};
     a.requires_house=op!=Operation::Stop && (i.sources.settings.mode==Mode::Pv || i.sources.settings.custom.pv_enabled.value_or(true));
+    command_sample_at_=i.sample_at;
     pending_=a; candidate_.reset(); return a;
 }
 void Engine::complete(const Action &a, Outcome result) {
@@ -107,13 +108,13 @@ std::optional<Action> Engine::step(const Input &i) {
     if (frozen_) { status_=Status::Frozen; return {}; }
     if (!armed_) { status_=baseline_ && s.mode==Mode::Manual?Status::Manual:Status::AwaitingActivation; return {}; }
     if (pending_) return {};
-    bool sample_ok=i.bus_connected && i.sample && fresh(i.sample_expires,i.now);
+    bool sample_ok=i.bus_connected && i.sample && std::isfinite(i.sample_at) && i.sample_at>=0 && i.sample_at<=i.now && fresh(i.sample_expires,i.now);
     const auto *v=sample_ok?&*i.sample:nullptr;
     if (v && v->plugged_in && !*v->plugged_in) {
         unplugged_=true; finished_=false; start_wait_=stop_wait_=false; observed_running_=false;
         ack_target_.reset(); candidate_.reset(); status_=Status::Unplugged; return {};
     }
-    if (v && v->charging) {
+    if (v && v->charging && (!(start_wait_ || stop_wait_) || i.sample_at>command_sample_at_)) {
         if (*v->charging) { observed_running_=true; start_wait_=false; }
         else {
             if (stop_wait_) { stop_wait_=false; observed_running_=false; }
