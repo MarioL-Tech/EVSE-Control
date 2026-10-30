@@ -131,11 +131,50 @@ Test gesondert freigeben. [Bedienvertrag](wallbox/web-control-contract.md).
 
 ### Manuelle Bedienung vorbereiten (Operator, später separat freigeben)
 
-Die Übersicht bietet jetzt zusätzlich die Auswahl PV-Regelung/Manuell/
-Benutzerdefiniert; die beiden neuen Automatikmodi sind ausdrücklich noch nicht
-ausführbar. Ihre Parameter lassen sich unter Settings → Lademodi als Vorlagen
-speichern. Das ist KEINE aktive PV-/Zeitsteuerung und sendet nichts an die
-Wallbox. Einzelheiten: [Regelvorlagenvertrag](wallbox/charging-profiles.md).
+Die Übersicht bietet PV-Regelung/Manuell/Benutzerdefiniert. Einstellungen speichern
+bleibt ein Entwurf, kein Hardwareauftrag und keine Änderung einer bereits aktiven
+Regelung. Die spätere bewusste Moduswahl erfasst diesen Entwurf als unveränderlichen
+Snapshot. Gemeinsame Docker-CI des neuen Controllers noch offen, keine reale
+Schreibabnahme. Einzelheiten: [Modusvertrag](wallbox/charging-profiles.md).
+
+#### Optionalen Hintergrundregler vorbereiten
+
+**Erst nach erfolgreicher Softwareprüfung und eigener Schreibfreigabe aktivieren.**
+Keine automatische Anwendung auf dem Pi durch Agenten. Im bestehenden Reader-
+`.env` braucht die hier ausdrücklich mit32A bestätigte Installation
+`WALLBOX_INSTALLATION_MAX_MA=32000`; andere Installationen übernehmen diesen Wert
+nicht ungeprüft. Zusätzlich `WALLBOX_AUTOMATION_WEB_URL=http://weboverlay:8080`
+setzen. Das ist die interne Website-Origin über das vorhandene `evse-mqtt`, keine
+neue Hausquelle. Leer bleibt deaktiviert. Kein Pfad/Query/Credentials in der URL.
+Vorhandene Reader-/Websitecontainer bewusst neu erstellen; Speichern≠Anwenden:
+
+```sh
+git pull --ff-only &&
+docker compose -f rasppi/weboverlay/compose.yaml -f rasppi/weboverlay/compose.history.yaml up -d --build weboverlay &&
+docker compose -f rasppi/wallbox/compose.yaml up -d --build wallbox-reader
+```
+
+Nur tatsächlich verwendete Overlays ergänzen; kein unkonfiguriertes Authoverlay.
+Website und Reader bleiben getrennt, bestehender Broker/MariaDB unverändert.
+Unter Settings → Lademodi zuerst tatsächliche Ladephasenzahl und Hauszähler-
+Wallbox-Einschluss festlegen. Beides ist noch beim Betreiber angefragt: nichts
+raten. W/A-Grenzen und Anpassungs-/Pause-/Wiederaufnahmeverzögerungen bewusst
+eintragen. NULL bleibt unbekannt und verhindert automatische Ladefreigabe.
+Custom benötigt zusätzlich explizite Zeit-/PV-Schalter und bei Zeitsteuerung
+Wochentage, Zeitfenster und Verhalten außerhalb. Erst danach bewusst die
+entsprechende Übersichtskarte wählen; fehlende Parameter werden benannt.
+
+Der vorhandene Reader regelt browserunabhängig, verwendet den bestehenden
+Haus-API-Wert und besitzt weiterhin allein RS485. Nach Readerneustart vorhandene
+Aktivierung nicht automatisch fortsetzen: bewusst erneut wählen. Manuelle
+Start/Stromvorgabe/Stop unterbrechen Automatik bis zu einer neuen Aktivierung;
+alte unterwegs befindliche Moduswahlen können Stop nicht zurücknehmen.
+Unbekannter Writeausgang friert ein, ohne Retry; Inspektion repariert nur den
+Transport. Quellenausfall bei zuvor laufender Automatik erlaubt höchstens einen
+begrenzt versuchten Stop, kein Start-/Stop-Pendeln. Bei Uhrfehler ist ebenfalls
+nur ein monoton befristeter Schutz-Stop erlaubt. Danach neue stabile Zeitbasis
+und neue bewusste Aktivierung erforderlich. ACK ist keine tatsächliche Ladung.
+Kein Ersatz für elektrische Schutzorgane oder eine sofortige Netzlastbegrenzung.
 
 Die vorhandene Settings-Dateibereitstellung (`setup-settings.sh`, Abschnitt zum
 Konfigurationseditor) stellt bereits das benötigte `weboverlay`-Verzeichnis im

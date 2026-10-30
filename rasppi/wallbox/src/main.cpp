@@ -250,6 +250,7 @@ int run(const Options &o) {
         auto automation_reply = [&]() -> std::optional<wallbox::AutomationReply> {
             if (!guard) return {};
             wallbox::AutomationReply a; a.guard = *guard; a.state = engine.status();
+            a.plan = a.house = HttpStatus::Disabled;
             if (source) {
                 const auto s = source->snapshot();
                 a.requested_mode = s->sources.settings.mode;
@@ -264,16 +265,19 @@ int run(const Options &o) {
         // starves telemetry. Network callbacks only enqueue; all serial I/O here.
         bool handled = false;
         while (!stopped && std::chrono::steady_clock::now() < next_poll) {
+            // Accepted manual intent must win even when a blocking automatic
+            // operation lets its transport deadline expire before take().
+            if (control.consume_manual_override()) { engine.manual_override(); rotate_guard(); }
             const auto command = handled ? std::optional<wallbox::ControlRequest>{} : control.take();
             if (!command) {
                 if (!handled && source && connected && !recovery_required) {
-                    const auto session = control.owner_session();
-                    if (action && session) {
+                    // Autonomous decisions use the current HTTP plan/causal
+                    // guard, not the unrelated manual MQTT connection's lease.
+                    if (action) {
                         handled = true;
                         wallbox::WriteCore core(ctx.get(), {true, installation_max_ma}, stopped,
                             [] { return wallbox::WriteClock::now(); }, [&] {
-                                return control.manual_pending() || !control.matches_session(*session) ||
-                                    !engine.accepts(*action, latest_input());
+                                return control.manual_pending() || !engine.accepts(*action, latest_input());
                             });
                         const auto deadline = wallbox::WriteClock::time_point(
                             std::chrono::duration_cast<wallbox::WriteClock::duration>(std::chrono::duration<double>(action->deadline)));

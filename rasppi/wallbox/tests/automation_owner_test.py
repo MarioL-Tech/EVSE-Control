@@ -311,6 +311,24 @@ def run(binary, directory):
         time.sleep(2.4)
         check(len(f.writes) == before_second_ack + 2, "second compound ACK loss retried")
         check(f.command()["automation"]["state"] == "frozen", "partial Start incorrectly succeeded")
+        # HTTP/Modbus regulation, especially protective Stop, cannot depend on
+        # the manual MQTT transport being connected.
+        with f.lock:
+            f.mode = "pv"
+            f.drop_start = False
+        f.arm()
+        before_broker_loss = len(f.writes)
+        wait(lambda: len(f.writes) > before_broker_loss, "fresh activation before broker loss missing")
+        f.broker.stop()
+        with f.lock:
+            f.house = "unavailable"
+        before_protection = len(f.writes)
+        wait(lambda: any(r == bytes.fromhex("090641050001") for _, r in f.writes[before_protection:]),
+             "broker loss blocked autonomous protective Stop")
+        time.sleep(2.5)
+        after_protection = len(f.writes)
+        time.sleep(.7)
+        check(len(f.writes) == after_protection, "broker loss caused automatic retries")
         # One serial owner: every auto write sequence is separated by normal polls.
         check(sum(a == 0x4008 for _, a in f.reads) > 20, "automation starved telemetry")
     finally:

@@ -209,6 +209,7 @@ struct ControlChannel::Impl {
     std::map<std::string, WriteClock::time_point> leases;
     std::map<std::string, Entry> entries;
     std::deque<ControlRequest> waiting;
+    bool manual_override_pending = false;
     std::optional<ControlRequest> active;
     std::deque<std::pair<std::string, std::string>> results;
 
@@ -303,6 +304,7 @@ struct ControlChannel::Impl {
             // The wire inspector uses '-', but the owner needs the actual
             // admission session for cancellation before every serial read.
             request->session = session;
+            if (!inspect) manual_override_pending = true;
             waiting.push_back(std::move(*request));
         }
     }
@@ -442,9 +444,17 @@ std::optional<std::string> ControlChannel::owner_session() const {
 bool ControlChannel::manual_pending() const {
     if (!impl_) return false;
     std::lock_guard<std::mutex> lock(impl_->mutex);
-    return std::any_of(impl_->waiting.begin(), impl_->waiting.end(), [](const ControlRequest &r) {
+    return impl_->manual_override_pending || std::any_of(impl_->waiting.begin(), impl_->waiting.end(), [](const ControlRequest &r) {
         return r.operation != ControlOperation::Inspect;
     });
+}
+
+bool ControlChannel::consume_manual_override() {
+    if (!impl_) return false;
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    const bool pending = impl_->manual_override_pending;
+    impl_->manual_override_pending = false;
+    return pending;
 }
 
 void ControlChannel::invalidate_session() {

@@ -31,8 +31,9 @@ services:
       # Until explicit setup-settings.sh provisioning the editor fails closed.
       - ../../.evse-settings:/run/evse-settings
     networks:
-      - mqtt
-      - web
+      mqtt:
+        aliases: [weboverlay]
+      web: {}
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777

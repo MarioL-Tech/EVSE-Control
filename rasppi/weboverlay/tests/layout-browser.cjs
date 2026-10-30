@@ -216,6 +216,10 @@ async function systemTheme(page, scheme) {
 async function setup(browser, options = {}, denied = false) {
   const context = await browser.newContext(options), errors = [], requests = [];
   // Independent inspection fixture: never contact the ESP32 MQTT gateway.
+  await context.route('**/api/charging-mode', route => {
+    assert.equal(route.request().method(), 'GET');
+    return route.fulfill({ json: { schema_version: 1, status: 'disabled', csrf: null, automation_available: true, semantics: 'activation_requested' } });
+  });
   await context.route('**/api/esp32-control', route => {
     assert.equal(route.request().method(), 'GET', 'No ESP32 commands in this fixture');
     return route.fulfill({ json: { status: 'unavailable', csrf: null, inspection: null,
@@ -245,7 +249,7 @@ function clean(run) {
     const url = new URL(request.url);
     assert.equal(url.origin, new URL(base).origin, 'No external resources');
     if (url.pathname === '/api/history') assert.equal(url.search, '?minutes=15');
-    assert(routes.includes(url.pathname) || ['/api/state', '/api/smartmeter', '/api/history', '/api/house-history', '/api/wallbox-control', '/api/esp32-control'].includes(url.pathname)
+    assert(routes.includes(url.pathname) || ['/api/state', '/api/smartmeter', '/api/history', '/api/house-history', '/api/charging-mode', '/api/wallbox-control', '/api/esp32-control'].includes(url.pathname)
       || url.pathname.startsWith('/static/') || ['/favicon.ico', '/manifest.webmanifest', '/service-worker.js'].includes(url.pathname), request.url);
   }
 }

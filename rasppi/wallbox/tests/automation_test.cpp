@@ -97,6 +97,18 @@ void tests() {
     { Engine e; auto i=input(); check(!e.step(i),"restart persisted activation baseline");
       tick(i); check(!e.step(i),"persisted activation cannot resume"); }
     { Engine e; auto i=input(); activate(e,i); tick(i); i.utc+=10; check(!e.step(i) && e.status()==Status::Frozen,"clock jump"); }
+    { Engine e; auto i=input(); activate(e,i); i.sample->charging=true;
+      auto adjust=need(e,i,Operation::SetCurrent,10000); e.complete(adjust,{true,true});
+      tick(i); i.utc+=10;
+      auto stop=need(e,i,Operation::Stop);
+      check(stop.clock_protection && e.accepts(stop,i),"clock fault permits only one bounded protective Stop");
+      auto invalid=i; invalid.now=stop.deadline;
+      check(!e.accepts(stop,invalid),"clock protection does not extend monotonic deadline");
+      e.complete(stop,{true,true});
+      tick(i); check(!e.step(i),"clock fault cannot repeat Stop");
+      tick(i); check(!e.step(i) && e.status()==Status::Frozen,"stable corrected clock never resumes automatically");
+      i.sources.settings.activation=std::string(32,'c'); i.sample->charging=false; tick(i);
+      need(e,i,Operation::Start,10000); }
     { Engine e; auto i=input(); activate(e,i); i.bus_connected=false; check(!e.step(i),"disconnect");
       i.bus_connected=true; tick(i); check(!e.step(i) && e.status()==Status::Frozen,"disconnect latch"); }
     { Engine e; auto i=input(); activate(e,i); i.sources.settings.revision=std::string(64,'c');

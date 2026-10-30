@@ -8,6 +8,7 @@ COPY tests/browser.cjs ./
 COPY tests/wallbox-control-browser.cjs ./
 COPY tests/charging-settings-browser.cjs ./
 COPY tests/esp32-browser.cjs ./
+COPY tests/charging-mode-browser.cjs ./
 COPY tests/charts-browser.cjs ./
 COPY tests/layout-browser.cjs ./
 COPY tests/theme-browser.cjs ./
@@ -22,4 +23,5 @@ COPY static/charts.js /static/charts.js
 COPY static/newcalendar.js /static/newcalendar.js
 COPY static/history.js /static/history.js
 COPY static/house-history.js /static/house-history.js
-CMD ["sh", "-c", "status=0; for suite in browser.cjs charts-browser.cjs layout-browser.cjs theme-browser.cjs smartmeter-browser.cjs history-browser.cjs house-history-browser.cjs wallbox-control-browser.cjs charging-settings-browser.cjs esp32-browser.cjs; do echo Browser-suite: $suite; node \"$suite\" || status=1; done; exit \"$status\""]
+COPY static/charging-mode.js /static/charging-mode.js
+CMD ["sh", "-c", "status=0; for suite in browser.cjs charts-browser.cjs layout-browser.cjs theme-browser.cjs smartmeter-browser.cjs history-browser.cjs house-history-browser.cjs wallbox-control-browser.cjs charging-settings-browser.cjs esp32-browser.cjs charging-mode-browser.cjs; do echo Browser-suite: $suite; node \"$suite\" || status=1; done; exit \"$status\""]

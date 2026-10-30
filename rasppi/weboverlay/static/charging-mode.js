@@ -117,17 +117,19 @@
     const emit = (name, detail) => win.dispatchEvent(new win.CustomEvent(name, { detail }));
     const effective = () => !observed || observed.state === 'manual_override' ? 'manual' : desired?.activation.mode || observed.requested_mode;
     function render() {
-      const mode = effective(), supported = !!observed;
+      const mode = effective(), supported = !!observed && !['disabled', 'invalid_base'].includes(observed.plan);
       radios.forEach((r, index) => { r.checked = mode === MODES[index]; r.disabled = !!active || busy || suspended || (!supported && MODES[index] !== 'manual'); });
       let feedback = message;
       if (!feedback) {
         if (!observed) feedback = 'Manuell – Automatik benötigt einen aktualisierten Reader.';
+        else if (!supported) feedback = 'Reglerquelle nicht eingerichtet – Reader-Konfiguration prüfen.';
         else if (['manual_override', 'awaiting_activation', 'frozen'].includes(observed.state)) feedback = STATE[observed.state];
         else if (desired && (observed.activation_id !== desired.activation.id || observed.guard !== desired.activation.guard ||
             observed.config_revision !== desired.config_revision)) feedback = `${LABEL[mode]} angefordert – Readerbestätigung ausstehend.`;
         else feedback = STATE[observed.state];
       }
       status.textContent = feedback;
+      status.hidden = !feedback;
       emit('evse:automation-mode', { mode, supported, pending: !!active });
     }
     function cancel() {

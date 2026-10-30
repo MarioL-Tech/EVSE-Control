@@ -53,6 +53,11 @@
     label.htmlFor = input.id; label.append(input); parent.grid.append(label);
   }
   const manual = profile('manual', 'Manuell');
+  const installation = { name: 'installation', grid: element('div') };
+  installation.grid.className = 'charging-profile-fields charging-installation';
+  fields.insertBefore(installation.grid, manual.el);
+  select(installation, 'phases', 'Ladephasen (geprüfte Konfiguration)', [['', 'Nicht festgelegt'], ['1', '1'], ['2', '2'], ['3', '3']]);
+  select(installation, 'meter_includes_wallbox', 'Hauszähler erfasst die Wallbox mit', [['', 'Nicht festgelegt'], ['true', 'Ja'], ['false', 'Nein']]);
   numeric(manual, 'current_ma', 'Ladestromvorlage (A)', 6, 32, .001);
   const pv = profile('pv', 'PV-Regelung'), custom = profile('custom', 'Benutzerdefiniert');
   for (const parent of [pv, custom]) for (const item of NUMBERS) numeric(parent, ...item);
@@ -81,7 +86,7 @@
     remove.addEventListener('click', () => { row.remove(); mark(); }); row.append(remove); windows.append(row);
   }
   function fill(config) {
-    for (const [p, data] of Object.entries({ manual: config.manual, pv: config.pv, custom: config.custom })) {
+    for (const [p, data] of Object.entries({ installation: config.installation || { phases: null, meter_includes_wallbox: null }, manual: config.manual, pv: config.pv, custom: config.custom })) {
       for (const [key, value] of Object.entries(data)) {
         const input = byId(`charging-${p}-${key}`); if (!input) continue;
         input.value = value === null ? '' : key.endsWith('_ma') ? String(value / 1000) : String(value);
@@ -91,7 +96,10 @@
     windows.replaceChildren(); config.custom.windows.forEach(windowRow);
   }
   function collect() {
-    const config = { schema_version: 1, timezone: 'Europe/Vienna', manual: {}, pv: {}, custom: {} };
+    const config = { schema_version: 1, timezone: 'Europe/Vienna', installation: {
+      phases: number(byId('charging-installation-phases').value),
+      meter_includes_wallbox: byId('charging-installation-meter_includes_wallbox').value === '' ? null : byId('charging-installation-meter_includes_wallbox').value === 'true'
+    }, manual: {}, pv: {}, custom: {} };
     config.manual.current_ma = number(byId('charging-manual-current_ma').value, true);
     for (const p of ['pv', 'custom']) for (const [key] of NUMBERS)
       config[p][key] = number(byId(`charging-${p}-${key}`).value, key.endsWith('_ma'));

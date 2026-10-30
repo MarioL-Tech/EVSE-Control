@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-30 21:37 (Europe/Vienna)
+
+- Reglerintegration: explizite, revisions-/guardgebundene Moduswahl erfasst
+  unveränderliche Settingssnapshots; Speichern/Reload/Neustart aktiviert nichts.
+  Read-only interne Plan-API und bestehende Haus-API, Reader bleibt alleiniger
+  Modbusowner. Sitephasen/Zählertopologie zwingend explizit,32A kein Globaldefault.
+- Browserradioeigenschaft an separaten Modusclient übergeben; manuelle Aktionen
+  mit bisherigen Grenzen, Stop bleibt unabhängig. Neues Mode-HTTP-/JS-/Browser-
+  und Owner-PTY-/HTTP-/Brokerharness, additive strikte Statusvalidierung,
+  zentrale Operatoranleitung und Shellv20. Gemeinsame Docker-CI noch offen.
+- Zusätzliche Schutzbarrieren: angenommene manuelle Absicht überlebt Queueexpiry;
+  Uhrfehler im zuvor laufenden Regler erlauben höchstens einen monoton befristeten
+  Schutz-Stop, danach Freeze und neue bewusste Aktivierung. Stabile korrigierte
+  Zeitbasis darf eine Sperre nicht selbst aufheben. Keine Pi-/Hardwareaktion.
+- Automatik nicht an manuelle MQTT-Verbindung koppeln: bestehender HTTP-Plan und
+  Modbusowner bleiben bei Brokerausfall regelungs-/schutzstopfähig. Eigene
+  isolierte Regression ergänzt; unveränderte Monitor-/Hausquellen bleiben getrennt.
+
 ## 2026-10-30 21:16 (Europe/Vienna)
 
 - Optionalen HTTP-Automationscore in den einzigen Readerowner integriert:

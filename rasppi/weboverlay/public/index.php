@@ -29,6 +29,7 @@ $assets = ['wallbox-control.js' => 'text/javascript', 'env-settings.js' => 'text
     'offline.html' => 'text/html'];
 $assets['charging-settings.js'] = 'text/javascript';
 $assets['esp32.js'] = 'text/javascript';
+$assets['charging-mode.js'] = 'text/javascript';
 $rootAssets = ['/manifest.webmanifest' => ['manifest.webmanifest', 'application/manifest+json'],
     '/service-worker.js' => ['service-worker.js', 'text/javascript']];
 $pages = ['/' => 'index.html', '/diagramme' => 'diagrams.html', '/einstellungen' => 'settings.html'];
@@ -51,6 +52,12 @@ if ($path === '/api/settings-env') {
 }
 if ($path === '/api/charging-settings') {
     \EvseOverlay\ChargingSettingsHttp::handle();
+}
+if ($path === '/api/charging-mode') {
+    \EvseOverlay\ChargingModeHttp::handleMode();
+}
+if ($path === '/api/charging-plan') {
+    \EvseOverlay\ChargingModeHttp::handlePlan();
 }
 if ($path === '/api/wallbox-control') {
     \EvseOverlay\ControlHttp::handle();

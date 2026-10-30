@@ -64,6 +64,10 @@ bool valid_schedule(const Profile &p) {
 }
 }
 bool action_is_current(const Action &a, const Input &i) noexcept {
+    if (a.operation==Operation::Stop && a.clock_protection) {
+        return std::isfinite(i.now) && std::isfinite(a.issued_at) && std::isfinite(a.deadline)
+            && i.now>=a.issued_at && i.now<a.deadline && i.bus_connected;
+    }
     const bool ticket=std::isfinite(i.now) && std::isfinite(a.issued_at) && std::isfinite(a.deadline)
         && i.now>=a.issued_at && i.now<a.deadline && utc_valid(i.utc) && utc_valid(a.issued_utc)
         && i.utc>=a.issued_utc && std::abs((i.utc-a.issued_utc)-(i.now-a.issued_at))<=2
@@ -97,6 +101,8 @@ void Engine::consume_pending_activation(const Settings &s) {
 }
 bool Engine::accepts(const Action &a,const Input &i) noexcept {
     consume_pending_activation(i.sources.settings);
+    if (a.operation==Operation::Stop && a.clock_protection)
+        return pending_ && pending_->serial==a.serial && !manual_ && action_is_current(a,i);
     const bool clock_ok=std::isfinite(i.now) && utc_valid(i.utc) && (!have_clock_ ||
         (i.now>=last_now_ && i.utc>=last_utc_ && std::abs((i.utc-last_utc_)-(i.now-last_now_))<=2));
     if (!clock_ok || i.sources.clock_error || !i.bus_connected) frozen_=true;
@@ -125,8 +131,18 @@ void Engine::complete(const Action &a, Outcome result) {
 std::optional<Action> Engine::step(const Input &i) {
     const auto &s=i.sources.settings;
     consume_pending_activation(s);
-    const bool clock_ok=std::isfinite(i.now) && i.now>=0 && utc_valid(i.utc) && !i.sources.clock_error && (!have_clock_ ||
+    bool clock_ok=std::isfinite(i.now) && i.now>=0 && utc_valid(i.utc) && !i.sources.clock_error && (!have_clock_ ||
         (i.now>=last_now_ && i.utc>=last_utc_ && std::abs((i.utc-last_utc_)-(i.now-last_now_))<=2));
+    // A corrected system clock may establish a new reference only while frozen,
+    // from two separate coherent finite observations. This never clears the
+    // freeze or reuses a nonce consumed during the fault.
+    if (!clock_ok && frozen_ && !i.sources.clock_error && std::isfinite(i.now) && i.now>=last_now_ && utc_valid(i.utc)) {
+        if (clock_recovery_ && i.now>clock_recovery_->first && i.utc>=clock_recovery_->second &&
+            std::abs((i.utc-clock_recovery_->second)-(i.now-clock_recovery_->first))<=2) clock_ok=true;
+        clock_recovery_=std::make_pair(i.now,i.utc);
+    } else if (clock_ok || i.sources.clock_error || !std::isfinite(i.now) || i.now<last_now_ || !utc_valid(i.utc)) clock_recovery_.reset();
+    const bool clock_stop=!clock_ok && !frozen_ && armed_ && !manual_ && !pending_ && !stop_wait_ &&
+        (observed_running_ || start_wait_) && i.bus_connected && std::isfinite(i.now) && i.now>=last_now_;
     // Invalid observations must never poison the reference used by later gates.
     if (clock_ok) { last_now_=i.now; last_utc_=i.utc; have_clock_=true; }
     if (s.valid && fresh(s.expires,i.now) && !s.activation.empty()) {
@@ -144,6 +160,12 @@ std::optional<Action> Engine::step(const Input &i) {
         else if (armed_ && (s.revision!=revision_ || s.mode!=mode_)) frozen_=true; // saving never activates
     }
     if (!clock_ok || !i.bus_connected) frozen_=true;
+    if (clock_stop) {
+        status_=Status::Frozen;
+        auto stop=issue(Operation::Stop,0,i);
+        stop->clock_protection=true; pending_->clock_protection=true;
+        return stop;
+    }
     if (frozen_) { status_=Status::Frozen; return {}; }
     if (manual_) { status_=Status::ManualOverride; return {}; }
     if (!armed_) { status_=baseline_ && s.mode==Mode::Manual?Status::Manual:Status::AwaitingActivation; return {}; }

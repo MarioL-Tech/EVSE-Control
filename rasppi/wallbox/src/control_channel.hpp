@@ -65,6 +65,7 @@ public:
     bool matches_session(const std::string &session) const;
     std::optional<std::string> owner_session() const;
     bool manual_pending() const;
+    bool consume_manual_override(); // Admission intent survives expiry/reconnect; owner consumes once.
     void invalidate_session(); // Bus disconnect: rotate session, drop leases/queue.
 private:
     struct Impl;

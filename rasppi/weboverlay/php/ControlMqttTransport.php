@@ -54,6 +54,21 @@ final class ControlMqttTransport
         return in_array($value->status, self::STATUSES, true) && in_array($value->reason, self::REASONS, true);
     }
 
+    public static function validAutomation(mixed $a): bool
+    {
+        if ($a === null) return true;
+        return $a instanceof \stdClass && self::keys($a, ['schema_version', 'guard', 'requested_mode',
+            'activation_id', 'config_revision', 'state', 'plan', 'house']) && $a->schema_version === 1 &&
+            self::validId($a->guard) && in_array($a->requested_mode, ['manual', 'pv', 'custom'], true) &&
+            ($a->activation_id === null || self::validId($a->activation_id)) &&
+            ($a->config_revision === null || is_string($a->config_revision) && preg_match('/\A[a-f0-9]{64}\z/D', $a->config_revision)) &&
+            in_array($a->state, ['awaiting_activation', 'manual', 'manual_override', 'frozen', 'invalid_configuration',
+                'source_unavailable', 'manual_handling', 'unplugged', 'adjusting', 'pausing', 'resuming',
+                'awaiting_start', 'awaiting_stop', 'charging', 'vehicle_finished'], true) &&
+            in_array($a->plan, ['waiting', 'ok', 'transport_unavailable', 'invalid_response', 'disabled', 'clock_error', 'invalid_base'], true) &&
+            in_array($a->house, ['waiting', 'ok', 'transport_unavailable', 'invalid_response', 'disabled', 'clock_error', 'invalid_base'], true);
+    }
+
     /** Pure strict wire validator. Never returns raw/unrecognised result fields. */
     public static function validateResult(string $json, string $id, string $operation): ?\stdClass
     {
@@ -63,7 +78,9 @@ final class ControlMqttTransport
             $r = StrictJson::decode($json);
             if (!$r instanceof \stdClass || !self::keys($r, ['schema_version', 'id', 'operation', 'status',
                 'reason', 'session', 'lease', 'fresh_for_seconds', 'read_only', 'minimum_ma', 'software_max_ma',
-                'hardware_max_ma', 'installation_max_ma', 'effective_max_ma', 'firmware_raw', 'write', 'preparation']) ||
+                'hardware_max_ma', 'installation_max_ma', 'effective_max_ma', 'firmware_raw', 'write', 'preparation',
+                ...(property_exists($r, 'automation') ? ['automation'] : [])]) ||
+                !self::validAutomation($r->automation ?? null) ||
                 $r->schema_version !== 1 || $r->id !== $id || $r->operation !== $operation ||
                 !self::labels($r) || !self::validId($r->session) ||
                 $r->read_only !== ($operation === 'inspect') || $r->minimum_ma !== 6000 || $r->software_max_ma !== 32000) {

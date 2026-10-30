@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <utility>
 
 namespace wallbox::automation {
 // All deadlines are monotonic seconds. No installation defaults.
@@ -60,6 +61,7 @@ struct Action {
     double deadline = 0;
     double issued_at = 0, issued_utc = 0;
     bool requires_house = false;
+    bool clock_protection = false; // One load-reducing Stop, never Start/SetCurrent.
 };
 struct Outcome { bool attempted = false, acknowledged = false; };
 // Start is a compound owner operation: fresh SetCurrent, then Start on the SAME
@@ -77,6 +79,7 @@ public:
     void manual_override() noexcept;
     Status status() const noexcept { return status_; }
 private:
+    std::optional<std::pair<double,double>> clock_recovery_;
     std::optional<Action> issue(Operation, int, const Input &);
     void reset_activation(const Settings &);
     void consume_pending_activation(const Settings &);

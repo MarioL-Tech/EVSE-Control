@@ -6,6 +6,7 @@ const base = process.env.WEB_TEST_URL || 'http://127.0.0.1:8080';
 const defaults = () => {
   const limits = { max_import_w: null, max_current_ma: null, adjust_seconds: null, pause_seconds: null, resume_seconds: null };
   return { schema_version: 1, timezone: 'Europe/Vienna', manual: { current_ma: null }, pv: { ...limits },
+    installation: { phases: null, meter_includes_wallbox: null },
     custom: { ...limits, use_schedule: null, pv_enabled: null, weekdays: [], windows: [], outside_window: null } };
 };
 (async () => {

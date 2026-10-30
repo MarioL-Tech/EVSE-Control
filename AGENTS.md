@@ -4,6 +4,26 @@ Stand: 2026-10-30. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
+Aktuelle Gesamtintegration auf Featurebranch (Docker-CI noch offen): API für
+immutable aktive Mode-Snapshots samt kausalem Readerguard und zwei Revisionen;
+Speichern bleibt Entwurf, ModePOST erst bewusste Aktivierung. Phasen/Zählertopologie
+nullable und nicht geraten,32A nur explizite Site-Envfreigabe. Modeclient besitzt
+Radios; Manualclient behält Strom/Start/Stop, Stop unabhängig von Modepending/ESP.
+Nur einmaliger frischer Guardinspect vor ModePOST, kein2sBrowserinspectpoller,
+der Owneraktionen aushungert. Shellv20, vorhandene Overlay-/Settingsgrenzen bleiben.
+P1-Zeit-/Pending-/Schutzstopbefunde aus935f2a9 integriert. Zusätzliche eigene
+Prüfung: auch abgelaufene, aber bereits angenommene manuelle Absicht muss Override
+auslösen; Queueadmissionmarker wird nur vom Owner konsumiert. Uhrfehler im zuvor
+laufenden Regler erlauben höchstens einen monoton befristeten Schutz-Stop und
+frieren sonst ein. Zwei stabile Beobachtungen können neue Zeitbasis bilden,
+niemals selbst aktivieren; neue bewusste Aktivierungs-ID bleibt nötig.
+FirmwarePR#69 und UI-PR#70 grün, UI-Screenshots Desktop/Mobil angesehen; ESP-PR#71
+besteht UART-Docker und native HTTP→Broker→PTY→Firmwarekernfixture, volle Web-CI
+scheitert noch am alten Theme-Buttoninventory (neue zwei Servotasten) und wird
+gezielt angepasst. Keine Hardware-/Pi-Abnahme. Owneragent nach erfolgten Tools
+am Modellkontingent gestoppt, Teilstand gesichert und vom Hauptagent weitergeführt;
+kein zusätzlicher unabhängiger Owner-Abschlussreview behauptet.
+
 Separater Ownerintegrationsstand (2026-10-30, noch NICHT Docker-/CI-geprüft):
 Core4ea5c00/8b82d7d/Safety935f2a9 in Readerowner verdrahtet. Optionales
 `WALLBOX_AUTOMATION_WEB_URL` leer=deaktiviert; ein HTTP-Lesethread, einziger

@@ -6,6 +6,16 @@ HTTP-API, Website-DNS-Alias, Statusanzeige und zentraler Installationsguide werd
 vom Parent integriert/geprüft. Docker-/CI-Abnahme dieses Ownerstands steht aus.
 Diese Datei ist zugleich das Änderungsledger dieses eng begrenzten Teilauftrags.
 
+Die Gesamtverdrahtung umfasst inzwischen read-only Plan-API, explizite
+Modusaktivierung, Websitealias und Settingsfelder; Docker-Gesamtprüfung offen.
+Automatik verwendet ihren aktuellen HTTP-Plan/kausalen Guard, keine manuelle
+MQTT-Lease: Brokerausfall darf insbesondere einen möglichen Schutz-Stop nicht
+sperren. Bereits angenommene manuelle Absicht bleibt als Owner-Marker auch nach
+Queueablauf oder MQTT-Verlust wirksam. Bei Uhrfehler während zuvor laufender
+Automatik höchstens ein rein monoton befristeter Schutz-Stop, sonst Freeze.
+Zwei kohärente Zeitbeobachtungen können nur die Referenz reparieren, niemals
+selbst reaktivieren; neue explizite Aktivierung bleibt erforderlich.
+
 ## Öffentliche Schnittstellen (`wallbox::automation`)
 
 - `initialize_vienna_timezone()` **vor Threads** aufrufen: setzt pro Prozess einmal

@@ -1,18 +1,23 @@
-# Lademodi und Regelvorlagen – Konfigurationsstufe
+# Lademodi, Entwürfe und explizite Aktivierung
 
-Stand 2026-10-30. Modusauswahl und speicherbare Settings sind implementiert;
-**ein automatisch schreibender Hintergrundregler ist noch nicht angebunden**.
-Dies ist kein Nachweis aktiver PV-/Zeitsteuerung. Aktuellen Docker-Prüfstand in
-PR#68 prüfen. Keine Agent-Pi-/Hardwaretests oder Installationsfreigabe.
+Stand2026-10-30: Nach der reinen VorlagenstufePR#68 ist nun ein optionaler
+Hintergrundregler im bestehenden Reader angebunden. Gemeinsame Docker-CI noch
+offen; kein Pi-/Hardware-/Dauerbetriebsnachweis. Vertrag und Sicherheitsgrenzen:
+[Automatisierung](automation-contract.md). Keine automatische Aktivierung alter
+Vorlagen oder gespeicherter Absicht nach Readerneustart.
 
 ## Übersicht
 
 Drei native, gegenseitig ausschließende Optionen: PV-Regelung, Manuell und
-Benutzerdefiniert. Auswahl nur für diese Browserseite, kein localStorage und
-kein Hardwarebefehl beim Umschalten. Reload startet bei Manuell. In PV/Custom
-steht ausdrücklich „Automatik noch nicht verfügbar“; Start/Übernehmen sind dort
-gesperrt. Stop bleibt bei geprüfter Verbindung unabhängig von der Auswahl
-möglich. Manuell behält alle bisherigen technischen Grenzen und CSRF-Prüfungen.
+Benutzerdefiniert. Eine bewusste Wahl erfasst einen unveränderlichen Snapshot
+der gespeicherten Regeln mit neuer Aktivierungs-ID und frischem Readerguard.
+Erst der Reader bestätigt seinen Reglerzustand; HTTP-Erfolg heißt angefordert,
+nicht tatsächliches Laden. Reload/Pageshow/Settingsspeichern aktivieren nichts.
+Alte Reader bleiben manuell bedienbar, Automatik dort nicht auswählbar.
+Start/Übernehmen sind nur manuell verfügbar. Stop bleibt bei geprüfter Verbindung
+unabhängig von Modus/ESP32/Settings möglich und setzt einen manuellen Override.
+Keine automatische Wiederaufnahme bis zu einer neuen bewussten Aktivierung.
+Manuell auswählen allein ist kein Stop; bisherige Grenzen/CSRF bleiben erhalten.
 
 Wiederholte Erklärtexte entfallen. Die drei Einstellungsprofile sind einzeln
 auf-/zuklappbar, standardmäßig geschlossen. Ungültige Eingaben öffnen beim

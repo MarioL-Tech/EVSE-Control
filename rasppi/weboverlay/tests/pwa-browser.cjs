@@ -116,6 +116,10 @@ async function networkPhase(request, confirmed) {
       assert.equal(await plain.evaluate(async () => 'serviceWorker' in navigator ? (await navigator.serviceWorker.getRegistrations()).length : 0), 0);
     } finally { await plainContext.close(); }
     context = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark' });
+    await context.route('**/api/charging-mode', route => {
+      assert.equal(route.request().method(), 'GET');
+      return route.fulfill({ json: { schema_version: 1, status: 'disabled', csrf: null, automation_available: true, semantics: 'activation_requested' } });
+    });
     await context.route('**/api/esp32-control', route => {
       assert.equal(route.request().method(), 'GET', 'No ESP32 commands in this fixture');
       return route.fulfill({ json: { status: 'unavailable', csrf: null, inspection: null,
