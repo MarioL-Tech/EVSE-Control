@@ -122,6 +122,7 @@ const control = automation => ({ status: 'ok', csrf: H(64), command_sent: false,
     await page.evaluate(() => { window.realNow = Date.now; Date.now = () => realNow() - 60000; });
     await select('pv'); assert.equal(posts.length, beforeClock);
     await page.evaluate(() => { Date.now = window.realNow; });
+    await select('pv'); assert.equal(posts.length, beforeClock, 'Restoring the clock also invalidates that old request epoch');
     // A timed-out POST is ambiguous and never queued/retried in the background.
     let timeoutRelease, timeoutEnter;
     const timeoutEntered = new Promise(resolve => { timeoutEnter = resolve; });
@@ -150,10 +151,10 @@ const control = automation => ({ status: 'ok', csrf: H(64), command_sent: false,
     await settle(); assert.equal(posts.length, beforeForeground); assert.equal(controlCount, beforeControl); assert.ok(getCount > beforeGet);
     // Clock correction cancels the current flow, but a later explicit fresh
     // selection must work without reviving/retrying the cancelled request.
-    const beforeClock = posts.length;
+    const beforeRecoveryClock = posts.length;
     await page.evaluate(() => { window.realModeNow = Date.now; Date.now = () => window.realModeNow() + 10000; });
-    await select('pv'); assert.equal(posts.length, beforeClock); assert.match(await text(), /Zeitfehler/);
-    await select('pv'); assert.equal(posts.length, beforeClock + 1);
+    await select('pv'); assert.equal(posts.length, beforeRecoveryClock); assert.match(await text(), /Zeitfehler/);
+    await select('pv'); assert.equal(posts.length, beforeRecoveryClock + 1);
     await page.evaluate(() => { Date.now = window.realModeNow; delete window.realModeNow; });
     assert.deepEqual(await page.evaluate(() => [localStorage.length, sessionStorage.length]), [0, 0]);
     assert.deepEqual(errors, []);

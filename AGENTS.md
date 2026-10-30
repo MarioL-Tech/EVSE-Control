@@ -4,13 +4,22 @@ Stand: 2026-10-30. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
+Prüfstand175e479: native Matrix41130422012 und41130429446 auf AMD64/ARM64,
+Bookworm/Trixie mit zehn Suiten plus Sanitizer-Core vollständig grün. Web zeigt
+noch zwei konkrete Browserprobleme: Pfeiltasten folgten Enum- statt DOMreihenfolge,
+und eine neue Testkonstante war doppelt benannt. DOMnavigation/Fixture gezielt
+korrigiert, Browserimage prüft künftig alle CJS-Dateien schon beim Build auf
+Syntax. Finaler Weblauf offen. Unveränderte ESP-Liveregionen/Schalter nicht200ms
+lang neu mutieren; eigene Nullmutationsregression. Keine zusätzliche unabhängige
+Modellprüfung (Kontingent vor Tools), keine Pi-/Flash-/Hardwareaktion.
+
 Aktuelle Gesamtintegration auf Featurebranch (Docker-CI noch offen): API für
 immutable aktive Mode-Snapshots samt kausalem Readerguard und zwei Revisionen;
 Speichern bleibt Entwurf, ModePOST erst bewusste Aktivierung. Phasen/Zählertopologie
 nullable und nicht geraten,32A nur explizite Site-Envfreigabe. Modeclient besitzt
 Radios; Manualclient behält Strom/Start/Stop, Stop unabhängig von Modepending/ESP.
 Nur einmaliger frischer Guardinspect vor ModePOST, kein2sBrowserinspectpoller,
-der Owneraktionen aushungert. Shellv21, vorhandene Overlay-/Settingsgrenzen bleiben.
+der Owneraktionen aushungert. Shellv22, vorhandene Overlay-/Settingsgrenzen bleiben.
 P1-Zeit-/Pending-/Schutzstopbefunde aus935f2a9 integriert. Zusätzliche eigene
 Prüfung: auch abgelaufene, aber bereits angenommene manuelle Absicht muss Override
 auslösen; Queueadmissionmarker wird nur vom Owner konsumiert. Uhrfehler im zuvor

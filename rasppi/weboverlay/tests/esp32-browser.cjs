@@ -73,6 +73,13 @@ function envelope(r = result(), command = null) {
       const resultText = page.locator('#' + prefix + 'result');
       await page.waitForFunction(id => !document.getElementById(id).disabled, settings ? 'esp32-enroll' : 'esp32-lock');
       assert.equal(posts, 0, 'Inspection must never auto-enroll or write');
+      await page.evaluate(id => {
+        window.espStatusMutations = 0;
+        new MutationObserver(records => { window.espStatusMutations += records.length; })
+          .observe(document.getElementById(id), { childList: true, characterData: true, subtree: true });
+      }, prefix + 'status');
+      await delay(1000);
+      assert.equal(await page.evaluate(() => window.espStatusMutations), 0, 'Unchanged freshness ticks do not rewrite the live region');
       if (settings) {
         assert.equal(await page.locator('#esp32-rfid-count').innerText(), '0 / 16');
         assert.equal(await page.locator('#esp32-uid').getAttribute('type'), 'password');

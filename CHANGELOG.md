@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-30 22:29 (Europe/Vienna)
+
+- Reglercode175e479 besteht native Matrix41130422012 vollständig: Bookworm/
+  Trixie auf AMD64/ARM64, zehn Suiten einschließlich realem Owner-/HTTP-/Broker-/
+  PTY-Weg, bisheriger manueller RTU-/MQTT-Prüfungen und zusätzlichem Sanitizer-
+  Corelauf. Web-Gesamtprüfung noch offen; keine Pi-/Hardwaregarantie.
+- Unveränderte ESP32-Zustands-/Ergebnis-Liveregionen und Schalterattribute nicht
+  bei jedem200ms-Frischetick erneut setzen. Eigene Browserregression auf null
+  unveränderte Statusmutationen; Mode-Liveregion ebenfalls nur bei Änderung.
+  Shellv22. Keine Daten-/Regelungs-/Hardwarelogik geändert; neuer Weblauf offen.
+- Weblauf41130421584 erreicht nach Backend/HTTP/SQL/TLS/PWA die Browserphase:
+  Modustasten folgten bei Pfeilen fälschlich Enum- statt DOMreihenfolge, neue
+  Fixturekonstante doppelt benannt. Beides gezielt korrigiert; native exklusive
+  Tastaturbedienung und Nichtversandprüfungen erhalten. Syntaxcheck aller CJS-
+  Browserfixtures bereits im Dockerbuild, nicht erst am Ende der Gesamtsuite.
+
 ## 2026-10-30 22:10 (Europe/Vienna)
 
 - Weitere Pure-Fixturekorrektur: NaN/Infinity/negative Werte sind nicht als

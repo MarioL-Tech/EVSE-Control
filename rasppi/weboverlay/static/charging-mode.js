@@ -11,8 +11,8 @@
     awaiting_activation: 'Neue Aktivierung erforderlich – Modus erneut wählen',
     invalid_configuration: 'Konfiguration ungültig – Settings prüfen', source_unavailable: 'Messquelle nicht verfügbar',
     manual_handling: 'Manueller Eingriff erforderlich', unplugged: 'Kein Fahrzeug angeschlossen',
-    adjusting: 'Regelung passt Strom an', pausing: 'Pause angefordert', resuming: 'Wiederaufnahme angefordert',
-    awaiting_start: 'Startantwort ausstehend', awaiting_stop: 'Stopantwort ausstehend',
+    adjusting: 'Regelung passt Strom an', pausing: 'Regler sieht eine Ladepause vor', resuming: 'Regler sieht eine Wiederaufnahme vor',
+    awaiting_start: 'Start-ACK erhalten – neuer Ladestatus ausstehend', awaiting_stop: 'Stop-ACK erhalten – neuer Ladestatus ausstehend',
     charging: 'Regler meldet Ladebetrieb (Live-Ladestatus separat)', vehicle_finished: 'Regler meldet Ladevorgang beendet' };
   const REQUIRED = { 'installation.phases': 'Phasenanzahl', 'installation.meter_includes_wallbox': 'Wallbox im Hauszähler' };
   for (const mode of ['pv', 'custom']) for (const [key, label] of Object.entries({ max_import_w: 'Netzbezugsgrenze',
@@ -112,6 +112,8 @@
     if (!root || !status) return null;
     const radios = MODES.map(m => doc.getElementById(`control-mode-${m}`));
     if (radios.some(r => !r)) return null;
+    const navigation = [...root.querySelectorAll('input[name="charging-mode"]')].filter(r => radios.includes(r));
+    if (navigation.length !== 3) return null;
     let observed = null, desired = null, message = '', uncertain = false, busy = false, active = null, generation = 0;
     let pendingFrom; // At most two exact pre-POST observations, never random-ID ordering.
     let suspended = doc.hidden, clock = Date.now(), monotonic = win.performance.now();
@@ -131,8 +133,8 @@
         else if (['manual_override', 'awaiting_activation', 'frozen'].includes(observed.state)) feedback = STATE[observed.state];
         else feedback = STATE[observed.state];
       }
-      status.textContent = feedback;
-      status.hidden = !feedback;
+      if (status.textContent !== feedback) status.textContent = feedback;
+      if (status.hidden !== !feedback) status.hidden = !feedback;
       emit('evse:automation-mode', { mode, supported, pending: !!active });
     }
     function cancel() {
@@ -231,8 +233,8 @@
         if (event.repeat || active || busy || suspended) return;
         const step = ['ArrowRight', 'ArrowDown'].includes(event.key) ? 1 : -1;
         for (let n = 1; n <= 3; n++) {
-          const next = (index + step * n + 3) % 3;
-          if (!radios[next].disabled) { radios[next].focus(); void run(MODES[next]); break; }
+          const next = (navigation.indexOf(radio) + step * n + 3) % 3, target = navigation[next];
+          if (!target.disabled) { target.focus(); void run(MODES[radios.indexOf(target)]); break; }
         }
       });
     });

@@ -46,7 +46,7 @@
     const doc = root.ownerDocument, settings = root.id === 'esp32-rfid';
     const prefix = settings ? 'esp32-rfid-' : 'esp32-';
     const get = id => doc.getElementById(id);
-    const put = (id, text) => { const el = get(prefix + id); if (el) el.textContent = text; };
+    const put = (id, text) => { const el = get(prefix + id); if (el && el.textContent !== text) el.textContent = text; };
     const fresh = createFreshness(() => env.Date.now(), () => env.performance.now());
     const names = settings ? ['enroll', 'cancel', 'revoke'] : ['lock', 'unlock'];
     const uid = get('esp32-uid');
@@ -56,14 +56,14 @@
     function render() {
       const r = fresh.read(), s = r?.state;
       const ready = !!(r && r.firmware_version === 2 && r.fresh_for_seconds === 8 && r.lease && ['ok', 'acknowledged'].includes(r.status));
-      root.hidden = !settings && !manual;
+      const hidden = !settings && !manual; if (root.hidden !== hidden) root.hidden = hidden;
       put('status', !ready ? 'ESP32 nicht verfügbar / veraltet.' : s.store_ready !== true ? 'Speicher nicht bereit.' :
         s.servo_ready !== true ? 'Servo nicht bereit.' : s.reader_ready !== true ? 'RFID-Leser nicht bereit.' : 'ESP32 aktuell (max. 8 s).');
       put('state', 'Verriegelungsziel ' + (!ready || s.antitheft === null ? 'unbekannt' : s.antitheft ? 'aktiv' : 'inaktiv'));
       put('count', ready && s.cards !== null ? String(s.cards) + ' / 16' : 'Unbekannt');
       put('enrolling', !ready || s.enrolling === null ? 'Unbekannt' : s.enrolling ? 'Anlernen aktiv (30 s / eine Karte).' : 'Anlernen inaktiv.');
       put('result', lastResult);
-      const result = get(prefix + 'result'); if (result) result.hidden = !lastResult;
+      const result = get(prefix + 'result'); if (result && result.hidden !== !lastResult) result.hidden = !lastResult;
       for (const name of names) {
         const button = get('esp32-' + name);
         let permit = ready && !!csrf && s.store_ready === true;
@@ -71,7 +71,8 @@
         if (name === 'enroll') permit = permit && s.reader_ready === true && s.servo_ready === true && s.enrolling === false && s.cards !== null && s.cards < 16;
         if (name === 'cancel') permit = ready && !!csrf && s.enrolling === true;
         if (name === 'revoke') permit = permit && validateUid(uid?.value);
-        if (button) button.disabled = !allowed() || !!active || !permit;
+        const disabled = !allowed() || !!active || !permit;
+        if (button && button.disabled !== disabled) button.disabled = disabled;
       }
     }
     function cancel() {

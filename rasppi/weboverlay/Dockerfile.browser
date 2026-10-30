@@ -24,4 +24,5 @@ COPY static/newcalendar.js /static/newcalendar.js
 COPY static/history.js /static/history.js
 COPY static/house-history.js /static/house-history.js
 COPY static/charging-mode.js /static/charging-mode.js
+RUN for suite in *.cjs; do node --check "$suite" || exit 1; done
 CMD ["sh", "-c", "status=0; for suite in browser.cjs charts-browser.cjs layout-browser.cjs theme-browser.cjs smartmeter-browser.cjs history-browser.cjs house-history-browser.cjs wallbox-control-browser.cjs charging-settings-browser.cjs esp32-browser.cjs charging-mode-browser.cjs; do echo Browser-suite: $suite; node \"$suite\" || status=1; done; exit \"$status\""]
