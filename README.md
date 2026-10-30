@@ -5,13 +5,15 @@ Ladestation** mit Raspberry Pi, ESP32 und RFID-basierter Diebstahlsicherung.
 
 Der Raspberry Pi liest eine ABB Terra AC über Modbus RTU aus. Der ESP32
 übernimmt RFID und einen separaten Servo als Modell der Diebstahlsicherung.
-Ein optionaler PV-/Zeitregler ist jetzt im vorhandenen Reader angebunden;
-gemeinsame Dockerprüfung und reale Schreibabnahme stehen noch aus. Weboverlay und MQTT-Wallbox-Zustandsspeicherung
+Ein optionaler PV-/Zeitregler ist im vorhandenen Reader angebunden und als
+Gesamtstand Docker-geprüft; reale Schreib-/Dauerbetriebsabnahme steht aus.
+Weboverlay und MQTT-Wallbox-Zustandsspeicherung
 für MariaDB sind implementiert. Manuelle Webbedienung ist separat angebunden;
-aktueller isolierter Prüf-/Freigabestand über PR#67 (Grundbefehlsweg PR#65),
+aktueller Gesamt-Prüf-/Freigabestand über [PR#72](https://github.com/MarioL-Tech/EVSE-Control/pull/72) (Grundbefehlsweg PR#65),
 reale Schreibabnahme steht aus. Der separat beauftragte ESP32-Gatewaymodus
 erweitert die bestehende UART-Brücke um Web-Servoziele/RFID-Verwaltung und
-frische Ladezustandsspiegelung; gemeinsamer Docker-/Pi-/Hardwaretest noch offen.
+frische Ladezustandsspiegelung. Docker-Vollpfad mit nativen Firmwarekernen und
+UART-PTY geprüft; echter Pi-/Firmware-/Servo-/RFID-Hardwaretest bleibt offen.
 Neue Firmwarev2 erforderlich, Flashen nur nach gesonderter Freigabe.
 Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die Website soll später
 inhaltlich umgebaut werden. Davon separat erhält sie eine **installierbare

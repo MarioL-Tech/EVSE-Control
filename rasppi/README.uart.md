@@ -129,5 +129,6 @@ kein Produktionsbroker, keine reale serielle Hardware. Laufzeit-/ARM-/ESP32- und
 mechanische Abnahme sind separate Freigaben.
 
 Wire-Vertrag: [`../docs/esp32-gateway-contract.md`](../docs/esp32-gateway-contract.md).
-Die zentrale Installationsanleitung muss bei der Elternintegration denselben
-opt-in-Ablauf aufnehmen; deren Bearbeitung liegt außerhalb dieses Dateiscopes.
+Der bewusste opt-in-Ablauf steht auch zentral in
+[`../docs/installation.md`](../docs/installation.md). Gesamt-Codeheadd4d60ef
+besteht UART-/Web-/Firmware-Docker-CI, nicht eine reale Pi-/Hardwareabnahme.

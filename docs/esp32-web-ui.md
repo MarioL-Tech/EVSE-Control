@@ -16,7 +16,7 @@ Fehlerstatus. Das Gateway darf deren Bedienelemente niemals sperren.
   <p id="esp32-state">Verriegelungsziel unbekannt</p>
   <button type="button" id="esp32-lock" disabled>Aktivieren</button>
   <button type="button" id="esp32-unlock" disabled>Deaktivieren</button>
-  <p id="esp32-result" role="status">Noch keine Aktion.</p>
+  <p id="esp32-result" role="status" hidden></p>
 </section>
 ```
 
@@ -36,7 +36,7 @@ kein gespeicherter UID-Wert, kein Bestätigungsdialog mit UID-Echo.
   <input id="esp32-uid" type="password" autocomplete="off"
          autocapitalize="off" spellcheck="false" maxlength="29">
   <button type="button" id="esp32-revoke" disabled>Karte widerrufen</button>
-  <p id="esp32-rfid-result" role="status">Noch keine Aktion.</p>
+  <p id="esp32-rfid-result" role="status" hidden></p>
 </section>
 ```
 
@@ -60,10 +60,10 @@ Endposition. Kein Bootpolicy-Workaround und kein Legacy-Firmwarefallback.
 Der Ladezustand ist nur eine weitergeleitete Hardware-Spiegelung und kein
 Nachweis einer Wallboxsteuerung; die Oberfläche zeigt ihn hier nicht an.
 
-Parent muss HTML/CSS, Routing/Static-Serving, Shellgeneration und Docker-CI
-integrieren sowie `CHANGELOG.md`/`AGENTS.md` ergänzen. Alle bestehenden
-Browserfixtures bekommen eine unabhängige unavailable-Antwort dieses neuen
-API-Endpunkts. Neue Prüfungen ausschließlich im bestehenden Docker-Harness:
+HTML/CSS, Routing/Static-Serving, Shellgeneration und Docker-CI sind integriert;
+Gesamt-Codeheadd4d60ef besteht die vollständigen Prüfungen. Die bestehenden
+Browserfixtures verwenden unabhängige unavailable-Antworten dieses neuen
+API-Endpunkts. Prüfungen ausschließlich im bestehenden Docker-Harness:
 `node --test tests/esp32.test.cjs` und `node tests/esp32-browser.cjs`.
 Browser nutzt `TEST_URL`/`WEB_TEST_URL`, `ARTIFACT_DIR` und bestehendes Playwright.
 Erzeugte Bilder: `ESP32manual1440dark.png`, `ESP32manual390light.png`,

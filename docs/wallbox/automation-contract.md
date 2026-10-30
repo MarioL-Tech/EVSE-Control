@@ -3,11 +3,14 @@
 Stand: 2026-10-30. Eigenständige Module auf Basis `c5ac0d7`, jetzt in den einzigen
 Reader-Owner integriert; kein Hardwarezugriff und kein neuer Dienst/Container.
 HTTP-API, Website-DNS-Alias, Statusanzeige und zentraler Installationsguide werden
-vom Parent integriert/geprüft. Docker-/CI-Abnahme dieses Ownerstands steht aus.
+vom Parent integriert/geprüft. Gesamt-Codeheadd4d60ef besteht Web41135320070,
+native Reader-Matrix41135320145, UART41135320067 und Firmware41135320025/
+41135313126. Keine Pi-/Hardware-/Dauerbetriebsabnahme, kein zusätzlicher finaler
+unabhängiger Modellreview wegen Kontingent. Finale PR-Checks beachten.
 Diese Datei ist zugleich das Änderungsledger dieses eng begrenzten Teilauftrags.
 
 Die Gesamtverdrahtung umfasst inzwischen read-only Plan-API, explizite
-Modusaktivierung, Websitealias und Settingsfelder; Docker-Gesamtprüfung offen.
+Modusaktivierung, Websitealias und Settingsfelder; Docker-Gesamtprüfung bestanden.
 Automatik verwendet ihren aktuellen HTTP-Plan/kausalen Guard, keine manuelle
 MQTT-Lease: Brokerausfall darf insbesondere einen möglichen Schutz-Stop nicht
 sperren. Bereits angenommene manuelle Absicht bleibt als Owner-Marker auch nach

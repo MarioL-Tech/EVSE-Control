@@ -4,6 +4,24 @@ Stand: 2026-10-30. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
+Abschluss-Codehead d4d60ef besteht vollständig: Web41135320070, native Reader-
+Matrix41135320145 (AMD64/ARM64, Bookworm/Trixie, zehn Suiten plus Sanitizer-Core),
+UART41135320067 sowie Firmware41135320025/41135313126 mit Targetcompile und
+Artefakten/Flash-CLI ohne Upload. Früher vollständiger Gesamtweblaufab2cf02:
+41134227758/41134222093. Neue Standalone-/integrierte Modebrowserfälle, echte
+HTTP→PHP→Broker→UART-PTY→Firmwarekerne und autonome Reader-/HTTP-/Broker-/PTY-
+Fälle einschließlich Brokerausfall/Schutzstop bestehen neben bisherigen
+SQL/HOUSE/TLS/PWA/Provisioning/Runtime-/Browserprüfungen. Finale synthetische
+Desktopübersicht, geschlossene Settings mit unbekannter Topologie und mobile
+RFID-Karte angesehen: kein Horizontalüberlauf, keine UID-Ausgabe. Fester mobiler
+Themeschalter absichtlich unverändert; Fullpagebild zeigt ihn am ursprünglichen
+Viewportende. Nur Dokumentationsnachtrag seit d4d60ef, finalen PR-Check beachten.
+Kein zusätzlicher unabhängiger finaler Modellreview (Kontingent vor Tools), kein
+Pi-/Flash-/Hardware-/Dauerbetriebsnachweis.32A nur Sitefreigabe, produktive Env
+unverändert. Phasen/Zählereinschluss weiterhin unbekannt und nicht geraten;
+Hintergrundregelung verlangt explizite konfigurierte Parameter/Moduswahl.
+Merge des Gesamt-PR#72 durch Projektinhaber genügt für alle enthaltenen Teilstände.
+
 Gesamtbranch/PR#72 enthält jetzt auch den unveränderten Firmwarestand4e5b213
 aus Teil-PR#69 sowie UI#70 und Gateway#71. Ein Gesamtmerge kann damit alle
 Teilstände übernehmen; die Teil-PRs bleiben getrennt überprüfbare Referenzen.
@@ -21,7 +39,7 @@ Syntax. Finaler Weblauf offen. Unveränderte ESP-Liveregionen/Schalter nicht200m
 lang neu mutieren; eigene Nullmutationsregression. Keine zusätzliche unabhängige
 Modellprüfung (Kontingent vor Tools), keine Pi-/Flash-/Hardwareaktion.
 
-Aktuelle Gesamtintegration auf Featurebranch (Docker-CI noch offen): API für
+Gesamtintegration (anfänglicher Prüfstand, Abschlussnachweis oben): API für
 immutable aktive Mode-Snapshots samt kausalem Readerguard und zwei Revisionen;
 Speichern bleibt Entwurf, ModePOST erst bewusste Aktivierung. Phasen/Zählertopologie
 nullable und nicht geraten,32A nur explizite Site-Envfreigabe. Modeclient besitzt

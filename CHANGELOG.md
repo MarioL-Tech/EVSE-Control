@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-30 23:18 (Europe/Vienna)
+
+- Abschluss-Codehead d4d60ef besteht Web41135320070, native Reader-Matrix
+  41135320145 (Bookworm/Trixie, AMD64/ARM64, zehn Suiten plus Sanitizer-Core),
+  UART41135320067 und Firmware41135320025/41135313126 mit Targetcompile,
+  Artefaktextraktion und Flash-CLI ohne USB/Upload. Neuer Regler-/Mode-/ESP-Vollpfad
+  und bestehende SQL/HOUSE/TLS/PWA/Provisioning/Runtime-/Browserprüfungen grün.
+- Finale simulierte Desktopübersicht, geschlossene Settings/Topologie und mobile
+  RFID-Karte visuell geprüft, keine horizontale Überbreite/UID-Ausgabe. Kein
+  physischer Servo-/NVS-/RFID-/Wallbox-/Pi-/Dauerbetrieb aus CI abgeleitet.
+- Gesamt-PR#72 enthält Teilstände69–71; Merge allein beim Projektinhaber.
+  Reiner Abschlussdokumentationsnachtrag, Laufzeitcode seit d4d60ef unverändert.
+  32A nicht global voreingestellt, reale Env/Container unangetastet. Phasen und
+  Hauszähler-Wallbox-Einschluss weiterhin vor Aktivierung zu bestätigen.
+
 ## 2026-10-30 23:01 (Europe/Vienna)
 
 - Unveränderten, separat Docker-geprüften Firmwarestand4e5b213 im Gesamtbranch

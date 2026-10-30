@@ -1,8 +1,8 @@
 # Lademodi, Entwürfe und explizite Aktivierung
 
 Stand2026-10-30: Nach der reinen VorlagenstufePR#68 ist nun ein optionaler
-Hintergrundregler im bestehenden Reader angebunden. Gemeinsame Docker-CI noch
-offen; kein Pi-/Hardware-/Dauerbetriebsnachweis. Vertrag und Sicherheitsgrenzen:
+Hintergrundregler im bestehenden Reader angebunden. Gesamt-Codeheadd4d60ef ist
+vollständig Docker-geprüft; kein Pi-/Hardware-/Dauerbetriebsnachweis. Vertrag und Sicherheitsgrenzen:
 [Automatisierung](automation-contract.md). Keine automatische Aktivierung alter
 Vorlagen oder gespeicherter Absicht nach Readerneustart.
 

@@ -6,10 +6,12 @@ werden. Die Betriebsschritte setzen einen vorbereiteten Pi voraus. Hardware-
 und Erstvorbereitungsreferenz stehen in Abschnitt 8; eine vollständige OS-,
 Docker- oder Broker-Neuinstallation ist damit noch nicht beschrieben.
 
-**Stand:** 2026-10-28. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
+**Stand:** 2026-10-30. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
 zyklischer Betrieb wurden vom Projektinhaber bestätigt. Der vorhandene MQTT-Broker ist
 erreichbar; der Empfang der echten Reader-Messwerte wurde ebenfalls bestätigt.
-Das rein lesende PHP-Weboverlay ist implementiert und Docker-getestet;
+Der Mess-/Archivteil des PHP-Weboverlays bleibt rein lesend. Separat autorisierte
+manuelle Bedienung, optionaler Hintergrundregler und ESP32-Webgateway sind als
+Gesamt-Codeheadd4d60ef Docker-geprüft (PR#72); keine reale Schreib-/Flashabnahme.
 Pi-Start und Live-Übersicht vom Projektinhaber am 2026-10-26 bestätigt;
 gezielte Ausfalltests, Diagramme und neuer manueller Theme-Schalter noch offen
 (Abschnitt 9).
@@ -134,8 +136,8 @@ Test gesondert freigeben. [Bedienvertrag](wallbox/web-control-contract.md).
 Die Übersicht bietet PV-Regelung/Manuell/Benutzerdefiniert. Einstellungen speichern
 bleibt ein Entwurf, kein Hardwareauftrag und keine Änderung einer bereits aktiven
 Regelung. Die spätere bewusste Moduswahl erfasst diesen Entwurf als unveränderlichen
-Snapshot. Gemeinsame Docker-CI des neuen Controllers noch offen, keine reale
-Schreibabnahme. Einzelheiten: [Modusvertrag](wallbox/charging-profiles.md).
+Snapshot. Gesamt-Codeheadd4d60ef besteht Web/Reader-/UART-/Firmware-Docker-CI;
+keine reale Schreibabnahme. Einzelheiten: [Modusvertrag](wallbox/charging-profiles.md).
 
 #### Optionalen Hintergrundregler vorbereiten
 
@@ -617,7 +619,8 @@ bestehenden Gatewayprozess gespiegelt; fehlend/veraltet wird UNKNOWN, niemals
 aus Start-ACK oder0W erraten. Daraus folgt kein automatisches Verriegeln.
 Wallbox-/Haus-/Archivpfade bleiben unabhängig; Gatewayausfall darf Stop und
 Monitoring nicht sperren. Mehr Details im
-[Gatewayvertrag](esp32-gateway-contract.md); gemeinsame Docker-CI noch offen.
+[Gatewayvertrag](esp32-gateway-contract.md); Gesamt-Codeheadd4d60ef Docker-geprüft,
+keine reale Gateway-/Servo-/Pi-Abnahme.
 
 ### Historische Allowlist-Basis und unveränderte Hardwaregrenzen
 
