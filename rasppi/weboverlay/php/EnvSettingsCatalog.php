@@ -39,6 +39,7 @@ final class EnvSettingsCatalog
             $add('WALLBOX_SLAVE', 'integer', 1, 247);
             $add('WALLBOX_INTERVAL_MS', 'integer', 100, 30000);
             $add('WALLBOX_TIMEOUT_MS', 'integer', 10, 10000);
+            $add('WALLBOX_INSTALLATION_MAX_MA', 'integer', 6000, 32000);
             $add('MQTT_ENABLED', 'enum', null, null, false, false, ['true', 'false', '1', '0']);
         }
         if ($service === 'storage') {

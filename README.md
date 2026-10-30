@@ -5,8 +5,9 @@ Ladestation** mit Raspberry Pi, ESP32 und RFID-basierter Diebstahlsicherung.
 
 Der Raspberry Pi liest eine ABB Terra AC über Modbus RTU aus. Der ESP32
 übernimmt RFID und einen separaten Servo als Modell der Diebstahlsicherung.
-Geplant sind Ladeautomatisierung und Bedienung über die Website. Ein lesendes
-Weboverlay und MQTT-Wallbox-Zustandsspeicherung für MariaDB sind implementiert.
+Ladeautomatisierung bleibt geplant. Weboverlay und MQTT-Wallbox-Zustandsspeicherung
+für MariaDB sind implementiert. Manuelle Webbedienung ist separat angebunden;
+aktueller isolierter Prüf-/Freigabestand über PR#65, reale Schreibabnahme steht aus.
 Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die Website soll später
 inhaltlich umgebaut werden. Davon separat erhält sie eine **installierbare
 Progressive Web App (PWA)** mit optionalem lokalem HTTPS/eigener CA ohne Domain.
@@ -30,10 +31,11 @@ auf PHP 8.4/Apache mit einem PHP-MQTT-Worker umgestellt;
 bestehende Wallbox-Anzeigen und Diagramme bleiben erhalten. Separat ergänzt sind
 kompakte Theme-/Einstellungszugriffe und die optionale Haus-Smartmeter-Anzeige.
 
-> **Entwicklungsstand:** Der Wallbox-Dienst ist ausschließlich lesend.
-> Ein interner libmodbus-Schreibkern für Start/Stop/Stromlimit wird separat im
-> Docker-Build gegen PTYs geprüft; die Runtime hat keinen Aktivierungsweg.
-> Echte Schreibtests brauchen nach Information der Leitung eine gesonderte Freigabe.
+> **Entwicklungsstand:** Manuelle Webbedienung für Start/Stop/Stromlimit ist jetzt
+> ohne Login/zusätzlichen Freischalter angebunden, im vertrauenswürdigen LAN/VPN.
+> Explizites geprüftes Installationsmaximum nötig; vermutete16A sind kein Nachweis.
+> Read-only-Mess-/History-APIs bleiben unabhängig. Echte Schreibtests brauchen nach
+> Information der Leitung eine gesonderte Freigabe; Hardwareabnahme noch offen.
 > MQTT-Empfang echter Wallboxdaten am Pi ist bestätigt. Das neue lesende
 > PHP-Weboverlay ist implementiert und Docker-getestet;
 > Pi-Start und Live-Übersicht am 26.10.2026 vom Projektinhaber bestätigt;
@@ -41,7 +43,7 @@ kompakte Theme-/Einstellungszugriffe und die optionale Haus-Smartmeter-Anzeige.
 > sind implementiert und Docker-getestet; deren Pi-Prüfung bleibt offen.
 > MariaDB-Speicherdienst auf dem Pi bestätigt: Schema 1 in `energyControl`,
 > 207 gespeicherte Wallbox-Samples am 2026-10-27. Kein Langzeit-/Ausfallnachweis.
-> Reale Ladesteuerung und bedienende Webfunktionen fehlen noch.
+> Reale Schreib-/Bedienabnahme und automatische Laderegeln fehlen noch.
 > Theme „Compact / Dense“ in Hell/Dunkel umgesetzt; weitergehender Websiteumbau
 > bleibt offen. PWA-/HTTPS-Ausbau implementiert und Docker-geprüft, echte Pi-/
 > Handyabnahme noch offen; responsive Darstellung allein ist kein PWA-Nachweis.
@@ -86,7 +88,7 @@ noch keine Modusauswahl oder Einrichtung; Geräte-/Sicherheitsgrenzen gelten wei
 | Diebstahlsicherungsmodell | Erlaubte RFID-UID toggelt 0°/90°; NVS-Allowlist und Bootpolicy; neuer Erststart verriegelt, Hardwareprüfung offen |
 | UART-Testbrücke | Interaktive Python-Brücke im Docker-Container |
 | Wallbox-Reader | C++17/libmodbus, zyklische FC03-Abfragen, dekodierte Messwerte als JSON |
-| Schreibkern, Stufe 1 | Interne typisierte Operationen, nur Docker-PTY-Simulation; keine produktive Aktivierung, Hardwareabnahme offen |
+| Manuelle Bedienung | Übersicht und Wallbox-Detailtab mit Start/Stop/Slider; PHP→MQTT→bestehender libmodbus-Portbesitzer, ohne Login; Hardwareabnahme offen |
 | MQTT-Publisher | retained State und Verfügbarkeit mit libmosquitto; vorhandener Broker wird wiederverwendet |
 | Weboverlay | PHP-/Apache-Backend mit MQTT-Worker; lesende Anzeige, Frischeprüfung und Browser-Zeitverläufe; Docker-getestet |
 | Haus-Smartmeter | Optionaler separater PHP-HTTP-Worker: Wert 7 als Netzleistung mit Vorzeichen und eigenem Datenstatus; Docker-getestet, Pi-Prüfung offen |
@@ -290,6 +292,7 @@ ausdrücklich freigegeben, weil der `smartReader`-Login ungeklärt ist. Live-MQT
 unabhängig; [Einrichtung und Grenzen](docs/installation.md#sql-verlauf-optional-einrichten).
 
 **Sicherheit:** Widersprüchliche Register-/Steuernotizen nicht ungeprüft
-übernehmen. Der Reader sendet keine Modbus-Schreibbefehle. Arbeiten an
+übernehmen. Manuelle Steuerbefehle laufen über denselben Portbesitzer; `--once`
+bleibt read-only. Keine öffentliche Bedienfreigabe ohne Login. Arbeiten an
 Netzspannung und der Zählerinstallation gehören in die Hände qualifizierter
 Fachkräfte; keine SSH-/WireGuard-/Netzwerkänderungen für die Tests erforderlich.

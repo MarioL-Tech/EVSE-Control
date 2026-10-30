@@ -24,7 +24,7 @@ jobs:
         run: docker build --progress=plain --build-arg DEBIAN_RELEASE=${{ matrix.debian }} -t evse-wallbox:test rasppi/wallbox
       - name: Runtime dependencies and entrypoint smoke test
         run: docker run --rm evse-wallbox:test --help
-      - name: Runtime has no test probe or write activation interface
+      - name: Runtime has no test probe or direct CLI write interface
         run: |
           docker run --rm --entrypoint sh evse-wallbox:test -ec '
             test ! -e /usr/local/bin/wallbox-write-probe

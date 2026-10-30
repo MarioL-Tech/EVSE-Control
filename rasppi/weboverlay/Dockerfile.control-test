@@ -1,0 +1,14 @@
+# Disposable cross-component test image. Never deployed; no serial device mounts.
+FROM evse-wallbox:control-test AS reader
+FROM evse-weboverlay:test
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 mosquitto mosquitto-clients libmodbus5 libmosquitto1 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=reader /usr/local/bin/evse-wallbox /usr/local/bin/evse-wallbox
+COPY --from=reader /usr/local/lib/libmosquitto.so* /usr/local/lib/
+COPY --from=reader /usr/share/doc/evse-libmosquitto /usr/share/doc/evse-libmosquitto
+RUN ldconfig
+COPY tests/control-e2e.py /app/tests/control-e2e.py
+USER 10001:10001
+ENTRYPOINT ["python3", "/app/tests/control-e2e.py"]

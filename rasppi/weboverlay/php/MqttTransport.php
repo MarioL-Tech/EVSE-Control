@@ -215,7 +215,7 @@ final class BoundedMqttClient extends MqttClient
                 throw new \RuntimeException('Unexpected MQTT publish QoS.');
             }
             parent::handleMessage($message);
-            ($this->onPayload)($message->getTopic(), $message->getContent());
+            ($this->onPayload)($message->getTopic(), $message->getContent(), $message->getRetained());
             return;
         }
         if ($message->getType()->equals(MessageType::SUBSCRIBE_ACKNOWLEDGEMENT())) {

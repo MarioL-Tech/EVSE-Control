@@ -1,6 +1,7 @@
 #include "telemetry.hpp"
 #include "mqtt.hpp"
 #include "write_core.hpp"
+#include "control_channel.hpp"
 
 #include <modbus.h>
 #include <fcntl.h>
@@ -13,6 +14,7 @@
 #include <chrono>
 #include <csignal>
 #include <ctime>
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -38,7 +40,8 @@ struct Options {
 
 void help() {
     std::cout << "Usage: evse-wallbox [options]\n"
-                 "Read-only ABB Terra AC Modbus RTU reader; JSON lines on stdout.\n"
+                 "ABB Terra AC Modbus RTU reader; JSON lines on stdout.\n"
+                 "Manual control via non-retained MQTT requests; no CLI write commands.\n"
                  "  --device PATH        Serial device (default /dev/ttyUSBEVSEcontrol)\n"
                  "  --baud RATE          4800/9600/19200/38400/57600/115200\n"
                  "  --parity E|O|N       Parity (default E); always 8 data bits, 1 stop bit\n"
@@ -141,16 +144,24 @@ private:
     int flags_;
 };
 
-void wait_until(std::chrono::steady_clock::time_point deadline) {
-    while (!stopped && std::chrono::steady_clock::now() < deadline)
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-}
-
 int run(const Options &o) {
     JsonOutput output;
     const auto mqtt_config = wallbox::mqtt_options_from_environment();
     wallbox::MqttPublisher mqtt(mqtt_config,
         std::chrono::milliseconds(std::max(5000, o.interval_ms * 3 + o.timeout_ms)));
+    // Declared AFTER publisher: network callback/thread destroyed BEFORE the
+    // publisher cleans up libmosquitto. --once is an exclusively read-only path.
+    auto control_config = mqtt_config;
+    if (o.once) control_config.enabled = false;
+    wallbox::ControlChannel control(control_config, mqtt);
+    std::uint32_t installation_max_ma = 0;
+    if (const char *limit = std::getenv("WALLBOX_INSTALLATION_MAX_MA"); limit && *limit) {
+        try { installation_max_ma = static_cast<std::uint32_t>(number(limit, 6000, 32000)); }
+        catch (const std::exception &) {
+            // Keep monitoring/Stop available; never guess a cap or echo input.
+            std::cerr << "Installation current maximum invalid; current/start unavailable\n";
+        }
+    }
     std::unique_ptr<modbus_t, FreeContext> ctx(
         modbus_new_rtu(o.device.c_str(), o.baud, o.parity, 8, 1));
     if (!ctx) throw std::runtime_error(modbus_strerror(errno));
@@ -161,16 +172,13 @@ int run(const Options &o) {
                                    (o.timeout_ms % 1000) * 1000) == -1)
         throw std::runtime_error(modbus_strerror(errno));
 
-    // Stage 1: internal seam only. No command source or activation option is
-    // wired to this core. Production remains FC03-only; enabled policies exist
-    // exclusively in a separate PTY probe that is NOT shipped in the image.
-    wallbox::WriteCore writes(ctx.get(), wallbox::WritePolicy{}, stopped);
-
-    std::cerr << "Read-only polling " << o.device << ", slave " << o.slave
-              << ", FC03, 0x4008..0x401F; no write commands\n";
+    std::cerr << "Polling " << o.device << ", slave " << o.slave
+              << ", FC03, 0x4008..0x401F; manual MQTT control"
+              << (o.once ? " unavailable in --once\n" : " on the same owner thread\n");
     bool &connected = ctx.get_deleter().connected;
     std::optional<std::string> last_success;
     int result = 0;
+    bool recovery_required = false;
     while (!stopped) {
         const auto cycle = std::chrono::steady_clock::now();
         std::optional<std::string> error;
@@ -188,7 +196,7 @@ int run(const Options &o) {
             else {
                 error = count == -1 ? std::string("read: ") + modbus_strerror(errno)
                                     : "read: incomplete register block";
-                writes.invalidate_session();
+                control.invalidate_session();
                 modbus_close(ctx.get());
                 connected = false; // reopen on the next cycle, including after USB disconnect
             }
@@ -206,7 +214,79 @@ int run(const Options &o) {
                 std::cerr << "MQTT one-shot not acknowledged; exit code describes Modbus only\n";
             break;
         }
-        wait_until(cycle + std::chrono::milliseconds(o.interval_ms));
+        const auto next_poll = cycle + std::chrono::milliseconds(o.interval_ms);
+        // One control action per poll interval, never an unbounded drain that
+        // starves telemetry. Network callbacks only enqueue; all serial I/O here.
+        bool handled = false;
+        while (!stopped && std::chrono::steady_clock::now() < next_poll) {
+            const auto command = handled ? std::optional<wallbox::ControlRequest>{} : control.take();
+            if (!command) { std::this_thread::sleep_for(std::chrono::milliseconds(20)); continue; }
+            handled = true;
+            wallbox::ControlReply reply;
+            reply.installation_max_ma = installation_max_ma ? std::optional<std::uint32_t>(installation_max_ma) : std::nullopt;
+            if (command->deadline <= wallbox::WriteClock::now() || stopped) {
+                reply.status = "expired_not_sent"; reply.reason = "deadline_elapsed";
+            } else if (!connected) {
+                reply.reason = "modbus_unavailable";
+            } else if (command->operation == wallbox::ControlOperation::Inspect) {
+                // Inspect is the explicit, read-only recovery action after an
+                // unknown write. No command is preserved or retried on recovery.
+                if (recovery_required) {
+                    modbus_close(ctx.get()); connected = false;
+                    if (modbus_connect(ctx.get()) == 0) {
+                        connected = true;
+                        (void)modbus_flush(ctx.get());
+                    }
+                }
+                std::array<std::uint16_t, 4> registers{};
+                const auto left = std::chrono::duration_cast<std::chrono::microseconds>(command->deadline - wallbox::WriteClock::now()).count();
+                const auto budget = std::min<std::int64_t>(left, o.timeout_ms * 1000LL);
+                if (connected && budget > 0 && control.matches_session(command->session) &&
+                    modbus_set_response_timeout(ctx.get(), static_cast<std::uint32_t>(budget / 1000000),
+                                                 static_cast<std::uint32_t>(budget % 1000000)) == 0 &&
+                    modbus_read_registers(ctx.get(), 0x4004, 4, registers.data()) == 4 &&
+                    command->deadline > wallbox::WriteClock::now() && control.matches_session(command->session) && !stopped) {
+                    reply.firmware_raw = (static_cast<std::uint32_t>(registers[0]) << 16) | registers[1];
+                    reply.hardware_max_ma = (static_cast<std::uint32_t>(registers[2]) << 16) | registers[3];
+                    reply.status = "ok"; reply.reason = "read_only_inspection";
+                    recovery_required = false;
+                } else {
+                    reply.reason = "inspection_read_failed";
+                    control.invalidate_session();
+                    if (connected) modbus_close(ctx.get());
+                    connected = false;
+                }
+                (void)modbus_set_response_timeout(ctx.get(), o.timeout_ms / 1000, (o.timeout_ms % 1000) * 1000);
+            } else if (recovery_required) {
+                reply.status = "recovery_required"; reply.reason = "fresh_inspection_required";
+            } else {
+                wallbox::WriteCore core(ctx.get(), {true, installation_max_ma}, stopped,
+                    [] { return wallbox::WriteClock::now(); },
+                    [&] { return !control.matches_session(command->session); });
+                const auto operation = command->operation == wallbox::ControlOperation::Stop ? wallbox::WriteOperation::Stop :
+                    (command->operation == wallbox::ControlOperation::SetCurrent ? wallbox::WriteOperation::SetCurrent : wallbox::WriteOperation::Start);
+                if (operation == wallbox::WriteOperation::Start) {
+                    // Two EXPLICIT steps of the requested web action, not an
+                    // implicit core write. Report partial completion honestly.
+                    reply.preparation = core.execute({wallbox::WriteOperation::SetCurrent, command->current_ma, command->deadline});
+                    if (reply.preparation->acknowledged && reply.preparation->effective_current_ma &&
+                        *reply.preparation->effective_current_ma <= command->current_ma &&
+                        reply.preparation->reason == std::string("protocol_ack_only"))
+                        reply.write = core.execute({operation, command->current_ma, command->deadline});
+                } else {
+                    reply.write = core.execute({operation, command->current_ma, command->deadline});
+                }
+                const auto &outcome = reply.write ? *reply.write : *reply.preparation;
+                reply.status = wallbox::write_status_name(outcome.status);
+                reply.reason = outcome.reason;
+                reply.hardware_max_ma = outcome.hardware_max_ma;
+                if (outcome.status == wallbox::WriteStatus::OutcomeUnknown || outcome.transport_errno != 0) {
+                    recovery_required = true;
+                    control.invalidate_session();
+                }
+            }
+            control.finish(*command, reply);
+        }
     }
     return o.once ? result : 0;
 }

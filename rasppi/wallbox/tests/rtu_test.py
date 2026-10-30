@@ -130,7 +130,7 @@ def cli(binary):
         check(result.returncode == 2 and not result.stdout,
               "Invalid arguments must fail before hardware access")
     result = subprocess.run([binary, "--help"], capture_output=True, timeout=3)
-    check(result.returncode == 0 and b"Read-only" in result.stdout, "Help failed")
+    check(result.returncode == 0 and b"no CLI write commands" in result.stdout, "Help failed")
     result = subprocess.run(
         [binary, "--once", "--device", "/dev/evse-nonexistent-test-device"],
         capture_output=True, timeout=3)

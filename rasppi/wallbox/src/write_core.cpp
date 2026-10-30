@@ -67,8 +67,9 @@ const char *write_status_name(WriteStatus status) noexcept {
 }
 
 WriteCore::WriteCore(modbus_t *context, WritePolicy policy, const std::atomic_bool &cancelled,
-                     Now now)
+                     Now now, std::function<bool()> session_cancelled)
     : context_(context), policy_(policy), cancelled_(cancelled), now_(std::move(now)),
+      session_cancelled_(std::move(session_cancelled)),
       owner_(std::this_thread::get_id()) {}
 
 void WriteCore::invalidate_session() noexcept {
@@ -97,8 +98,9 @@ WriteResult WriteCore::execute(const WriteRequest &request) {
     // Keep only a local one-shot copy for validating THIS Start.
     const auto prepared_current = std::exchange(prepared_current_ma_, std::nullopt);
     const auto prepared_until = std::exchange(prepared_until_, WriteClock::time_point{});
-    if (policy_.installation_max_ma < minimum_write_current_ma ||
-        policy_.installation_max_ma > maximum_write_current_ma)
+    if (request.operation != WriteOperation::Stop &&
+        (policy_.installation_max_ma < minimum_write_current_ma ||
+         policy_.installation_max_ma > maximum_write_current_ma))
         return deny(WriteStatus::InvalidRequest, "explicit_installation_limit_required");
     if ((request.operation == WriteOperation::Stop && request.current_ma != 0) ||
         (request.operation != WriteOperation::Stop &&
@@ -110,7 +112,7 @@ WriteResult WriteCore::execute(const WriteRequest &request) {
     if (initial > WriteClock::time_point::max() - maximum_write_lifetime ||
         request.deadline > initial + maximum_write_lifetime)
         return deny(WriteStatus::InvalidRequest, "deadline_too_distant");
-    if (cancelled_.load(std::memory_order_relaxed))
+    if (cancelled_.load(std::memory_order_relaxed) || session_cancelled_())
         return deny(WriteStatus::CancelledNotSent, "shutdown_requested");
     if (!context_ || modbus_get_socket(context_) < 0)
         return deny(WriteStatus::NotConnected, "connected_context_required");
@@ -125,7 +127,7 @@ WriteResult WriteCore::execute(const WriteRequest &request) {
 
     TimeoutScope timeout(context_);
     const auto ready = [&]() {
-        const bool cancelled = cancelled_.load(std::memory_order_relaxed);
+        const bool cancelled = cancelled_.load(std::memory_order_relaxed) || session_cancelled_();
         const auto now = now_();
         if (cancelled || transaction_deadline <= now ||
             std::chrono::duration_cast<std::chrono::microseconds>(transaction_deadline - now).count() <= 0) {

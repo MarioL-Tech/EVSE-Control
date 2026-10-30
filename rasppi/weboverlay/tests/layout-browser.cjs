@@ -219,6 +219,9 @@ async function setup(browser, options = {}, denied = false) {
     Object.defineProperty(window, 'localStorage', { get() { throw new Error('Storage denied'); } });
   });
   await context.route('**/api/state', route => route.fulfill({ json: sample() }));
+  await context.route('**/api/wallbox-control', route => route.fulfill({ json: {
+    status: 'unavailable', csrf: null, inspection: null, command: null, command_sent: false
+  } }));
   context.on('page', page => {
     page.on('pageerror', error => errors.push(String(error)));
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
@@ -233,7 +236,7 @@ function clean(run) {
     const url = new URL(request.url);
     assert.equal(url.origin, new URL(base).origin, 'No external resources');
     if (url.pathname === '/api/history') assert.equal(url.search, '?minutes=15');
-    assert(routes.includes(url.pathname) || ['/api/state', '/api/smartmeter', '/api/history', '/api/house-history'].includes(url.pathname)
+    assert(routes.includes(url.pathname) || ['/api/state', '/api/smartmeter', '/api/history', '/api/house-history', '/api/wallbox-control'].includes(url.pathname)
       || url.pathname.startsWith('/static/') || ['/favicon.ico', '/manifest.webmanifest', '/service-worker.js'].includes(url.pathname), request.url);
   }
 }
@@ -258,8 +261,8 @@ function clean(run) {
         assert.equal(await page.locator('h1').innerText(), route === '/' ? 'Übersicht' : 'Diagramme');
         assert(await page.locator('h2').count() > 0);
         assert.equal(await page.locator('nav[aria-label="Hauptnavigation"]').count(), 1);
-        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').evaluateAll(links => links.map(a => a.getAttribute('href'))), [...routes, '/einstellungen']);
-        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').allTextContents().then(labels => labels.map(label => label.trim())), ['Übersicht', 'Diagramme', 'Settings']);
+        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').evaluateAll(links => links.map(a => a.getAttribute('href'))), ['/', '/wallbox', '/diagramme', '/einstellungen']);
+        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').allTextContents().then(labels => labels.map(label => label.trim())), ['Übersicht', 'Wallbox', 'Diagramme', 'Settings']);
         const settings = page.getByRole('link', { name: 'Settings', exact: true });
         assert.equal(await settings.getAttribute('href'), '/einstellungen');
         assert.equal(await settings.locator('svg').count(), 1);
@@ -268,9 +271,9 @@ function clean(run) {
           const { x, y, width, height } = link.getBoundingClientRect(); return { x, y, width, height };
         }));
         if (width > 900) {
-          assert(navBoxes[2].y >= navBoxes[1].y + navBoxes[1].height, 'Settings below Diagramme');
+          assert(navBoxes[3].y >= navBoxes[2].y + navBoxes[2].height, 'Settings below Diagramme');
         } else {
-          assert(navBoxes.every(box => Math.abs(box.y - navBoxes[0].y) <= 1), 'Three compact navigation tabs in one row');
+          assert(navBoxes.every(box => Math.abs(box.y - navBoxes[0].y) <= 1), 'Four compact navigation tabs in one row');
           assert(navBoxes.every(box => box.x >= 0 && box.x + box.width <= width), 'Tabs fit viewport');
         }
         assert.equal(await page.locator('nav [aria-current="page"]').count(), 1);
@@ -280,9 +283,9 @@ function clean(run) {
           return new Set(ids).size === ids.length;
         }), 'Unique DOM IDs');
          assert.deepEqual(await page.locator('form, input:not([type="checkbox"]), [role="button"], [role="checkbox"]').evaluateAll(nodes => nodes.map(n => n.id).sort()),
-           route === '/' ? [] : ['calendar-custom', 'calendar-date', 'calendar-from', 'calendar-to']);
+           route === '/' ? ['control-current'] : ['calendar-custom', 'calendar-date', 'calendar-from', 'calendar-to']);
          assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()),
-           (route === '/' ? [] : ['', '', '', '', '', '', '', 'calendar-load', 'calendar-next', 'calendar-now', 'calendar-prev', 'reset-display']).sort());
+           (route === '/' ? ['control-apply', 'control-start', 'control-stop'] : ['', '', '', '', '', '', '', 'calendar-load', 'calendar-next', 'calendar-now', 'calendar-prev', 'reset-display']).sort());
         if (route === '/diagramme') {
           assert.equal(await page.locator('#reset-display').getAttribute('type'), 'button');
           assert.deepEqual(await page.locator('button[data-calendar-period]').evaluateAll(nodes =>

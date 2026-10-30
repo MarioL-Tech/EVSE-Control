@@ -142,7 +142,12 @@
   const charts = window.OverlayCharts.mount();
   const renderView = createRenderer({ document, charts });
   let active = null, pollTimer = null;
-  function render() { renderView(state.snapshot()); }
+  function render() {
+    const view = state.snapshot();
+    renderView(view);
+    // Validated, freshness-checked view only; never hand raw API data to controls.
+    window.dispatchEvent(new CustomEvent('evse:state', { detail: view }));
+  }
   async function poll() {
     if (active || document.hidden) return;
     clearTimeout(pollTimer);

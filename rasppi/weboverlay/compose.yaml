@@ -24,6 +24,7 @@ services:
       SMARTMETER_STALE_SECONDS: "${SMARTMETER_STALE_SECONDS:-10}"
       SETTINGS_EDITOR_ENABLED: "${SETTINGS_EDITOR_ENABLED:-1}"
       SETTINGS_EDITOR_ORIGIN: "${SETTINGS_EDITOR_ORIGIN:-http://${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-8080}}"
+      WEB_CONTROL_ORIGIN: "${WEB_CONTROL_ORIGIN:-${SETTINGS_EDITOR_ORIGIN:-http://${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-8080}}}"
     volumes:
       # Dedicated config-only tree. Never mount project/service/secret directories writable.
       # Until explicit setup-settings.sh provisioning the editor fails closed.

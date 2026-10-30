@@ -228,12 +228,18 @@ def authenticated_test(binary, directory):
         broker.receive("state", lambda raw: json.loads(raw)["status"] == "ok")
         broker.receive("availability", lambda raw: raw == "online")
         reader.stop()
-        reader = Reader(binary, broker.port,
-                        {"MQTT_USERNAME": "test-reader", "MQTT_PASSWORD": "wrong-test-only"})
-        time.sleep(1)
-        check(len(reader.samples) >= 3, "Rejected MQTT credentials blocked Modbus")
-        broker.receive("availability", lambda raw: raw == "offline")
-        reader.stop()
+        for attempt in range(3):
+            reader = Reader(binary, broker.port,
+                            {"MQTT_USERNAME": "test-reader", "MQTT_PASSWORD": "wrong-test-only"})
+            time.sleep(1)
+            reader.log.flush()
+            reader.log.seek(0)
+            check(len(reader.samples) >= 3 and reader.process.poll() is None,
+                  "Rejected MQTT credentials blocked Modbus: " + repr({
+                      "attempt": attempt, "samples": len(reader.samples), "exit": reader.process.poll(),
+                      "errors": reader.errors, "diagnostic": reader.log.read(2048)}))
+            broker.receive("availability", lambda raw: raw == "offline")
+            reader.stop()
         reader = None
     finally:
         if reader is not None:

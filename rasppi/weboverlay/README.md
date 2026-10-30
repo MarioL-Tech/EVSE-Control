@@ -1,4 +1,4 @@
-# Lesendes Weboverlay
+# Weboverlay mit manueller Wallboxbedienung
 
 Übersicht, Diagramme und Settings nutzen dieselbe volle Inhaltsbreite neben der
 Sidebar. Phasenspannungen sind auch Live durchgezogen. Diagnosecodes haben
@@ -8,7 +8,9 @@ Das ist kein Nachweis dauerhafter Zustandsbelegung. Gemischte/unbekannte
 Archivzustände und teilweise Erfassung bleiben separat markiert,
 ohne daraus konstante Zustände zu erfinden. Ein belegter Vorgänger darf eine
 Kurve am linken Fensterrand optisch anschneiden, echte Lücken/SQL-Live-Wechsel
-bleiben erhalten. Wallbox-Schreibfunktionen sind weiterhin nicht freigegeben.
+bleiben erhalten. Manuelle Start-/Stop-/Stromvorgaben sind separat über einen
+begrenzten MQTT-Befehlsweg angebunden; isolierter Prüf-/Freigabestand über PR#65,
+reale Schreibtests nicht freigegeben.
 Das Haus-Netzleistungsdiagramm steht direkt unter der gemeinsamen Zeitraumwahl
 und vor den Wallboxkurven, ohne Änderung an der unabhängigen Datenerfassung.
 
@@ -17,7 +19,9 @@ ein PHP-CLI-MQTT-Subscriber → privater atomarer Snapshot → PHP 8.4/Apache �
 deutsche Browseranzeige. Zusätzlich optional: eigener PHP-CLI-HTTP-Worker für
 die Haus-Netzleistung. Zusätzlich opt-in: PHP/PDO liest die gespeicherte Wallbox-
 Historie aus der bestehenden MariaDB, ohne Writer-/Migrationsfunktion.
-Keine seriellen Ports oder Publish-/Steuerbefehle.
+Keine seriellen Ports. Telemetrie-Subscriber und SQL bleiben lesend;
+der separate Control-Endpunkt veröffentlicht ausschließlich validierte manuelle
+Befehle an den vorhandenen Reader als einzigen RS485-Besitzer.
 Bestehender Broker im Netzwerk `evse-mqtt` bleibt unverändert.
 
 **Installierbare PWA:** Separat ergänzt sind Manifest, App-Icons, HTTPS-Installation
@@ -25,8 +29,9 @@ und eine statische Offline-Shell. Optionaler Caddy-Container im vorhandenen
 Compose-Profil `https`, eigene lokale CA, zunächst ohne Domain; der Name bleibt
 für spätere Domainanbindung konfigurierbar. Keine zusätzlichen Betriebsdateien.
 Docker-CI 40730086578 für 6c72193 vollständig erfolgreich; aktuelle Freigabe
-über PR #51 prüfen, echte Pi-/Handyabnahme noch offen. Die Website bleibt lesend;
-weitergehender inhaltlicher Websiteumbau und Ladebedienung bleiben geplant.
+über PR #51 prüfen, echte Pi-/Handyabnahme noch offen. Messwert-/History-APIs
+bleiben lesend. Manuelle Ladebedienung ist jetzt separat angebunden,
+Ladeautomatisierung und weitergehender Websiteumbau bleiben geplant.
 Einrichtung/CA-Vertrauen ausschließlich im
 [Installationsguide](../../docs/installation.md#installierbare-handy-webapp-lokales-https-und-pwa).
 Nur öffentliche Root-CA zum Handy übertragen, niemals private CA-Schlüssel.

@@ -121,14 +121,59 @@ vorauszusetzen. Keine lokalen Änderungen mit Reset/Force überschreiben.
 
 ## 3. Wallbox-Reader bauen und einmal testen
 
-Die zusätzliche interne **Schreibkern-Stufe 1** wird nur gegen simulierte PTYs
-im Docker-Build getestet. Der ausgelieferte Reader bleibt ausschließlich lesend,
-ohne Schreib-Aktivierungsoption oder Befehlseingang; bestehende `.env`-/Compose-
-Dateien bleiben unverändert. Reproduzierbare isolierte Tests und Voraussetzungen
-für eine spätere gesonderte Hardwarefreigabe stehen im
-[Schreibkernvertrag](wallbox/write-core-contract.md). Vor echten Schreibtests muss
-der Projektinhaber seine Leitung informieren. **Die folgenden Pi-Befehle bleiben
-reine Lesetests**, keine Schreib-/Automationsfreigabe.
+Die frühere reine Schreibkern-Simulation ist jetzt durch ausdrücklich gewünschte
+**manuelle Webbedienung ohne Login/Freischalter** ergänzt. Der Reader bleibt
+einziger RS485-Besitzer; MQTT-Befehle werden zwischen seinen Polls verarbeitet.
+`--once` bleibt ausschließlich lesend und abonniert keine Steuerbefehle. Die
+folgenden Pi-Befehle sind weiterhin reine Lesetests, keine Agent-Schreibtestfreigabe.
+Vor echten Schreibtests muss der Projektinhaber seine Leitung informieren und den
+Test gesondert freigeben. [Bedienvertrag](wallbox/web-control-contract.md).
+
+### Manuelle Bedienung vorbereiten (Operator, später separat freigeben)
+
+- Nur vertrauenswürdiges LAN/VPN, **jeder erreichbare Nutzer kann ohne Passwort
+  bedienen**. Keine öffentliche Freigabe. Login folgt separat; CSRF ist kein Login.
+- Hardwaremaximum wird ausgelesen, ist aber keine Installationsfreigabe. Die
+  vermuteten16A sind **nicht bestätigt**. Fachlich freigegebenes Maximum zuerst
+  klären und im Wallbox-`.env` als `WALLBOX_INSTALLATION_MAX_MA` in mA eintragen
+  (6000..32000, leer = keine Start-/Stromvorgabe). Dasselbe Feld ist im Settings-
+  editor für Wallbox verfügbar. Speichern allein ändert keine laufende Runtime.
+- Reader und Website benötigen passende Images dieses Stands, denselben Broker
+  und `MQTT_TOPIC_PREFIX`. Bestehende Broker-Authentifizierung/Overlays beibehalten.
+  Zusätzlich zu State/Availability brauchen ihre Accounts Request-Publish/Subscribe
+  und Result-Publish/Subscribe auf `<prefix>/control/request` sowie
+  `<prefix>/control/result/+`; vorhandene ACLs nicht ungefragt verändern.
+- `WEB_CONTROL_ORIGIN` erbt die Settings-Origin bzw. vorhandene Compose-Bindung.
+  Bei anderem Browserhostname oder HTTPS ausdrücklich die exakte Browser-Origin
+  ohne Pfad verwenden; kein Proxyheader-/Host-Vertrauen. Kein pauschales 0.0.0.0.
+- Bewusstes späteres Recreate (kein bloßes Restart) nach Freigabe: bisherige
+  Wallbox-/Website-Compose-Auswahl inklusive benötigter Auth-/History-Overlays
+  beibehalten und nur deren Dienste mit `up -d --build` erneuern. Keine Migration,
+  kein Refresh, keine Storage-/Broker-/DB-Änderung oder zusätzlicher Modbusmaster.
+- Übersicht und `/wallbox`: zunächst nur Grenzen/Firmware/Livewerte ansehen;
+  **erst nach Testfreigabe** Übernehmen/Start/Stop betätigen. Start bereitet die
+  ausgewählte Stromobergrenze vor und startet nur nach bestätigter Vorbereitung.
+  Stop braucht keine Installationsgrenze, aber eine erreichbare frische Verbindung.
+  Bei unbekanntem Ausgang nicht blind erneut drücken, sondern Istzustand prüfen.
+
+Das Dockerimage baut libmosquitto2.0.21 aus gepinnter Quelle mit einem lokalen
+4096-Byte-Empfangsschutz vor Speicherallokation; es benötigt dafür beim Imagebau
+neben Debianpaketen den öffentlichen Upstreamdownload. Keine zusätzliche
+Hostinstallation oder Brokerkonfiguration. Die passende Bibliothek ist im Image;
+kein Austausch gegen eine ungepatchte Systembibliothek. [Technischer Vertrag](wallbox/web-control-contract.md).
+
+Vollständig isolierter End-to-End-Test (kein Produktionsgerät/-netz):
+
+```bash
+docker build -t evse-wallbox:control-test rasppi/wallbox
+docker build -t evse-weboverlay:test rasppi/weboverlay
+docker build -f rasppi/weboverlay/Dockerfile.control-test -t evse-control-e2e:test rasppi/weboverlay
+docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges:true evse-control-e2e:test
+```
+
+Diese vier Befehle vom Repository-Hauptverzeichnis ausführen; kein `--device`,
+keine Secrets und kein externer Broker. Nur ein wegwerfbarer Testcontainer,
+kein zusätzlicher Produktionsdienst. Kein Hardware-/ARM-Funktionsversprechen.
 
 Vom Repository-Hauptverzeichnis:
 
@@ -465,8 +510,8 @@ mit leerem NVS wechselt der Start von **0° auf 90°**.
 UART bleibt 115200/8N1 mit denselben Pins. Die Python-Brücke ist unverändert:
 Managementbefehle unten als rohe Zeilen eingeben. Physischer UART und Pi bilden
 die Vertrauensgrenze; ein bösartiger Pi kann Karten aufnehmen/Bootpolicy ändern.
-Keine Anbindung an anonyme MQTT-Befehlstopics oder aktuelle lesende HTTP-Controls.
-Gateway und Webbedienung sind geplant und benötigen später geschützte,
+Keine Anbindung des RFID-/Servomanagements an anonyme MQTT-Befehlstopics oder die
+neue manuelle Wallbox-Webbedienung. RFID-Gateway und -Webbedienung sind geplant und benötigen später geschützte,
 authentifizierte, autorisierte Weiterleitung.
 
 Bei neuem Erststart mit leerem NVS und bereits lauschender Brücke erwartet:

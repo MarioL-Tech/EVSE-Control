@@ -59,7 +59,8 @@ class WriteCore {
 public:
     using Now = std::function<WriteClock::time_point()>;
     WriteCore(modbus_t *context, WritePolicy policy, const std::atomic_bool &cancelled,
-              Now now = [] { return WriteClock::now(); });
+              Now now = [] { return WriteClock::now(); },
+              std::function<bool()> session_cancelled = [] { return false; });
     WriteCore(const WriteCore &) = delete;
     WriteCore &operator=(const WriteCore &) = delete;
     WriteResult execute(const WriteRequest &request);
@@ -72,6 +73,7 @@ private:
     const WritePolicy policy_;
     const std::atomic_bool &cancelled_;
     Now now_;
+    const std::function<bool()> session_cancelled_;
     const std::thread::id owner_;
     bool recovery_required_ = false;
     std::optional<std::uint32_t> prepared_current_ma_;

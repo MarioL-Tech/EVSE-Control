@@ -1,10 +1,61 @@
 # Changelog
 
+## 2026-10-30 14:13 (Europe/Vienna)
+
+- Betriebs-/Bedienvertrag und READMEs verweisen für den endgültigen isolierten
+  Prüfstand auf PR#65 statt einen laufenden CI-Zwischenstand dauerhaft als aktuell
+  auszugeben. Sechs synthetische Controlansichten der bisherigen Suite angesehen:
+  Übersicht1440dunkel/390hell und Wallbox1440dunkel/390hell/320hell/320dunkel.
+  Der bestehende mobile feste Theme-Schalter bleibt unverändert; Fullpage-
+  Aufnahmen zeigen ihn an der anfänglichen Viewportunterkante über dem Inhalt.
+  Keine Pi-/Hardwareaussage daraus.
+
+## 2026-10-30 14:09 (Europe/Vienna)
+
+- Reader-Matrix und echter isolierter HTTP-/MQTT-/PTY-Controlpfad bestehen auf
+  Codehead5ac3ff3. Vollständige Website-CI erreicht alle neuen Controlbrowserfälle,
+  scheitert allein an alter Dreier-Navigationsannahme im Historienbrowser:
+  Erwartung ausdrücklich um Wallbox ergänzt, nicht entfernt. Archivtest isoliert
+  Controlmetadaten und verbietet dort weiterhin jeden POST.
+- Vertrags-/Testnachweis präzisiert: Retained-/Stale-Fall prüft kombinierte
+  Session-/Lease-/Neustartbarriere, keinen eigenständigen RETAIN-Bit-Nachweis.
+  Noch keine Gesamtfreigabe, echte Hardware weiterhin ungetestet.
+
+## 2026-10-30 13:57 (Europe/Vienna)
+
+- Docker-CI deckt echten Readerabsturz bei abgewiesenen MQTT-Zugangsdaten auf:
+  erzwungenes Threadcancel konnte einen `noexcept`-Controlcallback während der
+  Entropieabfrage abbrechen. ControlChannel fordert jetzt normales Disconnect
+  an und joint außerhalb seines Mutex, ohne `pthread_cancel`. Authfehlerfall
+  dreimal mit unveränderter Mindestanzahl Modbusabfragen geprüft.
+- Neuer Serializer-Test hatte die nicht geheime Request-ID fälschlich als
+  Fehlernummernausgabe erkannt; prüft jetzt das numerische JSON-Feldmuster.
+  READMEs trennen inzwischen manuelle Befehle von unverändert lesenden Daten-APIs
+  und weiterhin geplanter RFID-/Automatisierungsbedienung. Gesamt-CI noch offen.
+
+## 2026-10-30 13:42 (Europe/Vienna)
+
+- Manuelle Bedienung nach statischer Gegenprüfung nachgebessert: explizite
+  HTTP-400/403-Ablehnungen bleiben „nicht versendet“, nicht „Ausgang unbekannt“;
+  ACK-/Versandangaben werden auf Widersprüche geprüft. Neue UI-Regressionen
+  unterscheiden 400/403/503 vor Versand von 504 nach möglichem Versand und
+  prüfen Frischeablauf bei hängenden/ungültigen Telemetrieantworten.
+- Zusätzliche Wegwerf-End-to-End-Fälle für doppelte logische Befehle,
+  Readerneustart mit neuer Session und Stop ohne Installationsstromgrenze.
+  Die erste CI ist noch nicht bestanden; keine Pi-/Hardwarefreigabe.
+- Readerlibmosquitto jetzt als SHA256-gepinnte2.0.21 mit kleinem lokalem
+  4096-Byte-Preallocation-Patch statt nachträglicher alleiniger Callbackgrenze.
+  Upstreamframing/TLS/Threading bleiben; Link-/Laufzeitmarker verhindert stillen
+  ungepatchten Ersatz. Docker-TCP-/PTY-Regression mit 4096/4097 und körperlosem
+  64-MiB-Header hinzugefügt; Quelllizenzen im Runtime-/E2E-Image erhalten.
+
 All notable changes to the EVSE-Control project. This file is **actively maintained** — every code, docs or infrastructure change is logged here with a timestamp. New entries are added at the top of the current day's section.
 
 Format: `YYYY-MM-DD HH:MM` (Europe/Vienna)
 
 ## 2026-10-30
+
+- **13:31** — **Manuelle Webbedienung ohne Login anbinden** — Nach Merge von PR#64 ausdrücklich ohne Passwort/zusätzlichen Freischalter weitergeführt: kompakte Übersicht und neuer Wallbox-Detailtab mit Start/Stop, Slider und Übernehmen; Sliderbewegung sendet nicht. Gesonderter CSRF-/Host-/Origin-geprüfter PHP-Endpunkt mit kurzlebiger MQTT-Verbindung, bestehender Broker und eigener begrenzter ControlChannel im vorhandenen C++-Portbesitzer; keine zusätzlichen Produktionscontainer oder SQL-/Telemetrieänderungen. Typisierte nicht-retained QoS0-Aufträge, IDs/Dedupe, Sitzungswechsel und einmalige monotone Inspect-Leases; Start mit expliziter Stromvorbereitung, ACK/Readback/echtes Laden getrennt und keine Timeout-/Offline-Replays. Vermutete16A nicht als Installationsfreigabe übernommen: separates explizites WALLBOX_INSTALLATION_MAX_MA, ausgelesenes Hardwaremaximum und konservative Softwaregrenze; Stop ohne Installationsmaximum möglich. PWA v15; neue PHP-/UI-/Protokoll-/durchgängige Docker-PTY-Regressionen, bestehende Read-/Historien-/MQTT-Tests erhalten und Navigationsannahmen gezielt erweitert. Nach Codex-Kontingentabbruch Agents auf Nutzerwunsch mit openai/gpt-6.1-sol neu gestartet; Änderungen vom Hauptagent geprüft, unabhängige Gegenprüfung/Dockerabschluss noch offen. Keine echten Writes, Pi-/SSH-Aktion oder Hosttests; erster realer Test später über Weboverlay nach Information der Leitung und gesonderter Freigabe.
 
 - **12:47** — **Schreibkern auf zwei libmodbus-Versionen Docker-grün** — Codehead ed32b18 besteht Push41050330438 und PR41050371128 vollständig. Bookworm/libmodbus3.1.6-2.1+deb12u1 und Trixie/3.1.11-2 bestehen jeweils alle fünf Decoder-/No-I/O-/Schreib-PTY-/Reader-PTY-/MQTT-Suiten plus Runtime-Smoke und Ablehnung sämtlicher Test-Schreiboptionen bei fehlendem Probe im Runtimeimage. Bestehende drei Suiten unverändert erhalten. Zusätzliche Gegenprüfung bestätigt beide korrigierten Startvorbereitungsbefunde ohne neue konkrete Regression. Kein Hosttest, ARM-/Firmware-/Pi- oder echtes Schreiben; produktive Aktivierung bleibt unmöglich. Finaler Dokumentations-/Freigabestand in PR#64, Merge beim Projektinhaber.
 

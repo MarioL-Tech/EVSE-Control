@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends libnss3-tools c
     && rm -rf /var/lib/apt/lists/*
 RUN npm install --no-audit --no-fund --save-exact playwright@1.55.0
 COPY tests/browser.cjs ./
+COPY tests/wallbox-control-browser.cjs ./
 COPY tests/charts-browser.cjs ./
 COPY tests/layout-browser.cjs ./
 COPY tests/theme-browser.cjs ./
@@ -19,4 +20,4 @@ COPY static/charts.js /static/charts.js
 COPY static/newcalendar.js /static/newcalendar.js
 COPY static/history.js /static/history.js
 COPY static/house-history.js /static/house-history.js
-CMD ["sh", "-c", "status=0; for suite in browser.cjs charts-browser.cjs layout-browser.cjs theme-browser.cjs smartmeter-browser.cjs history-browser.cjs house-history-browser.cjs; do echo Browser-suite: $suite; node \"$suite\" || status=1; done; exit \"$status\""]
+CMD ["sh", "-c", "status=0; for suite in browser.cjs charts-browser.cjs layout-browser.cjs theme-browser.cjs smartmeter-browser.cjs history-browser.cjs house-history-browser.cjs wallbox-control-browser.cjs; do echo Browser-suite: $suite; node \"$suite\" || status=1; done; exit \"$status\""]

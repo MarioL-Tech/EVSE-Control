@@ -65,7 +65,7 @@ async function mode(page, expected) {
 async function switchLayout(page) {
   assert.equal(await page.locator('.quick-controls').count(), 0);
   assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').evaluateAll(links => links.map(a => [a.getAttribute('href'), a.textContent.trim()])),
-    [['/', 'Übersicht'], ['/diagramme', 'Diagramme'], ['/einstellungen', 'Settings']]);
+    [['/', 'Übersicht'], ['/wallbox', 'Wallbox'], ['/diagramme', 'Diagramme'], ['/einstellungen', 'Settings']]);
   const settings = page.getByRole('link', { name: 'Settings', exact: true });
   assert.equal(await settings.locator('svg').count(), 1);
   const label = page.locator('label.theme-switch');
@@ -128,7 +128,7 @@ async function protectedUI(page, route) {
   assert.notEqual(await page.locator('#freshness').innerText(), '—');
   assert.equal(await page.locator('.sidebar').count(), 1);
   assert.deepEqual(await page.locator('button:not([data-calendar-period])').evaluateAll(nodes => nodes.map(n => n.id).sort()),
-    (route === '/' ? [] : ['calendar-load', 'calendar-next', 'calendar-now', 'calendar-prev', 'reset-display']).sort());
+    (route === '/' ? ['control-apply', 'control-start', 'control-stop'] : ['calendar-load', 'calendar-next', 'calendar-now', 'calendar-prev', 'reset-display']).sort());
   assert.equal(await page.locator('[role="button"], #theme-mode[role]').count(), 0);
   assert.equal(await page.locator('.display-options, #metric-options, .history-note').count(), 0);
   assert.equal(await page.locator('ul.chart-options input[type="checkbox"]').count(), route === '/' ? 0 : 16);
@@ -168,6 +168,9 @@ async function setup(browser, options = {}, blocked = null) {
     }
   }, blocked);
   await context.route('**/api/state', route => route.fulfill({ json: sample() }));
+  await context.route('**/api/wallbox-control', route => route.fulfill({ json: {
+    status: 'unavailable', csrf: null, inspection: null, command: null, command_sent: false
+  } }));
   context.on('page', page => {
     page.on('pageerror', error => errors.push(String(error)));
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
@@ -181,7 +184,7 @@ function clean(run) {
     assert.equal(request.method, 'GET', 'Theme controls must not send commands');
     const url = new URL(request.url); assert.equal(url.origin, origin, 'No foreign resources');
     if (url.pathname === '/api/history') assert.equal(url.search, '?minutes=15');
-    assert(routes.includes(url.pathname) || ['/einstellungen', '/api/state', '/api/smartmeter', '/api/history', '/api/house-history', '/api/settings-env'].includes(url.pathname) || url.pathname.startsWith('/static/')
+    assert(routes.includes(url.pathname) || ['/einstellungen', '/api/state', '/api/smartmeter', '/api/history', '/api/house-history', '/api/settings-env', '/api/wallbox-control'].includes(url.pathname) || url.pathname.startsWith('/static/')
       || ['/favicon.ico', '/manifest.webmanifest', '/service-worker.js'].includes(url.pathname), request.url);
   }
   cases++;

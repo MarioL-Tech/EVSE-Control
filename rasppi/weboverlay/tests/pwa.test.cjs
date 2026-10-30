@@ -10,10 +10,10 @@ const request = (path, extra = {}) => ({ url: origin + path, method: 'GET', mode
 
 test('Nur exakte lokale GET-Ressourcen sind cachefähig', () => {
   for (const path of STATIC_PATHS) assert.equal(requestKind(request(path), origin), 'static');
-  for (const path of ['/api/state', '/api/smartmeter', '/api/history?minutes=15', '/healthz?x=1']) {
+  for (const path of ['/api/state', '/api/wallbox-control', '/api/smartmeter', '/api/history?minutes=15', '/healthz?x=1']) {
     assert.equal(requestKind(request(path), origin), 'live');
   }
-  for (const path of ['/', '/diagramme', '/einstellungen']) {
+  for (const path of ['/', '/wallbox', '/diagramme', '/einstellungen']) {
     assert.equal(requestKind(request(path, { mode: 'navigate' }), origin), 'navigation');
     assert(!STATIC_PATHS.includes(path), 'Keine Dashboard-Dokumente im Shellcache');
   }
@@ -22,6 +22,7 @@ test('Nur exakte lokale GET-Ressourcen sind cachefähig', () => {
   }
   assert.equal(requestKind(request('/static/app.js', { method: 'POST' }), origin), null);
   assert.equal(requestKind(request('/api/state', { method: 'POST' }), origin), null);
+  assert.equal(requestKind(request('/api/wallbox-control', { method: 'POST' }), origin), null);
   assert.equal(requestKind(request('/static/app.js', { url: 'https://foreign.test/static/app.js' }), origin), null);
   assert.equal(requestKind(request('/static/app.js', { method: 'HEAD' }), origin), null);
 });

@@ -22,14 +22,14 @@ header('X-Frame-Options: DENY');
 header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$assets = ['env-settings.js' => 'text/javascript', 'app.js' => 'text/javascript', 'charts.js' => 'text/javascript', 'history.js' => 'text/javascript', 'newcalendar.js' => 'text/javascript', 'theme.js' => 'text/javascript', 'smartmeter.js' => 'text/javascript', 'smartmeter-chart.js' => 'text/javascript',
+$assets = ['wallbox-control.js' => 'text/javascript', 'env-settings.js' => 'text/javascript', 'app.js' => 'text/javascript', 'charts.js' => 'text/javascript', 'history.js' => 'text/javascript', 'newcalendar.js' => 'text/javascript', 'theme.js' => 'text/javascript', 'smartmeter.js' => 'text/javascript', 'smartmeter-chart.js' => 'text/javascript',
     'house-history.js' => 'text/javascript', 'pwa.js' => 'text/javascript', 'style.css' => 'text/css', 'icon.svg' => 'image/svg+xml',
     'app-192.png' => 'image/png', 'app-512.png' => 'image/png',
     'app-maskable-512.png' => 'image/png', 'apple-touch-icon.png' => 'image/png',
     'offline.html' => 'text/html'];
 $rootAssets = ['/manifest.webmanifest' => ['manifest.webmanifest', 'application/manifest+json'],
     '/service-worker.js' => ['service-worker.js', 'text/javascript']];
-$pages = ['/' => 'index.html', '/diagramme' => 'diagrams.html', '/einstellungen' => 'settings.html'];
+$pages = ['/' => 'index.html', '/wallbox' => 'wallbox.html', '/diagramme' => 'diagrams.html', '/einstellungen' => 'settings.html'];
 $asset = is_string($path) && str_starts_with($path, '/static/') ? substr($path, 8) : null;
 $known = isset($pages[$path ?? '']) || in_array($path, ['/api/state', '/api/smartmeter', '/api/history', '/api/house-history', '/healthz'], true)
     || isset($rootAssets[$path ?? ''])
@@ -37,6 +37,9 @@ $known = isset($pages[$path ?? '']) || in_array($path, ['/api/state', '/api/smar
 
 if ($path === '/api/settings-env') {
     \EvseOverlay\EnvSettingsHttp::handle();
+}
+if ($path === '/api/wallbox-control') {
+    \EvseOverlay\ControlHttp::handle();
 }
 if (!$known) {
     http_response_code(404);
