@@ -1,4 +1,12 @@
 .wallbox-controls { margin-top: 18px; }
+.esp32-panel { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.esp32-panel h3 { font-size: .95rem; }
+.esp32-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 14px 0; }
+.esp32-actions button, .esp32-revoke button { min-height: 44px; padding: 10px 18px; }
+.esp32-revoke { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; margin-top: 20px; }
+.esp32-revoke label { grid-column: 1 / -1; }
+.esp32-revoke input { min-width: 0; min-height: 44px; padding: 8px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 5px; }
+@media (max-width: 650px) { .esp32-revoke { grid-template-columns: minmax(0, 1fr); } }
 .control-modes { border: 0; padding: 0; margin: 12px 0; min-width: 0; }
 .control-modes legend { font-size: .8rem; margin-bottom: 8px; }
 .control-mode-options { display: flex; flex-wrap: wrap; gap: 8px; }

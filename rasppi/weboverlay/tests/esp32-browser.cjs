@@ -93,7 +93,7 @@ function envelope(r = result(), command = null) {
       assert(await action.isDisabled());
       getMode = 'ok';
       current = result({ firmware_version: null });
-      await delay(2200); assert(await action.isDisabled(), 'No legacy firmware fallback');
+      await delay(5200); assert(await action.isDisabled(), 'No legacy firmware fallback');
       current = result({ state: { ...result().state, store_ready: false } });
       await page.waitForFunction(id => document.getElementById(id).textContent.includes('Speicher'), prefix + 'status');
       assert(await action.isDisabled());

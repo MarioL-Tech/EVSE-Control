@@ -46,7 +46,7 @@ Die Modusauswahl meldet am `window` das Ereignis `evse:manual-mode` mit
 unbekannt erhalten. Settings bleibt unabhängig. Rückkehr/Seitenaktivierung
 führt ausschließlich eine neue Inspektion aus, niemals einen Schreibauftrag.
 
-API: `/api/esp32-control`, GET alle zwei Sekunden bei sichtbarer erlaubter
+API: `/api/esp32-control`, GET alle fünf Sekunden bei sichtbarer erlaubter
 Seite, 4-s-Timeout. POST ausschließlich explizite Aktionen, 12-s-Timeout,
 `X-CSRF-Token` aus der Inspektion. Maximal eine aktive Anfrage pro Seite.
 Keine Wiederholung/Offlinequeue. Anzeigen laufen nach maximal acht Sekunden

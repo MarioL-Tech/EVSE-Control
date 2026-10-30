@@ -18,7 +18,12 @@ final class EnvSettingsCatalog
         };
         if ($service === 'uart') {
             $add('UART_DEVICE', 'device');
-            return $keys;
+            $add('UART_MODE', 'enum', null, null, false, false, ['interactive', 'gateway']);
+            // Network/mount provisioning stays an explicit operator step.
+            $add('UART_NETWORK_MODE', 'network', null, null, false, true);
+            $add('ESP32_MQTT_CLIENT_ID', 'identifier', 1, 128);
+            $add('ESP32_MQTT_TOPIC_PREFIX', 'topic');
+            $add('WALLBOX_MQTT_TOPIC_PREFIX', 'topic');
         }
         $add('MQTT_HOST', 'host');
         $add('MQTT_PORT', 'integer', 1, 65535);
@@ -28,6 +33,11 @@ final class EnvSettingsCatalog
         $add('MQTT_PASSWORD', 'text', 0, 4096, true);
         foreach (['MQTT_PASSWORD_FILE', 'MQTT_PASSWORD_HOST_FILE'] as $key) {
             $add($key, 'mount', null, null, true, true);
+        }
+        if ($service === 'uart') {
+            $keys['MQTT_TOPIC_PREFIX']['readonly'] = true;
+            $keys['MQTT_CLIENT_ID']['readonly'] = true;
+            return $keys;
         }
         if ($service === 'wallbox') {
             $add('WALLBOX_DEVICE', 'device');
@@ -61,6 +71,7 @@ final class EnvSettingsCatalog
             }
         }
         if ($service === 'weboverlay') {
+            $add('ESP32_MQTT_TOPIC_PREFIX', 'topic');
             $add('WEB_PORT', 'integer', 1, 65535);
             $add('WEB_BIND_ADDRESS', 'ipv4');
             $add('WEB_HTTPS_PORT', 'integer', 1, 65535);

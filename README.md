@@ -8,7 +8,10 @@ Der Raspberry Pi liest eine ABB Terra AC über Modbus RTU aus. Der ESP32
 Ladeautomatisierung bleibt geplant. Weboverlay und MQTT-Wallbox-Zustandsspeicherung
 für MariaDB sind implementiert. Manuelle Webbedienung ist separat angebunden;
 aktueller isolierter Prüf-/Freigabestand über PR#67 (Grundbefehlsweg PR#65),
-reale Schreibabnahme steht aus.
+reale Schreibabnahme steht aus. Der separat beauftragte ESP32-Gatewaymodus
+erweitert die bestehende UART-Brücke um Web-Servoziele/RFID-Verwaltung und
+frische Ladezustandsspiegelung; gemeinsamer Docker-/Pi-/Hardwaretest noch offen.
+Neue Firmwarev2 erforderlich, Flashen nur nach gesonderter Freigabe.
 Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die Website soll später
 inhaltlich umgebaut werden. Davon separat erhält sie eine **installierbare
 Progressive Web App (PWA)** mit optionalem lokalem HTTPS/eigener CA ohne Domain.
@@ -87,7 +90,7 @@ noch keine Modusauswahl oder Einrichtung; Geräte-/Sicherheitsgrenzen gelten wei
 |---|---|
 | ESP32-Firmware | MFRC522-RFID, Servo, UART-Befehle und Zustandsmeldungen |
 | Diebstahlsicherungsmodell | Erlaubte RFID-UID toggelt 0°/90°; NVS-Allowlist und Bootpolicy; neuer Erststart verriegelt, Hardwareprüfung offen |
-| UART-Testbrücke | Interaktive Python-Brücke im Docker-Container |
+| UART-Brücke | Interaktiver Default; opt-in MQTT-Webgateway im selben Dienst |
 | Wallbox-Reader | C++17/libmodbus, zyklische FC03-Abfragen, dekodierte Messwerte als JSON |
 | Manuelle Bedienung | Übersicht und Wallbox-Detailtab mit Start/Stop/Slider; PHP→MQTT→bestehender libmodbus-Portbesitzer, ohne Login; Hardwareabnahme offen |
 | MQTT-Publisher | retained State und Verfügbarkeit mit libmosquitto; vorhandener Broker wird wiederverwendet |
@@ -133,14 +136,14 @@ Raspberry Pi — lokale Hardwareanbindung, Dienste in Docker
         +-- Wallbox-MQTT --> vorhandener gemeinsamer Message Broker
                               |-- Weboverlay          [lesend]
                               +-- Speicherdienst --> vorhandene MariaDB
-        +-- ESP32-UART-MQTT-Gateway                    [geplant]
+        +-- ESP32-UART-MQTT-Gateway                    [opt-in; Abnahme offen]
 
 Remote-Zugriff: Rechner --> WireGuard/SSH-Tunnel --> Pi-Weboverlay
 ```
 
 Der Pi ist Modbus-Master; **Adresse 9 gehört zur Wallbox**. UART bleibt die
 direkte ESP32-Pi-Verbindung, ohne WiFi. Der Reader veröffentlicht Modbus-Daten
-auf MQTT, die UART-MQTT-Bridge folgt. MQTT ersetzt keine Hardwareleitungen.
+auf MQTT; die UART-MQTT-Brücke ist opt-in ergänzt. MQTT ersetzt keine Hardwareleitungen.
 
 **Späteres Betriebsziel, noch nicht umgesetzt:** eine gemeinsame Compose-Datei
 für die getrennten Pi-Projektdienste, kein All-in-one- oder Verwaltungscontainer.

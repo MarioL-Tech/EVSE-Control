@@ -508,7 +508,8 @@ angeschlossen/nicht ladend, Fehlercode 0, Limit 6 A, Ströme/Leistung 0 und
 Spannungen ungefähr 233–236 V. Das bestätigt Wallbox → Reader → vorhandener
 Broker → Subscriber, nicht Langzeitstabilität oder Ausfallverhalten am Pi.
 Weboverlay siehe Abschnitt 9, MariaDB-Speicherung Abschnitt 10;
-UART-MQTT-Bridge und Ladesteuerung bleiben geplant.
+Die bisherige UART-Testbrücke erhält den separat freigegebenen opt-in-
+Gatewaymodus (Abschnitt6); reale Hardwareabnahme weiterhin offen.
 
 ## 6. Optionale ESP32-UART-Testbrücke
 
@@ -525,7 +526,56 @@ Host-Pfad vorab mit `UART_DEVICE` setzen. Firmware, Verdrahtung und UART-
 Hardwarefreigabe müssen vorhanden sein. `on`/`off` ändern nur den ESP32-Spiegel,
 nicht die reale Wallbox. Details: [UART-Protokoll](uart-protocol.md).
 
-### Neue Firmware und Erwartungsgrenzen
+### Opt-in Webgateway für Diebstahlsicherung und RFID
+
+**Separater Umstieg, nicht ungefragt ausführen:** neue Gateway-Firmwarev2 aus
+PR#69 erforderlich. Firmwarehead4e5b213 besteht Dockerlauf41103980187 einschließlich
+Targetcompile; das ist kein Flash-/Servo-/UART-/Pi-Nachweis. Ältere Firmware
+wird nicht über Legacybefehle umgangen. Erst nach gesonderter Flashfreigabe und
+sicherer Koordination des Servos den dokumentierten Flashablauf verwenden.
+
+Danach jeden interaktiven UART-Container stoppen: nur **ein** Prozess darf den
+Port besitzen. In der lokalen `rasppi/.env` setzen (vorhandene Werte/Secrets
+erhalten, nach Settings-Provisionierung dem bestehenden Dateilink folgen):
+
+```dotenv
+UART_MODE=gateway
+UART_DEVICE=/dev/serial0
+UART_NETWORK_MODE=evse-mqtt
+MQTT_HOST=mqtt-broker
+MQTT_PORT=1883
+ESP32_MQTT_CLIENT_ID=evse-uart-gateway
+ESP32_MQTT_TOPIC_PREFIX=evse/esp32
+WALLBOX_MQTT_TOPIC_PREFIX=evse/wallbox
+```
+
+```sh
+git pull --ff-only &&
+docker compose -f rasppi/compose.yaml --profile tools up -d --build uart-bridge &&
+docker compose -f rasppi/compose.yaml --profile tools ps
+```
+
+Vorhandenes `evse-mqtt` und derselbe Broker werden wiederverwendet; keine
+Netzneuanlage. Abweichende echte Topicpräfixe weiterverwenden. Weboverlay muss
+denselben `ESP32_MQTT_TOPIC_PREFIX` erhalten und nach dem Webupdate neu erstellt
+werden; vorhandene History-/Auth-Overlays unverändert mitnehmen. Bei Broker-
+Authentifizierung eigene passende MQTT-Zugangsdaten/ACL verwenden; Passwortdatei
+nur über bewussten read-only-Einzelmount aus
+[UART-Anleitung](../rasppi/README.uart.md) einbinden. Keine vorhandenen Secrets
+kopieren/anzeigen, keinen anonymen zweiten Broker oder öffentlichen Zugriff.
+
+Übersicht (manuell): explizites Aktivieren/Deaktivieren des **Servoziels**.
+Settings: 30-s-Anlernfenster/eine frische Karte, Abbrechen, Kartenanzahl und
+Widerruf über private write-only UID. Keine UID-Liste, URL-/Storage-/Logausgabe.
+Firmware-ACK bedeutet Ziel/Persistierung, keine mechanische Endposition.
+Die tatsächliche frische Wallbox-Ladeaussage wird browserunabhängig über den
+bestehenden Gatewayprozess gespiegelt; fehlend/veraltet wird UNKNOWN, niemals
+aus Start-ACK oder0W erraten. Daraus folgt kein automatisches Verriegeln.
+Wallbox-/Haus-/Archivpfade bleiben unabhängig; Gatewayausfall darf Stop und
+Monitoring nicht sperren. Mehr Details im
+[Gatewayvertrag](esp32-gateway-contract.md); gemeinsame Docker-CI noch offen.
+
+### Historische Allowlist-Basis und unveränderte Hardwaregrenzen
 
 Die frühere Firmware war ein **UART-Kommunikationstest**, startete bei 0° und
 ließ jede lesbare Karte toggeln. Die neue Allowlist-/Persistenzimplementierung
@@ -538,12 +588,13 @@ ist ein Plan, kein Erfolg.
 Vor dem Upgrade [Flash-/Sicherheitsablauf](#esp32-bauen-und-flashen) beachten:
 mit leerem NVS wechselt der Start von **0° auf 90°**.
 
-UART bleibt 115200/8N1 mit denselben Pins. Die Python-Brücke ist unverändert:
-Managementbefehle unten als rohe Zeilen eingeben. Physischer UART und Pi bilden
-die Vertrauensgrenze; ein bösartiger Pi kann Karten aufnehmen/Bootpolicy ändern.
-Keine Anbindung des RFID-/Servomanagements an anonyme MQTT-Befehlstopics oder die
-neue manuelle Wallbox-Webbedienung. RFID-Gateway und -Webbedienung sind geplant und benötigen später geschützte,
-authentifizierte, autorisierte Weiterleitung.
+UART bleibt115200/8N1 mit denselben Pins. Der interaktive Default bleibt erhalten;
+Managementbefehle unten dort als rohe Zeilen eingeben, niemals parallel zum
+Gateway. Physischer UART und Pi bilden die Vertrauensgrenze; ein bösartiger Pi
+kann Karten aufnehmen/Bootpolicy ändern. Neu separat freigegeben ist das obige
+Webgateway **ohne Login im vertrauenswürdigen LAN/VPN**. CSRF/Host-/Originprüfung
+und Einmalleases sind keine Authentifizierung: erreichbare Nutzer können bedienen.
+Keine öffentliche Freigabe. Brokerrechte müssen die Managementtopics begrenzen.
 
 Bei neuem Erststart mit leerem NVS und bereits lauschender Brücke erwartet:
 
@@ -618,7 +669,8 @@ sicher abgestimmten Testplan.
 
 UIDs sind klonbar, keine kryptografische Authentifizierung. SG90 ist keine
 zertifizierte physische Diebstahlsicherung; kein mechanischer Sensor oder
-Sicherheitsversprechen bei Stromverlust. Kein direkter UART-Unlock-Befehl.
+Sicherheitsversprechen bei Stromverlust. Die neue Gateway-v2-Schnittstelle ergänzt
+explizite idempotente LOCK-/UNLOCK-Zielbefehle; keine Bootpolicy als Ersatz benutzen.
 Vollständige Frames/Fehler/Antworten: [UART-Vertrag](uart-protocol.md),
 Firmwareübersicht: [ESP32-README](../esp32/README.md).
 

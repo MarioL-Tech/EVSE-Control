@@ -28,6 +28,7 @@ $assets = ['wallbox-control.js' => 'text/javascript', 'env-settings.js' => 'text
     'app-maskable-512.png' => 'image/png', 'apple-touch-icon.png' => 'image/png',
     'offline.html' => 'text/html'];
 $assets['charging-settings.js'] = 'text/javascript';
+$assets['esp32.js'] = 'text/javascript';
 $rootAssets = ['/manifest.webmanifest' => ['manifest.webmanifest', 'application/manifest+json'],
     '/service-worker.js' => ['service-worker.js', 'text/javascript']];
 $pages = ['/' => 'index.html', '/diagramme' => 'diagrams.html', '/einstellungen' => 'settings.html'];
@@ -53,6 +54,9 @@ if ($path === '/api/charging-settings') {
 }
 if ($path === '/api/wallbox-control') {
     \EvseOverlay\ControlHttp::handle();
+}
+if ($path === '/api/esp32-control') {
+    \EvseOverlay\Esp32Http::handle();
 }
 if (!$known) {
     http_response_code(404);

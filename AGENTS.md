@@ -4,6 +4,28 @@ Stand: 2026-10-30. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
+Web-/UART-Integration auf Featurebranch: Übersicht mit manuellen Servozielen,
+RFID-Kartenanzahl/Anlernfenster/Abbrechen/write-only-Widerruf in Settings.
+Neue `/api/esp32-control` mit eigenem CSRF, StrictJson, separatem begrenztem
+MQTT-RPC, frischer Vorinspektion und keinem Retry/Legacyfallback. Alte Firmware
+bleibt unverfügbar. Keine UIDs in Antworten/URLs/Storage/Logs; kein Listenlesen.
+Unbekannter Wallbox-Ladespiegel darf unabhängiges Servomanagement nicht sperren.
+Browserinspektion5s, Frist8s ab Requestbeginn, keine ACK=Mechanikbehauptung.
+Shellv19; vorhandene Browserfixtures mocken Gatewayfehler getrennt, nie Wallbox-
+Stop/Monitoring wegen ESP blockieren. Neue UART-Docker-CI und Webprüfungen
+vorbereitet, gemeinsame Ausführung noch offen. Firmware4e5b213 besteht separat
+41103980187: Sanitizer/Adapter, Xtensa-Targetcompile, Artefakte, Flash-CLI ohne
+USB/Upload. PR#69 bereit zur Prüfung, Merge beim Projektinhaber, Hardware/Flash
+weiterhin ausdrücklich separat freizugeben. Unabhängiger Gatewayreview fand
+readonly-Inspect fälschlich command_sent/Unknown, asynchrone Statuszeilen und
+Frischeerneuerung gleicher Messzeit nach Reconnect. Korrektur7a6e2bb integriert:
+readonly nie command_sent/Unknown, Querysequenz getrennt von asynchronen Zeilen,
+Watermark/Clockanker über Reconnect erhalten. Neue native Vollpfadfixture nutzt
+echte Firmwarekerne aus gepinntem4e5b213 mit Speicher-/UART-Adapter im Wegwerf-
+Dockerimage, keinen ESP32/echte NVS/Mechanik. Ausführung noch offen.
+Keine daraus behauptete Gateway-/Pi-Abnahme. Zentraler Operatorablauf in
+Installation Abschnitt6. Keine .env-/Secret-/Pi-/Flashänderung durch Agenten.
+
 UART-Teilscope des explizit freigegebenen Web-Antitheft-/RFID-Auftrags
 (2026-10-30): bestehende `uart-bridge` erhält opt-in `UART_MODE=gateway`, Default
 bleibt interaktiv. Ein serieller Owner, MQTT-v1-Sechsfeld-RPC, Firmware-v2-

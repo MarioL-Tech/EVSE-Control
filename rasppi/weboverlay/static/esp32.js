@@ -51,7 +51,7 @@
     const names = settings ? ['enroll', 'cancel', 'revoke'] : ['lock', 'unlock'];
     const uid = get('esp32-uid');
     if (uid) { uid.type = 'password'; uid.autocomplete = 'off'; uid.value = ''; }
-    let manual = true, active = null, generation = 0, csrf = null, lastResult = 'Noch keine Aktion.', destroyed = false;
+    let manual = true, active = null, generation = 0, csrf = null, lastResult = '', destroyed = false;
     const allowed = () => !destroyed && !doc.hidden && (settings || manual);
     function render() {
       const r = fresh.read(), s = r?.state;
@@ -63,6 +63,7 @@
       put('count', ready && s.cards !== null ? String(s.cards) + ' / 16' : 'Unbekannt');
       put('enrolling', !ready || s.enrolling === null ? 'Unbekannt' : s.enrolling ? 'Anlernen aktiv (30 s / eine Karte).' : 'Anlernen inaktiv.');
       put('result', lastResult);
+      const result = get(prefix + 'result'); if (result) result.hidden = !lastResult;
       for (const name of names) {
         const button = get('esp32-' + name);
         let permit = ready && !!csrf && s.store_ready === true;
@@ -117,6 +118,7 @@
           const c = e.command;
           if ([400, 403].includes(response.status) && e.command_sent === false) lastResult = 'Nicht gesendet / abgewiesen.';
           else if (e.status === 'outcome_unknown' || c?.status === 'outcome_unknown') lastResult = 'Ausgang unbekannt. Nicht automatisch wiederholen.';
+          else if (c?.operation === operation && c.status === 'rejected') lastResult = 'Firmware hat die Aktion abgewiesen.';
           else if (response.ok && e.status === 'ok' && e.command_sent && c?.command_sent && c.firmware_version === 2 &&
             c.operation === operation && ['ok', 'acknowledged'].includes(c.status))
             lastResult = 'Firmware bestätigt Ziel / Speicherung. Keine mechanische Bestätigung.';
@@ -141,7 +143,7 @@
     on(doc, 'visibilitychange', () => { cancel(); if (allowed()) request('inspect'); });
     on(env, 'pagehide', cancel);
     on(env, 'pageshow', () => { cancel(); if (allowed()) request('inspect'); });
-    const timer = env.setInterval(() => { render(); if (allowed() && !active) request('inspect'); }, 2000);
+    const timer = env.setInterval(() => { render(); if (allowed() && !active) request('inspect'); }, 5000);
     const expiry = env.setInterval(render, 200);
     render(); request('inspect');
     return { render, inspect: () => request('inspect'), destroy() { destroyed = true; cancel(); env.clearInterval(timer); env.clearInterval(expiry); listeners.forEach(fn => fn()); } };

@@ -44,6 +44,13 @@ $r = (object) ['schema_version' => 1, 'id' => $id, 'operation' => 'inspect', 'st
     'command_sent' => false, 'result_code' => null];
 $encode = static fn(object $v): string => json_encode($v, JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION);
 check(Esp32MqttTransport::validateResult($encode($r), $id, 'inspect') instanceof stdClass);
+$unknownCharge = clone $r; $unknownCharge->state = clone $r->state; $unknownCharge->state->charging = null;
+check(Esp32MqttTransport::validateResult($encode($unknownCharge), $id, 'inspect') instanceof stdClass);
+// A missing Wallbox mirror must never disable independent RFID/servo management.
+foreach (['store_ready', 'antitheft', 'cards', 'enrolling', 'reader_ready', 'servo_ready'] as $field) {
+    $copy = clone $unknownCharge; $copy->state = clone $unknownCharge->state; $copy->state->$field = null;
+    check(Esp32MqttTransport::validateResult($encode($copy), $id, 'inspect') === null);
+}
 check(Esp32MqttTransport::validateResult($encode($r), str_repeat('d', 32), 'inspect') === null);
 foreach (['schema_version' => 2, 'id' => strtoupper($id), 'operation' => 'lock', 'status' => 'raw-secret',
     'reason' => 'raw-secret', 'session' => '-', 'lease' => '-', 'fresh_for_seconds' => 8.0,

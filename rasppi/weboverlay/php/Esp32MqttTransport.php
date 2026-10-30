@@ -72,7 +72,7 @@ final class Esp32MqttTransport
             if ($r->lease !== null && ($operation !== 'inspect' || !self::validId($r->lease) ||
                 $r->status !== 'ok' || $r->reason !== 'inspection_complete' ||
                 $r->firmware_version !== 2 || $r->fresh_for_seconds !== 8 ||
-                in_array(null, get_object_vars($r->state), true))) { return null; }
+                in_array(null, array_diff_key(get_object_vars($r->state), ['charging' => true]), true))) { return null; }
             if ($operation === 'inspect' && $r->status === 'ok' && $r->lease === null) { return null; }
             if ($r->firmware_version === null && ($r->lease !== null || $r->fresh_for_seconds !== 0 ||
                 count(array_filter(get_object_vars($r->state), static fn($v) => $v !== null)) !== 0)) { return null; }

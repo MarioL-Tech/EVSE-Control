@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/charts.js" defer></script>
   <script src="/static/wallbox-control.js" defer></script>
+  <script src="/static/esp32.js" defer></script>
   <script src="/static/app.js" defer></script>
   <script src="/static/smartmeter.js" defer></script>
 </head>
@@ -58,6 +59,14 @@
         </div>
         <p id="control-hint" class="subtle">Grenzen werden geprüft.</p>
         <p id="control-result" class="subtle" role="status" hidden></p>
+        <section id="esp32-control" class="esp32-panel" aria-labelledby="esp32-heading">
+          <h3 id="esp32-heading">Diebstahlsicherung</h3>
+          <p id="esp32-status" class="subtle" role="status">ESP32 noch nicht geprüft.</p>
+          <p id="esp32-state">Verriegelungsziel unbekannt</p>
+          <div class="esp32-actions"><button type="button" id="esp32-lock" disabled>Aktivieren</button>
+            <button type="button" id="esp32-unlock" disabled>Deaktivieren</button></div>
+          <p id="esp32-result" class="subtle" role="status" hidden></p>
+        </section>
         <details class="control-details"><summary>Details</summary>
         <dl class="control-facts"><div><dt>Zuletzt angefordert</dt><dd id="control-requested">—</dd></div><div><dt>Protokollbestätigung</dt><dd id="control-ack">Noch kein Auftrag</dd></div><div><dt>Tatsächlich (Live)</dt><dd id="control-actual">Unbekannt</dd></div></dl>
         <dl class="control-facts">
