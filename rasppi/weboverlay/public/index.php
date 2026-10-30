@@ -29,7 +29,16 @@ $assets = ['wallbox-control.js' => 'text/javascript', 'env-settings.js' => 'text
     'offline.html' => 'text/html'];
 $rootAssets = ['/manifest.webmanifest' => ['manifest.webmanifest', 'application/manifest+json'],
     '/service-worker.js' => ['service-worker.js', 'text/javascript']];
-$pages = ['/' => 'index.html', '/wallbox' => 'wallbox.html', '/diagramme' => 'diagrams.html', '/einstellungen' => 'settings.html'];
+$pages = ['/' => 'index.html', '/diagramme' => 'diagrams.html', '/einstellungen' => 'settings.html'];
+if ($path === '/wallbox') {
+    if (in_array($_SERVER['REQUEST_METHOD'], ['GET', 'HEAD'], true)) {
+        header('Location: /', true, 302);
+    } else {
+        http_response_code(405);
+        header('Allow: GET, HEAD');
+    }
+    exit;
+}
 $asset = is_string($path) && str_starts_with($path, '/static/') ? substr($path, 8) : null;
 $known = isset($pages[$path ?? '']) || in_array($path, ['/api/state', '/api/smartmeter', '/api/history', '/api/house-history', '/healthz'], true)
     || isset($rootAssets[$path ?? ''])

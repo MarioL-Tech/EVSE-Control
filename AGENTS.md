@@ -5,6 +5,17 @@ die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
 Aktueller Webbedienauftrag (2026-10-30): PR#64 vom Projektinhaber gemergt.
+Neuer Folgeauftrag: Betreiber meldet nach PR#66 sichtbare Bedienung, ohne damit
+echte Schreib-/Messwertabnahme zu bestätigen. Doppelten Wallbox-Tab entfernen;
+Bedienkarte samt einklappbaren technischen Details nur auf Übersicht. Alte URL
+`/wallbox` führt per GET/HEAD302 nach `/`, POST dort405; Control-API bleibt.
+Regler war bei fehlenden Grenzen auch als reiner Entwurf gesperrt. Lokale
+Bearbeitung jetzt von Sendefreigabe trennen: 1-A-Entwurf bei unbekannten Grenzen
+bis32A rein als Softwareentwurfsbereich, bekannte gültige Hardware begrenzt ihn.
+KEINE Installationsfreigabe, kein automatischer16-/32-A-Wert; Start/Übernehmen
+brauchen unverändert gültige explizite Grenzen, frische Verbindung und CSRF.
+Bei einzig zulässigen6A keinen verstellbaren Bereich behaupten. Sliderbewegung
+sendet weiterhin nichts. Backend/Reader unverändert, PWA-Shellv16. CI offen.
 PR#65 inzwischen ebenfalls vom Projektinhaber gemergt (maina0c828b). Betreiber-
 ARM64-Build kompiliert vollständig und besteht6/7Suiten; die neue Python-Probe
 lädt durch generische ctypes-Suche jedoch die ungepatchte Systembibliothek.
@@ -45,8 +56,8 @@ manuell bedienen. Login folgt erst zum Schluss. Diese Freigabe ersetzt die
 frühere produktive Nichtaktivierbarkeit aus Stufe1, NICHT das Verbot von Agent-
 Hardwaretests/SSH/Pi-Deployment. Erster realer Schreibtest später ausdrücklich
 über das Weboverlay, nach vorheriger Information der Leitung und gesondertem Go.
-Übersicht mit kompakter Start/Stop-/Slider-/Übernehmen-Bedienung, eigener neuer
-Tab `/wallbox` für vollständige Details. Angefordert, Protokoll-ACK, wirksames Limit
+Übersicht mit kompakter Start/Stop-/Slider-/Übernehmen-Bedienung und einklappbaren
+vollständigen Details (früherer zusätzlicher Wallbox-Tab entfällt). Angefordert, Protokoll-ACK, wirksames Limit
 und tatsächliche frische Messwerte getrennt; Sliderbewegung allein sendet nichts.
 Nutzer vermutet16A, bestätigt aber KEINE Installationsgrenze. Keine16-/32-A-
 Defaultfreigabe: `WALLBOX_INSTALLATION_MAX_MA` explizit6000..32000 konfigurieren,

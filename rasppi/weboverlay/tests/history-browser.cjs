@@ -134,7 +134,7 @@ const { FIELDS } = require('../static/newcalendar.js');
     assert((await path()).includes('L'), 'Archive renders while MQTT is offline');
     assert.equal(await page.locator('#chart-grid > figure').count(), 4);
     assert.equal(await page.locator('#chart-diagnostics-grid > figure').count(), 5);
-    assert.deepEqual(await page.locator('.sidebar nav a').allTextContents(), ['Übersicht', 'Wallbox', 'Diagramme', 'Settings']);
+    assert.deepEqual(await page.locator('.sidebar nav a').allTextContents(), ['Übersicht', 'Diagramme', 'Settings']);
     assert.equal(await page.locator('#theme-toggle').getAttribute('role'), 'switch');
     assert.equal(await page.locator('#chart-range').inputValue(), '5');
     assert.equal(await page.locator('.display-options, #metric-options, .history-note').count(), 0);

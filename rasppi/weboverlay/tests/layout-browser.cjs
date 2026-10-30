@@ -261,8 +261,8 @@ function clean(run) {
         assert.equal(await page.locator('h1').innerText(), route === '/' ? 'Übersicht' : 'Diagramme');
         assert(await page.locator('h2').count() > 0);
         assert.equal(await page.locator('nav[aria-label="Hauptnavigation"]').count(), 1);
-        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').evaluateAll(links => links.map(a => a.getAttribute('href'))), ['/', '/wallbox', '/diagramme', '/einstellungen']);
-        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').allTextContents().then(labels => labels.map(label => label.trim())), ['Übersicht', 'Wallbox', 'Diagramme', 'Settings']);
+        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').evaluateAll(links => links.map(a => a.getAttribute('href'))), ['/', '/diagramme', '/einstellungen']);
+        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').allTextContents().then(labels => labels.map(label => label.trim())), ['Übersicht', 'Diagramme', 'Settings']);
         const settings = page.getByRole('link', { name: 'Settings', exact: true });
         assert.equal(await settings.getAttribute('href'), '/einstellungen');
         assert.equal(await settings.locator('svg').count(), 1);

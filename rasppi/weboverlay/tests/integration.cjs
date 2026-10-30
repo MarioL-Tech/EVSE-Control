@@ -270,12 +270,22 @@ function security(response) {
 
 async function httpContract(scope) {
   await command(scope, 'php', ['/app/docker/healthcheck.php'], { EVSE_HTTP_PORT: String(scope.webPort) });
-  for (const [url, title] of [['/', 'Übersicht · EVSE Control'], ['/wallbox', 'Wallbox · EVSE Control'], ['/diagramme', 'Diagramme · EVSE Control'], ['/einstellungen', 'Settings · EVSE Control']]) {
+  for (const [url, title] of [['/', 'Übersicht · EVSE Control'], ['/diagramme', 'Diagramme · EVSE Control'], ['/einstellungen', 'Settings · EVSE Control']]) {
     const response = await request(scope.webPort, url);
     assert.equal(response.code, 200);
     assert.ok(response.body.includes(`<title>${title}</title>`));
     security(response);
   }
+  for (const method of ['GET', 'HEAD']) {
+    const legacy = await request(scope.webPort, '/wallbox', method);
+    assert.equal(legacy.code, 302);
+    assert.equal(legacy.headers.location, '/');
+    security(legacy);
+  }
+  const legacyPost = await request(scope.webPort, '/wallbox', 'POST');
+  assert.equal(legacyPost.code, 405);
+  assert.equal(legacyPost.headers.allow, 'GET, HEAD');
+  assert.equal(legacyPost.headers.location, undefined);
   for (const asset of ['app.js', 'wallbox-control.js', 'charts.js', 'theme.js', 'smartmeter.js', 'smartmeter-chart.js', 'style.css', 'icon.svg', 'pwa.js', 'offline.html',
     'app-192.png', 'app-512.png', 'app-maskable-512.png', 'apple-touch-icon.png']) {
     const response = await request(scope.webPort, `/static/${asset}`);

@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-30 16:04 (Europe/Vienna)
+
+- Auf Betreiberwunsch redundanten Wallbox-Tab samt doppelter Seite entfernt;
+  Bedienung und einklappbare Details bleiben auf Übersicht. Alte GET-/HEAD-URL
+  leitet302 nach `/`, POST405 ohne Redirect. Dreiernavigation wiederhergestellt,
+  PWA-Shellv16, APIs weiterhin network-only.
+- Reinen lokalen Sliderentwurf nicht mehr bei fehlenden technischen Grenzen
+  deaktivieren. Entwurfsbereich ohne Freigabe klar markiert; Start/Übernehmen
+  verlangen unverändert gültige explizite Grenzen/Verbindung/CSRF. Keine
+  geratenen16-/32-A-Installationswerte, kein automatischer Versand. Hinweis für
+  unverstellbaren6-A-Einzelbereich. Maus-/Tastatur-/Nichtversand-/Altlinkfälle
+  ergänzt; Backend und Reader unverändert. Docker-CI noch offen.
+
 ## 2026-10-30 14:46 (Europe/Vienna)
 
 - ARM64-Ladekorrektur besteht Reader41064617992/41064740474 nativ auf ARM64 und

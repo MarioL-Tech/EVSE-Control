@@ -65,7 +65,7 @@ async function mode(page, expected) {
 async function switchLayout(page) {
   assert.equal(await page.locator('.quick-controls').count(), 0);
   assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').evaluateAll(links => links.map(a => [a.getAttribute('href'), a.textContent.trim()])),
-    [['/', 'Übersicht'], ['/wallbox', 'Wallbox'], ['/diagramme', 'Diagramme'], ['/einstellungen', 'Settings']]);
+    [['/', 'Übersicht'], ['/diagramme', 'Diagramme'], ['/einstellungen', 'Settings']]);
   const settings = page.getByRole('link', { name: 'Settings', exact: true });
   assert.equal(await settings.locator('svg').count(), 1);
   const label = page.locator('label.theme-switch');
