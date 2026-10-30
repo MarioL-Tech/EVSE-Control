@@ -194,7 +194,9 @@
   });
   for (const id of ['pv', 'manual', 'custom']) get(`mode-${id}`).addEventListener('change', event => {
     if (!event.target.checked || busy || document.hidden || suspended) return;
-    mode = id; render();
+    mode = id;
+    window.dispatchEvent(new CustomEvent('evse:manual-mode', { detail: { manual: mode === 'manual' } }));
+    render();
   });
   for (const [id, op] of [['apply', 'set_current'], ['start', 'start'], ['stop', 'stop']]) get(id).addEventListener('click', () => { void send(op); });
   window.addEventListener('evse:state', event => {

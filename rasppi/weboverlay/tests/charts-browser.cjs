@@ -58,6 +58,12 @@ async function liveChartGeometry(page, width) {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1050 }, colorScheme: 'dark' });
   const errors = [];
+  // Independent inspection fixture: never contact the ESP32 MQTT gateway.
+  await page.route('**/api/esp32-control', route => {
+    assert.equal(route.request().method(), 'GET', 'No ESP32 commands in this fixture');
+    return route.fulfill({ json: { status: 'unavailable', csrf: null, inspection: null,
+      command: null, command_sent: false } });
+  });
   page.on('pageerror', e => errors.push(String(e)));
   let sequence = 0, offline = false;
   await page.clock.install();

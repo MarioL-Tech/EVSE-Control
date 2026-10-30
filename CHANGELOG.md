@@ -29,6 +29,37 @@
   UI-Docker-CI noch offen; Regler-/ESP-/Gatewayerweiterung getrennte Teilstände,
   keine reale Freigabe/Flash-/Pi-Aktion durch den Agenten.
 
+## 2026-10-30 21:16 (Europe/Vienna) — ESP32-Integration
+
+- Webgatewayintegration: separater CSRF-/MQTT-RPC-Endpunkt für explizite
+  Servoziele, RFID-Anlernen/Abbrechen und privaten write-only UID-Widerruf.
+  Übersicht manuell, Kartenanzahl/Management in Settings; keine UID-Liste,
+  keine Log-/URL-/Storagespeicherung. Firmware-ACK ist keine Mechanikbestätigung.
+- Neue Firmwarev2 erforderlich, kein Legacyfallback. Unbekannter Wallboxspiegel
+  sperrt unabhängiges Servomanagement nicht. Browserinspektion5s/8sFrist ab
+  Requestbeginn; kein Retry/Offlinequeue. Shellv19. Config-only-Katalog und
+  Operatoranleitung um Gatewaymodus ergänzt, vorhandene Overlays/Secrets erhalten.
+- UART-Dockerworkflow, PHP-/HTTP-/JS-/Browserprüfungen und unabhängige unavailable-
+  Fixtures vorbereitet; gemeinsame Docker-CI noch offen. Firmware4e5b213 besteht
+  separat41103980187 mit Sanitizern/Adaptern/Targetcompile/Artefakten/Flash-CLI.
+  Kein Flash, Pi-/SSH-Zugriff oder Hardwaretest. Drei konkrete statische
+  Gatewaybefunde gezielt korrigiert: readonly nicht als Write/Unknown ausgeben,
+  asynchrone UART-Statuszeilen von Querysequenz trennen, Messzeit-/Clockevidenz
+  über Reconnect erhalten. Native Vollpfadfixture mit gepinnten unveränderten
+  Firmwarekernen, PTY und echtem Broker vorbereitet; noch kein Laufzeiterfolg.
+
+## 2026-10-30 19:07 (Europe/Vienna)
+
+- UART-Teilscope: bestehenden interaktiven Dienst um opt-in Gatewaymodus mit
+  Paho2.1.0/pyserial3.5, einzigem seriellen Owner, korrelierten Firmware-v2-
+  Leases, begrenzten Queues/Dedupe, UID-Redaktion und tatsächlichem frischen
+  Wallbox-Ladespiegel ergänzt. Keine reale Wallboxsteuerung oder Pi-Aktion.
+- MQTT-v1-RPC hat sechs Felder; Firmware4e5b213 read-only abgeglichen,
+  SESSION_MISMATCH und acht Cacheplätze einschließlich HELLO/STATUS beachtet.
+  Paho-Bodygrenze vor Speicherwachstum, Docker-Teststage mit Fakeclock/PTY/
+  Loopbackbroker und verpflichtendem Runtime-Testmarker vorbereitet. Tests hier
+  nicht ausgeführt; Docker-/GitHub-CI und Hardwareabnahme bleiben offen.
+
 ## 2026-10-30 18:10 (Europe/Vienna)
 
 - Erste vollständige Konfigurations-CI da7980e besteht191JS-/43neuePHP-/HTTP-

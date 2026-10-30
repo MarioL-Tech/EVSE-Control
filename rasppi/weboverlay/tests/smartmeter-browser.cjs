@@ -15,6 +15,12 @@ function sample(power_w = 1549.4, overrides = {}) {
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext();
+    // Independent inspection fixture: never contact the ESP32 MQTT gateway.
+    await context.route('**/api/esp32-control', route => {
+      assert.equal(route.request().method(), 'GET', 'No ESP32 commands in this fixture');
+      return route.fulfill({ json: { status: 'unavailable', csrf: null, inspection: null,
+        command: null, command_sent: false } });
+    });
     const errors = [], requests = [];
     await context.route('**/api/wallbox-control', route => route.fulfill({ json: {
       status: 'unavailable', csrf: null, inspection: null, command: null, command_sent: false

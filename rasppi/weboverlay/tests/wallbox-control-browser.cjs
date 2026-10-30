@@ -15,6 +15,12 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ serviceWorkers: 'block' });
+    // Independent inspection fixture: never contact the ESP32 MQTT gateway.
+    await context.route('**/api/esp32-control', route => {
+      assert.equal(route.request().method(), 'GET', 'No ESP32 commands in this fixture');
+      return route.fulfill({ json: { status: 'unavailable', csrf: null, inspection: null,
+        command: null, command_sent: false } });
+    });
     let configMissing = false, hardwareUnknown = false, onlySix = false, getFailure = false, outcomeUnknown = false, partial = false, live = true;
     let postCount = 0, getCount = 0;
     let postMode = null, hangState = false, stateCharging = null, invalidCurrent = null, freshSeconds = 10;

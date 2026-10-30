@@ -54,6 +54,15 @@ jobs:
           done
       - name: Build and test in Docker with isolated broker
         run: docker build --progress=plain -t evse-weboverlay:test rasppi/weboverlay
+      - name: ESP32 HTTP, broker, UART PTY and native firmware cores without hardware
+        run: |
+          # Reviewed immutable firmware; no upload, device or production broker.
+          git fetch --no-tags --depth=1 origin 4e5b213e66e415fd0192efc2334eb3fa7eed0881
+          firmware="$RUNNER_TEMP/evse-firmware-source"
+          mkdir -p "$firmware"
+          git archive 4e5b213e66e415fd0192efc2334eb3fa7eed0881 esp32 | tar -x -C "$firmware"
+          docker build --build-context "firmware=$firmware" -f rasppi/weboverlay/Dockerfile.esp32-test -t evse-esp32-e2e:test .
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges:true evse-esp32-e2e:test
       - name: Build reader and test complete manual control path without hardware
         run: |
           docker build --progress=plain -t evse-wallbox:control-test rasppi/wallbox

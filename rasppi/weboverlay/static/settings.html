@@ -10,6 +10,7 @@
   <script src="/static/pwa.js" defer></script>
   <script src="/static/env-settings.js" defer></script>
   <script src="/static/charging-settings.js" defer></script>
+  <script src="/static/esp32.js" defer></script>
   <title>Settings · EVSE Control</title>
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <script src="/static/theme.js"></script>
@@ -43,6 +44,18 @@
             <p><button id="charging-save" type="submit" disabled>Regeln speichern</button>
               <button id="charging-reload" type="button" disabled>Neu laden</button></p>
           </form>
+        </section>
+        <section class="card" id="esp32-rfid" aria-labelledby="esp32-rfid-heading">
+          <h2 id="esp32-rfid-heading">RFID-Karten</h2>
+          <p id="esp32-rfid-status" class="subtle" role="status">ESP32 noch nicht geprüft.</p>
+          <dl class="facts"><div><dt>Gespeicherte Karten</dt><dd id="esp32-rfid-count">Unbekannt</dd></div>
+            <div><dt>Anlernen</dt><dd id="esp32-rfid-enrolling">Unbekannt</dd></div></dl>
+          <div class="esp32-actions"><button type="button" id="esp32-enroll" disabled>Anlernen starten</button>
+            <button type="button" id="esp32-cancel" disabled>Abbrechen</button></div>
+          <div class="esp32-revoke"><label for="esp32-uid">Private Karten-UID zum Widerrufen</label>
+            <input id="esp32-uid" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="29">
+            <button type="button" id="esp32-revoke" disabled>Karte widerrufen</button></div>
+          <p id="esp32-rfid-result" class="subtle" role="status" hidden></p>
         </section>
         <section class="card" aria-labelledby="env-heading">
           <h2 id="env-heading">Dienstkonfiguration (.env)</h2>
