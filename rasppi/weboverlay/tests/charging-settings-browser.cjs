@@ -11,11 +11,12 @@ const defaults = () => {
 (async () => {
   const browser = await chromium.launch({ headless: true });
   try {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: 'dark', serviceWorkers: 'block' });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: 'dark', locale: 'de-AT', serviceWorkers: 'block' });
     let config = defaults(), revision = null, posts = 0, conflict = false, disabled = false, drop = false, hold = false, release = null;
     const requests = [], errors = [], allRequests = [];
     context.on('request', req => allRequests.push([req.method(), new URL(req.url()).pathname]));
-    await context.route('**/api/settings-env*', route => route.fulfill({ json: { status: 'disabled', services: {}, snapshot: null, csrf: null } }));
+    await context.route('**/api/settings-env*', route => route.fulfill({ json: { status: 'disabled',
+      services: { uart: {}, wallbox: {}, storage: {}, weboverlay: {} }, snapshot: null, csrf: null } }));
     await context.route('**/api/charging-settings', async route => {
       const req = route.request(); requests.push([req.method(), new URL(req.url()).pathname]);
       if (req.method() === 'POST') {
@@ -61,6 +62,8 @@ const defaults = () => {
     for (const [width, colorScheme] of [[1440, 'dark'], [390, 'light'], [320, 'light']]) {
       await page.setViewportSize({ width, height: 1000 }); await page.emulateMedia({ colorScheme });
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      assert(await page.locator('.charging-profile input[type="number"], .charging-window input').evaluateAll(inputs =>
+        inputs.every(input => input.getBoundingClientRect().height >= 44)), 'Numeric/time inputs have touch-sized targets');
       fs.mkdirSync('/artifacts', { recursive: true });
       await page.screenshot({ path: `/artifacts/charging-settings-${width}-${colorScheme}.png`, fullPage: true });
     }

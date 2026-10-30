@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-30 18:10 (Europe/Vienna)
+
+- Erste vollständige Konfigurations-CI da7980e besteht191JS-/43neuePHP-/HTTP-
+  Prüfungen und neun reguläre Browsersuiten einschließlich Save-Abbruch und
+  Mode-Nichtversand. Visuelle Prüfung fand zu kleine native Zahlen-/Zeitfelder:
+  an Theme angeglichen und44px-Mindesthöhe für Touchbedienung ergänzt.
+- Doppelten Vorlagenhinweis entfernt (Status bleibt), Browserfixture mit
+  deutschem Locale und gültigem deaktiviertem Envkatalog für aussagekräftige
+  Screenshots. Keine Änderung an Betriebs-/Schreibgrenzen; finalen Stand im PR prüfen.
+
 ## 2026-10-30 17:57 (Europe/Vienna)
 
 - Config-only-Schreibpfad gegen Tempnam-Fallback außerhalb des validierten
