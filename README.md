@@ -6,8 +6,8 @@ Ladestation** mit Raspberry Pi, ESP32 und RFID-basierter Diebstahlsicherung.
 Der Raspberry Pi liest eine ABB Terra AC über Modbus RTU aus. Der ESP32
 übernimmt RFID und einen separaten Servo als Modell der Diebstahlsicherung.
 Ladeautomatisierung bleibt geplant. Weboverlay und MQTT-Wallbox-Zustandsspeicherung
-für MariaDB sind implementiert. Manuelle Webbedienung ist separat angebunden,
-deren neue isolierte Prüfung läuft; reale Schreibabnahme steht aus.
+für MariaDB sind implementiert. Manuelle Webbedienung ist separat angebunden;
+aktueller isolierter Prüf-/Freigabestand über PR#65, reale Schreibabnahme steht aus.
 Ein eigenes Home-Assistant-Modul wird nicht entwickelt. Die Website soll später
 inhaltlich umgebaut werden. Davon separat erhält sie eine **installierbare
 Progressive Web App (PWA)** mit optionalem lokalem HTTPS/eigener CA ohne Domain.

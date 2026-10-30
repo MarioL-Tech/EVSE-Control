@@ -5,7 +5,9 @@ die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
 Aktueller Webbedienauftrag (2026-10-30): PR#64 vom Projektinhaber gemergt.
-Umsetzung in Entwurfs-PR#65; erste CI fehlgeschlagen, noch keine neue Abnahme.
+Umsetzung in PR#65. Endgültigen Docker-Prüf-/Freigabestand und visuell geprüfte
+Artefakte über PR#65 prüfen; nachfolgend dokumentierte Fehler sind Zwischenstände,
+kein Ersatz für dessen Abschlussnachweis. Keine reale Schreibabnahme.
 Statische Gegenprüfung: HTTP-Ablehnungen dürfen bei `command_sent=false` keinen
 unklaren Hardwareausgang vortäuschen. Libmosquitto braucht Empfangsgrenze VOR
 Payloadallokation: gepinnte2.0.21 mit kleinem4096-Byte-Patch und zwingendem

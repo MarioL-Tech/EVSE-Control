@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-30 14:13 (Europe/Vienna)
+
+- Betriebs-/Bedienvertrag und READMEs verweisen für den endgültigen isolierten
+  Prüfstand auf PR#65 statt einen laufenden CI-Zwischenstand dauerhaft als aktuell
+  auszugeben. Sechs synthetische Controlansichten der bisherigen Suite angesehen:
+  Übersicht1440dunkel/390hell und Wallbox1440dunkel/390hell/320hell/320dunkel.
+  Der bestehende mobile feste Theme-Schalter bleibt unverändert; Fullpage-
+  Aufnahmen zeigen ihn an der anfänglichen Viewportunterkante über dem Inhalt.
+  Keine Pi-/Hardwareaussage daraus.
+
 ## 2026-10-30 14:09 (Europe/Vienna)
 
 - Reader-Matrix und echter isolierter HTTP-/MQTT-/PTY-Controlpfad bestehen auf
