@@ -15,6 +15,10 @@
   Fixturekonstante doppelt benannt. Beides gezielt korrigiert; native exklusive
   Tastaturbedienung und Nichtversandprüfungen erhalten. Syntaxcheck aller CJS-
   Browserfixtures bereits im Dockerbuild, nicht erst am Ende der Gesamtsuite.
+- Standalone-Modusbrowser zusätzlich früh vor Backendbuilds ausführen, damit
+  Interaktionsfehler nicht erst am Suiteende auffallen. Vollpfad auch bei UART-
+  Quelländerungen auslösen. Root-Testbuildkontext schließt Git, private Settings,
+  echte Envdateien und lokale Abhängigkeiten explizit aus.
 
 ## 2026-10-30 22:10 (Europe/Vienna)
 

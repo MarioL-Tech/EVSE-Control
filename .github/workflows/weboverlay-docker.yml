@@ -2,12 +2,18 @@ name: Weboverlay Docker tests
 on:
   push:
     paths:
+      - '.dockerignore'
+      - 'rasppi/src/**'
+      - 'rasppi/requirements.txt'
       - 'rasppi/weboverlay/**'
       - 'rasppi/storage/**'
       - 'rasppi/wallbox/**'
       - '.github/workflows/weboverlay-docker.yml'
   pull_request:
     paths:
+      - '.dockerignore'
+      - 'rasppi/src/**'
+      - 'rasppi/requirements.txt'
       - 'rasppi/weboverlay/**'
       - 'rasppi/storage/**'
       - 'rasppi/wallbox/**'
@@ -39,6 +45,8 @@ jobs:
           WEB_BIND_ADDRESS=192.0.2.10 docker compose -f rasppi/weboverlay/compose.yaml -f rasppi/weboverlay/compose.auth.yaml -f rasppi/weboverlay/compose.history.yaml config --format json | grep -Eq '"host_ip"[[:space:]]*:[[:space:]]*"192\.0\.2\.10"'
       - name: Build disposable browser test image
         run: docker build -f rasppi/weboverlay/Dockerfile.browser -t evse-web-browser:test rasppi/weboverlay
+      - name: Check standalone charging-mode browser contract before backend builds
+        run: docker run --rm --network none evse-web-browser:test node charging-mode-browser.cjs
       - name: Render PWA product icons in disposable Docker image
         run: |
           mkdir -p artifacts/pwa-icons

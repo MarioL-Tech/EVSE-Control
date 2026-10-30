@@ -1,0 +1,9 @@
+.git
+.evse-settings
+**/.env
+**/.env.*
+**/node_modules
+**/vendor
+**/__pycache__
+**/.pio
+artifacts
