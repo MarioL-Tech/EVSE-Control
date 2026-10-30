@@ -17,6 +17,16 @@ $valid['custom'] = [...$valid['pv'], 'use_schedule' => true, 'pv_enabled' => tru
     'windows' => [['from' => '07:15', 'to' => '09:00'], ['from' => '22:30', 'to' => '06:00']], 'outside_window' => 'pause'];
 expect(ChargingSettings::validate(asObject($valid)) === $valid);
 $bad = [];
+foreach ([null, [], ['phases' => 0, 'meter_includes_wallbox' => null],
+    ['phases' => 4, 'meter_includes_wallbox' => null], ['phases' => '3', 'meter_includes_wallbox' => null],
+    ['phases' => 3, 'meter_includes_wallbox' => 1], ['phases' => null],
+    ['phases' => 3, 'meter_includes_wallbox' => true, 'current_ma' => 32000]] as $installation) {
+    $b = $defaults; $b['installation'] = $installation; $bad[] = $b;
+}
+foreach ([1, 2, 3] as $phases) foreach ([true, false, null] as $includes) {
+    $b = $defaults; $b['installation'] = ['phases' => $phases, 'meter_includes_wallbox' => $includes];
+    expect(ChargingSettings::validate(asObject($b)) === $b);
+}
 foreach ([['schema_version', 2], ['timezone', 'UTC'], ['extra', 'rejected']] as [$key, $value]) { $b = $defaults; $b[$key] = $value; $bad[] = $b; }
 foreach (['max_import_w' => [-1, 100001, '100', 1.5, false], 'max_current_ma' => [5999, 32001, '6000'],
     'pause_seconds' => [-1, 3601, 1.5]] as $key => $values) foreach ($values as $value) { $b = $defaults; $b['pv'][$key] = $value; $bad[] = $b; }
