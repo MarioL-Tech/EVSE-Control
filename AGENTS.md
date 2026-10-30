@@ -15,7 +15,9 @@ bis32A rein als Softwareentwurfsbereich, bekannte gültige Hardware begrenzt ihn
 KEINE Installationsfreigabe, kein automatischer16-/32-A-Wert; Start/Übernehmen
 brauchen unverändert gültige explizite Grenzen, frische Verbindung und CSRF.
 Bei einzig zulässigen6A keinen verstellbaren Bereich behaupten. Sliderbewegung
-sendet weiterhin nichts. Backend/Reader unverändert, PWA-Shellv16. CI offen.
+sendet weiterhin nichts. Backend/Reader unverändert, PWA-Shellv16. Aktuellen
+Docker-Prüf-/Freigabestand und visuelle Abnahme über PR#67 prüfen; die folgenden
+früheren PR-/CI-Angaben sind historische Grundlagen, keine reale Schreibabnahme.
 PR#65 inzwischen ebenfalls vom Projektinhaber gemergt (maina0c828b). Betreiber-
 ARM64-Build kompiliert vollständig und besteht6/7Suiten; die neue Python-Probe
 lädt durch generische ctypes-Suche jedoch die ungepatchte Systembibliothek.

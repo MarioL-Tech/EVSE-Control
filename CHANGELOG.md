@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-30 16:18 (Europe/Vienna)
+
+- Aktuelle Bedienungs-/Prüfstandverweise auf Folge-PR#67 ausgerichtet;
+  PR#65/66 bleiben Grundlagen, keine aktuelle Hardwareabnahme. Keine weitere
+  Funktionsänderung oder Pi-Aktion.
+
 ## 2026-10-30 16:17 (Europe/Vienna)
 
 - Docker-CI besteht neue lokalen Entwurfs-/Maus-/6-A-/Nichtversandfälle und

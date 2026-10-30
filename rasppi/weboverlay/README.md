@@ -15,7 +15,8 @@ Archivzustände und teilweise Erfassung bleiben separat markiert,
 ohne daraus konstante Zustände zu erfinden. Ein belegter Vorgänger darf eine
 Kurve am linken Fensterrand optisch anschneiden, echte Lücken/SQL-Live-Wechsel
 bleiben erhalten. Manuelle Start-/Stop-/Stromvorgaben sind separat über einen
-begrenzten MQTT-Befehlsweg angebunden; isolierter Prüf-/Freigabestand über PR#65,
+begrenzten MQTT-Befehlsweg angebunden; aktueller isolierter Prüf-/Freigabestand
+über PR#67 (Grundbefehlsweg PR#65),
 reale Schreibtests nicht freigegeben.
 Das Haus-Netzleistungsdiagramm steht direkt unter der gemeinsamen Zeitraumwahl
 und vor den Wallboxkurven, ohne Änderung an der unabhängigen Datenerfassung.

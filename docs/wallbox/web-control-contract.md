@@ -1,6 +1,7 @@
 # Manuelle Webbedienung – Arbeitsvertrag Stufe 2
 
-Stand 2026-10-30; implementiert. Aktuellen Docker-Prüfstand über PR#65 prüfen;
+Stand 2026-10-30; implementiert. Aktuellen Docker-Prüfstand über PR#67 prüfen
+(Grundbefehlsweg PR#65, ARM64-Probe PR#66);
 kein Hardwareabnahmenachweis.
 Ausdrücklich ohne Login oder zusätzlichen Freischalter; jeder erreichbare Nutzer
 im vertrauenswürdigen LAN/VPN darf bedienen. Login folgt separat. Keine öffentliche
