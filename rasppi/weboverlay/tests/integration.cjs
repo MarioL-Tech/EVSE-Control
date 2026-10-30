@@ -286,7 +286,7 @@ async function httpContract(scope) {
   assert.equal(legacyPost.code, 405);
   assert.equal(legacyPost.headers.allow, 'GET, HEAD');
   assert.equal(legacyPost.headers.location, undefined);
-  for (const asset of ['app.js', 'wallbox-control.js', 'charts.js', 'theme.js', 'smartmeter.js', 'smartmeter-chart.js', 'style.css', 'icon.svg', 'pwa.js', 'offline.html',
+  for (const asset of ['app.js', 'wallbox-control.js', 'charging-settings.js', 'charts.js', 'theme.js', 'smartmeter.js', 'smartmeter-chart.js', 'style.css', 'icon.svg', 'pwa.js', 'offline.html',
     'app-192.png', 'app-512.png', 'app-maskable-512.png', 'apple-touch-icon.png']) {
     const response = await request(scope.webPort, `/static/${asset}`);
     assert.equal(response.code, 200);

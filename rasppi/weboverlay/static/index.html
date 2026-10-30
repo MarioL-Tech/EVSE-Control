@@ -45,18 +45,24 @@
       </section>
       <section class="card wallbox-controls" id="wallbox-control" aria-labelledby="control-heading">
         <div class="card-top"><h2 id="control-heading">Wallbox bedienen</h2></div>
-        <p id="control-status" class="subtle" role="status">Bedienverbindung wird geprüft.</p>
+        <p id="control-status" class="subtle" role="status">Verbindung wird geprüft.</p>
+        <fieldset class="control-modes"><legend>Lademodus</legend><div class="control-mode-options">
+          <label><input id="control-mode-pv" type="radio" name="charging-mode" value="pv" disabled>PV-Regelung</label>
+          <label><input id="control-mode-manual" type="radio" name="charging-mode" value="manual" checked disabled>Manuell</label>
+          <label><input id="control-mode-custom" type="radio" name="charging-mode" value="custom" disabled>Benutzerdefiniert</label>
+        </div></fieldset>
         <div class="control-editor">
-          <label for="control-current">Ladestrom-Entwurf <output id="control-draft" for="control-current">—</output></label>
+          <label for="control-current">Ladestrom <output id="control-draft" for="control-current">—</output></label>
           <input id="control-current" type="range" min="6" max="6" step="1" value="6" disabled aria-describedby="control-hint">
-          <div class="control-actions"><button id="control-apply" type="button" disabled>Übernehmen</button><button id="control-start" type="button" disabled>Start</button><button id="control-stop" type="button" disabled>Stop</button></div>
+          <div class="control-actions"><button id="control-apply" type="button" disabled aria-describedby="control-hint">Übernehmen</button><button id="control-start" type="button" disabled aria-describedby="control-hint">Start</button><button id="control-stop" type="button" disabled>Stop</button></div>
         </div>
-        <p id="control-hint" class="subtle">Grenzen werden geprüft. Ziehen ändert nur den Entwurf.</p>
+        <p id="control-hint" class="subtle">Grenzen werden geprüft.</p>
+        <p id="control-result" class="subtle" role="status" hidden></p>
+        <details class="control-details"><summary>Details</summary>
         <dl class="control-facts"><div><dt>Zuletzt angefordert</dt><dd id="control-requested">—</dd></div><div><dt>Protokollbestätigung</dt><dd id="control-ack">Noch kein Auftrag</dd></div><div><dt>Tatsächlich (Live)</dt><dd id="control-actual">Unbekannt</dd></div></dl>
-        <p id="control-result" class="subtle" role="status">Noch kein Bedienauftrag. Protokoll-ACK ist kein Nachweis tatsächlichen Ladens.</p>
-        <details class="control-details"><summary>Technische Grenzen &amp; Ergebnis</summary><dl class="control-facts">
+        <dl class="control-facts">
           <div><dt>Wallboxmaximum</dt><dd id="control-hardware-max">—</dd></div><div><dt>Installationsmaximum</dt><dd id="control-installation-max">—</dd></div><div><dt>Wirksame Obergrenze</dt><dd id="control-effective-max">—</dd></div><div><dt>Firmware (Rohwert)</dt><dd id="control-firmware">—</dd></div><div><dt>Stromvorbereitung</dt><dd id="control-preparation">—</dd></div><div><dt>Schreibschritt</dt><dd id="control-write">—</dd></div>
-        </dl><p class="subtle">Ohne Anmeldung: Alle erreichbaren LAN-Nutzer dürfen bedienen. Kein öffentlicher Zugang. Abbruch im Browser ist kein Hardware-Storno.</p></details>
+        </dl></details>
       </section>
       <section class="details-grid measurements" aria-label="Messwerte">
         <article class="card" data-metrics="current-0 current-1 current-2 voltage-0 voltage-1 voltage-2"><div class="card-top"><h2>Phasen</h2><a class="text-link" href="/diagramme">Diagramme ↗</a></div><table><caption class="sr-only">Strom und Spannung je Phase</caption><thead><tr><th scope="col">Phase</th><th class="phase-current" scope="col">Strom</th><th class="phase-voltage" scope="col">Spannung</th></tr></thead><tbody>

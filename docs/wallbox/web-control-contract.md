@@ -113,6 +113,11 @@ melden. Alle API-Zugriffe network-only/no-store, keine PWA-/Offline-POST-Queue.
 
 ## Oberfläche
 
+Ergänzung: [drei Lademodi und Regelvorlagen](charging-profiles.md). Aktuelle
+Konfigurationsstufe ohne automatischen Schreibpfad; Auswahl PV/Custom ist keine
+bereits aktive Regelung. Kürzere Hinweise/konkrete Sperrgründe, detaillierte
+ACK-/Anforderungs-/Liveanzeigen einklappbar; Auftragsergebnis weiterhin außen.
+
 Eine Bedienkarte auf der Übersicht, technische Details dort einklappbar; kein
 doppelter Wallbox-Tab. Alte GET-/HEAD-URL `/wallbox` leitet302 nach `/`, andere
 Methoden liefern405 ohne Weiterleitung. `/api/wallbox-control` bleibt unabhängig.

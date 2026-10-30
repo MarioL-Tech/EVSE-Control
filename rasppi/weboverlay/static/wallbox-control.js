@@ -25,6 +25,16 @@
     // still requires bounds() with a valid explicit installation maximum.
     return { min: 6, max: Math.floor(integer(hardware) && hardware >= 6000 && hardware <= 32000 ? hardware / 1000 : 32) };
   }
+  function limitReason(inspection) {
+    if (!inspection) return 'Stromgrenzen noch nicht geprüft.';
+    if (inspection.installation_max_ma === null) return 'Installationsmaximum fehlt.';
+    if (!integer(inspection.installation_max_ma) || inspection.installation_max_ma < 6000 || inspection.installation_max_ma > 32000)
+      return 'Installationsmaximum ungültig.';
+    if (inspection.hardware_max_ma === null) return 'Wallboxmaximum unbekannt.';
+    if (!integer(inspection.hardware_max_ma) || inspection.hardware_max_ma < 6000 || inspection.hardware_max_ma > 32000)
+      return 'Wallboxmaximum ungültig.';
+    return bounds(inspection) ? '' : 'Stromgrenzen nicht bestätigt.';
+  }
   function commandBody(operation, draft, limits) {
     if (operation === 'stop') return { operation, current_ma: 0 };
     if (!['start', 'set_current'].includes(operation) || draftAmps(draft, limits) === null) return null;
@@ -60,15 +70,20 @@
     const prep = c.operation === 'start' ? `Stromvorbereitung: ${stepText(c.preparation)}. ` : '';
     return `${prep}${c.operation === 'start' ? 'Start' : c.operation === 'stop' ? 'Stop' : 'Stromvorgabe'}: ${stepText(c.write)}.`;
   }
-  const api = { bounds, draftBounds, draftAmps, commandBody, parseResponse, stepText, resultText, GET_TIMEOUT_MS, POST_TIMEOUT_MS, REFRESH_MS };
+  const api = { bounds, draftBounds, limitReason, draftAmps, commandBody, parseResponse, stepText, resultText, GET_TIMEOUT_MS, POST_TIMEOUT_MS, REFRESH_MS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof document === 'undefined') return;
   const root = document.getElementById('wallbox-control');
   if (!root) return;
   const get = id => document.getElementById(`control-${id}`);
-  const text = (id, value) => { const el = get(id); if (el && el.textContent !== value) el.textContent = value; };
+  const text = (id, value) => {
+    const el = get(id);
+    if (el && el.textContent !== value) el.textContent = value;
+    if (el && id === 'result') el.hidden = !value;
+  };
   const disabled = (id, value) => { const el = get(id); if (el.disabled !== value) el.disabled = value; };
   let inspection = null, csrf = null, ready = false, draft = null, busy = false;
+  let mode = 'manual'; // UI selection only; no controller handover or persistence.
   let activeGet = null, activePost = null, timer = null, generation = 0, suspended = document.hidden;
   let lastActual = undefined;
   function render() {
@@ -79,8 +94,13 @@
     if (range.max !== String(editing.max)) range.max = String(editing.max);
     if (range.value !== String(draft)) range.value = String(draft);
     disabled('current', busy || document.hidden || suspended);
-    disabled('apply', !usable || !limits);
-    disabled('start', !usable || !limits);
+    disabled('apply', !usable || !limits || mode !== 'manual');
+    disabled('start', !usable || !limits || mode !== 'manual');
+    for (const id of ['pv', 'manual', 'custom']) {
+      const radio = get(`mode-${id}`);
+      radio.disabled = busy || document.hidden || suspended;
+      radio.checked = mode === id;
+    }
     // A configured installation maximum is intentionally NOT a Stop condition.
     disabled('stop', !usable);
     text('draft', limits ? `${draft} A` : `${draft} A · Entwurf`);
@@ -88,16 +108,20 @@
     text('installation-max', amp(inspection?.installation_max_ma));
     text('effective-max', amp(inspection?.effective_max_ma));
     text('firmware', integer(inspection?.firmware_raw) ? String(inspection.firmware_raw) : 'Unbekannt');
-    text('hint', limits ? (limits.max === 6 ?
-      'Die geprüften Grenzen erlauben in 1-A-Schritten nur 6 A. Kein verstellbarer Bereich.' :
-      `6–${limits.max} A · Ziehen ändert nur den Entwurf. Erst Übernehmen oder Start sendet.`) :
-      `Nur lokaler Entwurf (6–${editing.max} A), keine Freigabe. Start/Übernehmen nicht verfügbar: gültige technische Grenzen fehlen. Settings → Wallbox: WALLBOX_INSTALLATION_MAX_MA prüfen und Wallbox-Container neu erstellen. Stop bleibt bei erreichbarer Bedienverbindung möglich.`);
+    const blocked = busy ? 'Auftrag läuft.' : document.hidden || suspended ? 'Bedienung pausiert.' :
+      mode !== 'manual' ? `${mode === 'pv' ? 'PV-Regelung' : 'Benutzerdefiniert'}: Automatik noch nicht verfügbar.` :
+      !ready || !csrf ? 'Keine geprüfte Bedienverbindung.' : limits ? '' : limitReason(inspection);
+    text('hint', blocked || (limits?.max === 6 ? 'Nur 6 A zulässig (1-A-Schritte).' : `6–${limits.max} A`));
+    for (const id of ['apply', 'start']) {
+      const button = get(id);
+      if (button.title !== blocked) button.title = blocked;
+    }
   }
   function accept(body) {
     inspection = body.inspection;
     csrf = body.csrf;
     ready = body.status === 'ok' && inspection?.status === 'ok';
-    text('status', ready ? 'Bedienverbindung geprüft · tatsächliche Messwerte separat beachten.' : 'Bedienverbindung nicht verfügbar / technisch abgelehnt.');
+    text('status', ready ? 'Verbindung geprüft.' : 'Bedienverbindung nicht verfügbar.');
   }
   async function inspect() {
     if (document.hidden || suspended || busy || activeGet) return;
@@ -122,6 +146,7 @@
   }
   async function send(operation) {
     if (busy || document.hidden || suspended || !ready || !csrf) return;
+    if (mode !== 'manual' && operation !== 'stop') return;
     const payload = commandBody(operation, draft, bounds(inspection));
     if (!payload) return;
     busy = true;
@@ -164,6 +189,10 @@
   get('current').addEventListener('input', event => {
     const value = Number(event.target.value);
     if (draftAmps(value, draftBounds(inspection)) !== null) { draft = value; render(); }
+  });
+  for (const id of ['pv', 'manual', 'custom']) get(`mode-${id}`).addEventListener('change', event => {
+    if (!event.target.checked || busy || document.hidden || suspended) return;
+    mode = id; render();
   });
   for (const [id, op] of [['apply', 'set_current'], ['start', 'start'], ['stop', 'stop']]) get(id).addEventListener('click', () => { void send(op); });
   window.addEventListener('evse:state', event => {

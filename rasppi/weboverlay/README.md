@@ -1,5 +1,10 @@
 # Weboverlay mit manueller Wallboxbedienung
 
+Zusätzliche Modusauswahl PV-Regelung/Manuell/Benutzerdefiniert und strukturierte,
+persistente Regelvorlagen unter Settings. **PV-/Zeitautomatik noch nicht aktiv**;
+Speichern/Moduswechsel sendet keine Wallboxbefehle. Keine geratenen Stromgrenzen.
+[Umfang, sichere Speicherung und offene Reglerstufe](../../docs/wallbox/charging-profiles.md).
+
 Manuelle Bedienung und einklappbare technische Details stehen nur auf der
 Übersicht, ohne doppelten Wallbox-Tab. Der Slider bearbeitet auch ohne bestätigte
 Grenzen nur einen lokalen Entwurf; Start/Übernehmen bleiben dann gesperrt.
