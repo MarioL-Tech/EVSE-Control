@@ -320,6 +320,15 @@ function clean(run) {
           assert(!await page.locator('#below').isVisible(), 'Below-limit row starts in collapsed diagnostics');
         } else {
           assert.equal(await page.locator('#chart-grid > figure').count(), 4);
+          const order = await page.evaluate(() => {
+            const house = document.getElementById('smartmeter'), grid = document.getElementById('chart-grid');
+            const toolbar = document.querySelector('.calendar-toolbar'), diagnostics = document.querySelector('.history-diagnostics');
+            return { dom: !!(house.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING),
+              belowControls: house.getBoundingClientRect().top >= toolbar.getBoundingClientRect().bottom,
+              beforeWallbox: house.getBoundingClientRect().bottom <= grid.getBoundingClientRect().top,
+              beforeDiagnostics: house.getBoundingClientRect().bottom <= diagnostics.getBoundingClientRect().top };
+          });
+          assert(Object.values(order).every(Boolean), 'Shared controls, HOUSE first, Wallbox curves, then diagnostics at every viewport');
           assert.equal(await page.locator('.history-diagnostics figure').count(), 5);
           assert.equal(await page.locator('#chart-grid svg[role="img"][aria-label]').count(), 4);
           await page.waitForFunction(() => document.querySelector('#chart-grid .chart-line'));

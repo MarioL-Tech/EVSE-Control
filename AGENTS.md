@@ -4,7 +4,23 @@ Stand: 2026-10-30. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
-Aktueller Darstellungsauftrag (2026-10-30, implementiert; Prüf-/Freigabestand PR#62):
+Aktueller Folgeauftrag (2026-10-30): Haus-Netzleistung auf der Diagrammseite direkt
+unter die gemeinsame Zeitraumwahl und oberhalb sämtlicher Wallboxdiagramme.
+Reihenfolge im echten DOM geändert, keine CSS-Umsortierung/Komprimierung oder
+zweite Instanz. Diagnose unten, Status-/Frische-/Fehler und Datenpfade unverändert;
+Browser prüft tatsächliche Reihenfolge bei320..2560px. PWA-Shell v13, Dockerabnahme
+für diesen Folgeauftrag noch offen. Nutzer meldet weiterhin unverbundene Diagnose-
+punkte nach PR#62. Fokussierte Subagentanalyse bestätigt verbliebene kategorielle
+has_gap-/complete-Barrieren; vorhandene API vermischt aber Verarbeitungsrückstand,
+Coverage, echte Ausfälle/Retained/Clock und verlorenen Kontext. Bloßes Freigeben
+aller Zustandskanten würde bekannte Lücken möglicherweise heilen. Keine solche
+Lockerung vorgenommen und kein Diagnosefix als fertig behaupten. Aktuellen
+Screenshot mit aufgeklappter Diagnose und Zeitraum beim Nutzer angefragt;
+Qualitätslane/isolierte Marker aus PR#62 allein haben den Nutzerfehler nicht behoben.
+Keine DB-/Aufzeichnungs-/Steueränderung oder Produktionszugriff; Wallbox-Go weiter
+ausdrücklich ausstehend.
+
+Vorheriger Darstellungsauftrag (2026-10-30, implementiert; PR#62 gemergt):
 Live-/Diagnosekurven auf Abschneiden prüfen, Phasenspannungen auch Live voll
 statt gestrichelt; Übersicht/Diagramme wie Settings volle verfügbare Breite.
 Überflüssige Wiederholungen kürzen, Status/Frische/Messzeit/Fehler und wichtige

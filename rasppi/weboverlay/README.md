@@ -6,6 +6,8 @@ ganzzahlige Achsen; gemischte/unbekannte Archivzustände bleiben separat markier
 ohne daraus konstante Zustände zu erfinden. Ein belegter Vorgänger darf eine
 Kurve am linken Fensterrand optisch anschneiden, echte Lücken/SQL-Live-Wechsel
 bleiben erhalten. Wallbox-Schreibfunktionen sind weiterhin nicht freigegeben.
+Das Haus-Netzleistungsdiagramm steht direkt unter der gemeinsamen Zeitraumwahl
+und vor den Wallboxkurven, ohne Änderung an der unabhängigen Datenerfassung.
 
 Eigenständiger Docker-Dienst, **PHP-Migration implementiert und Docker-getestet**:
 ein PHP-CLI-MQTT-Subscriber → privater atomarer Snapshot → PHP 8.4/Apache →
