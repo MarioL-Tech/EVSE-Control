@@ -16,16 +16,22 @@ Diese Datei ist zugleich das Änderungsledger dieses eng begrenzten Teilauftrags
   `/api/charging-plan` und `/api/smartmeter`. Keine Browser-URL, MQTT oder Modbus.
   Ein Thread, Zwei-Sekunden-Zyklus, Abbruch und Join im Destruktor.
 - `Input`: `now` monotone Sekunden; `utc` Epochsekunden; kopierte `Sources`;
+  `activation_guard` als vom Reader erzeugter kausaler Epochwert (32 kleine
+  Hexzeichen), ausdrücklich NICHT aus HTTP übernommen;
   `bus_connected`; optionales bestehendes `Telemetry sample` mit explizitem
   `sample_at` (monotoner erfolgreicher Readzeitpunkt, kein Heartbeat) und
   `sample_expires`; `hardware_max_ma` mit `hardware_expires`; explizite
   `installation_max_ma`. **Kein Standortdefault**; 32 A sind nur Softwareobergrenze.
 - `Engine::step(Input)` ergibt null oder genau eine `Action` mit `Operation::Stop`,
   `SetCurrent`, `Start`, Ziel-mA, Seriennummer, Generation, Aktivierungs-ID,
-  Konfigurationsrevision und gemeinsamer monotoner Drei-Sekunden-Deadline.
+  Konfigurationsrevision, Guard, Ausgabezeit/UTC und gemeinsamer monotoner
+  Drei-Sekunden-Deadline.
 - Vor **jedem** WriteCore-I/O (auch zwischen SetCurrent und Start)
   `engine.accepts(action, latest_input)` prüfen. Dies prüft auch manuelle Sperren;
-  die freie Funktion `action_is_current` prüft nur Quellen/Ticket. Bei false nichts mehr senden;
+  die freie Funktion `action_is_current` prüft nur Quellen/Ticket. `accepts` ist
+  jetzt nicht const: auch hier beobachtete neue Nonces werden während offener
+  Aktionen quarantänisiert; Zeit-/Busfehler verriegeln die Engine.
+  Bei false nichts mehr senden;
   `complete(action,{attempted, acknowledged})` melden. Owner priorisiert manuelle
   Befehle, hält den einzigen RS485-Port und führt maximal eine Aktion je Poll aus.
   `Start` bedeutet ausdrücklich **SetCurrent, danach Start im selben WriteCore
@@ -33,11 +39,15 @@ Diese Datei ist zugleich das Änderungsledger dieses eng begrenzten Teilauftrags
   erste Teil versucht wurde und der zweite entfällt, `attempted=true,
   acknowledged=false`: Automatik friert ein. Kein Retry, kein zweiter Master.
 - `manual_override()` vor jedem manuellen Start/Stop/SetCurrent: verriegelt die
-  Automatik bis neuer Aktivierungs-ID. Manuelles Stoppen bleibt unabhängig vom
+  Automatik bis neuer Aktivierungs-ID mit passendem Readerguard. Offene Aktionen
+  bleiben bis `complete` erhalten, auch nach manuellem Eingriff. Manuelles Stoppen bleibt unabhängig vom
   Enginezustand verfügbar. Doppelte/veraltete `complete`-Meldungen werden ignoriert.
 - `status()`/`status_name()`; reine `schedule_contains(Profile, utc)`.
 
 HTTP-Vertrag: Schema 1 aus dem Parentauftrag, inklusive nullable Site-Feldern.
+`activation.guard` ist ein erforderlicher String aus exakt 32 kleinen Hexzeichen;
+ein Default-Manualplan darf 32 Nullen liefern, aber keinen passenden Bootguard
+vortäuschen. HTTP aktualisiert niemals den Guard des Reader-Owners.
 Unbekannte/fehlende Pflichtwerte erlauben keinen automatischen Start. Smartmeter
 bleibt bestehendes Schema 1: signed `power_w`, `fetched_at` ISO8601 UTC mit optional
 bis sechs Nachkommastellen, `age_seconds`, **verbleibende** `fresh_for_seconds`.
@@ -57,6 +67,30 @@ nächsten expliziten Aktivierung ein. ACK ist kein Nachweis tatsächlichen Laden
 Start wartet auf neues `charging=true`, Stop auf `false` mit einem streng neueren
 `sample_at` als vor der Aktion; kein vorliegender Read beweist einen Writeeffekt.
 Keine Wiederholung.
+Eine neue Aktivierung darf niemals den Zeitfehler derselben Eingabe löschen.
+Ungültige UTC/Monotonie/Drift (>2 s) wird nicht als neue Zeitbaseline installiert;
+erst eine gültige Uhr plus wirklich neue Aktivierung kann die Sperre lösen.
+Konservative Uhrpolitik: auch Schutz-Stop wird bei Zeitfehler/Busverlust nicht
+automatisch freigegeben; manuelles Stoppen bleibt Sache des Owners. Stop-Tickets
+brauchen dagegen ausdrücklich KEIN frisches Sample, keine Hausdaten und keinen
+Hardwarecap: zuvor beobachtetes oder per Start-ACK angefordertes Laden genügt
+für genau einen Schutz-Stop. Danach bleibt unbekanntes Laden unbekannt und löst
+keine Wiederholung aus. Ein versuchter Stop ohne ACK friert ein.
+
+Der Owner erzeugt mit begrenztem CSPRNG einen neuen Guard je Boot und rotiert ihn
+nach jedem manuellen Start/SetCurrent/Stop sowie unklarem Buskontext. Vor manuellen
+Befehlen `manual_override` aufrufen. Guard ist Kausalversion, keine Authentifizierung.
+Nur eine neue Aktivierungs-ID mit exakt passendem nichtleerem Guard darf rearmen;
+Guardwechsel allein reicht nicht. Verspätete Mode-POSTs mit altem Guard dürfen
+keinen manuellen Stop aufheben. Vor jedem laststeigernden I/O gilt erneut die
+Guard-/Snapshotprüfung; Schutz-Stop ist vom Guard unabhängig, aber nicht von der
+manuellen/Freeze-Sperre. GET/Refresh/Reconnect rotiert den Guard nicht automatisch.
+Während einer offenen Aktion beobachtete Nonces (auch aus `accepts`) bleiben
+verbraucht; ein später unklarer Ausgang erfordert eine erst danach beobachtete
+explizite ID. Bis zu 64 solche IDs bleiben pro Engine quarantänisiert, auch nach
+Rearm; Überlauf sperrt bis zum Engine-/Readerneustart statt alte IDs zu vergessen.
+Moduswechsel während I/O friert konservativ auch bei späterem ACK ein; keine
+aufgeschobene Aktivierung wird nach `complete` automatisch ausgeführt.
 Nach beobachtetem Fahrzeugende kein Blindstart bis Ab-/Anstecken oder Aktivierung.
 
 PV: bekannte Phasenzahl und Zählertopologie erforderlich. Mindestens so viele
@@ -64,8 +98,11 @@ gültige Spannungen 150–300 V; W/A = Phasenanzahl × größte gültige Spannun
 Budget = erlaubter Bezug − Hausleistung + Wallboxleistung (nur wenn mitgemessen).
 Abgerundete ganze Ampere, begrenzt durch Profil, Standort, frisches Hardwaremaximum
 und Software32A, Minimum6A. Darunter verzögert pausieren, darüber verzögert starten;
-Anpassung nach konfigurierter Verzögerung. Alle fünf Profilparameter sind Pflicht,
-keine geratenen Defaults. Custom ohne PV benötigt keine Hausleistung.
+Anpassung nach konfigurierter Verzögerung. Importgrenze 0–100000 W; Hardwaremaximum
+6000–32000 mA. Vor der Rückkopplung muss Wallboxleistung endlich und nichtnegativ
+sein. Alle fünf PV-Profilparameter sind Pflicht, keine geratenen Defaults. Custom
+ohne PV benötigt weder Hausleistung, Importgrenze noch Zählertopologie; Phasenzahl
+1–3, Stromgrenzen und Verzögerungen bleiben auch dort Pflicht.
 Bestätigtes Sollziel statt wirksamen Limits merken: internes Lastmanagement löst
 keine Wiederholungen aus. Quellenablauf während aktiver Automatik löst höchstens
 eine noch mögliche Stopaktion aus; Wiederanlauf braucht frische Daten/Verzögerung.
@@ -87,6 +124,15 @@ Feste Enginestatuscodes: `awaiting_activation`, `manual`, `manual_override`,
 `invalid_response`, `disabled`, `clock_error`, `invalid_base`.
 
 ## Änderungs-/Prüfledger
+
+2026-10-30 19:27 CET (Europe/Vienna): Basis `8b82d7d`, enger Safety-Folgeauftrag:
+gleichzeitige Clock-/Noncefehler, Sampleverlust beim Schutz-Stop, ausstehende
+Outcomes über Aktivierung/manuellen Override und kausale Readerguards abgesichert.
+HTTP-Guardpflicht, konsistente Import-/Hardwaregrenzen und Custom-ohne-PV ergänzt.
+Gezielte Engine- und Loopback-HTTP-Regressionen hinzugefügt. Ausschließlich
+statisch geprüft; keine Hosttests, Builds, Docker-/CI-Läufe oder Hardwareaktionen.
+Parent muss Docker/GitHub-CI und Integrationsprüfung ausführen. Andere Agenten-
+und Parentdateien bleiben außerhalb dieses Branchscopes unverändert.
 
 2026-10-30 19:09 CET (Europe/Vienna): Engine, HTTP-Snapshotthread, Release-aktive native Fälle,
 Loopback-HTTP-Fixtures, additive CMake-Ziele, Docker-Abhängigkeiten und separater

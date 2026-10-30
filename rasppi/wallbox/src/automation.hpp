@@ -19,7 +19,7 @@ struct Profile {
 struct Settings {
     bool valid = false;
     double expires = 0;
-    std::string revision, activation;
+    std::string revision, activation, guard;
     Mode mode = Mode::Manual;
     Profile pv, custom;
     std::optional<int> phases;
@@ -36,6 +36,7 @@ struct Sources {
     bool clock_error = false;
 };
 struct Input {
+    std::string activation_guard; // reader-owned causal epoch, never supplied by HTTP
     double now = 0, utc = 0;
     Sources sources;
     bool bus_connected = false;
@@ -55,8 +56,9 @@ struct Action {
     Operation operation = Operation::Stop;
     int target_ma = 0;
     std::uint64_t serial = 0, source_generation = 0;
-    std::string activation, revision;
+    std::string activation, revision, guard;
     double deadline = 0;
+    double issued_at = 0, issued_utc = 0;
     bool requires_house = false;
 };
 struct Outcome { bool attempted = false, acknowledged = false; };
@@ -70,13 +72,14 @@ class Engine {
 public:
     std::optional<Action> step(const Input &);
     // Owner calls immediately before each IO; includes manual/frozen cancellation.
-    bool accepts(const Action &, const Input &) const noexcept;
+    bool accepts(const Action &, const Input &) noexcept;
     void complete(const Action &, Outcome);
     void manual_override() noexcept;
     Status status() const noexcept { return status_; }
 private:
     std::optional<Action> issue(Operation, int, const Input &);
     void reset_activation(const Settings &);
+    void consume_pending_activation(const Settings &);
     Status status_ = Status::AwaitingActivation;
     std::string activation_, revision_;
     Mode mode_ = Mode::Manual;
@@ -88,6 +91,8 @@ private:
     double command_sample_at_ = -1;
     bool have_clock_ = false;
     std::optional<Action> pending_;
+    std::vector<std::string> consumed_activations_; // bounded in-flight nonce quarantine
+    bool nonce_overflow_ = false;
     std::uint64_t serial_ = 0;
 };
 } // namespace wallbox::automation

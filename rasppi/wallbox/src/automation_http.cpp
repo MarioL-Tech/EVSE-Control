@@ -78,7 +78,7 @@ int minute(const Json &v) {
 }
 Profile profile(const Json &v,bool custom) {
     Profile p;
-    p.max_import_w=integer(field(v,"max_import_w"),0,2000000000);
+    p.max_import_w=integer(field(v,"max_import_w"),0,100000);
     p.max_current_ma=integer(field(v,"max_current_ma"),6000,32000);
     p.adjust_seconds=integer(field(v,"adjust_seconds"),0,3600);
     p.pause_seconds=integer(field(v,"pause_seconds"),0,3600);
@@ -105,6 +105,8 @@ Settings plan(const Json &j,double now,double utc,double elapsed) {
     if(ttl<=0 || ttl>6 || generated>utc+0.25 || utc-generated>ttl) throw std::runtime_error("clock");
     Settings s; s.revision=j.at("config_revision").get<std::string>();
     s.activation=j.at("activation").at("id").get<std::string>();
+    s.guard=j.at("activation").at("guard").get<std::string>();
+    if(!std::regex_match(s.guard,std::regex("[a-f0-9]{32}"))) throw std::runtime_error("guard");
     if(!std::regex_match(s.revision,std::regex("[a-f0-9]{64}")) || !std::regex_match(s.activation,std::regex("[a-f0-9]{32}"))) throw std::runtime_error("identity");
     auto mode=j.at("activation").at("mode");
     if(mode=="manual") s.mode=Mode::Manual; else if(mode=="pv") s.mode=Mode::Pv;

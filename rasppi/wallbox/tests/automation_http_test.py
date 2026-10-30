@@ -13,7 +13,7 @@ def plan():
                    pause_seconds=2, resume_seconds=3)
     return dict(schema_version=1, status="ok", generated_at=time.time(),
                 fresh_for_seconds=6, config_revision="a" * 64,
-                activation=dict(mode="pv", id="b" * 32),
+                activation=dict(mode="pv", id="b" * 32, guard="1" * 32),
                 config=dict(schema_version=1, timezone="Europe/Vienna",
                             manual=dict(current_ma=None), pv=profile,
                             custom=dict(profile, use_schedule=False, pv_enabled=False,
@@ -67,6 +67,20 @@ def run(case, expected, duration=600):
                 value["power_w"] = None
             elif case == "disabled" and is_plan:
                 value["status"] = "disabled"
+            elif case == "missing_guard" and is_plan:
+                del value["activation"]["guard"]
+            elif case == "bad_guard" and is_plan:
+                value["activation"]["guard"] = "G" * 32
+            elif case == "short_guard" and is_plan:
+                value["activation"]["guard"] = "1" * 31
+            elif case == "null_guard" and is_plan:
+                value["activation"]["guard"] = None
+            elif case == "over_import" and is_plan:
+                value["config"]["pv"]["max_import_w"] = 100001
+            elif case == "custom_no_pv" and is_plan:
+                value["activation"]["mode"] = "custom"
+                value["config"]["custom"]["max_import_w"] = None
+                value["config"]["installation"]["meter_includes_wallbox"] = None
             elif case == "same" and not is_plan:
                 # Malicious heartbeat cannot renew the ORIGINAL 1-second TTL.
                 value["fresh_for_seconds"] = 1 if counts[name] == 1 else 10
@@ -113,6 +127,9 @@ for case in ("403", "302", "bad", "duplicate", "nested_duplicate", "nan", "body"
 for case in ("old", "future", "null"):
     run(case, "ok invalid_response 1 0")
 run("disabled", "disabled ok 0 1")
+for case in ("missing_guard", "bad_guard", "short_guard", "null_guard", "over_import"):
+    run(case, "invalid_response ok 0 1")
+run("custom_no_pv", "ok ok 1 1")
 run("same", "ok ok 1 0", 2700)
 run("transport", "transport_unavailable transport_unavailable 1 1", 2700)
 run("barrier", "ok invalid_response 1 0", 2700)

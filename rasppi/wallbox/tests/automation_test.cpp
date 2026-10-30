@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <thread>
 
@@ -20,6 +21,7 @@ Input input() {
     Telemetry v{}; v.plugged_in=true; v.charging=false; v.voltage_v={230,240,235}; v.active_power_w=0;
     i.sample=v; i.sources.settings.valid=true; i.sources.settings.expires=10000;
     i.sources.settings.revision=std::string(64,'a'); i.sources.settings.activation=std::string(32,'a');
+    i.activation_guard=i.sources.settings.guard=std::string(32,'1');
     i.sources.settings.mode=Mode::Pv; i.sources.settings.pv=profile(); i.sources.settings.custom=profile();
     i.sources.settings.phases=3; i.sources.settings.meter_includes_wallbox=false;
     i.sources.house={true,10000,1793383199,-7200}; return i;
@@ -84,7 +86,7 @@ void tests() {
       } check(!e.step(i),"missing required evidence must not start");
     }
     { Engine e; auto i=input(); activate(e,i); i.sources.settings.phases=1; i.sources.house.power_w=-1000000;
-      i.hardware_max_ma=63000; i.installation_max_ma=16000; need(e,i,Operation::Start,16000); }
+      i.hardware_max_ma=32000; i.installation_max_ma=16000; need(e,i,Operation::Start,16000); }
     { Engine e; auto i=input(); activate(e,i); i.sources.settings.phases=1;
       i.sources.settings.meter_includes_wallbox=true; i.sources.house.power_w=0; i.sample->active_power_w=1440;
       need(e,i,Operation::Start,6000); }
@@ -107,6 +109,80 @@ void tests() {
       p.outside=Profile::Outside::Pause; i.sample->charging=true; need(e,i,Operation::Stop); }
     { Engine e; auto i=input(); activate(e,i); auto a=need(e,i,Operation::Start,10000);
       e.complete(a,{true,true}); i.sources.settings.valid=false; tick(i); need(e,i,Operation::Stop); }
+    // A new nonce must not erase a fault in the very same observation.
+    for (int fault=0;fault<4;++fault) {
+      Engine e; auto i=input(); activate(e,i); auto good=i;
+      if(fault==0) i.utc=std::numeric_limits<double>::quiet_NaN();
+      if(fault==1) i.utc=std::numeric_limits<double>::infinity();
+      if(fault==2) i.utc-=10;
+      if(fault==3) i.utc+=10;
+      check(!e.step(i) && e.status()==Status::Frozen,"same-step nonce cannot erase clock fault");
+      i=good; check(!e.step(i) && e.status()==Status::Frozen,"good clock cannot erase freeze");
+      i.sources.settings.activation=std::string(32,'c'); tick(i); need(e,i,Operation::Start,10000);
+    }
+    for (int fault=0;fault<4;++fault) {
+      Engine e; auto i=input(); activate(e,i); auto a=need(e,i,Operation::Start,10000); auto good=i;
+      if(fault==0) i.utc=std::numeric_limits<double>::quiet_NaN();
+      if(fault==1) i.utc=std::numeric_limits<double>::infinity();
+      if(fault==2) i.utc-=1;
+      if(fault==3) i.utc+=10;
+      check(!action_is_current(a,i) && !e.accepts(a,i),"invalid clock forbids IO");
+      e.complete(a,{false,false}); i=good; tick(i);
+      check(!e.step(i) && e.status()==Status::Frozen,"IO clock fault is latched");
+    }
+    for(int expiry=0;expiry<2;++expiry) {
+      Engine e; auto i=input(); activate(e,i); i.sample->charging=true;
+      auto a=need(e,i,Operation::SetCurrent,10000); e.complete(a,{true,true}); tick(i);
+      if(expiry) i.sample_expires=i.now; else i.sample->charging.reset();
+      a=need(e,i,Operation::Stop); check(e.accepts(a,i),"safety stop needs no fresh bool/sample/cap");
+      i.hardware_max_ma.reset(); i.hardware_expires=0;
+      check(action_is_current(a,i),"Stop independent of hardware readback");
+      e.complete(a,{true,true}); tick(i); check(!e.step(i),"unknown cannot repeat acknowledged Stop");
+      i.sample_expires=10000; i.sample->charging=true; tick(i); check(!e.step(i),"new true does not repeat Stop");
+      i.sample->charging=false; tick(i); check(!e.step(i),"new false settles Stop");
+    }
+    { Engine e; auto i=input(); activate(e,i); auto a=need(e,i,Operation::Start,10000);
+      e.complete(a,{true,true}); tick(i); i.sample.reset();
+      a=need(e,i,Operation::Stop); check(e.accepts(a,i),"started authorization survives sample loss");
+      e.complete(a,{true,false}); tick(i); check(!e.step(i) && e.status()==Status::Frozen,"failed safety Stop freezes"); }
+    for(int manual=0;manual<2;++manual) {
+      Engine e; auto i=input(); activate(e,i); auto a=need(e,i,Operation::Start,10000);
+      if(manual) { e.manual_override(); i.activation_guard=std::string(32,'2'); }
+      i.sources.settings.guard=i.activation_guard; i.sources.settings.activation=std::string(32,'c'); tick(i);
+      check(!e.step(i),"pending action retained across activation/manual change");
+      e.complete(a,{true,false}); tick(i);
+      check(!e.step(i) && e.status()==Status::Frozen,"pre-outcome nonce cannot erase late unknown freeze");
+      i.sources.settings.activation=std::string(32,'d'); tick(i); need(e,i,Operation::Start,10000);
+    }
+    { Engine e; auto i=input(); activate(e,i); auto a=need(e,i,Operation::Start,10000);
+      i.sources.settings.activation=std::string(32,'c'); check(!e.accepts(a,i),"IO gate consumes in-flight nonce");
+      i.sources.settings.activation=std::string(32,'d'); check(!e.step(i),"second in-flight nonce");
+      e.complete(a,{true,false}); i.sources.settings.activation=std::string(32,'c'); tick(i);
+      check(!e.step(i) && e.status()==Status::Frozen,"all observed pending nonces quarantined");
+      i.sources.settings.activation=std::string(32,'e'); tick(i); need(e,i,Operation::Start,10000); }
+    { Engine e; auto i=input(); i.sources.settings.guard=std::string(32,'0'); activate(e,i);
+      check(!e.step(i),"boot guard mismatch cannot arm");
+      i.sources.settings.guard=i.activation_guard; tick(i); check(!e.step(i),"matching guard alone is not activation");
+      i.sources.settings.activation=std::string(32,'c'); tick(i); auto a=need(e,i,Operation::Start,10000);
+      i.activation_guard=std::string(32,'2'); check(!e.accepts(a,i),"rotated owner guard cancels increase");
+      e.complete(a,{false,false}); e.manual_override();
+      i.sources.settings.activation=std::string(32,'d'); tick(i);
+      check(!e.step(i) && e.status()==Status::ManualOverride,"late mode POST cannot undo manual Stop");
+      i.sources.settings.guard=i.activation_guard; tick(i); check(!e.step(i),"same stale nonce stays consumed");
+      i.sources.settings.activation=std::string(32,'e'); tick(i); need(e,i,Operation::Start,10000); }
+    { Engine e; auto i=input(); i.sources.settings.mode=Mode::Custom;
+      i.sources.settings.custom.max_import_w.reset(); i.sources.settings.meter_includes_wallbox.reset();
+      i.sources.house.valid=false; activate(e,i); need(e,i,Operation::Start,32000); }
+    for(int fault=0;fault<6;++fault) {
+      Engine e; auto i=input(); activate(e,i);
+      if(fault==0) i.sources.settings.pv.max_import_w=100001;
+      if(fault==1) i.hardware_max_ma=32001;
+      if(fault==2) i.hardware_max_ma=5999;
+      if(fault==3) i.sample->active_power_w=std::numeric_limits<double>::quiet_NaN();
+      if(fault==4) i.sample->active_power_w=std::numeric_limits<double>::infinity();
+      if(fault==5) i.sample->active_power_w=-1;
+      check(!e.step(i),"invalid feedback budget/cap cannot start");
+    }
     { Profile p; p.weekdays={1}; p.windows={{23*60,60}};
       // Monday 2026-10-26 22:00 UTC = 23:00 local; Tuesday 00:59 local.
       check(schedule_contains(p,1793052000),"cross midnight start");

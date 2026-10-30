@@ -42,11 +42,18 @@ bool schedule_contains(const Profile &p, double utc) {
 }
 namespace {
 bool range(const std::optional<int> &v, int lo, int hi) { return v && *v >= lo && *v <= hi; }
-bool valid_profile(const Profile &p) {
-    return range(p.max_import_w,0,2000000000) && range(p.max_current_ma,6000,32000)
+bool valid_profile(const Profile &p, bool feedback) {
+    return ((!feedback && !p.max_import_w) || range(p.max_import_w,0,100000)) && range(p.max_current_ma,6000,32000)
         && range(p.adjust_seconds,0,3600) && range(p.pause_seconds,0,3600) && range(p.resume_seconds,0,3600);
 }
 bool fresh(double expiry, double now) { return std::isfinite(expiry) && expiry > now; }
+bool utc_valid(double utc) { return std::isfinite(utc) && utc>=0 && utc<=4102444800.0; }
+bool epoch(const std::string &s) {
+    return s.size()==32 && s.find_first_not_of("0123456789abcdef")==std::string::npos;
+}
+bool guard_matches(const Input &i) {
+    return epoch(i.activation_guard) && i.activation_guard==i.sources.settings.guard;
+}
 bool valid_schedule(const Profile &p) {
     if (!p.use_schedule || !p.pv_enabled) return false;
     if (!*p.use_schedule) return true;
@@ -57,55 +64,88 @@ bool valid_schedule(const Profile &p) {
 }
 }
 bool action_is_current(const Action &a, const Input &i) noexcept {
-    return std::isfinite(i.now) && i.bus_connected && i.now < a.deadline
+    const bool ticket=std::isfinite(i.now) && std::isfinite(a.issued_at) && std::isfinite(a.deadline)
+        && i.now>=a.issued_at && i.now<a.deadline && utc_valid(i.utc) && utc_valid(a.issued_utc)
+        && i.utc>=a.issued_utc && std::abs((i.utc-a.issued_utc)-(i.now-a.issued_at))<=2
+        && i.bus_connected && !i.sources.clock_error;
+    if (!ticket) return false;
+    // A protective Stop needs no fresh measurement, house value or hardware cap.
+    if (a.operation==Operation::Stop) return true;
+    return guard_matches(i) && a.guard==i.activation_guard
         && a.activation == i.sources.settings.activation && a.revision == i.sources.settings.revision
         && a.source_generation == i.sources.generation && !i.sources.clock_error
         && i.sample && std::isfinite(i.sample_at) && i.sample_at>=0 && i.sample_at<=i.now && fresh(i.sample_expires,i.now)
-        && (a.operation == Operation::Stop || (i.sources.settings.valid && fresh(i.sources.settings.expires,i.now)
-            && i.sample->plugged_in.value_or(false) && i.sample->error_code==0
-            && i.hardware_max_ma && fresh(i.hardware_expires,i.now) && i.installation_max_ma
+        && (i.sources.settings.valid && fresh(i.sources.settings.expires,i.now)
+            && i.sample->plugged_in.value_or(false) && i.sample->charging.has_value() && i.sample->error_code==0
+            && range(i.hardware_max_ma,6000,32000) && fresh(i.hardware_expires,i.now) && range(i.installation_max_ma,6000,32000)
             && a.target_ma>=6000 && a.target_ma<=std::min({32000,*i.hardware_max_ma,*i.installation_max_ma})
-            && (!a.requires_house || (i.sources.house.valid && fresh(i.sources.house.expires,i.now)))));
+            && (!a.requires_house || (i.sources.house.valid && fresh(i.sources.house.expires,i.now)
+                && std::isfinite(i.sources.house.power_w) && std::isfinite(i.sample->active_power_w) && i.sample->active_power_w>=0)));
 }
 void Engine::reset_activation(const Settings &s) {
     activation_=s.activation; revision_=s.revision; mode_=s.mode; armed_=s.mode!=Mode::Manual;
     frozen_=manual_=start_wait_=stop_wait_=auto_stopped_=observed_running_=finished_=unplugged_=false;
-    ack_target_.reset(); candidate_.reset(); pending_.reset();
+    ack_target_.reset(); candidate_.reset();
 }
-void Engine::manual_override() noexcept { manual_=true; pending_.reset(); candidate_.reset(); status_=Status::ManualOverride; }
-bool Engine::accepts(const Action &a,const Input &i) const noexcept {
-    return pending_ && pending_->serial==a.serial && !manual_ && !frozen_ && action_is_current(a,i);
+void Engine::manual_override() noexcept { manual_=true; candidate_.reset(); status_=Status::ManualOverride; }
+void Engine::consume_pending_activation(const Settings &s) {
+    if (!pending_ || !epoch(s.activation) || s.activation==pending_->activation ||
+        std::find(consumed_activations_.begin(),consumed_activations_.end(),s.activation)!=consumed_activations_.end()) return;
+    if (consumed_activations_.size()==64) { nonce_overflow_=frozen_=true; return; }
+    consumed_activations_.push_back(s.activation);
+    frozen_=true; // mode changes during IO require a genuinely later activation
+}
+bool Engine::accepts(const Action &a,const Input &i) noexcept {
+    consume_pending_activation(i.sources.settings);
+    const bool clock_ok=std::isfinite(i.now) && utc_valid(i.utc) && (!have_clock_ ||
+        (i.now>=last_now_ && i.utc>=last_utc_ && std::abs((i.utc-last_utc_)-(i.now-last_now_))<=2));
+    if (!clock_ok || i.sources.clock_error || !i.bus_connected) frozen_=true;
+    return pending_ && pending_->serial==a.serial && !manual_ && !frozen_ && clock_ok && action_is_current(a,i);
 }
 std::optional<Action> Engine::issue(Operation op,int ma,const Input &i) {
-    Action a{op,ma,++serial_,i.sources.generation,i.sources.settings.activation,i.sources.settings.revision,i.now+3};
+    Action a; a.operation=op; a.target_ma=ma; a.serial=++serial_;
+    a.source_generation=i.sources.generation; a.activation=i.sources.settings.activation;
+    a.revision=i.sources.settings.revision; a.deadline=i.now+3;
+    a.guard=i.activation_guard; a.issued_at=i.now; a.issued_utc=i.utc;
     a.requires_house=op!=Operation::Stop && (i.sources.settings.mode==Mode::Pv || i.sources.settings.custom.pv_enabled.value_or(true));
     command_sample_at_=i.sample_at;
     pending_=a; candidate_.reset(); return a;
 }
 void Engine::complete(const Action &a, Outcome result) {
     if (!pending_ || pending_->serial!=a.serial) return;
+    const auto completed=*pending_;
     pending_.reset();
     if (!result.acknowledged) {
         if (result.attempted) { frozen_=true; status_=Status::Frozen; }
         return;
     }
-    if (a.operation==Operation::Stop) { stop_wait_=true; start_wait_=false; auto_stopped_=true; }
-    else { ack_target_=a.target_ma; if(a.operation==Operation::Start) start_wait_=true; }
+    if (completed.operation==Operation::Stop) { stop_wait_=true; start_wait_=false; auto_stopped_=true; }
+    else { ack_target_=completed.target_ma; if(completed.operation==Operation::Start) start_wait_=true; }
 }
 std::optional<Action> Engine::step(const Input &i) {
     const auto &s=i.sources.settings;
-    if (!std::isfinite(i.now) || !std::isfinite(i.utc) || (have_clock_ &&
-        (i.now<last_now_ || i.utc<last_utc_ || std::abs((i.utc-last_utc_)-(i.now-last_now_))>2))) frozen_=true;
-    last_now_=i.now; last_utc_=i.utc; have_clock_=true;
-    if (!i.bus_connected || i.sources.clock_error) frozen_=true;
+    consume_pending_activation(s);
+    const bool clock_ok=std::isfinite(i.now) && i.now>=0 && utc_valid(i.utc) && !i.sources.clock_error && (!have_clock_ ||
+        (i.now>=last_now_ && i.utc>=last_utc_ && std::abs((i.utc-last_utc_)-(i.now-last_now_))<=2));
+    // Invalid observations must never poison the reference used by later gates.
+    if (clock_ok) { last_now_=i.now; last_utc_=i.utc; have_clock_=true; }
     if (s.valid && fresh(s.expires,i.now) && !s.activation.empty()) {
         if (!baseline_) { baseline_=true; activation_=s.activation; revision_=s.revision; mode_=s.mode; }
-        else if (s.activation!=activation_) reset_activation(s);
+        // Consume a nonce seen while IO is outstanding, but retain the exact
+        // action until complete(). It cannot rearm after a late unknown result.
+        else if (pending_) { activation_=s.activation; }
+        else if (s.activation!=activation_) {
+            const bool consumed=std::find(consumed_activations_.begin(),consumed_activations_.end(),s.activation)!=consumed_activations_.end();
+            if (!consumed && !nonce_overflow_ && guard_matches(i) && clock_ok && i.bus_connected) {
+                reset_activation(s);
+            }
+            else { activation_=s.activation; if(consumed || nonce_overflow_) frozen_=true; } // not deferred
+        }
         else if (armed_ && (s.revision!=revision_ || s.mode!=mode_)) frozen_=true; // saving never activates
     }
-    if (!i.bus_connected || i.sources.clock_error) frozen_=true;
-    if (manual_) { status_=Status::ManualOverride; return {}; }
+    if (!clock_ok || !i.bus_connected) frozen_=true;
     if (frozen_) { status_=Status::Frozen; return {}; }
+    if (manual_) { status_=Status::ManualOverride; return {}; }
     if (!armed_) { status_=baseline_ && s.mode==Mode::Manual?Status::Manual:Status::AwaitingActivation; return {}; }
     if (pending_) return {};
     bool sample_ok=i.bus_connected && i.sample && std::isfinite(i.sample_at) && i.sample_at>=0 && i.sample_at<=i.now && fresh(i.sample_expires,i.now);
@@ -123,26 +163,32 @@ std::optional<Action> Engine::step(const Input &i) {
     }
     if (unplugged_ && v && v->plugged_in.value_or(false)) { unplugged_=false; finished_=false; }
     const auto &p=s.mode==Mode::Pv?s.pv:s.custom;
-    bool config_ok=valid_profile(p) && range(s.phases,1,3) && s.meter_includes_wallbox.has_value()
+    bool feedback=s.mode==Mode::Pv || p.pv_enabled.value_or(true);
+    bool config_ok=valid_profile(p,feedback) && range(s.phases,1,3) && (!feedback || s.meter_includes_wallbox.has_value())
         && range(i.installation_max_ma,6000,32000)
         && (s.mode!=Mode::Custom || valid_schedule(p));
     bool outside=s.mode==Mode::Custom && p.use_schedule.value_or(false) && !schedule_contains(p,i.utc);
     if (s.valid && fresh(s.expires,i.now) && config_ok && outside && p.outside==Profile::Outside::Manual) {
         candidate_.reset(); status_=Status::ManualHandling; return {};
     }
-    bool feedback=s.mode==Mode::Pv || p.pv_enabled.value_or(true);
-    bool sources_ok=s.valid && fresh(s.expires,i.now) && config_ok && v && v->plugged_in.value_or(false)
-        && v->charging.has_value() && v->error_code==0 && range(i.hardware_max_ma,6000,2000000000) && fresh(i.hardware_expires,i.now);
-    double per_amp=0;
+    bool sources_ok=s.valid && fresh(s.expires,i.now) && guard_matches(i) && config_ok && v && v->plugged_in.value_or(false)
+        && v->charging.has_value() && v->error_code==0 && range(i.hardware_max_ma,6000,32000) && fresh(i.hardware_expires,i.now);
+    double per_amp=0, budget=0;
     if (sources_ok && feedback) {
         int count=0; double max_v=0;
         for (double voltage:v->voltage_v) if(std::isfinite(voltage) && voltage>=150 && voltage<=300) { ++count; max_v=std::max(max_v,voltage); }
-        sources_ok=count>=*s.phases && i.sources.house.valid && fresh(i.sources.house.expires,i.now) && std::isfinite(i.sources.house.power_w);
+        sources_ok=count>=*s.phases && i.sources.house.valid && fresh(i.sources.house.expires,i.now) && std::isfinite(i.sources.house.power_w)
+            && std::isfinite(v->active_power_w) && v->active_power_w>=0;
         per_amp=*s.phases*max_v;
+        if (sources_ok) {
+            budget=*p.max_import_w-i.sources.house.power_w+(*s.meter_includes_wallbox?v->active_power_w:0.0);
+            sources_ok=std::isfinite(budget);
+        }
     }
     if (!sources_ok) {
         candidate_.reset(); status_=config_ok?Status::SourceUnavailable:Status::InvalidConfiguration;
-        if (v && (v->charging.value_or(false) || start_wait_) && !stop_wait_) return issue(Operation::Stop,0,i);
+        if ((observed_running_ || start_wait_ || (v && v->charging.value_or(false))) && !stop_wait_)
+            return issue(Operation::Stop,0,i);
         return {};
     }
     if (stop_wait_) { status_=Status::AwaitingStop; return {}; }
@@ -150,7 +196,6 @@ std::optional<Action> Engine::step(const Input &i) {
     int target=std::min({*p.max_current_ma,*i.installation_max_ma,*i.hardware_max_ma,32000});
     target=(target/1000)*1000;
     if (feedback) {
-        double budget=*p.max_import_w-i.sources.house.power_w+(*s.meter_includes_wallbox?v->active_power_w:0.0);
         double amps=std::floor(budget/per_amp);
         target=amps<6?0:std::min(target,static_cast<int>(std::min(amps,32.0))*1000);
     }
