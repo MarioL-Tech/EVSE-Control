@@ -17,7 +17,8 @@ evse::Uid fakeUid() {
 void clearOutput() { Serial.output.clear(); Serial2.output.clear(); sim.trace.clear(); }
 void restart() {
   presence = evse::Presence{}; uart = evse::LineReader{}; lockOutput = LockOutput{};
-  chargingOn = false; readerReady = false; radioFault = false; lastPoll = 0;
+  charging = evse::ChargeMirror{}; gateway = evse::Gateway{}; enrollmentUidAllowed = false;
+  readerReady = false; radioFault = false; lastPoll = 0;
   Serial.input.clear(); Serial2.input.clear(); clearOutput(); setup();
 }
 void fresh() { sim = SimulatedHardware{}; restart(); }
@@ -121,8 +122,8 @@ void uartOrchestration() {
   fresh(); clearOutput();
   const std::string frames = "CMD:CHARGE:ON\nCMD:CHARGE:OFF\n";
   Serial2.input.insert(Serial2.input.end(), frames.begin(), frames.end());
-  handleUart(); CHECK(chargingOn); CHECK(!Serial2.input.empty());
-  handleUart(); CHECK(!chargingOn); CHECK(security.locked());
+  handleUart(); CHECK(charging.value() == evse::Charge::On); CHECK(!Serial2.input.empty());
+  handleUart(); CHECK(charging.value() == evse::Charge::Off); CHECK(security.locked());
   const std::string overlong(1000, 'A');
   Serial2.input.insert(Serial2.input.end(), overlong.begin(), overlong.end());
   const auto size = Serial2.input.size(); handleUart();
@@ -132,10 +133,67 @@ void uartOrchestration() {
   CHECK(Serial2.output == "EVSE:ERROR:UNKNOWN_CMD\n");
   CHECK(Serial.output.find("10:20:30:40") == std::string::npos);
 }
+std::string gatewayId(unsigned n) {
+  char id[33]; std::snprintf(id,sizeof(id),"%032x",n); return id;
+}
+constexpr const char *bootSession = "000102030405060708090a0b0c0d0e0f";
+std::string gatewayLease(unsigned id) {
+  clearOutput();
+  command(("CMD:GATEWAY:"+gatewayId(id)+":"+bootSession+":STATUS").c_str());
+  const auto at = Serial2.output.find(":STATUS:OK:"); CHECK(at != std::string::npos);
+  const auto chargingAt = Serial2.output.find("EVSE:STATUS:CHARGING:");
+  const auto lockAt = Serial2.output.find("EVSE:STATUS:ANTITHEFT:");
+  const auto securityAt = Serial2.output.find("EVSE:STATUS:SECURITY:");
+  CHECK(chargingAt < lockAt && lockAt < securityAt && securityAt < at);
+  return Serial2.output.substr(at+11,32);
+}
+std::string gatewayRequest(unsigned id, const std::string &lease, const char *op) {
+  return "CMD:GATEWAY:"+gatewayId(id)+":"+bootSession+":"+lease+":"+op;
+}
+void gatewayOrchestration() {
+  fresh(); CHECK(charging.value() == evse::Charge::Unknown);
+  CHECK(position("ENTROPY_ENABLE") < position("ENTROPY_FILL"));
+  CHECK(position("ENTROPY_FILL") < position("ENTROPY_DISABLE"));
+  CHECK(position("ENTROPY_DISABLE") < position("NVS_INIT"));
+  auto token = gatewayLease(1);
+  auto req = gatewayRequest(2,token,"UNLOCK"); clearOutput(); command(req.c_str());
+  CHECK(!security.locked()); CHECK(position("NVS_COMMIT") < position("PWM_WRITE"));
+  CHECK(Serial2.output.find(":UNLOCK:UNLOCKED") != std::string::npos);
+  const auto durable = sim.durable;
+  clearOutput(); command(req.c_str()); CHECK(sim.durable == durable);
+  CHECK(std::find(sim.trace.begin(),sim.trace.end(),"NVS_SET") == sim.trace.end());
+  CHECK(Serial2.output.find(":UNLOCK:UNLOCKED") != std::string::npos);
+  token = gatewayLease(3); command(gatewayRequest(4,token,"ENROLL").c_str());
+  card(); CHECK(security.count() == 0); // held at START cannot enroll
+  absent(); clearOutput(); card(); CHECK(security.count() == 1);
+  CHECK(Serial2.output.find("UID:") == std::string::npos);
+  CHECK(Serial.output.find("10:20:30:40") == std::string::npos);
+  sim.now += 10001; loop(); // expire RPC cache/leases; enrollment itself remains bounded separately
+  token = gatewayLease(5); command(gatewayRequest(6,token,"ENROLL").c_str());
+  CHECK(security.enrolling());
+  token = gatewayLease(7); command(gatewayRequest(8,token,"UNLOCK").c_str());
+  CHECK(!security.enrolling() && !security.locked());
+  sim.now += 10001; loop();
+  token = gatewayLease(9); clearOutput(); command(gatewayRequest(10,token,"MIRROR:ON").c_str());
+  CHECK(charging.value() == evse::Charge::On && !security.locked());
+  CHECK(std::find(sim.trace.begin(),sim.trace.end(),"PWM_WRITE") == sim.trace.end());
+  sim.now += 10000; clearOutput(); loop();
+  CHECK(charging.value() == evse::Charge::Unknown);
+  CHECK(Serial2.output.find("CHARGING:UNKNOWN:SRC:watchdog") != std::string::npos);
+  token = gatewayLease(11); sim.nvsCommitFail = true;
+  command(gatewayRequest(12,token,"LOCK").c_str());
+  CHECK(!security.ready() && security.locked());
+  CHECK(Serial2.output.find(":LOCK:STORAGE_ERROR") != std::string::npos);
+  fresh(); sim.entropyBroken = true; restart(); clearOutput();
+  command(("CMD:GATEWAY:HELLO:"+gatewayId(1)).c_str());
+  CHECK(Serial2.output == "EVSE:ERROR:GATEWAY_UNAVAILABLE\n");
+  CHECK(security.ready() && security.locked());
+}
 } // namespace
 int main() {
   try {
     bootAndPwm(); enrollmentAndPrivacy(); persistenceFailures(); readerFaults(); uartOrchestration();
-    std::cout << "5 simulated firmware suites passed (not physical hardware tests)\n";
+    gatewayOrchestration();
+    std::cout << "6 simulated firmware suites passed (not physical hardware tests)\n";
   } catch (const std::exception &error) { std::cerr << error.what() << '\n'; return 1; }
 }

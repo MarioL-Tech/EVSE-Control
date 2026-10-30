@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-30 18:57 (Europe/Vienna)
+
+- ESP32: manueller persistierter Servo-Zielwert ohne Toggle, Gateway-RPC v2 mit
+  Bootsession, einmaligen 8-s-Leases und begrenztem 10-s-ID-/ACK-Cache vorbereitet.
+  Bestehendes NVS-Format, Bootpolicy, Karten und RFID-Präsentationsregeln erhalten.
+- Ladezustand als veraltbarer ON/OFF/UNKNOWN-Spiegel, initial/bei 10-s-Ausfall
+  UNKNOWN; Legacy-Charge-Befehle bleiben kompatibel. Gatewayaufnahme ohne UID-Echo.
+- Reine Protokoll-/Persistenz-/Watchdog- und simulierte Firmwareadaptertests für
+  Docker ergänzt; lokal mangels Docker nicht ausgeführt. Targetcompile/CI offen,
+  kein Flash, Pi-/SSH-/Hardwarezugriff und keine physische Entropie-/Servozusage.
+
+
 ## 2026-10-30 18:10 (Europe/Vienna)
 
 - Erste vollständige Konfigurations-CI da7980e besteht191JS-/43neuePHP-/HTTP-

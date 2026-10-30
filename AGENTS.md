@@ -4,6 +4,18 @@ Stand: 2026-10-30. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
+ESP32-Folgeauftrag (2026-10-30, Basis PR#68/c5ac0d7): manuelles Website-
+Antitheft ACTIVE/INACTIVE und RFID-Settings sowie frischer Pi-Ladespiegel jetzt
+ausdrücklich autorisiert. Firmwareteil implementiert: Security::setLocked(bool),
+persistierter idempotenter Zielwert, keine Änderung am 188-Byte-NVS-Format;
+Gateway-RPC v2 mit Bootsession/8-s-Einmalleases/acht 10-s-ACK-Cacheplätzen.
+Ladespiegel initial UNKNOWN, nach 10 s ohne neu ausgeführtes Update UNKNOWN;
+kein Wallboxeffekt. Vertrag/Entropiegrenzen in docs/uart-protocol.md. Reine und
+simulierte Adaptertests ergänzt, ausschließlich Docker/CI vorgesehen; lokal kein
+Docker, Tests/Targetcompile noch nicht ausgeführt. Kein Flash/Pi/SSH/Hardware-
+Nachweis. Pi-Gateway und Website sind separate Integrationsarbeit, keine MQTT-
+Implementierung auf ESP32; bestehende Legacy-UID-Zeilen dort niemals weiterleiten.
+
 Aktueller Webbedienauftrag (2026-10-30): PR#64 vom Projektinhaber gemergt.
 Neuer Auftrag nach gemergtemPR#67 (main8acecb1): wiederholte Bedienhinweise kürzen;
 Screenshot belegt geprüfte Verbindung/Gerätemaximum32A, aber unbekanntes

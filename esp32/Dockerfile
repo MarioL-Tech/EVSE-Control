@@ -3,7 +3,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends g++ \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY include/ include/
-COPY src/security.cpp src/protocol.cpp src/
+COPY src/security.cpp src/protocol.cpp src/gateway.cpp src/
 COPY tests/ tests/
 COPY src/main.cpp src/main.cpp
 RUN g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -g \
@@ -12,8 +12,12 @@ RUN g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -g \
     && ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 /security-test
 RUN g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -g \
       -fsanitize=address,undefined -fno-omit-frame-pointer -fno-pie -no-pie \
-      -Itests/stubs -Iinclude src/security.cpp src/protocol.cpp tests/hardware_test.cpp -o /hardware-test \
+      -Itests/stubs -Iinclude src/security.cpp src/protocol.cpp src/gateway.cpp tests/hardware_test.cpp -o /hardware-test \
     && ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 /hardware-test
+RUN g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -g \
+      -fsanitize=address,undefined -fno-omit-frame-pointer -fno-pie -no-pie \
+      -Iinclude src/security.cpp src/protocol.cpp src/gateway.cpp tests/gateway_test.cpp -o /gateway-test \
+    && ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 /gateway-test
 
 FROM python:3.12.12-slim-bookworm AS toolchain
 RUN pip install --no-cache-dir platformio==6.1.18
@@ -40,6 +44,7 @@ ENTRYPOINT ["pio", "run", "--environment", "esp32dev", "--target", "upload"]
 
 # Force both native test suites into the default build dependency graph.
 FROM scratch AS artifacts
+COPY --from=native-tests /gateway-test /tests/gateway-test
 COPY --from=native-tests /security-test /tests/security-test
 COPY --from=native-tests /hardware-test /tests/hardware-test
 COPY --from=firmware-build /firmware /firmware

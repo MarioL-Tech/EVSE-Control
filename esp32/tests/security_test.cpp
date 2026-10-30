@@ -147,6 +147,35 @@ void malformed(const Blob &b) {
   CHECK(s.card(uid(), 1) == Result::NotReady);
 }
 
+void explicitSetIsNotToggle() {
+  auto storage = stored(record(true, BootMode::Unlocked, 2));
+  Security s(storage); CHECK(s.begin()); // boot policy explicitly unlocked
+  const auto mode = s.mode(); const auto count = s.count();
+  CHECK(s.startEnrollment(0) == Result::EnrollStarted);
+  CHECK(s.setLocked(false) == Result::Unlocked);
+  CHECK(!s.enrolling());
+  auto saves = storage.saves;
+  CHECK(s.setLocked(false) == Result::Unlocked && storage.saves == saves);
+  storage.beforeSave = [&](const Blob &b) {
+    Record out; CHECK(decode(b,out)); CHECK(out.locked);
+    CHECK(!s.locked()); // commit completes before in-memory target/ACK
+  };
+  CHECK(s.setLocked(true) == Result::Locked);
+  storage.beforeSave = {};
+  CHECK(s.mode() == mode && s.count() == count && s.allowed(uid()) && s.allowed(uid(2)));
+  CHECK(s.startEnrollment(1) == Result::EnrollStarted);
+  storage.fail = true;
+  CHECK(s.setLocked(false) == Result::StorageError);
+  CHECK(s.locked() && !s.ready() && !s.enrolling());
+  saves = storage.saves;
+  CHECK(s.setLocked(false) == Result::NotReady && storage.saves == saves);
+  CHECK(s.setLocked(true) == Result::NotReady && storage.saves == saves);
+  for (auto failure : {LoadResult::Error,LoadResult::Corrupt}) {
+    MemoryStorage broken; broken.result = failure; Security unavailable(broken);
+    CHECK(!unavailable.begin()); CHECK(unavailable.setLocked(false) == Result::NotReady);
+    CHECK(broken.saves == 0 && unavailable.locked());
+  }
+}
 void missingInitializes() {
   MemoryStorage storage;
   Security s(storage);
@@ -866,6 +895,7 @@ void prefixMatchingAndNoUnlock() {
 
 int main() {
   const std::vector<std::pair<const char *, std::function<void()>>> cases = {
+    {"explicit persisted target idempotency enrollment and faults", explicitSetIsNotToggle},
     {"missing initializes locked empty", missingInitializes},
     {"unavailable fails closed without overwrite", unavailableFailsClosed},
     {"storage adapter corrupt length or type", corruptStorageBoundary},

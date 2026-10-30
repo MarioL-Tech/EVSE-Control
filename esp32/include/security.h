@@ -60,6 +60,7 @@ public:
   Result card(const Uid &uid, uint32_t now);
   Result revoke(const Uid &uid);
   Result setBootMode(BootMode mode);
+  Result setLocked(bool locked);
   bool ready() const { return fault_ == Fault::None && started_; }
   bool locked() const { return record_.locked; }
   BootMode mode() const { return record_.mode; }
