@@ -143,8 +143,12 @@ in API und Inspektionslabels, isolieren aber nicht jeden bekannten Aggregatwert
 während eines Verarbeitungsnachlaufs. Teilweise NULLs löschen einen bekannten
 numerischen Mittel-/letzten Wert nicht; vollständig unbekannte oder fehlende/leere Intervalle,
 unbekannte letzte Werte und gemischte kategoriale Zustände trennen weiterhin.
-Für Bool-/Code-Stufen bleiben auch die bisherigen globalen Qualitätsbarrieren
-erforderlich; eine unsichere Aggregatperiode wird nicht als konstanter Zustand ausgegeben.
+Bool-/Code-Stufen sind ausdrücklich der Trend tatsächlicher letzter Intervall-
+beobachtungen, nicht eine durchgehende Zustandsbelegung: bekannte, nicht gemischte
+letzte Werte bleiben trotz einzelner früherer NULLs oder grober Qualitätsflags
+verbunden. Qualität bleibt separat markiert. Unbekannter letzter Wert, vollständig
+unbekannte/leere/fehlende Intervalle und gemischte Zustände trennen weiterhin;
+Boolwerte/Codes werden niemals gemittelt oder NULL als0/Nein ausgegeben.
 Live-/Rohkurven behalten ihre10s-/Lifecycle-Regeln; nur eigene Zeiträume (custom)
 verwenden weiter konservative Min/Max-Spannen. Linienachsen orientieren sich an
 den dargestellten Mittel-/letzten Werten statt unsichtbaren Rohwertspitzen.
@@ -231,10 +235,15 @@ Fehler `unavailable`503/leer, deaktiviert200/leer, feste sichere Gründe.
 ## Browservertrag
 
 - Kategoriale Kalenderwerte werden nicht gemittelt: `mixed`/`unknown`/teilweise
-  Belegung bleiben eine separate Qualitätslane unter der Zahlenachse. Ein
-  tatsächlich bekannter letzter Zustand darf isoliert markiert werden, niemals
-  als durchgehender Zustand für ein mehrdeutiges Intervall. Vollständig unbekannte
-  Werte erhalten keine erfundene0/Nein-Position. Inspektion benennt Unknown explizit.
+  Belegung bleiben eine separate Qualitätslane unter der Zahlenachse. Die Haupt-
+  kurve verbindet bekannte, nicht gemischte letzte Intervallbeobachtungen als
+  schematische Stufen. Mittelpunkt und Stufensprung sind keine gemessene Aufnahme-
+  oder Übergangszeit, die Linie kein Nachweis dauerhafter Zustandsbelegung.
+  Teilweise NULL-Beobachtungen löschen den tatsächlich gültigen letzten Wert
+  nicht; letzter Wert NULL, gemischte und leere/fehlende Intervalle bleiben echte
+  Trennungen. Bei Mixed darf ein bekannter letzter Wert nur isoliert markiert
+  werden. Vollständig unbekannte Werte erhalten keine erfundene0/Nein-Position.
+  Sichtbare Beschriftung und zugängliche Inspektion benennen letzte Beobachtungen.
 - Livefenster behalten optional einen vorhandenen Vorgänger ausschließlich als
   Darstellungsrandkontext; nur bereits belegte Verbindungen dürfen an der linken
   Fenstergrenze geschnitten werden. Kein neues Sample, unveränderte Raw10s-/NULL-/

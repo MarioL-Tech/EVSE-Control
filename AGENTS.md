@@ -13,15 +13,28 @@ Browser prüft tatsächliche Reihenfolge bei320..2560px. PWA-Shell v13. Codehead
 Backend-/SQL-/HTTP-/TLS-/PWA-/Chromium-/Runtime-/Provisioningprüfungen). Simulierte
 dunkle Desktop-Liveansicht und helle mobile Hauswochenansicht visuell geprüft:
 Hauskurve oberhalb der Wallbox, gleiche Dimensionen, Diagnose unten. Finaler
-Prüf-/Freigabestand für diesen Layoutteil in PR#63; kein Pi-Deployment.
-Nutzer meldet weiterhin unverbundene Diagnose-
-punkte nach PR#62. Fokussierte Subagentanalyse bestätigt verbliebene kategorielle
-has_gap-/complete-Barrieren; vorhandene API vermischt aber Verarbeitungsrückstand,
-Coverage, echte Ausfälle/Retained/Clock und verlorenen Kontext. Bloßes Freigeben
-aller Zustandskanten würde bekannte Lücken möglicherweise heilen. Keine solche
-Lockerung vorgenommen und kein Diagnosefix als fertig behaupten. Aktuellen
-Screenshot mit aufgeklappter Diagnose und Zeitraum beim Nutzer angefragt;
-Qualitätslane/isolierte Marker aus PR#62 allein haben den Nutzerfehler nicht behoben.
+Prüf-/Freigabestand in PR#63; kein Pi-Deployment.
+Nutzer meldet weiterhin unverbundene Diagnosepunkte nach PR#62. Screenshot der
+Tagesansicht und privat lokal bereitgestellter API-Auszug nun ausgewertet (kein
+Produktionsabruf):136 belegte/288 Intervalle,20120 Messwerte; alle sieben Diagnose-
+felder haben136 bekannte, nicht gemischte letzte Werte, keinerlei unknown-last.
+16 Intervalle wurden fälschlich zu separaten Beobachtungspunkten:13 mit einzelnen
+vorangehenden NULLs,3 ausschließlich groben Qualitätsflags. Reine Qualitätslane
+und Marker aus PR#62 haben diesen Nutzerfehler nicht behoben.
+Gezielte neue Semantik: Kalenderdiagnose zeigt ausdrücklich **letzte beobachtete
+Intervallwerte**, keine dauerhafte Zustandsbelegung. Bekannte, nicht gemischte
+letzte Werte bilden schematische Stufen durch benachbarte Intervallmittelpunkte,
+auch bei vorherigen Teil-NULLs oder grober Erfassungsqualität. Kein gemessener
+Übergangszeitpunkt, keine Zusage, der Zustand habe während einer Aufnahmelücke
+bestanden. Qualität bleibt unter der Hauptkurve und in Inspektionslabels erhalten;
+letzter Wert NULL, komplett unbekannte/fehlende/leere Intervalle und gemischte
+Zustände brechen beide Kanten weiterhin. Mixed mit bekanntem letztem Wert bleibt
+isoliert. Keine Bool-/Codemittel, echte false/0 bleiben Werte, keine NULL-Füllung.
+Live-/Raw-/Lifecycle-/SQL-Live-/Frischeregeln unverändert. PWA-Shell v14. Synthetische
+136-Intervall-Regressionsstruktur und Tagesbrowserprüfung aller sieben Kurven;
+private JSON-Datei nicht ins Repository übernehmen. Statische Gegenprüfung ohne
+weiteren Datenpfadbefund, zugänglichen Beobachtungstitel auch bei Inspektion erhalten.
+Dockerabschluss für diese neue Diagnosekorrektur noch in Arbeit, Finalstand PR#63.
 Keine DB-/Aufzeichnungs-/Steueränderung oder Produktionszugriff; Wallbox-Go weiter
 ausdrücklich ausstehend.
 

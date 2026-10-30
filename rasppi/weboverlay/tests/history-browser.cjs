@@ -102,9 +102,11 @@ const { FIELDS } = require('../static/newcalendar.js');
           }
           if (period === 'day') for (const field of FIELDS.slice(0, 9))
             Object.assign(metrics[field], { count: 29, nulls: 1 });
+          if (period === 'day') for (const field of FIELDS.slice(9))
+            Object.assign(metrics[field], { count: 29, nulls: 1 });
         }
         return { from: a, to: bounds[i + 1], samples: empty ? 0 : samples,
-          has_gap: period === 'hour' || period === 'week' && (empty || i === Math.floor(weekHours / 2)), complete: period !== 'hour',
+          has_gap: period === 'hour' || period === 'day' || period === 'week' && (empty || i === Math.floor(weekHours / 2)), complete: period !== 'hour',
           coverage_seconds: empty || period === 'hour' ? 0 : period === 'week' ? i === Math.floor(weekHours / 2) ? 0 : 3600 : 58, metrics };
       }) };
     if (period === 'custom') json.navigation = { previous: null, next: null, now: null };
@@ -267,7 +269,8 @@ const { FIELDS } = require('../static/newcalendar.js');
         const curve = await page.locator('#chart-voltage .archive-line').first().getAttribute('d');
         assert.equal((curve.match(/M/g) || []).length, 2, 'An entirely unknown interval separates two connected numeric runs');
         assert((curve.match(/L/g) || []).length > 50, 'Unknown charging must not isolate known voltages');
-        assert.equal(await page.locator('#chart-diagnostics-grid svg > *').count(), 0, 'Closed diagnostics are not drawn before first opening');
+        assert.deepEqual(await page.locator('#chart-diagnostics-grid svg').evaluateAll(nodes => nodes.map(svg => svg.innerHTML)),
+          closedDiagnostics, 'Closed day diagnostics have not been redrawn for the week selection');
         await page.locator('.history-diagnostics > summary').click();
         await page.clock.runFor(32);
         const unknown = page.locator('#chart-flags [data-state-quality="unknown"][data-state-series="charging"]');
@@ -340,6 +343,26 @@ const { FIELDS } = require('../static/newcalendar.js');
         const curve = await page.locator('#chart-voltage .archive-line').first().getAttribute('d');
         assert.equal((curve.match(/M/g) || []).length, 1, 'Partial NULLs in every day bucket retain a continuous known mean trend');
         assert.equal((curve.match(/L/g) || []).length, 299);
+        assert.equal(await page.locator('#chart-diagnostics-grid svg > *').count(), 0, 'Closed diagnostics are not drawn before first opening');
+        await page.locator('.history-diagnostics > summary').click();
+        await page.clock.runFor(32);
+        for (const id of ['plugged', 'charging', 'below', 'wallbox-error', 'charging-state', 'charging-raw', 'lock']) {
+          const step = page.locator(`#chart-diagnostics-grid [data-series="${id}"]`);
+          const d = await step.getAttribute('d');
+          assert.equal((d.match(/M/g) || []).length, 1, `${id}: actual last-per-bin observations remain connected`);
+          assert.equal((d.match(/H/g) || []).length, 299);
+          assert.equal((d.match(/V/g) || []).length, 299);
+        }
+        assert.match(await page.locator('#chart-flags .chart-description').innerText(), /letzte Intervallwerte/);
+        await page.locator('#chart-flags svg').focus(); await page.keyboard.press('Home');
+        assert.match(await page.locator('#chart-flags svg > title').textContent(), /Letzte beobachtete Intervallwerte/);
+        assert.match(await page.locator('#chart-flags svg').getAttribute('aria-label'), /Letzte beobachtete Intervallwerte/);
+        assert.match(await page.locator('#chart-flags .chart-description').innerText(), /Erfassungsqualität markiert/);
+        assert((await page.locator('#chart-flags [data-state-quality="partial"][data-state-series="charging"]').getAttribute('d')).includes('H'));
+        await page.screenshot({ path: '/artifacts/calendar-day-diagnostics-observations.png', fullPage: true });
+        await page.locator('.history-diagnostics > summary').click();
+        await page.clock.runFor(32);
+        closedDiagnostics = await page.locator('#chart-diagnostics-grid svg').evaluateAll(nodes => nodes.map(svg => svg.innerHTML));
         await page.screenshot({ path: '/artifacts/calendar-day-partial-means.png', fullPage: true });
       }
       assert.equal(await page.locator('img').count(), 1, 'DTO reasons cannot add images');
