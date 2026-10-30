@@ -12,6 +12,12 @@ const defaults = () => {
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: 'dark', locale: 'de-AT', serviceWorkers: 'block' });
+    // Independent inspection fixture: never contact the ESP32 MQTT gateway.
+    await context.route('**/api/esp32-control', route => {
+      assert.equal(route.request().method(), 'GET', 'No ESP32 commands in this fixture');
+      return route.fulfill({ json: { status: 'unavailable', csrf: null, inspection: null,
+        command: null, command_sent: false } });
+    });
     let config = defaults(), revision = null, posts = 0, conflict = false, disabled = false, drop = false, hold = false, release = null;
     const requests = [], errors = [], allRequests = [];
     context.on('request', req => allRequests.push([req.method(), new URL(req.url()).pathname]));
