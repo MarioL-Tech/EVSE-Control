@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-26 23:39 (Europe/Vienna)
+
+- Bootfehler im Ubuntu-KVM-Gast reproduziert und mit dem Runner-Journal
+  abgeglichen: `setpriv: setresuid failed`. Explizites `User=root` nahm der
+  sandboxed Unit effektiv CAP_SETUID. System-Unit mit Standard-Root und enger
+  Capability-Liste übernimmt den Privilegwechsel; die Konfiguration wird
+  weiterhin ausschließlich mit Betreiberrechten gehasht. Keine PATH-Erweiterung.
+- TLS-Netztest entfernt nur die zusätzliche leere Formatzeile von `docker inspect`
+  vor dem Vergleich der beiden erwarteten Netzwerkmitglieder.
+
 ## 2026-11-26 23:35 (Europe/Vienna)
 
 - Stack: rein alle fünf Images bauen, privaten Plan vollständig und ohne

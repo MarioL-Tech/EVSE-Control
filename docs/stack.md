@@ -41,7 +41,7 @@ Dienst-`.env`-Profile und Produktionsprojektnamen werden beim reinen Build nicht
 
 Ein Verzeichnislock verhindert parallele Wrapperaufrufe dieses Checkouts. Vorhandene gleichnamige Compose-Dienste mit anderem Projekt/Pfad, aktive Einmalcontainer und erkannte kollidierende Docker-Gerätezuordnungen blockieren den Start. Das ersetzt keine Kontrolle von Hostprozessen (z. B. `mbpoll`), privilegierten Containern, ungewöhnlichen Geräte-Bindmounts oder konkurrierenden manuellen Starts: den seriellen Port immer genau einem Prozess überlassen. Der Wrapper übernimmt keine Fremdcontainer. Bei einer nicht mehr auflösbaren Projektkonfiguration den bekannten Einzelprojektablauf für einen koordinierten manuellen Stop nutzen; nie pauschal andere Projekte oder den externen Broker/DB-Server herunterfahren.
 
-## Integrationsvorschlag und isolierter Prüfnachweis
+## Isolierte Betriebsprüfungen
 
 Der gemeinsame Einstieg ist im [Installationsguide](installation.md) beschrieben. Eine Änderung am Plan invalidiert den Archivpin: erst die Auswahl bestätigen, danach bei vollständigem Sollzustand neu freigeben.
 

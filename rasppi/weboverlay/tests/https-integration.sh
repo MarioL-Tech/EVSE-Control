@@ -30,7 +30,7 @@ cid=$(dc ps -q https)
 [ "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$cid")" = true ] || fail 'Writable proxy rootfs.'
 [ "$(docker inspect --format '{{json .HostConfig.CapDrop}}' "$cid")" = '["ALL"]' ] || fail 'Proxy capabilities not dropped.'
 [ "$(docker inspect --format '{{json .HostConfig.SecurityOpt}}' "$cid")" = '["no-new-privileges:true"]' ] || fail 'Proxy permits privilege escalation.'
-[ "$(docker inspect --format '{{range $k, $v := .NetworkSettings.Networks}}{{println $k}}{{end}}' "$cid" | sort)" = "$(printf '%s\n' "${PWA_TEST_PROJECT:-evse-pwa-test}_https-bind" "${PWA_TEST_PROJECT:-evse-pwa-test}_web-test" | sort)" ] || fail 'Unexpected proxy network membership.'
+[ "$(docker inspect --format '{{range $k, $v := .NetworkSettings.Networks}}{{println $k}}{{end}}' "$cid" | sed '/^$/d' | sort)" = "$(printf '%s\n' "${PWA_TEST_PROJECT:-evse-pwa-test}_https-bind" "${PWA_TEST_PROJECT:-evse-pwa-test}_web-test" | sort)" ] || fail 'Unexpected proxy network membership.'
 # Verify a real TLS request through the Engine host binding, not just an
 # internal proxy healthcheck. Transfer only the public test root on stdin.
 binding=$(dc port https 8443)
