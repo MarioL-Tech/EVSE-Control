@@ -5,12 +5,16 @@ die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
 Der Gesamtauftrag mit Arbeitspaketen, Abhängigkeiten und der Zuordnung zu allen
-Originalpunkten steht in `docs/aufgaben-checkliste.md`. Die Umsetzung bleibt
-pausiert, bis der Projektinhaber sie fortsetzen lässt. Danach die Liste laufend
+Originalpunkten steht in `docs/aufgaben-checkliste.md`. Die Umsetzung ist durch
+„Start“ freigegeben. Die Liste laufend
 pflegen und erst nach Umsetzung und Prüfung abhaken. Wenn alle Arbeits- und
 Prüfpunkte abgehakt sind, folgt eine unabhängige Vollständigkeitsprüfung am
 finalen Stand; erst danach den Gesamt-PR bereitstellen. Teil-PRs dienen nur
 GitHub-Tests, nicht dem Review oder der Schlussübergabe.
+
+Aktueller Prüfstand siehe Checkliste. Der opt-in TLS-Proxy behält den internen
+Apache-Upstream und bekommt ausschließlich für die Hostport-Veröffentlichung
+eine eigene Projektbridge ohne Masquerading, nicht das MQTT-/DB-Netz. Kein Deployment.
 
 Die SHA-256-Prüfungen für HOUSE- und Minutenarchiv erwarten die kanonischen
 LF-Bytes der SQL-Migrationen. `rasppi/storage/migrations/*.sql` deshalb auch

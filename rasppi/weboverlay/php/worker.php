@@ -64,7 +64,15 @@ try {
         }
         $delay = min(30, $delay * 2);
     }
-} catch (Throwable) {
-    @fwrite(STDERR, "Weboverlay subscriber failed; check configuration and private state storage\n");
+} catch (Throwable $error) {
+    // Never echo arbitrary library messages, payloads, paths or credentials.
+    $category = match ($error->getMessage()) {
+        'State lock timeout' => 'ipc-lock-timeout',
+        'Invalid lock file', 'State lock unavailable' => 'ipc-lock',
+        'Invalid state record', 'State record unavailable' => 'ipc-read',
+        'State write failed', 'State replacement failed', 'State record too large' => 'ipc-write',
+        default => 'configuration-or-runtime',
+    };
+    @fwrite(STDERR, "Weboverlay subscriber failed ($category)\n");
     exit(1);
 }

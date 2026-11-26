@@ -7,3 +7,5 @@
 **/__pycache__
 **/.pio
 artifacts
+.playwright-mcp
+*.jsonl

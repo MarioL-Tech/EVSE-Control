@@ -32,7 +32,11 @@ try {
     expectShared($otherReader->snapshot()['status'] === 'live', 'Cross-instance live snapshot');
     expectShared($otherReader->snapshot()['values']['plugged_in'] === null, 'Unknown remains null');
     $original = json_decode(file_get_contents($path), true, 64, JSON_THROW_ON_ERROR);
+    $open = fopen($path, 'rb'); // keep the inode allocated, even on a fast tmpfs
     $otherReader->snapshot();
+    clearstatcache(true, $path);
+    expectShared(fstat($open)['ino'] === fileinode($path), 'Ordinary polling must not replace the record');
+    fclose($open);
     $after = json_decode(file_get_contents($path), true, 64, JSON_THROW_ON_ERROR);
     expectShared($original['heartbeat'] === $after['heartbeat'], 'HTTP must not renew heartbeat');
 

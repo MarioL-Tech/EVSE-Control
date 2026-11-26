@@ -1,6 +1,6 @@
 # EVSE-Control – Aufgabencheckliste
 
-**Status:** Planung und Vollständigkeitsprüfung. Die Umsetzung bleibt bis zur nächsten Anweisung pausiert. Begonnene Änderungen sind kein Abnahmenachweis.
+**Status:** Umsetzung mit „Start“ freigegeben, Ausgangsstand `cbf15d4`. Begonnene Änderungen sind kein Abnahmenachweis.
 
 ## Arbeitsweise
 
@@ -125,6 +125,7 @@
 
 - [ ] Operatorablauf, Build-only, Start/Stop, Boot, Archivnetz und SQL-Wiederkehr im isolierten Docker-/VM-Test prüfen.
 - [ ] Weboverlay vollständig prüfen: PHP/JS, SQL/HOUSE, TLS/PWA, Browser und beide simulierten Steuerpfade. Vorherigen fehlgeschlagenen Web-CI-Lauf untersuchen und den finalen Stand in **beiden** Web-Jobs bestätigen.
+  - Job `140153165232` aus `45890946168`: Buildtest `tests/integration.cjs:396` beim zweiten Broker-Wiederanlauf; der MQTT-Subscriber beendete sich, der Supervisor stoppte Apache. Der Log nennt keine Exceptionursache. **Nicht** der ESP32-Pfad. Neuerer Ausgangsstand `cbf15d4`: Weblauf `45901462337` grün, Bootjob `140187980676` rot. Das ist noch kein Abschlussnachweis.
 - [ ] Storage-Matrix mit vorhandenen MariaDB-Versionen ausführen.
 - [ ] Reader-/Regler-Matrix samt Sanitizern sowie PTY-, Timeout-, Recovery- und Stop-Fällen ausführen.
 - [ ] UART-Gateway, Firmware-Simulation und ESP32-Zielbuild ohne Upload ausführen.

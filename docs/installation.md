@@ -1197,8 +1197,14 @@ HTTPS.** Der bisherige HTTP-LAN-Zugriff allein genügt nicht. Zunächst läuft a
 **nur lokal ohne Domain**: optionaler Caddy-Container im Profil `https`, eigene
 lokale CA, Port 443/TCP → intern 8443 → Apache 8080. Keine Internet-Portweiterleitung,
 kein zusätzlicher Broker/DB/VPN-/Clouddienst, keine Hostinstallation von Caddy oder
-OpenSSL. Caddy ist non-root/readonly/cap-drop, nur im privaten internen Webnetz,
-nicht im MQTT-/DB-Netz. IPv4 ohne SNI wird durch explizites `default_sni` unterstützt.
+OpenSSL. Caddy ist non-root/readonly/cap-drop. Sein Upstream liegt im internen
+Webnetz; nur Caddy verwendet zusätzlich die projektspezifische Bridge `https-bind`
+ohne IP-Masquerading für die Veröffentlichung am konfigurierten Host. Eine
+ausschließlich interne Docker-Verbindung veröffentlichte den Port unter Engine
+29.1.3 nicht zuverlässig. Kein Anschluss des Proxys an MQTT oder DB. Nach einer
+bewussten Neuerstellung `docker compose port https 8443` und den HTTPS-Abruf
+von einem Client mit vertrauter CA prüfen. IPv4 ohne SNI wird durch explizites
+`default_sni` unterstützt.
 
 Das heißt nicht, dass jeder Homescreen-Eintrag HTTPS benötigt: Je nach Browser
 kann auch eine HTTP-Seite als Verknüpfung/App-Fenster hinzugefügt werden. Das allein

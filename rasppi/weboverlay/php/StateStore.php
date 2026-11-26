@@ -173,6 +173,11 @@ final class StateStore
             'values' => $status === 'live' ? $sample['values'] : null, 'error' => $sample['error'] ?? null];
     }
 
+    public function futureSampleLatched(): bool
+    {
+        return $this->futureSample;
+    }
+
     public function export(): array
     {
         // Observe rollback now, so a different reader cannot lose the future latch.

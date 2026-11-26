@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-26 23:25 (Europe/Vienna)
+
+- Gesamtauftrag nach „Start“ fortgesetzt. Reguläre State-Abfragen ersetzen
+  die IPC-Datei nicht mehr; neu erkannte Uhrfehler werden weiterhin ohne
+  Heartbeatverlängerung persistiert. Redigierte IPC-Fehlerklassen und Inodetest.
+- Opt-in-HTTPS: eigene Veröffentlichungsbridge zusätzlich zum privaten Upstream;
+  Docker-Test prüft TLS über den gebundenen Loopback-Port mit der Fixture-CA.
+  Keine Änderung einer laufenden Installation.
+
 ## 2026-11-26 21:55 (Europe/Vienna)
 
 - Begonnenen Arbeitsstand zu Stack-Build und Plan, Archiv-Boothelfer,
