@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-27 00:22 (Europe/Vienna)
+
+- Beide Bildprüfer fanden eine Nachweislücke: der Skiplink war nach Stop
+  korrekt verborgen, aber beim tatsächlichen Tastaturfokus nicht abgebildet.
+  Beide GUI-Matrizen erhalten diesen Zustand sowie einen simulierten
+  Diagnoselesefehler ohne weitergeführten Gerätefehlercode. Nur Prüffälle.
+
 ## 2026-11-27 00:20 (Europe/Vienna)
 
 - Stack-Prüflauf: Fehler nach abgezogenem Archivnetz erneut geöffnet. Exakte

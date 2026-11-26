@@ -224,7 +224,31 @@ async function interactions(page, name, observed, shot, touch) {
         if (name === 'overview') await page.waitForFunction(() => !document.getElementById('control-stop').disabled);
         if (name === 'diagrams' && !negative) await page.waitForFunction(() => document.querySelector('#chart-grid .chart-line') && document.querySelector('#chart-house .chart-line'));
         await shot(negative ? 'offline-empty' : 'live-default');
+        if (name === 'overview') {
+          await page.keyboard.press('Tab');
+          assert(await page.locator('.skip-link').evaluate(link => {
+            const r = link.getBoundingClientRect();
+            return link === document.activeElement && link.matches(':focus-visible') &&
+              document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === link;
+          }), 'Actual first Tab exposes an operable skip link');
+          await shot('keyboard-skip-link', false);
+          await page.keyboard.press('Enter');
+          assert(await page.locator('#main-content').evaluate(el => el === document.activeElement));
+        }
         await interactions(page, name, observed, shot, touch);
+        if (name === 'diagnostics') {
+          await page.route('**/api/state', route => route.fulfill({ json: {
+            schema_version: 1, read_only: true, status: 'read_error', reason: 'Simulierter Lesefehler',
+            broker_connected: true, availability: 'offline', timestamp: iso(Date.now()),
+            last_success_at: iso(Date.now() - 10000), age_seconds: null, fresh_for_seconds: 0,
+            error: 'Zeitüberschreitung im Test', values: null
+          } }));
+          await page.waitForFunction(() => document.getElementById('status').textContent === 'Lesefehler');
+          assert.equal(await page.locator('#read-error').innerText(), 'Zeitüberschreitung im Test');
+          assert.equal(await page.locator('#wallbox-error').innerText(), '—');
+          await page.evaluate(() => window.scrollTo(0, 0));
+          await shot('read-error');
+        }
         assert.deepEqual(errors, [], 'No page JavaScript errors');
         assert.deepEqual(external, [], 'No external resources'); assert.deepEqual(observed.unexpected, [], 'No unhandled API traffic');
         cell.status = 'passed'; cell.posts = observed.posts; cell.archive_requests = observed.archives.length;
