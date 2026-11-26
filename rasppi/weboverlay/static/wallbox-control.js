@@ -96,7 +96,7 @@
     if (range.value !== String(draft)) range.value = String(draft);
     const fill = `${editing.max > editing.min ? (draft - editing.min) / (editing.max - editing.min) * 100 : 0}%`;
     if (range.style.getPropertyValue('--control-fill') !== fill) range.style.setProperty('--control-fill', fill);
-    disabled('current', busy || document.hidden || suspended);
+    disabled('current', busy || document.hidden || suspended || editing.max === editing.min);
     disabled('apply', !usable || !limits || mode !== 'manual');
     disabled('start', !usable || !limits || mode !== 'manual');
     if (reportedBusy !== busy) {
@@ -113,7 +113,7 @@
     const blocked = busy ? 'Auftrag läuft.' : document.hidden || suspended ? 'Bedienung pausiert.' :
       mode !== 'manual' ? 'Manuelle Stromvorgaben nur im Modus Manuell.' :
       !ready || !csrf ? 'Keine geprüfte Bedienverbindung.' : limits ? '' : limitReason(inspection);
-    text('hint', blocked || (limits?.max === 6 ? 'Nur 6 A zulässig (1-A-Schritte).' : `6–${limits.max} A`));
+    text('hint', blocked || (limits?.max === 6 ? 'Nur 6 A zulässig – nicht verstellbar.' : `6–${limits.max} A`));
     for (const id of ['apply', 'start']) {
       const button = get(id);
       if (button.title !== blocked) button.title = blocked;

@@ -4,7 +4,12 @@
 set -euo pipefail
 [[ ${GITHUB_ACTIONS:-} == true && ${RUNNER_ENVIRONMENT:-} == github-hosted && ${RUNNER_OS:-} == Linux ]]
 existing=$(docker ps -aq); [[ -z $existing ]]
-fixture=$(mktemp -d); git archive HEAD -- bin rasppi/weboverlay | tar -x -C "$fixture"
+# Copy only tracked paths, but their WORKTREE bytes. git archive HEAD silently
+# tested the old helper/unit when this script was run before committing a fix.
+fixture=$(mktemp -d)
+git ls-files -z -- bin rasppi/weboverlay | tar --null -T - -cf - | tar -x -C "$fixture"
+stage=setup
+trap 'rc=$?; echo "Archive boot CI failed: stage=$stage line=$LINENO exit=$rc" >&2; sudo journalctl -u evse-archive-link.service -n 30 --no-pager >&2 || :; exit "$rc"' ERR
 cd "$fixture"; wp=$fixture/rasppi/weboverlay
 printf 'web history\n' > bin/.env
 printf 'synthetic-only\n' > "$wp/dummy.txt"
@@ -21,6 +26,7 @@ compose() (cd "$wp" && docker compose -f compose.yaml -f compose.history.yaml "$
 reconcile() { bash bin/archive-link.sh --reconcile < "$fixture/expected"; }
 reject() { if "$@"; then echo 'Expected refusal' >&2; exit 1; fi; }
 compose up -d --no-build --pull never weboverlay
+stage=initial-pin
 w=$(compose ps -q weboverlay); [[ $w =~ ^[0-9a-f]{64}$ ]]
 endpoint() { docker inspect --format '{{with index .NetworkSettings.Networks "fixture-archive"}}{{.EndpointID}}{{else}}absent{{end}}' "$1"; }
 live() { [[ $(endpoint "$1") =~ ^[0-9a-f]{64}$ ]]; }
@@ -46,6 +52,7 @@ mkfifo "$target"; rc=0; timeout 3 bash bin/archive-link.sh --witness "$fixture" 
 # Install exactly the documented root-owned copy. No repo ExecStart, no socket
 # mount into a project service. Do not enable any units on self-hosted runners.
 unit=evse-archive-link.service
+stage=installed-unit
 sudo install -d -m 0755 /usr/local/libexec
 sudo install -d -m 0700 /etc/evse-archive-link /etc/evse-archive-link/docker-config
 sudo install -m 0755 bin/archive-link.sh /usr/local/libexec/evse-archive-link
@@ -97,6 +104,7 @@ docker network connect --alias weboverlay evse-mqtt "$w"
 # Deterministic interleavings at the actual connect boundary. Only the fixture
 # invocation has a CLI shim. One external writer wins; alternatively the old
 # container vanishes and the same-name replacement MUST NOT be adopted.
+stage=controlled-races
 mkdir fake; export REAL_DOCKER; REAL_DOCKER=$(command -v docker)
 export RACE_LOG=$fixture/races WEB_DIR=$wp PIN_NET PIN_WEB=$w
 PIN_NET=$(docker network inspect --format '{{.ID}}' fixture-archive)
@@ -154,5 +162,55 @@ PATH="$fixture/fake:$PATH" RACE=replace reject reconcile
 new=$(compose ps -q weboverlay); [[ $new != "$w" && $(endpoint "$new") == absent && $(wc -l < "$RACE_LOG") == 2 ]]
 reject reconcile; [[ $(endpoint "$new") == absent ]]
 [[ $(fingerprint) == "$untouched" ]]
+
+# Real Docker daemon cold starts, NOT a simulated stopped-container start or
+# a claim of a VM reboot. This runner was checked empty before fixture creation.
+# Do not run this test on a shared/self-hosted daemon. Restore the replacement
+# deliberately and issue a NEW approval; the old receipt must never adopt it.
+stage=daemon-cold-start
+[[ $(docker info --format '{{.LiveRestoreEnabled}}') == false ]]
+w=$new
+docker network connect --alias weboverlay fixture-archive "$w"
+bash bin/stack.sh archive-pin > expected
+sudo install -m 0600 expected /etc/evse-archive-link/expected
+# Docker's restart-policy monitor must have observed a successful initial run.
+sleep 11
+cold_start() {
+  local want=$1 oldpid cursor before oldendpoint
+  oldpid=$(systemctl show -p MainPID --value docker.service)
+  [[ $oldpid =~ ^[1-9][0-9]*$ ]]
+  sudo systemctl stop docker.service docker.socket
+  [[ $(systemctl show -p ActiveState --value docker.service) == inactive ]]
+  [[ $(systemctl show -p ActiveState --value docker.socket) == inactive ]]
+  # No Docker CLI while stopped: socket activation would invalidate the test.
+  sudo systemctl start docker.service
+  [[ $(systemctl show -p MainPID --value docker.service) != "$oldpid" ]]
+  for i in {1..30}; do
+    [[ $(docker inspect --format '{{.State.Running}}' "$w") == true ]] && break
+    sleep 1
+  done
+  [[ $(docker inspect --format '{{.State.Running}}' "$w") == true ]]
+  if [[ $want == present ]]; then live "$w"; else [[ $(endpoint "$w") == absent ]]; fi
+  oldendpoint=$(endpoint "$w")
+  # The unrelated fixture has no restart policy. Fingerprint it AFTER daemon
+  # startup, so daemon effects cannot be attributed to the one-shot helper.
+  before=$(fingerprint)
+  cursor=$(sudo journalctl -u "$unit" -n 1 --show-cursor --no-pager | sed -n 's/^-- cursor: //p')
+  [[ -n $cursor ]]
+  sudo systemctl start "$unit"
+  [[ $(systemctl show -p Result --value "$unit") == success ]]
+  if [[ $want == present ]]; then
+    sudo journalctl -u "$unit" --after-cursor="$cursor" --output=cat --no-pager | grep -Fxq 'Archiv-Endpunkt bereits vorhanden.'
+  else
+    sudo journalctl -u "$unit" --after-cursor="$cursor" --output=cat --no-pager | grep -Fq 'Archiv-Endpunkt im Readback vorhanden (Connect-Exit '
+  fi
+  live "$w"; [[ $(compose ps -q weboverlay) == "$w" && $(fingerprint) == "$before" ]]
+  if [[ $want == present ]]; then [[ $(endpoint "$w") == "$oldendpoint" ]]; fi
+}
+cold_start present
+docker network disconnect fixture-archive "$w"
+cold_start absent
+repaired=$(endpoint "$w")
+sudo systemctl start "$unit"; [[ $(endpoint "$w") == "$repaired" ]]
 sudo systemctl disable --now "$unit"; reject sudo systemctl is-enabled --quiet "$unit"
-echo 'Archive boot unit: actual endpoint, unchanged unrelated container, stale/paused/stopped, three controlled races and disable checked.'
+echo 'Archive boot unit: endpoints, refusals/races, two real daemon cold starts (no-op/repair), unrelated container and disable checked; no VM reboot.'

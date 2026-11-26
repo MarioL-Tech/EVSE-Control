@@ -57,6 +57,12 @@
       uid.setAttribute('aria-invalid', String(invalid)); error.hidden = !invalid;
     };
     uid.addEventListener('input', feedback);
-    window.addEventListener('pagehide', () => { uid.value = ''; feedback(); });
+    const clearUid = () => {
+      uid.value = '';
+      // Also update the independent ESP32 client's revoke enablement.
+      uid.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    window.addEventListener('pagehide', clearUid);
+    doc.addEventListener('visibilitychange', () => { if (doc.hidden) clearUid(); });
   }
 })();

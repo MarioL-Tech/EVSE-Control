@@ -74,7 +74,12 @@ Test ein vom Projektinhaber Windows zugeordnetes Aufrufproblem.
 
 Nach Einrichtung der **einzelnen** Dienste einmalig die bisherige Auswahl
 (Projektnamen, Overlay-Dateien und Profile) nach [Stack-Betriebsablauf](stack.md)
-in `bin/.env` übernehmen. Im bisherigen Repository-Hauptverzeichnis:
+in `bin/.env` übernehmen. Der erste Aufruf bereitet die Datei vor, ohne einen
+vorhandenen Plan zu ersetzen. `build` baut alle fünf Laufzeitimages, startet
+aber nichts. Auch einen vorhandenen Plan vor dem ersten `up`/`build-up` mit
+dieser Version prüfen und bewusst `ready yes` setzen. Bestehende Archivpins
+nach einer Planänderung bei unverändertem Sollzustand neu freigeben.
+Im bisherigen Repository-Hauptverzeichnis:
 
 | Aktion | Befehl |
 |---|---|

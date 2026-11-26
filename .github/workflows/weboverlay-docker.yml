@@ -37,8 +37,10 @@ jobs:
         include:
           - check: docker
             suffix: ''
+            gui_pass: '1'
           - check: docker (independent web and GUI pass)
             suffix: '-pass-2'
+            gui_pass: '2'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -191,8 +193,27 @@ jobs:
           docker exec web-smoke php -r '$d=json_decode(file_get_contents("http://127.0.0.1:8080/api/history"), true, 64, JSON_THROW_ON_ERROR); exit($d["read_only"] === true && $d["status"] === "disabled" && $d["samples"] === [] ? 0 : 1);'
           ! docker exec web-smoke sh -c 'command -v python || command -v python3'
           docker run --rm --network container:web-smoke -v "$PWD/artifacts:/artifacts" evse-web-browser:test
+          # Separate fresh browser contexts for every page/theme/device cell.
+          # Both jobs serve their own runtime build; pass 2 emphasizes offline,
+          # empty/error, touch and focus rather than reusing pass 1 evidence.
+          docker run --rm --network container:web-smoke -e GUI_EVIDENCE_PASS=${{ matrix.gui_pass }} \
+            -e GUI_EVIDENCE_REVISION=${{ github.sha }} \
+            -v "$PWD/artifacts:/artifacts" evse-web-browser:test node gui-evidence-browser.cjs
       - name: Require fresh desktop, mobile and offline screenshot evidence
         run: |
+          evidence="artifacts/gui-e2-pass-${{ matrix.gui_pass }}"
+          test -s "$evidence/manifest.json"
+          test -s "$evidence/index.md"
+          for page in overview diagrams diagnostics settings; do
+            for theme in light dark; do
+              for device in desktop mobile; do
+                # The suite asserts each of the 16 cells; require its separately
+                # named default and keyboard-focus images as well as manifest.
+                find "$evidence" -name "$page--$theme--$device-*--*default.png" -o -name "$page--$theme--$device-*--offline-empty.png" | grep -q .
+                find "$evidence" -name "$page--$theme--$device-*--focus-*.png" | grep -q .
+              done
+            done
+          done
           for size in 1440-dark 320-light; do
             for screen in bedienung feldhilfe diagnose; do
               test -s "artifacts/gui-pass2-$screen-$size.png"
@@ -207,5 +228,7 @@ jobs:
           name: weboverlay-browser-screenshots${{ matrix.suffix }}
           path: |
             artifacts/**/*.png
+            artifacts/gui-e2-pass-*/manifest.json
+            artifacts/gui-e2-pass-*/index.md
             !artifacts/pwa-icons/**
           if-no-files-found: error

@@ -5,6 +5,20 @@ const vm = require('node:vm');
 const fs = require('node:fs');
 const { createViewState, present } = require('../static/smartmeter.js');
 const epoch = Date.parse('2026-10-26T12:00:00Z');
+test('presentation reuses Intl formatters across unchanged freshness ticks', () => {
+  let numbers = 0, dates = 0;
+  const box = { module: { exports: {} }, Intl: {
+    NumberFormat: function (...args) { numbers++; return new Intl.NumberFormat(...args); },
+    DateTimeFormat: function (...args) { dates++; return new Intl.DateTimeFormat(...args); }
+  } };
+  vm.runInNewContext(fs.readFileSync(require.resolve('../static/smartmeter.js'), 'utf8'), box);
+  for (let i = 0; i < 100; i++) {
+    const result = box.module.exports.present({ status: 'live', power_w: 0,
+      envelope: { fetched_at: new Date(epoch).toISOString() }, age_seconds: i / 10 });
+    assert.equal(result['grid-power'], '0,00 kW');
+  }
+  assert.equal(numbers, 2); assert.equal(dates, 1);
+});
 function sample(overrides = {}) {
   return { schema_version: 1, read_only: true, status: 'live', reason: 'Aktuelle Daten',
     power_w: 1549.4, fetched_at: new Date(epoch).toISOString(), age_seconds: 0, fresh_for_seconds: 10, ...overrides };

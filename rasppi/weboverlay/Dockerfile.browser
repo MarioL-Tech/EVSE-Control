@@ -11,6 +11,7 @@ COPY tests/esp32-browser.cjs ./
 COPY tests/charging-mode-browser.cjs ./
 COPY tests/charts-browser.cjs ./
 COPY tests/layout-browser.cjs ./
+COPY tests/gui-evidence-browser.cjs ./
 COPY tests/theme-browser.cjs ./
 COPY tests/smartmeter-browser.cjs ./
 COPY tests/history-browser.cjs ./

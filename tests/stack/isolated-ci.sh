@@ -6,16 +6,25 @@ existing=$(docker ps -aq); [[ -z $existing ]] # refuse shared/unavailable daemon
 git check-ignore -q bin/.env
 tracked=$(git ls-files -- bin/.env); [[ -z $tracked ]]
 fixture=$(mktemp -d)
-git archive HEAD -- bin rasppi | tar -x -C "$fixture"
+# Exercise tracked WORKTREE bytes, not a stale HEAD; never copy ignored site
+# config, secrets, or other untracked files into the disposable fixture.
+git ls-files -z -- bin rasppi | tar --null -T - -cf - | tar -x -C "$fixture"
 cd "$fixture"
 wp=$fixture/rasppi/weboverlay
 sp=$fixture/rasppi/storage
 stack() { bash bin/stack.sh "$@"; }
 reject() { if "$@"; then echo 'Expected refusal' >&2; exit 1; fi; }
-# A first build creates the conservative plan, then builds with no site env,
+# A first build creates the unapproved plan, then builds ALL runtime images,
+# including roles not selected for operation, with no site env,
 # secrets, devices, networks, or containers. Existing plans are never replaced.
 stack build
 cmp bin/.env bin/stack-plan.example
+[[ -z $(docker ps -aq) ]]
+docker image inspect evse-storage:local weboverlay-weboverlay weboverlay-https wallbox-wallbox-reader rasppi-uart-bridge >/dev/null
+cp bin/.env unapproved-plan
+reject stack up
+reject stack build-up
+cmp bin/.env unapproved-plan
 [[ -z $(docker ps -aq) ]]
 printf 'web auth+history\nstorage auth\nrollup on\nhttps on\nreader auth\nuart gateway\n' > bin/.env
 cp bin/.env expected-build-plan
@@ -27,6 +36,10 @@ docker image inspect evse-storage:local weboverlay-weboverlay weboverlay-https w
 printf 'invalid entry\n' > bin/.env
 reject stack build
 grep -Fxq 'invalid entry' bin/.env
+# An empty existing plan is also preserved and refused.
+: > bin/.env
+reject stack build
+[[ ! -s bin/.env ]]
 mkdir -p "$wp/secrets" "$sp/secrets"
 printf 'dummy-only-reader\n' > "$wp/secrets/history.txt"
 printf 'dummy-mqtt\n' > "$wp/secrets/mqtt.txt"
@@ -122,7 +135,7 @@ docker build -qt stackci-port-uart-bridge - <<'IMAGE'
 FROM debian:bookworm-slim
 CMD ["sleep", "86400"]
 IMAGE
-cp bin/.env original-plan; printf 'uart gateway\n' > bin/.env
+cp bin/.env original-plan; printf 'ready yes\nuart gateway\n' > bin/.env
 mkdir -p .evse-settings/uart shim
 mv rasppi/.env .evse-settings/uart/.env; ln -s "$fixture/.evse-settings/uart/.env" rasppi/.env
 devdir=$(mktemp -d /dev/shm/stack-ci-port.XXXXXXXX); port=$devdir/uart
@@ -184,10 +197,10 @@ docker run -d --name stackci-maria --network stackci-data -v stackci-fixture-db:
 # Fresh opt-out deploy must accept two explicitly disabled endpoints, not
 # require the website's DB membership. The same project may then add overlays.
 sed -i 's/^WEB_HOUSE_HISTORY_ENABLED=1$/WEB_HOUSE_HISTORY_ENABLED=0/' "$wp/.env"
-printf 'web base\nstorage auth\n' > bin/.env
+printf 'ready yes\nweb base\nstorage auth\n' > bin/.env
 stack build-up
 sed -i 's/^WEB_HOUSE_HISTORY_ENABLED=0$/WEB_HOUSE_HISTORY_ENABLED=1/' "$wp/.env"
-printf 'web auth+history\nstorage auth\n' > bin/.env
+printf 'ready yes\nweb auth+history\nstorage auth\n' > bin/.env
 # Replacing PWD/.env during the actual web up must not override --env-file
 # (including interpolation of auth/history bind sources, port and profile).
 cp "$wp/.env" web-before
@@ -219,27 +232,76 @@ grep -Fxq "$wp/secrets/mqtt.txt /run/secrets/mqtt-password" <<< "$binds"
 docker exec "$w" php -r 'exit(getenv("MQTT_CLIENT_ID")==="stackci-web-only" ? 0 : 1);'
 docker exec "$s" python -c 'import os; assert os.environ["MQTT_CLIENT_ID"] == "stackci-storage-only"'
 docker volume inspect stackci-web_https-data >/dev/null
-# One known synthetic SQL observation. Read it over HTTP before and after the
-# complete outage/stop/start cycle; a 200 with a silently empty DB won't pass.
-docker exec -i stackci-maria mariadb -uhistory_writer -pdummy-only-writer evse_history_test <<'SQL'
-INSERT INTO evse_wallbox_samples(source,payload_sha256,measured_at,received_at,retained,status,active_power_w,payload_json)
-VALUES ('evse/wallbox',UNHEX(SHA2('stack-ci-row',256)),UTC_TIMESTAMP(6),UTC_TIMESTAMP(6),0,'ok',1729,'{}');
-SQL
-assert_archive_row() {
-  local current
+# Check BOTH archives, including their distinct empty/unavailable responses.
+# Return only a digest of sample identity/time/value, never the API payload.
+archive_snapshot() {
+  local status=$1 count=$2 current
   current=$(docker ps -q --filter label=com.docker.compose.service=weboverlay)
   docker exec "$current" php -r '
-    $r=json_decode(file_get_contents("http://127.0.0.1:8080/api/history?minutes=15",false,stream_context_create(["http"=>["timeout"=>5]])),true);
-    $n=0; foreach ($r["samples"] ?? [] as $s) if (($s["values"]["active_power_w"] ?? null) === 1729) $n++;
-    exit(($r["status"] ?? null)==="ok" && $n===1 ? 0 : 1);'
+    [$script,$status,$count]=$argv; $count=(int)$count; $snapshot=[];
+    foreach (["history","house-history"] as $endpoint) {
+      $body=file_get_contents("http://127.0.0.1:8080/api/".$endpoint."?minutes=15",false,
+        stream_context_create(["http"=>["timeout"=>5,"ignore_errors"=>true]]));
+      $r=json_decode($body === false ? "" : $body,true);
+      $code=$status === "unavailable" ? 503 : 200;
+      if (!str_contains($http_response_header[0] ?? "", " ".$code." ") ||
+          ($r["read_only"] ?? null)!==true || ($r["status"] ?? null)!==$status ||
+          !is_array($r["samples"] ?? null) || count($r["samples"])!==$count) exit(1);
+      $snapshot[$endpoint]=[];
+      foreach ($r["samples"] as $s) {
+        $value=$endpoint === "history" ? ($s["values"]["active_power_w"] ?? null) : ($s["power_w"] ?? null);
+        if ($value !== ($endpoint === "history" ? 1729 : -619)) exit(1);
+        $snapshot[$endpoint][]=[$s["id"],$s["timestamp"],$value];
+      }
+    }
+    echo hash("sha256",json_encode($snapshot)),"\n";
+  ' -- "$status" "$count"
+}
+archive_snapshot ok 0 >/dev/null
+# Known synthetic observations in both SQL sources survive every outage below.
+# No rollup/migration/reaggregation is used as a repair.
+# Pure build on an installed stack: retain IDs, start epochs, restart counts,
+# mounts, endpoints and publications, even with unusable site interpolation.
+# This must not read/repair the service env or replace the approved plan.
+runtime_state() {
+  docker inspect --format '{{.Id}}|{{.State.Status}}|{{.State.StartedAt}}|{{.RestartCount}}|{{json .Mounts}}|{{json .NetworkSettings.Networks}}|{{json .HostConfig.PortBindings}}' $(docker ps -aq) | sort
+}
+runtime_state > before-build-state
+cp "$wp/.env" before-build-web-env
+printf 'COMPOSE_FILE=nonexistent-ci-overlay.yaml\n' >> "$wp/.env"
+sha256sum bin/.env "$wp/.env" "$sp/.env" rasppi/wallbox/.env rasppi/.env > before-build-inputs
+stack build
+# Test the actual filtered context (including nested site files in the fixture),
+# not the text of ignore rules. Never print the contents of any input.
+docker build -q -f - rasppi <<'IMAGE'
+FROM busybox:1.37
+COPY . /context
+WORKDIR /context
+RUN test -f src/main.py && test -f tests/uart_gateway_interactive.py && \
+    test -z "$(find . -type f ! -path './Dockerfile.uart' ! -path './requirements.txt' ! -path './src/main.py' ! -path './src/uart_gateway.py' ! -path './tests/uart_gateway*.py')"
+IMAGE
+sha256sum --status -c before-build-inputs
+runtime_state > after-build-state
+cmp before-build-state after-build-state
+mv before-build-web-env "$wp/.env"
+docker exec -i stackci-maria mariadb -uhistory_writer -pdummy-only-writer evse_history_test <<'SQL'
+SET @observed=UTC_TIMESTAMP(6);
+INSERT INTO evse_wallbox_samples(source,payload_sha256,measured_at,received_at,retained,status,active_power_w,payload_json)
+VALUES ('evse/wallbox',UNHEX(SHA2('stack-ci-row',256)),@observed,@observed,0,'ok',1729,'{}');
+INSERT INTO evse_house_samples(source,publisher_id,sequence,fetched_at,received_at,status,last_success_at,power_w,error_code,retained,digest)
+VALUES ('evse/house',UNHEX('00000000000000000000000000000001'),1,@observed,@observed,'ok',@observed,-619,NULL,0,UNHEX(SHA2('stack-ci-house-row',256)));
+SQL
+archive_before=$(archive_snapshot ok 1)
+assert_archive_row() {
+  [[ $(archive_snapshot ok 1) == "$archive_before" ]]
 }
 assert_archive_row
 stack archive-pin > "$fixture/expected"
 
 # Existing file-auth must not disappear merely because a new invocation omitted -f.
-printf 'web history\nstorage auth\n' > bin/.env
+printf 'ready yes\nweb history\nstorage auth\n' > bin/.env
 reject stack up
-printf 'web auth+history\nstorage auth\n' > bin/.env
+printf 'ready yes\nweb auth+history\nstorage auth\n' > bin/.env
 docker create --name stackci-conflict --label com.docker.compose.service=weboverlay \
   --label com.docker.compose.project=other-site eclipse-mosquitto:2 >/dev/null
 reject stack plan
@@ -252,6 +314,7 @@ grep -Fq 'weboverlay: konfigurierte DB-Netzmitgliedschaft fehlt tatsächlich.' <
 grep -Fq 'weboverlay: /api/history nicht wie erwartet (ok).' <<< "$result"
 grep -Fq 'weboverlay: /api/house-history nicht wie erwartet (ok).' <<< "$result"
 docker exec "$w" php /app/docker/healthcheck.php # liveness stays independent
+archive_snapshot unavailable 0 >/dev/null
 
 # Same exact action as the opt-in unit, here with real old SQL data.
 bash bin/archive-link.sh --reconcile < "$fixture/expected"
@@ -269,6 +332,8 @@ docker stop stackci-maria >/dev/null
 if result=$(stack check 2>&1); then exit 1; fi
 grep -Fq 'weboverlay: DB-Netzmitgliedschaft bestätigt.' <<< "$result"
 grep -Fq 'weboverlay: /api/history nicht wie erwartet (ok).' <<< "$result"
+grep -Fq 'weboverlay: /api/house-history nicht wie erwartet (ok).' <<< "$result"
+archive_snapshot unavailable 0 >/dev/null
 docker start stackci-maria >/dev/null
 for i in {1..40}; do docker exec stackci-maria healthcheck.sh --connect --innodb_initialized && break; sleep 1; done
 stack check

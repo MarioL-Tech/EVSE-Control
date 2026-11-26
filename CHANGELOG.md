@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-26 23:35 (Europe/Vienna)
+
+- Stack: rein alle fünf Images bauen, privaten Plan vollständig und ohne
+  Überschreiben bereitstellen, `up`/`build-up` nur nach Planbestätigung. Der
+  UART-Buildkontext schließt benachbarte Standortdateien auf allen Buildwegen aus.
+- Web: inaktive Ansichten stoppen Renderuhren; Formatter und Chartgeometrie
+  wiederverwenden. Feedback beim Speichern, Touch-Feldhilfen, 6-A-Festbereich
+  und Löschen ungesendeter RFID-Eingaben beim Verlassen. PWA-Shell v25.
+- UART: EOF blockiert den Empfang nicht; nach einem blockierenden Read Frist,
+  Verbindung und Shutdown erneut prüfen. Neue Regressionen für UART und ESP32,
+  SQL-Wiederkehr und zwei GUI-Matrizen. Abschlussprüfung separat.
+
 ## 2026-11-26 23:31 (Europe/Vienna)
 
 - Isolierte KVM-Prüfung für zwei SQL-Messwerte über einen echten Gast-Kaltstart

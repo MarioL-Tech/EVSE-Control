@@ -26,7 +26,7 @@ function envelope(r = result(), command = null) {
       { width: 390, height: 1000, colorScheme: 'light', url: '/', root: 'esp32-control', image: 'ESP32manual390light.png' },
       { width: 320, height: 1100, colorScheme: 'light', url: '/einstellungen', root: 'esp32-rfid', image: 'RFIDsettings320light.png' }
     ]) {
-      const context = await browser.newContext({ viewport: { width: layout.width, height: layout.height }, colorScheme: layout.colorScheme });
+      const context = await browser.newContext({ viewport: { width: layout.width, height: layout.height }, colorScheme: layout.colorScheme, hasTouch: true });
       let current = result(), getMode = 'ok', postMode = 'ok', pendingPost = null;
       let posts = 0, gets = 0;
       const errors = [], bodies = [];
@@ -94,6 +94,17 @@ function envelope(r = result(), command = null) {
       await action.focus(); await page.keyboard.press('Enter');
       await page.waitForFunction(id => document.getElementById(id).textContent.includes('Firmware bestätigt'), prefix + 'result');
       assert.equal(posts, 1);
+      if (!settings) {
+        assert.equal(bodies.at(-1).operation, 'lock');
+        assert.equal(await root.getAttribute('data-target'), 'inactive', 'Lock ACK cannot change the inspected target');
+        await page.waitForFunction(() => !document.getElementById('esp32-unlock').disabled);
+        await page.locator('#esp32-unlock').tap();
+        await page.waitForFunction(() => !document.getElementById('esp32-unlock').disabled);
+        assert.equal(posts, 2, 'One explicit touch sends one unlock');
+        assert.equal(bodies.at(-1).operation, 'unlock');
+        assert.match(await resultText.innerText(), /Keine mechanische Bestätigung/);
+        assert.equal(await root.getAttribute('data-target'), 'inactive');
+      }
       getMode = 'offline';
       await page.waitForFunction(id => document.getElementById(id).textContent.includes('nicht verfügbar'), prefix + 'status');
       assert.match(await resultText.innerText(), /Firmware bestätigt/, 'GET failure retains last action result');
@@ -133,6 +144,22 @@ function envelope(r = result(), command = null) {
         assert(!(await page.content()).includes(privateUid));
         assert(!page.url().includes(privateUid));
         assert(!(await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }))).includes(privateUid));
+        const beforeHidden = posts;
+        await page.locator('#esp32-uid').fill(privateUid);
+        await page.evaluate(() => {
+          Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+          document.dispatchEvent(new Event('visibilitychange'));
+        });
+        assert.equal(await page.locator('#esp32-uid').inputValue(), '', 'Leaving a tab erases an unsubmitted private UID');
+        assert(await page.locator('#esp32-revoke').isDisabled());
+        assert(await page.locator('#uid-format-error').isHidden());
+        await page.evaluate(() => {
+          delete document.hidden;
+          document.dispatchEvent(new Event('visibilitychange'));
+        });
+        await page.waitForFunction(() => !document.getElementById('esp32-enroll').disabled);
+        assert(await page.locator('#esp32-revoke').isDisabled(), 'Fresh inspection cannot restore a cleared UID');
+        assert.equal(posts, beforeHidden, 'Tab lifecycle never submits a private draft');
         current = result({ state: { ...result().state, cards: 16, enrolling: true } });
         await page.waitForFunction(() => document.getElementById('esp32-rfid-count').textContent === '16 / 16');
         assert(await action.isDisabled()); assert(!(await page.locator('#esp32-cancel').isDisabled()));

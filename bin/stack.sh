@@ -11,8 +11,12 @@ root=$(cd "$(dirname "$0")/.." && pwd -P)
 exec 9<"$root"
 flock -n 9 || die 'Andere Stack-Operation läuft.'
 if [[ ! -e $root/bin/.env && ! -L $root/bin/.env ]]; then
-  (set -o noclobber; umask 077; cat "$root/bin/stack-plan.example" > "$root/bin/.env") || die 'Plan konnte nicht angelegt werden.'
-  echo 'Standardplan bin/.env angelegt; vor Betrieb gegen den Bestand prüfen.' >&2
+  # Publish the complete private template without replacing a concurrent plan.
+  # Never leave a partly written operational selection at the public path.
+  (umask 077; tmp=$(mktemp "$root/bin/.stack-plan.XXXXXXXX") || exit 1
+   trap 'rm -f -- "$tmp"' EXIT
+   cat "$root/bin/stack-plan.example" > "$tmp" && ln -T -- "$tmp" "$root/bin/.env") || die 'Plan konnte nicht angelegt werden.'
+  echo 'Unfreigegebenen Standardplan bin/.env angelegt; vor Start gegen den Bestand prüfen und ready yes setzen.' >&2
 fi
 [[ -f $root/bin/.env && ! -L $root/bin/.env ]] || die 'Plan muss eine reguläre Datei sein.'
 if [[ $action == archive-pin ]]; then before=$(bash "$root/bin/archive-link.sh" --witness "$root"); fi
@@ -21,7 +25,7 @@ declare -A opt=() projects=() db=() wall=() house=() device=() targets=() files=
 )
 while read -r k v extra || [[ -n ${k:-} ]]; do
   [[ -z $k || $k == '#'* ]] && continue
-  case "$k:$v" in web:base|web:history|web:auth|web:auth+history|storage:base|storage:auth|reader:base|reader:auth|rollup:on|https:on|uart:gateway) ;;
+  case "$k:$v" in ready:yes|web:base|web:history|web:auth|web:auth+history|storage:base|storage:auth|reader:base|reader:auth|rollup:on|https:on|uart:gateway) ;;
     *) die 'Unbekannter Planeintrag (keine Env-/Secretwerte im Plan).';; esac
   [[ -z $extra && -z ${opt[$k]+x} ]] || die 'Ungültiger oder doppelter Planeintrag.'
   opt[$k]=$v
@@ -31,6 +35,12 @@ done < "$root/bin/.env"
 roles=()
 for role in storage web reader uart; do [[ ! ${opt[$role]:-} ]] || roles+=("$role"); done
 ((${#roles[@]})) || die 'Leerer Plan.'
+if [[ $action == up || $action == build-up ]]; then
+  [[ ${opt[ready]:-} == yes ]] || die 'Plan nicht freigegeben: Bestand, Overlays und Profile prüfen; danach ready yes in bin/.env setzen.'
+fi
+if [[ $action == plan && ${opt[ready]:-} != yes ]]; then
+  echo 'Plan nicht freigegeben; plan prüft nur, up/build-up bleiben gesperrt.' >&2
+fi
 
 # No shared shell overrides (e.g. MQTT_CLIENT_ID). Preserve the installed
 # Docker client config/context; operate on a local Linux engine, never via SSH.
@@ -40,8 +50,8 @@ client() { env -i PATH="$PATH" HOME="$HOME" DOCKER_CONFIG="${DOCKER_CONFIG:-$HOM
 host=$(client docker context inspect --format '{{.Endpoints.docker.Host}}')
 [[ $host == unix:///* ]] || die 'Nur lokaler Unix-Docker-Kontext.'
 d() { client docker --host "$host" "$@"; }
-# Build only the selected projects, with their selected overlays. Interpolation
-# uses synthetic values and never reads site .env files or requires mounts.
+# Build every runtime image, independently of the operational selection. Keep
+# selected overlays; omitted roles use base. Never read site .env or mounts.
 if [[ $action == build ]]; then
   umask 077
   build_env=$(mktemp /dev/shm/evse-build.XXXXXXXX) || die 'Build-Snapshot nicht verfügbar.'
@@ -51,15 +61,15 @@ DB_HOST=build.invalid
 MQTT_PASSWORD_HOST_FILE=/nonexistent/evse-build-password
 HISTORY_DB_PASSWORD_HOST_FILE=/nonexistent/evse-build-history-password
 EOF
-  for role in "${roles[@]}"; do
+  for role in storage web reader uart; do
     (
       cd "$root/${paths[$role]}"
       args=(--env-file "$build_env" -f compose.yaml)
-      [[ ${opt[$role]} != *auth* ]] || args+=(-f compose.auth.yaml)
-      [[ ${opt[$role]} != *history* ]] || args+=(-f compose.history.yaml)
+      [[ ${opt[$role]:-base} != *auth* ]] || args+=(-f compose.auth.yaml)
+      [[ ${opt[$role]:-base} != *history* ]] || args+=(-f compose.history.yaml)
       case $role in
         storage) selected=(storage);;
-        web) selected=(weboverlay); [[ ! ${opt[https]:-} ]] || selected+=(https);;
+        web) selected=(weboverlay https); args+=(--profile https);;
         reader) selected=(wallbox-reader);;
         uart) selected=(uart-bridge); args+=(--profile tools);;
       esac

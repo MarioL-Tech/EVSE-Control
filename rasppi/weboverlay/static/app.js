@@ -141,7 +141,11 @@
   const state = createViewState();
   const charts = window.OverlayCharts?.mount();
   const renderView = createRenderer({ document, charts });
-  let active = null, pollTimer = null;
+  let active = null, pollTimer = null, clockTimer = null, suspended = false;
+  function syncClock() {
+    if (clockTimer !== null) clearInterval(clockTimer);
+    clockTimer = !document.hidden && !suspended ? setInterval(render, 100) : null;
+  }
   function render() {
     const view = state.snapshot();
     renderView(view);
@@ -149,7 +153,7 @@
     window.dispatchEvent(new CustomEvent('evse:state', { detail: view }));
   }
   async function poll() {
-    if (active || document.hidden) return;
+    if (active || document.hidden || suspended) return;
     clearTimeout(pollTimer);
     const controller = new AbortController(), token = state.begin(), started = performance.now();
     active = controller;
@@ -166,21 +170,26 @@
       state.fail(token);
     } finally {
       clearTimeout(timeout); active = null; render();
-      if (!document.hidden) pollTimer = setTimeout(poll, Math.max(0, 1000 - (performance.now() - started)));
+      if (!document.hidden && !suspended) pollTimer = setTimeout(poll, Math.max(0, 1000 - (performance.now() - started)));
     }
   }
   function resetView() {
+    syncClock();
     clearTimeout(pollTimer);
     state.reset('waiting', 'Ansicht gewechselt. Neue Messwerte werden angefordert.');
     if (active) active.abort();
     render();
-    if (!document.hidden) poll();
+    if (!document.hidden && !suspended) poll();
   }
   document.addEventListener('visibilitychange', resetView);
   window.addEventListener('pageshow', event => {
-    if (event.persisted) { charts?.restore(); resetView(); }
+    if (!event.persisted && !suspended) return;
+    suspended = false;
+    if (event.persisted) charts?.restore();
+    resetView();
   });
+  window.addEventListener('pagehide', () => { suspended = true; resetView(); });
   // This clock is independent of HTTP; a hung request cannot preserve live values.
-  setInterval(render, 100);
+  syncClock();
   render(); poll();
 })();

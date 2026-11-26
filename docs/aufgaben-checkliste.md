@@ -104,14 +104,17 @@
 ### D1 – Weboverlay · PHP, Browser und PWA
 
 - [ ] PHP/HTTP, Browser/Renderer und PWA auf Duplikate, unnötige Arbeit und schwer prüfbare Pfade untersuchen. Messbare oder konkret belegte Verbesserungen mit Regressionstests absichern.
+  - Befund: Hintergrundintervalle (100/250 ms), Formatter-Neuanlage, Geometrielesungen und Ersetzen des IPC-Inodes bei gewöhnlichen State-Abfragen. Gezielte Regressionen in `frontend.test.cjs`, `smartmeter.test.cjs`, `charts.test.cjs`, `shared.php`.
 
 ### D2 – Storage und Archivpipeline · Python/SQL
 
 - [ ] Erfassung, Speicherpfade, Archivabfragen und Laufzeitaufwand prüfen und sinnvoll vereinfachen. Daten, Schema, ACK-/Retry- und Abdeckungseigenschaften erhalten.
+  - Separater Audit von Intake, Commit-/Retry, Offene-Minuten-Publikation, Rollup-Generationen und Retention: kein belegter Grund für Änderungen am Datenpfad oder SQL-Schema. Laufzeitmatrix separat unter E1.
 
 ### D3 – Reader, UART und Firmware · Je ein eigener Prüfauftrag
 
 - [ ] Reader-Code außerhalb der Regelarbeit auf unnötige Komplexität und Arbeit prüfen und sinnvolle Vereinfachungen absichern.
+  - Separater Review von Telemetrie, MQTT und ControlChannel samt Owner/WriteCore. Begrenzte Queues, explizite Vorprüfungen und I/O-Trennung beibehalten; kein weiterer belegter Umbau.
 - [ ] UART-Brücke und Gateway separat auf Wiederholungen, Leerlauf und Frische-/Deadline-Verhalten prüfen; gezielte Verbesserungen gegenprüfen.
 - [ ] ESP32-Firmware separat auf unnötige Arbeit und Komplexität prüfen; native Simulation, Artefakte und Build ohne Upload. Unveränderte Bereiche mit Begründung festhalten statt blind umzubauen.
 

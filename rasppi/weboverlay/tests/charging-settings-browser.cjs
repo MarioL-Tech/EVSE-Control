@@ -74,6 +74,8 @@ const defaults = () => {
     assert((await phases.getAttribute('aria-describedby')).split(/\s+/).includes(descriptionId));
     assert.equal(await trigger.getAttribute('aria-describedby'), descriptionId);
     assert.equal(await trigger.getAttribute('aria-label'), 'Info: ' + await page.locator(`label[for="charging-installation-phases"]`).innerText());
+    assert(await trigger.evaluate(el => el.getBoundingClientRect().width >= 44 && el.getBoundingClientRect().height >= 44),
+      'Touch help keeps a small icon inside a full touch target');
     assert.equal(posts, 0);
     fs.mkdirSync('/artifacts', { recursive: true });
     await page.screenshot({ path: '/artifacts/charging-settings-collapsed-1440-dark.png', fullPage: true });
@@ -147,6 +149,10 @@ const defaults = () => {
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       assert(await page.locator('.charging-profile input[type="number"], .charging-window input').evaluateAll(inputs =>
         inputs.every(input => input.getBoundingClientRect().height >= 44)), 'Numeric/time inputs have touch-sized targets');
+      assert(await page.locator('.charging-days label').evaluateAll(labels =>
+        labels.every(label => label.getBoundingClientRect().height >= 44)), 'Weekdays have touch-sized labels');
+      assert(await page.locator('#charging-fields input:not([type=checkbox]), #charging-fields select, #env-key-WEB_PORT, #env-service, #esp32-uid').evaluateAll(inputs =>
+        inputs.every(input => parseFloat(getComputedStyle(input).fontSize) >= 16)), 'Touch editing text is at least 16px');
       fs.mkdirSync('/artifacts', { recursive: true });
       await page.screenshot({ path: `/artifacts/charging-settings-${width}-${colorScheme}.png`, fullPage: true });
     }
@@ -170,6 +176,7 @@ const defaults = () => {
     await page.waitForFunction(() => document.getElementById('charging-save').disabled);
     for (let i = 0; i < 100 && !release; i++) await page.waitForTimeout(10);
     assert(release, 'Bounded in-flight save fixture entered');
+    assert.equal(await page.locator('#charging-status').innerText(), 'Regeln werden gespeichert …', 'Pending save is distinct from unsaved/saved');
     await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true })));
     await page.waitForFunction(() => document.getElementById('charging-status').textContent.includes('Speicherstatus unklar'));
     release();

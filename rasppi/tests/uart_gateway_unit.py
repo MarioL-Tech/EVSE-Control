@@ -366,6 +366,48 @@ class GatewayTests(unittest.TestCase):
         self.gateway.rx.extend(b"PARTIAL")
         self.port.data.extend(b"\nNEXT\n")
         self.assertEqual(self.gateway.line(self.clock()+2, self.gateway.epoch), "NEXT")
+    def test_final_newline_cannot_cross_operation_deadline(self):
+        self.gateway.rx.extend(b"LATE")
+        self.gateway.rx_start = 0
+        self.port.data.extend(b"\n")
+        self.clock.now = 1.999
+        with self.assertRaises(SerialFailure):
+            self.gateway.line(2, self.gateway.epoch)
+    def test_frame_deadline_is_checked_after_blocking_read(self):
+        self.gateway.rx.extend(b"EXPIRED")
+        self.gateway.rx_start = 0
+        self.port.data.extend(b"\nNEXT\n")
+        self.clock.now = 1.999
+        # The operation has time left, but the first frame expires at read return.
+        self.assertEqual(self.gateway.line(3, self.gateway.epoch), "NEXT")
+    def test_read_return_cannot_bypass_transport_revocation_or_shutdown(self):
+        for change in (lambda: setattr(self.gateway, "stopping", True),
+                       lambda: setattr(self.gateway, "ready", False),
+                       lambda: setattr(self.gateway, "epoch", self.gateway.epoch + 1)):
+            with self.subTest(change=change):
+                self.setUp()
+                self.port.data.extend(b"\n")
+                read = self.port.read
+                def revoked_read(size):
+                    data = read(size)
+                    change()
+                    return data
+                with patch.object(self.port, "read", revoked_read), self.assertRaises(SerialFailure):
+                    self.gateway.line(2, self.gateway.epoch)
+    def test_late_management_ack_is_unknown_and_never_retried(self):
+        inspected = self.inspect()
+        item = self.command(inspected)
+        read = self.port.read
+        def late_newline(size):
+            if self.port.data == b"\n":
+                self.clock.now += 2
+            return read(size)
+        before = len(self.port.writes)
+        with patch.object(self.port, "read", late_newline):
+            answer = self.gateway.handle(item)
+        self.assertEqual((answer["status"], answer["command_sent"]), ("outcome_unknown", True))
+        self.assertEqual(self.gateway.handle(item), answer)
+        self.assertEqual(len(self.port.writes), before + 1)
     def test_crlf_exactly_once_and_full_192_character_frame(self):
         self.port.data.extend(b"X"*192 + b"\r\n")
         self.assertEqual(self.gateway.line(2, self.gateway.epoch), "X"*192)

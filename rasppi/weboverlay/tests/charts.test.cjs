@@ -1,9 +1,42 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const vm = require('node:vm');
+const fs = require('node:fs');
 const { METRICS, GROUPS, MAX_POINTS, RETENTION_MS, createHistory, buildPlot,
   defaults, normalizePreferences, loadPreferences, savePreferences, editPreferences, readings } = require('../static/charts.js');
 const epoch = Date.parse('2026-10-04T12:00:00Z');
+test('hidden chart mount queues no frames; live pointer movement reads no inspection geometry', () => {
+  const nodes = [], listeners = {}, frames = [];
+  let geometryReads = 0;
+  const element = () => {
+    const attributes = new Map(), events = {};
+    const node = { textContent: '', hidden: false, events,
+      append() {}, remove() {}, setAttribute: (key, value) => attributes.set(key, String(value)),
+      getAttribute: key => attributes.get(key) ?? null,
+      toggleAttribute() {}, addEventListener: (key, fn) => { events[key] = fn; },
+      getBoundingClientRect() { geometryReads++; return { width: 390, left: 0 }; } };
+    nodes.push(node); return node;
+  };
+  const grid = element();
+  const document = { hidden: true, getElementById: id => id === 'chart-grid' ? grid : null,
+    createElement: element, createElementNS: element,
+    addEventListener: (key, fn) => { (listeners[key] ||= []).push(fn); } };
+  const window = { addEventListener() {}, requestAnimationFrame: fn => { frames.push(fn); return frames.length; } };
+  vm.runInNewContext(fs.readFileSync(require.resolve('../static/charts.js'), 'utf8'), { document, window });
+  const mounted = window.OverlayCharts.mount();
+  assert.equal(frames.length, 0);
+  mounted.update({ status: 'waiting', values: null, envelope: null });
+  assert.equal(frames.length, 0); assert.equal(geometryReads, 0);
+  document.hidden = false;
+  for (const fn of listeners.visibilitychange) fn();
+  assert.equal(frames.length, 1);
+  frames.shift()();
+  const before = geometryReads;
+  assert(before > 0, 'visible charts measure their actual cards');
+  for (const node of nodes) node.events.pointermove?.({ clientX: 50 });
+  assert.equal(geometryReads, before, 'raw/live charts have no archive bucket inspection');
+});
 const values = { active_power_w: 7400, session_energy_wh: 1500, current_limit_a: 16,
   current_a: [6.123, 5, 0], voltage_v: [235.7, 234, 236], plugged_in: true, charging: false,
   below_commanded_current: true, error_code: 0, charging_state: 1, charging_state_raw: 33024, socket_lock_state: 273 };

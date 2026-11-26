@@ -204,7 +204,8 @@
     if (busy || save && (!available || !dirty || !form.reportValidity())) return;
     let config;
     try { if (save) config = collect(); } catch (_) { message('Werte oder Zeitfenster ungültig.'); return; }
-    busy = true; const controller = new AbortController(), token = ++generation; active = controller; activeSave = save; render();
+    busy = true; const controller = new AbortController(), token = ++generation; active = controller; activeSave = save;
+    message(save ? 'Regeln werden gespeichert …' : 'Lade Einstellungen …'); render();
     const timeout = setTimeout(() => controller.abort(), 5000);
     try {
       const response = await fetch(ENDPOINT, { method: save ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', signal: controller.signal,

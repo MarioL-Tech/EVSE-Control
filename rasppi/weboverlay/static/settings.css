@@ -42,6 +42,14 @@
 .settings-main #esp32-rfid .facts { margin: 12px 0; }
 .settings-main #esp32-revoke:enabled { color: var(--bad); }
 .settings-main #env-create-row, .settings-main #charging-status:not([hidden]), .settings-main #esp32-rfid-result:not([hidden]) { margin: 10px 0; }
+@media (pointer: coarse) {
+  .settings-main .setting-help > summary { width: 44px; height: 44px; min-height: 44px; }
+  .settings-main .charging-days label, .settings-main .env-clear { min-height: 44px; }
+  /* Readable editing text without forcing mobile browsers to zoom on focus. */
+  .settings-main #env-fields input:not([type=checkbox]),
+  .settings-main .setting-field input:not([type=checkbox]),
+  .settings-main select, .settings-main #esp32-uid { font-size: 1rem; }
+}
 @media (max-width: 1000px) {
   .settings-main .settings-grid, .settings-main .charging-profile-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }

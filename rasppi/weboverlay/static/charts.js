@@ -422,8 +422,10 @@
           : entry.inspection + (event.key === 'ArrowRight' ? 1 : -1));
       });
       svg.addEventListener('pointermove', event => {
-        const p = entry.plot, bounds = svg.getBoundingClientRect();
-        if (!p?.bucketCount || !bounds.width) return;
+        const p = entry.plot;
+        if (!p?.bucketCount) return;
+        const bounds = svg.getBoundingClientRect();
+        if (!bounds.width) return;
         const x = (event.clientX - bounds.left) / bounds.width * p.geometry.width;
         inspect(Math.floor((x - p.geometry.left) / (p.geometry.right - p.geometry.left) * p.bucketCount));
       });
@@ -493,6 +495,9 @@
     }
     function draw(now) {
       pendingNow = now;
+      // Visibility/pageshow already invalidate layout and request a fresh frame.
+      // Do not enqueue background frames for reset/import notifications.
+      if (document.hidden) return;
       if (frame !== null) return;
       frame = root.requestAnimationFrame(() => {
         frame = null;
