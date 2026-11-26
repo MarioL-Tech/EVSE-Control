@@ -79,6 +79,7 @@ in `bin/.env` übernehmen. Im bisherigen Repository-Hauptverzeichnis:
 | Aktion | Befehl |
 |---|---|
 | Plan gegen den Bestand prüfen, ohne Dienste zu starten | `bash bin/stack.sh plan` |
+| Images ohne Start, Stop oder Neuerstellung von Projektdiensten bauen | `bash bin/stack.sh build` |
 | Geplante Dienste gemeinsam starten | `bash bin/stack.sh up` |
 | Geplante Dienste mit Build aktualisieren und starten | `bash bin/stack.sh build-up` |
 | Archivkonfiguration, tatsächlichen Netzanschluss und Archivantwort unterscheiden | `bash bin/stack.sh check` |
