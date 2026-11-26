@@ -30,10 +30,15 @@ witness() {
   printf '%s\n' "${digest%% *}"
 }
 if [[ $# == 2 && $1 == --witness ]]; then witness "$2"; exit; fi
-seal=false
+seal=false; boot=false
 case $#:${1:-} in
-  1:--seal) seal=true;; 1:--reconcile) ;; *) die 'Ungültiger Aufruf.';;
+  1:--seal) seal=true;; 1:--reconcile) ;; 1:--boot) boot=true;; *) die 'Ungültiger Aufruf.';;
 esac
+if $boot; then
+  [[ $EUID == 0 && $(id -u) == 0 && $(id -g) == 0 ]] || die 'Bootdienst benötigt Root-Identität.'
+  [[ $(readlink -f /proc/self/fd/0) == /etc/evse-archive-link/expected && ! -L /etc/evse-archive-link/expected &&
+     $(stat -Lc '%u:%g:%a:%h:%F' /proc/self/fd/0) == '0:0:600:1:regular file' ]] || die 'Freigabedatei nicht rootgeschützt.'
+fi
 mapfile -t pin
 [[ ${#pin[@]} == 13 && ${pin[0]} == EVSE-ARCHIVE-2 ]] || die 'Ungültige Freigabedatei (ggf. neu freigeben).'
 root=${pin[1]} project=${pin[2]} choice=${pin[3]} id=${pin[4]} hash=${pin[5]} db=${pin[6]}
@@ -79,6 +84,24 @@ label='{{ index .Config.Labels'
 labels="$label \"com.docker.compose.project\" }}|$label \"com.docker.compose.service\" }}|$label \"com.docker.compose.project.working_dir\" }}|$label \"com.docker.compose.project.config_files\" }}|$label \"com.docker.compose.oneoff\" }}|$label \"com.docker.compose.config-hash\" }}|$label \"com.docker.compose.container-number\" }}"
 expected="$project|weboverlay|$wp|$files|False|$hash|1"
 inspect() { d container inspect --format "$1" "$id"; }
+# Docker's service being active does not mean its restart-policy containers
+# have started. Wait only for the pinned container, before any network write.
+# Any identity/configuration mismatch or unexpected state still fails closed.
+if $boot; then
+  deadline=$((SECONDS + 120))
+  while :; do
+    unique=$(d ps -aq --no-trunc --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.service=weboverlay)
+    [[ $unique == "$id" && $(inspect "$labels") == "$expected" ]] || die 'Container ersetzt/mehrdeutig oder Compose-Modell veraltet.'
+    state=$(inspect '{{.State.Status}}|{{.State.Paused}}|{{.State.Restarting}}')
+    case $state in
+      'running|false|false') break;;
+      'created|false|false'|'exited|false|false'|'restarting|false|true') ;;
+      *) die 'Unerwarteter Webcontainerzustand.';;
+    esac
+    (( SECONDS < deadline )) || die 'Webcontainer innerhalb der Startfrist nicht bereit.'
+    sleep 1
+  done
+fi
 running_epoch() {
   local line prefix="$id|/$project-weboverlay-1|running|false|false|"
   line=$(inspect '{{.Id}}|{{.Name}}|{{.State.Status}}|{{.State.Paused}}|{{.State.Restarting}}|{{.State.StartedAt}}')

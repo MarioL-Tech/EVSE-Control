@@ -5,11 +5,13 @@ Requisite=docker.service
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash /usr/local/libexec/evse-archive-link --reconcile
+User=root
+Group=root
+ExecStart=/bin/bash /usr/local/libexec/evse-archive-link --boot
 StandardInput=file:/etc/evse-archive-link/expected
 Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
 Environment=DOCKER_CONFIG=/etc/evse-archive-link/docker-config
-TimeoutStartSec=45
+TimeoutStartSec=180
 UMask=0077
 NoNewPrivileges=yes
 ProtectSystem=strict

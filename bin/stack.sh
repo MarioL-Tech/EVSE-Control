@@ -3,14 +3,18 @@
 set -euo pipefail
 die() { printf '%s\n' "$*" >&2; exit 1; }
 (( EUID != 0 )) || die 'Checkout nur als unprivilegierter Docker-Betreiber ausführen.'
-[[ $# == 1 ]] || die 'Aufruf: bash bin/stack.sh plan|up|build-up|stop|check|archive-pin'
+[[ $# == 1 ]] || die 'Aufruf: bash bin/stack.sh plan|build|up|build-up|stop|check|archive-pin'
 action=$1
-case $action in plan|up|build-up|stop|check|archive-pin) ;; *) die 'Unbekannte Stack-Aktion.';; esac
+case $action in plan|build|up|build-up|stop|check|archive-pin) ;; *) die 'Unbekannte Stack-Aktion.';; esac
 shopt -s inherit_errexit
 root=$(cd "$(dirname "$0")/.." && pwd -P)
 exec 9<"$root"
 flock -n 9 || die 'Andere Stack-Operation läuft.'
-[[ -f $root/bin/.env ]] || die 'Zuerst bin/stack-plan.example nach bin/.env kopieren und gegen den Bestand prüfen.'
+if [[ ! -e $root/bin/.env && ! -L $root/bin/.env ]]; then
+  (set -o noclobber; umask 077; cat "$root/bin/stack-plan.example" > "$root/bin/.env") || die 'Plan konnte nicht angelegt werden.'
+  echo 'Standardplan bin/.env angelegt; vor Betrieb gegen den Bestand prüfen.' >&2
+fi
+[[ -f $root/bin/.env && ! -L $root/bin/.env ]] || die 'Plan muss eine reguläre Datei sein.'
 if [[ $action == archive-pin ]]; then before=$(bash "$root/bin/archive-link.sh" --witness "$root"); fi
 declare -A opt=() projects=() db=() wall=() house=() device=() targets=() files=() paths=(
   [web]=rasppi/weboverlay [storage]=rasppi/storage [reader]=rasppi/wallbox [uart]=rasppi
@@ -36,6 +40,34 @@ client() { env -i PATH="$PATH" HOME="$HOME" DOCKER_CONFIG="${DOCKER_CONFIG:-$HOM
 host=$(client docker context inspect --format '{{.Endpoints.docker.Host}}')
 [[ $host == unix:///* ]] || die 'Nur lokaler Unix-Docker-Kontext.'
 d() { client docker --host "$host" "$@"; }
+# Build only the selected projects, with their selected overlays. Interpolation
+# uses synthetic values and never reads site .env files or requires mounts.
+if [[ $action == build ]]; then
+  umask 077
+  build_env=$(mktemp /dev/shm/evse-build.XXXXXXXX) || die 'Build-Snapshot nicht verfügbar.'
+  trap 'rm -f -- "$build_env"' EXIT
+  cat > "$build_env" <<'EOF'
+DB_HOST=build.invalid
+MQTT_PASSWORD_HOST_FILE=/nonexistent/evse-build-password
+HISTORY_DB_PASSWORD_HOST_FILE=/nonexistent/evse-build-history-password
+EOF
+  for role in "${roles[@]}"; do
+    (
+      cd "$root/${paths[$role]}"
+      args=(--env-file "$build_env" -f compose.yaml)
+      [[ ${opt[$role]} != *auth* ]] || args+=(-f compose.auth.yaml)
+      [[ ${opt[$role]} != *history* ]] || args+=(-f compose.history.yaml)
+      case $role in
+        storage) selected=(storage);;
+        web) selected=(weboverlay); [[ ! ${opt[https]:-} ]] || selected+=(https);;
+        reader) selected=(wallbox-reader);;
+        uart) selected=(uart-bridge); args+=(--profile tools);;
+      esac
+      d compose "${args[@]}" build "${selected[@]}"
+    )
+  done
+  exit 0
+fi
 # The editor's persistent 0600 locks belong to the website uid, not to the
 # operator. Freeze the interpolation inputs instead. An editor save renames
 # its .env; a single open sees the complete old or new inode. Compose must

@@ -1,8 +1,8 @@
-# Copy to bin/.env (ignored). Choose explicitly; these are examples, not
-# inferred site settings. Do not put passwords, paths or assignments here.
+# Automatically copied to bin/.env (ignored) if absent. Check against the
+# existing installation before starting. No passwords, paths or assignments.
 # Format: component selection. Omitted components are not managed.
 web base
-reader base
+# reader base
 # For SQL use "web history" instead; MQTT file auth: "web auth+history".
 # reader auth
 # storage base

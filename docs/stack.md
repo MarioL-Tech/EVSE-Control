@@ -5,7 +5,7 @@ Vom Repository-Hauptverzeichnis auf dem Linux-Docker-Host: **`bash bin/stack.sh 
 ## Einmalige Übernahme durch den Betreiber
 
 1. Bisherige Projektnamen, Verzeichnisse, `-f`-Dateien und aktive Dienste/Profile mit dem tatsächlichen Bestand vergleichen. Dasselbe Checkout am bisherigen Pfad benutzen. Bestehende Symlinks, `.env`, Secretdateien und Volumes belassen. Ein früheres manuelles `-p` **vorher identisch** als `COMPOSE_PROJECT_NAME` in der zugehörigen Dienst-`.env` hinterlegen. Nicht bloß Verzeichnisse kopieren oder Port-/Gerätenamen ändern. Bei einem Pfad-/Projektkonflikt nicht durch einen Zweitstart „reparieren“.
-2. `cp -n bin/stack-plan.example bin/.env`; die **ignorierte** Datei `bin/.env` ist *nur* ein Plan, kein Shellskript. Pro Komponente genau eine Zeile, `#`-Kommentar auf eigener Zeile. Nur bereits eingerichtete/gewünschte Dienste eintragen. Beispiel: `web auth+history` ersetzt die Zeile `web base`, steht nicht zusätzlich dazu. SQL und MQTT-Dateiauthentifizierung sind unabhängig; ein zuvor fehlendes MQTT-Passwortfile nicht durch Aktivieren des Auth-Overlays erzwingen. Keine privaten Werte, Passwörter, Gerätepfade oder neuen Grenzwerte hier eintragen.
+2. Beim ersten Aufruf legt der Einstieg die **ignorierte** Datei `bin/.env` aus `bin/stack-plan.example` an, falls sie fehlt; eine vorhandene Datei wird nie überschrieben. Der zurückhaltende Standard wählt nur `web base` und ist vor dem Betrieb gegen den tatsächlichen Bestand zu prüfen und anzupassen. Die Datei ist *nur* ein Plan, kein Shellskript. Pro Komponente genau eine Zeile, `#`-Kommentar auf eigener Zeile. Nur bereits eingerichtete/gewünschte Dienste eintragen. Beispiel: `web auth+history` ersetzt die Zeile `web base`, steht nicht zusätzlich dazu. SQL und MQTT-Dateiauthentifizierung sind unabhängig; ein zuvor fehlendes MQTT-Passwortfile nicht durch Aktivieren des Auth-Overlays erzwingen. Keine privaten Werte, Passwörter, Gerätepfade oder neuen Grenzwerte hier eintragen.
 
    | Planeintrag | Wirkung |
    |---|---|
@@ -26,10 +26,13 @@ Der Snapshotpfad in einem Compose-Label ist kein dauerhaftes Konfigurationsfile.
 
 ```bash
 bash bin/stack.sh plan       # Plan/Bestandskonflikte vorab prüfen
+bash bin/stack.sh build      # nur Images der im Plan gewählten Dienste bauen
 bash bin/stack.sh up         # Start/Abgleich; mit vorhandenen Images, fehlende baut Compose
 bash bin/stack.sh check      # separat nach Docker-/Hostneustart und nach Konfigurationsänderungen
 bash bin/stack.sh stop       # stop statt down: Container/Volumes bleiben bestehen
 ```
+
+`build` baut ohne Start, Stop oder Recreate die Images der ausgewählten Komponenten und bei `https on` auch das HTTPS-Image; Storage und Rollup verwenden dasselbe Image. Für alle Standardimages entsprechend alle vier Komponenten und `https on` im Plan wählen. Der Build verwendet die gewählten Compose-Overlays, aber synthetische Interpolationswerte statt Dienst-`.env` und Secrets; Geräte und externe Netze müssen nicht existieren. Dienst-`.env`-Profile werden dabei nicht eingelesen: HTTPS für diesen Aufruf ausdrücklich im Plan wählen. Der Build prüft weder den laufenden Bestand noch dessen Overlay-Auswahl; vor einem späteren Start bleibt `plan` nötig. Bestehende History-Installationen müssen im Betriebsplan ausdrücklich `web history` oder `web auth+history` behalten; die Bestandsprüfung verweigert sonst den Start.
 
 `build-up` statt `up` erzwingt den Imagebuild für die ausgewählten Dienste vor deren jeweiligem Start. Reihenfolge beim Start: Storage, Website, Reader, UART; Stop in umgekehrter Reihenfolge. Nicht atomar: Schlägt ein Projekt oder die nachgeschaltete Prüfung fehl, bleiben zuvor gestartete Dienste laufen. Keine stillen Rollbacks, Zwangsneustarts, Orphanentfernung, Volumeoperationen oder Wiederholung von Ladebefehlen. Start/Stop kann die laufende Erfassung/Regelung unterbrechen; nur koordiniert bedienen. Der Wrapper prüft keine elektrische Sicherheit, keine Firmware und keine mechanische Verriegelung. `check` ist kein Ladevorgang und lauscht nicht dauerhaft. Für eine wiederholte Kontrolle den lesenden Aufruf z. B. aus der **bestehenden** Betriebsüberwachung nach Neustarts ausführen und dessen Exitcode auswerten. Docker-Zugriff bleibt ein privilegiertes **Betreiberrecht**; keine Docker-Socketfreigabe an die Website oder einen neuen Dienst.
 

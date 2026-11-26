@@ -150,6 +150,12 @@ bool Engine::accepts(const Action &a,const Input &i) noexcept {
         pending_->limit_protection=false; // Never revive a refused one-shot on a later check.
         return false;
     }
+    // The HTTP plan can change while the owner is in preflight, without a
+    // subsequent step() before this gate. Apply the same save-is-not-an-
+    // activation rule here, including for ordinary Stop tickets.
+    const auto &s=i.sources.settings;
+    if (armed_ && s.valid && fresh(s.expires,i.now) &&
+        (s.revision!=revision_ || s.mode!=mode_)) frozen_=true;
     return pending_ && pending_->serial==a.serial && !manual_ && !frozen_ && clock_ok && action_is_current(a,i);
 }
 std::optional<Action> Engine::issue(Operation op,int ma,const Input &i) {

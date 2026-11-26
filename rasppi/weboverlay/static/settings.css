@@ -23,7 +23,7 @@
 .settings-main .setting-help > summary::-webkit-details-marker { display: none; }
 .settings-main .setting-help > summary::before { content: 'i'; display: grid; place-items: center; border: 1px solid currentColor; border-radius: 50%; width: 16px; height: 16px; font: bold 13px/1 Georgia, serif; }
 .settings-main .setting-help[open] > summary::before { color: var(--on-accent); background: var(--accent); }
-.settings-main .setting-tip { position: absolute; z-index: 3; top: 100%; left: 0; width: min(100%, 32rem); padding: 10px 12px; background: var(--sidebar); color: var(--text); border: 1px solid var(--blue); border-radius: 6px; box-shadow: var(--shadow); font-size: .83rem; line-height: 1.45; overflow-wrap: anywhere; }
+.settings-main .setting-tip { position: absolute; z-index: 3; bottom: 100%; left: 0; width: min(100%, 32rem); padding: 10px 12px; background: var(--sidebar); color: var(--text); border: 1px solid var(--blue); border-radius: 6px; box-shadow: var(--shadow); font-size: .83rem; line-height: 1.45; overflow-wrap: anywhere; }
 .settings-main .setting-field input:not([type=checkbox]), .settings-main .setting-field select { width: 100%; min-width: 0; min-height: 44px; }
 .settings-main .setting-field input::placeholder, .settings-main #esp32-uid::placeholder { color: var(--muted); opacity: 1; }
 .settings-main .setting-field input[aria-invalid=true], .settings-main .setting-field select[aria-invalid=true], .settings-main #esp32-uid[aria-invalid=true] { border-color: var(--bad) !important; }

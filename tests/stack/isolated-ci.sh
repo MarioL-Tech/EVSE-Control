@@ -10,6 +10,23 @@ git archive HEAD -- bin rasppi | tar -x -C "$fixture"
 cd "$fixture"
 wp=$fixture/rasppi/weboverlay
 sp=$fixture/rasppi/storage
+stack() { bash bin/stack.sh "$@"; }
+reject() { if "$@"; then echo 'Expected refusal' >&2; exit 1; fi; }
+# A first build creates the conservative plan, then builds with no site env,
+# secrets, devices, networks, or containers. Existing plans are never replaced.
+stack build
+cmp bin/.env bin/stack-plan.example
+[[ -z $(docker ps -aq) ]]
+printf 'web auth+history\nstorage auth\nrollup on\nhttps on\nreader auth\nuart gateway\n' > bin/.env
+cp bin/.env expected-build-plan
+stack build
+cmp bin/.env expected-build-plan
+[[ -z $(docker ps -aq) ]]
+docker image inspect evse-storage:local weboverlay-weboverlay weboverlay-https wallbox-wallbox-reader rasppi-uart-bridge >/dev/null
+# A nonempty existing invalid plan must be rejected, not silently replaced.
+printf 'invalid entry\n' > bin/.env
+reject stack build
+grep -Fxq 'invalid entry' bin/.env
 mkdir -p "$wp/secrets" "$sp/secrets"
 printf 'dummy-only-reader\n' > "$wp/secrets/history.txt"
 printf 'dummy-mqtt\n' > "$wp/secrets/mqtt.txt"
@@ -44,8 +61,6 @@ SITE
 printf 'MQTT_PASSWORD_HOST_FILE=./dummy-not-mounted\n' > rasppi/wallbox/.env
 printf 'UART_MODE=gateway\nUART_RESTART_POLICY=unless-stopped\nUART_NETWORK_MODE=evse-mqtt\n' > rasppi/.env
 printf 'web auth+history\nstorage auth\nrollup on\nreader auth\nuart gateway\n' > bin/.env
-stack() { bash bin/stack.sh "$@"; }
-reject() { if "$@"; then echo 'Expected refusal' >&2; exit 1; fi; }
 # Deliberately conflicting process env must not leak into either project's
 # Compose model. dotenv profiles and explicit profile selection are both used.
 export COMPOSE_PROJECT_NAME=wrong-from-process MQTT_CLIENT_ID=wrong-from-process
@@ -257,6 +272,7 @@ grep -Fq 'weboverlay: /api/history nicht wie erwartet (ok).' <<< "$result"
 docker start stackci-maria >/dev/null
 for i in {1..40}; do docker exec stackci-maria healthcheck.sh --connect --innodb_initialized && break; sleep 1; done
 stack check
+assert_archive_row # the original observation survived DB outage, not merely a healthy diagnostic
 stack stop
 [[ -z $(docker ps -q --filter label=com.docker.compose.project=stackci-web) ]]
 [[ -z $(docker ps -q --filter label=com.docker.compose.project=stackci-storage) ]]

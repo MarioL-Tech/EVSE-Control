@@ -65,6 +65,10 @@ const defaults = () => {
     await text.hover(); assert(await text.isVisible(), 'Pointer can enter and read the open explanation');
     await page.mouse.move(1, 1); assert(await text.isHidden());
     await trigger.focus(); assert(await text.isVisible()); await page.keyboard.press('Escape'); assert(await text.isHidden());
+    await phases.focus(); assert(await text.isVisible(), 'Focusing the field opens its explanation');
+    await page.keyboard.press('Escape'); assert(await text.isHidden());
+    await page.locator('h1').click(); await phases.hover(); assert(await text.isVisible(), 'Hovering the field opens its explanation');
+    await page.mouse.move(1, 1); assert(await text.isHidden());
     await phases.focus(); await trigger.tap(); assert(await text.isVisible()); await trigger.tap(); assert(await text.isHidden());
     const descriptionId = await text.getAttribute('id');
     assert((await phases.getAttribute('aria-describedby')).split(/\s+/).includes(descriptionId));

@@ -190,6 +190,17 @@ void tests() {
     { Engine e; auto i=input(); activate(e,i); auto a=need(e,i,Operation::Start,10000);
       check(e.accepts(a,i),"owner gate before IO"); e.manual_override();
       check(!e.accepts(a,i),"manual override cancels outstanding ticket"); }
+    for (bool change_mode : {false,true}) {
+      Engine e; auto i=input(); activate(e,i); i.sample->charging=true; i.sources.house.power_w=1;
+      auto stop=need(e,i,Operation::Stop); check(e.accepts(stop,i),"ordinary Stop initially current");
+      auto changed=i;
+      if (change_mode) changed.sources.settings.mode=Mode::Manual;
+      else changed.sources.settings.revision=std::string(64,'c');
+      check(!e.accepts(stop,changed),"plan change cancels pending Stop at IO gate");
+      check(!e.accepts(stop,i),"restoring old plan cannot revive Stop");
+      e.complete(stop,{}); tick(i);
+      check(!e.step(i) && e.status()==Status::Frozen,"plan change during IO freezes engine");
+    }
     { Engine e; auto i=input(); activate(e,i); i.sample->charging=true;
       i.sources.house.power_w=1; auto a=need(e,i,Operation::Stop); e.complete(a,{true,true});
       i.sample->charging=false; check(!e.step(i) && e.status()==Status::AwaitingStop,"pre-command false cannot prove stop");

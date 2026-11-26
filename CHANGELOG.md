@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-26 21:55 (Europe/Vienna)
+
+- Begonnenen Arbeitsstand zu Stack-Build und Plan, Archiv-Boothelfer,
+  Regler und Settings-Feldhilfe auf dem Feature-Branch für den Rechnerwechsel
+  gesichert. Kein vollständiger Testlauf und keine Freigabe zur Fortsetzung.
+
 ## 2026-11-26 21:49 (Europe/Vienna)
 
 - Gesamtauftrag in delegierbare Arbeitspakete mit Prüfkriterien, Abhängigkeiten

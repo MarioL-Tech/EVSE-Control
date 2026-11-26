@@ -54,7 +54,8 @@ sudo install -m 0644 "bin/$unit" "/etc/systemd/system/$unit"
 sudo systemctl daemon-reload
 sudo systemctl enable "$unit"
 sudo systemctl is-enabled --quiet "$unit"
-[[ $(sudo systemctl show -p ExecStart --value "$unit") == *'/bin/bash /usr/local/libexec/evse-archive-link --reconcile'* ]]
+reject bash bin/archive-link.sh --boot < expected
+[[ $(sudo systemctl show -p ExecStart --value "$unit") == *'/bin/bash /usr/local/libexec/evse-archive-link --boot'* ]]
 [[ $(stat -c '%u:%g:%a' /usr/local/libexec/evse-archive-link) == 0:0:755 ]]
 # The unit and its unprivileged witness still work without any boot script
 # at the checkout path. Do not execute a sentinel script as root for testing.
@@ -62,6 +63,10 @@ mv bin/archive-link.sh bin/archive-link.saved
 old=$(endpoint "$w"); sudo systemctl start "$unit"; [[ $(endpoint "$w") == "$old" ]]
 mv bin/archive-link.saved bin/archive-link.sh
 docker network disconnect fixture-archive "$w"
+# A writable or substituted receipt must not authorize a privileged connect.
+sudo chmod 0666 /etc/evse-archive-link/expected
+reject sudo systemctl start "$unit"; [[ $(endpoint "$w") == absent ]]
+sudo systemctl reset-failed "$unit"; sudo chmod 0600 /etc/evse-archive-link/expected
 # Same bytes and approved path, readable exclusively by root: even the
 # installed unit must now fail, rather than hash as root and reconnect.
 sudo chown root:root "$target"; sudo chmod 0600 "$target"
@@ -74,7 +79,16 @@ flock "$fixture" bash -c 'if bash bin/archive-link.sh --reconcile < expected; th
 docker pause "$w" >/dev/null; reject reconcile; docker unpause "$w" >/dev/null
 docker stop "$w" >/dev/null; reject reconcile; docker start "$w" >/dev/null
 [[ $(endpoint "$w") == absent ]]
-sudo systemctl start "$unit"; live "$w"; repaired=$(endpoint "$w")
+# The installed service starts while the pinned container is still stopped,
+# as can happen during Docker cold start. No Docker write is attempted until
+# that exact container is running; then the endpoint is restored once.
+docker stop "$w" >/dev/null
+sudo systemctl start --no-block "$unit"
+sleep 3
+[[ $(systemctl show -p SubState --value "$unit") == start && $(endpoint "$w") == absent ]]
+docker start "$w" >/dev/null
+for i in {1..30}; do [[ $(systemctl show -p ActiveState --value "$unit") != activating ]] && break; sleep 1; done
+[[ $(systemctl show -p Result --value "$unit") == success ]]; live "$w"; repaired=$(endpoint "$w")
 sudo systemctl start "$unit"; [[ $(endpoint "$w") == "$repaired" ]]
 docker network disconnect evse-mqtt "$w"; docker network disconnect fixture-archive "$w"
 reject reconcile; [[ $(endpoint "$w") == absent ]]

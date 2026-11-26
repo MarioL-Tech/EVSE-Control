@@ -28,6 +28,14 @@
       e.preventDefault();
       if (opened === help && pinned) close(); else { show(help); pinned = true; }
     });
+    if (input) {
+      input.addEventListener('focus', () => show(help));
+      input.addEventListener('blur', () => { if (opened === help && !pinned) close(); });
+      input.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') show(help); });
+      input.addEventListener('pointerleave', () => {
+        if (opened === help && !pinned && doc.activeElement !== input) close();
+      });
+    }
     return help;
   }
   doc.addEventListener('keydown', e => { if (e.key === 'Escape' && opened) { close(); e.preventDefault(); } });
