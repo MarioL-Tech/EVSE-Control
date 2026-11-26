@@ -43,6 +43,19 @@ Ein Verzeichnislock verhindert parallele Wrapperaufrufe dieses Checkouts. Vorhan
 
 ## Isolierte Betriebsprüfungen
 
+Für die **physische Startfolge einer virtuellen Maschine** gibt es zusätzlich
+`tests/stack/kvm-cold-boot.sh prepare|verify`: nur in einem leeren, eigens
+erzeugten QEMU/KVM-Gast mit Docker/Compose, systemd, ausreichend Platz für
+Docker und Bootjournal, Betreiber `qa`, eigenem Home und einem sauberen
+`git archive`. Den Marker `/etc/evse-disposable-cold-boot` nur dort als
+reguläre Root-Datei (0:0, Modus 0600) anlegen. `prepare` erzeugt zwei synthetische
+SQL-Werte, installiert die Test-Unit, prüft die Archive und trennt gezielt
+den Archivanschluss. **Nur den Gast** ausschalten, innerhalb des 15-Minuten-
+Abfragefensters mit unveränderter Disk neu starten und `verify` aufrufen.
+Bootjournal behalten. Erwartet werden neue Boot-ID, dieselben Container-IDs,
+der erfolgreiche Anschluss im Bootjournal und dieselben Werte über beide APIs.
+Der Gast ist danach zu verwerfen; kein Wiederherstellungsablauf für den Pi.
+
 Der gemeinsame Einstieg ist im [Installationsguide](installation.md) beschrieben. Eine Änderung am Plan invalidiert den Archivpin: erst die Auswahl bestätigen, danach bei vollständigem Sollzustand neu freigeben.
 
 `tests/stack/isolated-ci.sh` verwendet ausschließlich getrackte **Arbeitsbaumdateien**, keine ignorierten privaten Dateien und nicht einen möglicherweise veralteten `HEAD`. Der dedizierte GitHub-Linuxrunner muss anfangs containerleer sein. Er prüft den frischen unfreigegebenen Plan, alle fünf Buildimages, explizite Overlays, unveränderte/ungültige/leere Bestandspläne, Startverweigerung ohne Bestätigung und später einen reinen Build bei laufender synthetischer Installation. Dabei müssen Container-IDs, Startzeitpunkte, Restartzähler, Mounts, Netzendpunkte und Portbindungen unverändert bleiben; eine absichtlich unbrauchbare Dienst-Dateiauswahl darf den Build nicht beeinflussen. Die bestehenden Start-/Stop-/Wiederkehr-, Overlay-, Geräte- und SQL-Assertions bleiben bestehen. Nicht auf einem Produktionsdaemon oder durch gefälschte Runnerkennungen ausführen.

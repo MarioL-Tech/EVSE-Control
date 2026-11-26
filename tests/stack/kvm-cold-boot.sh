@@ -30,7 +30,11 @@ PHP
 }
 if [[ $1 == verify ]]; then
   read -r original w database < "$HOME/cold-ids"
-  [[ $original != "$(cat /proc/sys/kernel/random/boot_id)" && $(dc ps -q weboverlay) == "$w" && $(docker inspect --format '{{.Id}}' "$db") == "$database" ]]
+  [[ $original != "$(cat /proc/sys/kernel/random/boot_id)" ]]
+  deadline=$((SECONDS+180)); until [[ $(systemctl show -p ExecMainExitTimestampMonotonic --value "$unit") =~ ^[1-9][0-9]*$ ]]; do
+    ((SECONDS < deadline)) || exit 1; sleep 1
+  done
+  [[ $(dc ps -q weboverlay) == "$w" && $(docker inspect --format '{{.Id}}' "$db") == "$database" ]]
   [[ $(systemctl show -p Result --value "$unit") == success ]]
   [[ $(sudo journalctl -b -u "$unit" -o cat --no-pager) == *'Archiv-Endpunkt im Readback vorhanden (Connect-Exit 0).'* ]]
   deadline=$((SECONDS+75)); until rows; do ((SECONDS < deadline)) || exit 1; sleep 1; done

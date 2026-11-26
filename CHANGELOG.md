@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-26 23:47 (Europe/Vienna)
+
+- KVM-Kaltstart mit neuer Boot-ID, automatischem Anschluss und beiden vorher
+  gespeicherten SQL-Werten bestätigt. Stack-Build und Betrieb nutzen dieselbe
+  Overlayauswahl. Test vergleicht alle Mounts unabhängig von der nachweislich
+  wechselnden Reihenfolge in `docker inspect` und prüft die echte TLS-Bindung.
+- Zwei unabhängige lokale Sichtprüfungen ergaben konkrete mobile UI-Befunde;
+  keine vorzeitige GUI-Freigabe.
+
 ## 2026-11-26 23:39 (Europe/Vienna)
 
 - Bootfehler im Ubuntu-KVM-Gast reproduziert und mit dem Runner-Journal

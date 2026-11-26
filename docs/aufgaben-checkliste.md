@@ -19,6 +19,7 @@
 - [ ] Den bekannten Effekt „leere Diagramme nach Neustart“ reproduzieren. Nachgewiesene Netztrennung von unbekannter ursprünglicher Ursache unterscheiden.
 - [ ] Soll-Netz und tatsächliche Verbindung prüfen. Fehlenden Archivanschluss nach Docker-/Hostneustart gezielt absichern; keine Reparatur bei zweifelhafter Container- oder Netzidentität.
 - [ ] Isolierten Kaltstart, unveränderten Anschluss, ersetzten Container, geänderte Konfiguration und absichtlich fehlenden Anschluss prüfen. Keine Neuinitialisierung der DB und kein allgemeiner Neustart der Dienste.
+  - Ubuntu-24.04.5-KVM, Docker 29.1.3: Wegwerfgast nach gezieltem Disconnect ausgeschaltet und mit derselben Disk neu gestartet. Neue Boot-ID, gleiche volle Web-/DB-IDs; Bootjournal `Archiv-Endpunkt im Readback vorhanden (Connect-Exit 0)`. Beide HTTP-Archive anschließend `ok`, identische synthetische Werte +1729 W/−251 W. Kein Nachweis für die Ursache des ursprünglichen Pi-Neustarts. Installierte Unit aus `221b860`, `tests/stack/kvm-cold-boot.sh`.
 
 ### A2 – Archivzugriff und Wiederkehr · SQL/API
 
@@ -137,6 +138,7 @@
 
 - [ ] **Durchgang 1:** Übersicht, Diagramme, Diagnose und Settings auf Desktop und Mobil in Hell/Dunkel am integrierten Build prüfen. Bedienung, Live/Archiv, Status und Einstellungen in Screenshots und Interaktionen beurteilen.
 - [ ] **Durchgang 2:** Separat dieselben vier Seiten auf Desktop und Mobil prüfen, mit Schwerpunkt auf Leer-/Fehler-/Offlinefällen, Touch/Tastatur/Fokus, abgeschnittenen Inhalten und sichtbarem Feedback. Screenshots erneut tatsächlich ansehen, nicht nur das Vorhandensein von Artefakten prüfen.
+  - Lokale Vorprüfung am UI-Code `c0582f5`: zwei getrennte Prüfer haben die beiden 60-PNG-Matrizen ausgewertet. Befunde bei Skip-Link, ungültigem Regelentwurf, Kalendermodus und mobiler Feldhilfe; vor der Schlussabnahme korrigieren und erneut prüfen.
 
 ### E3 – Zusätzliche Vollständigkeitsprüfung · Nach dem Abhaken
 

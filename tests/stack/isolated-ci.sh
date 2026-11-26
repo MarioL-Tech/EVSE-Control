@@ -228,7 +228,13 @@ curl --noproxy '*' --fail --silent --show-error --max-time 3 http://127.0.0.1:18
 binds=$(docker inspect --format '{{range .Mounts}}{{println .Source .Destination}}{{end}}' "$w")
 grep -Fxq "$wp/secrets/history.txt /run/secrets/history-password" <<< "$binds"
 grep -Fxq "$wp/secrets/mqtt.txt /run/secrets/mqtt-password" <<< "$binds"
-[[ -n $(docker ps -q --filter label=com.docker.compose.service=https) ]]
+proxy=$(docker ps -q --filter label=com.docker.compose.service=https)
+[[ $(docker port "$proxy" 8443/tcp) == 127.0.0.1:18443 ]]
+# Validate the real production Compose wiring, not just a port in the model.
+deadline=$((SECONDS+45)); until docker exec "$proxy" cat /data/caddy/pki/authorities/local/root.crt > "$fixture/tls-public.crt" 2>/dev/null &&
+  curl --noproxy '*' --max-time 3 -fsS --cacert "$fixture/tls-public.crt" https://127.0.0.1:18443/healthz | grep -Fq '"status":"ok"'; do
+  ((SECONDS < deadline)) || exit 1; sleep 1
+done
 docker exec "$w" php -r 'exit(getenv("MQTT_CLIENT_ID")==="stackci-web-only" ? 0 : 1);'
 docker exec "$s" python -c 'import os; assert os.environ["MQTT_CLIENT_ID"] == "stackci-storage-only"'
 docker volume inspect stackci-web_https-data >/dev/null
@@ -264,7 +270,9 @@ archive_snapshot ok 0 >/dev/null
 # mounts, endpoints and publications, even with unusable site interpolation.
 # This must not read/repair the service env or replace the approved plan.
 runtime_state() {
-  docker inspect --format '{{.Id}}|{{.State.Status}}|{{.State.StartedAt}}|{{.RestartCount}}|{{json .Mounts}}|{{json .NetworkSettings.Networks}}|{{json .HostConfig.PortBindings}}' $(docker ps -aq) | sort
+  # Docker does not promise an order for the mount array. Keep every mount
+  # and all its fields, keyed by container, without comparing enumeration order.
+  docker inspect --format '{{.Id}}|{{.State.Status}}|{{.State.StartedAt}}|{{.RestartCount}}|{{json .NetworkSettings.Networks}}|{{json .HostConfig.PortBindings}}{{range .Mounts}}{{printf "\n%s|mount|%s" $.Id (json .)}}{{end}}' $(docker ps -aq) | sort
 }
 runtime_state > before-build-state
 cp "$wp/.env" before-build-web-env
