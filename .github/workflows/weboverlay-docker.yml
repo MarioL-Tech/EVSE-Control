@@ -2,6 +2,9 @@ name: Weboverlay Docker tests
 on:
   push:
     paths:
+      - 'bin/stack.sh'
+      - 'esp32/include/**'
+      - 'esp32/src/**'
       - '.dockerignore'
       - 'rasppi/src/**'
       - 'rasppi/requirements.txt'
@@ -11,6 +14,9 @@ on:
       - '.github/workflows/weboverlay-docker.yml'
   pull_request:
     paths:
+      - 'bin/stack.sh'
+      - 'esp32/include/**'
+      - 'esp32/src/**'
       - '.dockerignore'
       - 'rasppi/src/**'
       - 'rasppi/requirements.txt'
@@ -22,8 +28,19 @@ permissions:
   contents: read
 jobs:
   docker:
+    # Keep the original check/artifact names. The second runner rebuilds and
+    # exercises the same PR tree independently, not a retry on shared state.
+    name: ${{ matrix.check }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - check: docker
+            suffix: ''
+          - check: docker (independent web and GUI pass)
+            suffix: '-pass-2'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v5
       - name: Validate Compose
@@ -46,14 +63,14 @@ jobs:
       - name: Build disposable browser test image
         run: docker build -f rasppi/weboverlay/Dockerfile.browser -t evse-web-browser:test rasppi/weboverlay
       - name: Check standalone charging-mode browser contract before backend builds
-        run: docker run --rm --network none evse-web-browser:test node charging-mode-browser.cjs
+        run: docker run --rm --network none evse-web-browser:test node charging-mode-browser.cjs --standalone-only
       - name: Render PWA product icons in disposable Docker image
         run: |
           mkdir -p artifacts/pwa-icons
           docker run --rm --network none -v "$PWD/artifacts/pwa-icons:/icons" evse-web-browser:test node generate-icons.cjs
       - uses: actions/upload-artifact@v4
         with:
-          name: evse-pwa-product-icons
+          name: evse-pwa-product-icons${{ matrix.suffix }}
           path: artifacts/pwa-icons/
       - name: Check committed icon provenance
         run: |
@@ -64,12 +81,8 @@ jobs:
         run: docker build --progress=plain -t evse-weboverlay:test rasppi/weboverlay
       - name: ESP32 HTTP, broker, UART PTY and native firmware cores without hardware
         run: |
-          # Reviewed immutable firmware; no upload, device or production broker.
-          git fetch --no-tags --depth=1 origin 4e5b213e66e415fd0192efc2334eb3fa7eed0881
-          firmware="$RUNNER_TEMP/evse-firmware-source"
-          mkdir -p "$firmware"
-          git archive 4e5b213e66e415fd0192efc2334eb3fa7eed0881 esp32 | tar -x -C "$firmware"
-          docker build --build-context "firmware=$firmware" -f rasppi/weboverlay/Dockerfile.esp32-test -t evse-esp32-e2e:test .
+          # Use the checked-out merge result for BOTH gateway and firmware.
+          docker build -f rasppi/weboverlay/Dockerfile.esp32-test -t evse-esp32-e2e:test .
           docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges:true evse-esp32-e2e:test
       - name: Build reader and test complete manual control path without hardware
         run: |
@@ -163,7 +176,7 @@ jobs:
           cmp rasppi/weboverlay/composer.lock composer.lock
       - uses: actions/upload-artifact@v4
         with:
-          name: weboverlay-composer-lock
+          name: weboverlay-composer-lock${{ matrix.suffix }}
           path: composer.lock
       - name: Hardened runtime smoke test without broker
         run: |
@@ -178,9 +191,21 @@ jobs:
           docker exec web-smoke php -r '$d=json_decode(file_get_contents("http://127.0.0.1:8080/api/history"), true, 64, JSON_THROW_ON_ERROR); exit($d["read_only"] === true && $d["status"] === "disabled" && $d["samples"] === [] ? 0 : 1);'
           ! docker exec web-smoke sh -c 'command -v python || command -v python3'
           docker run --rm --network container:web-smoke -v "$PWD/artifacts:/artifacts" evse-web-browser:test
+      - name: Require fresh desktop, mobile and offline screenshot evidence
+        run: |
+          for size in 1440-dark 320-light; do
+            for screen in bedienung feldhilfe diagnose; do
+              test -s "artifacts/gui-pass2-$screen-$size.png"
+            done
+          done
+          test -s artifacts/weboverlay-desktop.png
+          test -s artifacts/weboverlay-mobile.png
+          test -s artifacts/pwa/pwa-offline-dark-mobile.png
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: weboverlay-browser-screenshots
-          path: artifacts/
-          if-no-files-found: ignore
+          name: weboverlay-browser-screenshots${{ matrix.suffix }}
+          path: |
+            artifacts/**/*.png
+            !artifacts/pwa-icons/**
+          if-no-files-found: error

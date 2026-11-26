@@ -1,8 +1,53 @@
 # Arbeitskontext für Agents: EVSE-Control
 
-Stand: 2026-10-30. Diese Datei beschreibt den geprüften Repositoryzustand und
+Stand: 2026-11-26. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
+
+Die SHA-256-Prüfungen für HOUSE- und Minutenarchiv erwarten die kanonischen
+LF-Bytes der SQL-Migrationen. `rasppi/storage/migrations/*.sql` deshalb auch
+in Windows-Checkouts mit LF belassen; keine Prüfsummen auf CRLF umstellen.
+
+Lokaler Web-Abschlussnachweis: Alle 17 Shell-Schritte des Web-Workflows auf
+Linux/amd64 im unabhängigen Docker-KVM-Gast bestanden, einschließlich isolierter
+SQL-/HOUSE-/TLS-/PWA- und elf integrierter Chromium-Suiten. `--standalone-only`
+lief vorher ohne Netzwerk. Elf neue Bilder mit simulierten Daten angesehen;
+beide Livekurven auch gemeinsam auf Desktop und Mobilgerät geprüft. Das ist
+kein zweiter gehosteter GitHub-Runner und kein Pi- oder Hardwaretest.
+
+**Aktueller Bedienstand (Arbeitsbaum, kein neuer CI-/Pi-Nachweis):** Die vier
+Routen stehen in `rasppi/weboverlay/public/index.php`: Übersicht `/`, Diagramme
+`/diagramme`, Diagnose `/diagnose`, Settings `/einstellungen`; GET `/wallbox`
+leitet auf `/`. Elektrische Kurven folgen dem Hausdiagramm. Diagnose zeigt
+aktuelle Frische, Rohwerte/Datenprotokoll, dann Zustandskurven, ohne Control-Inspect.
+Auftragsdetails/Grenzen bleiben auf der Übersicht. Dort Manuell, PV-Regelung
+oder Benutzerdefiniert bewusst wählen; Moduswahl-Feedback, beobachteter Reader-
+Status, ACK und tatsächliches Laden nicht gleichsetzen. Fehlende Profilfelder
+→ `/einstellungen#charging-heading`, Dienstkonfiguration → `/einstellungen#env-heading`.
+Settings: Feldhilfe über Hover, Fokus oder Antippen; Platzhalter sind Beispiele,
+Regeln speichern aktiviert nichts, `.env` speichern erstellt keinen Container neu.
+In Manuell steht das ESP32-Servoziel mobil unter den Wallboxaktionen; Themeschalter
+mobil im Kopf. Keine mechanische Rückmeldung; RFID-Verwaltung nur in Settings.
+Stop bleibt von ESP/Modus/Installationsmaximum unabhängig, nicht von der frischen
+Readerverbindung. Der aktuelle Reader-Guard bindet eine Aktivierung an den
+Bedienzustand, nicht an eine Nutzeridentität. Kein automatisches Wiederholen bei
+unklarem Ausgang. Frühere Produktstände und ihre Prüfbelege unten bleiben historisch.
+
+Stack-Bedieneinstieg (neuer Arbeitsstand): `bin/stack.sh` behält die einzelnen
+Compose-Projektidentitäten. Optionale root-eigene systemd-Oneshot-Unit nach
+`docs/stack.md`: nur vollständig freigegebenen Webcontainer per voller ID mit
+dem vorab gebundenen bestehenden Archivnetz verbinden, kein Recreate/Retry,
+keine Eingriffe in Broker/DB/Hardware. Änderungen oder neue IDs verlangen eine
+neue Betreiberfreigabe. Keine atomare Zusage gegen externe Docker-Eingriffe.
+Zwei isolierte CI-Jobs vorgesehen, keine Pi-/Bootabnahme behaupten. Frühere
+Aussagen zum noch nicht vorhandenen gemeinsamen Einstieg sind historisch.
+
+Für Änderungen an `bin/stack.sh` prüfen die Komponenten-Workflows zusätzlich
+die volle Storage-, UART-, ESP32-, Reader- und Webmatrix. Zwei unabhängige
+Webrunner bauen denselben Checkout und liefern getrennte GUI-Artefakte; der
+TLS-Browser vergleicht den installierten PWA-Shellinhalt bytegenau. Laufzeiten
+der früheren Jobs und Erwartungen in `docs/integration-checklist.md`. Noch kein
+CI-Ergebnis oder visueller Abnahmenachweis für diesen neuen Gesamtstand.
 
 Abschluss-Codehead d4d60ef besteht vollständig: Web41135320070, native Reader-
 Matrix41135320145 (AMD64/ARM64, Bookworm/Trixie, zehn Suiten plus Sanitizer-Core),
@@ -636,13 +681,9 @@ EVSE-Control ist eine Diplomarbeit zur Steuerung und Überwachung einer
 Elektrofahrzeug-Ladestation mit RFID-basierter Diebstahlsicherung.
 Repository: https://github.com/MarioL-Tech/EVSE-Control
 
-Geplant sind Ladefreigabe und Ladestatus, Erkennung eines angeschlossenen
-Fahrzeugs, Energie- und Strommesswerte, Regelung nach verfügbarer Leistung und
-Dringlichkeit, Datenbank und Bedienung über die Website.
-Der modulare Aufbau mit Docker-Compose-Komponenten ist ein erklärtes Projektziel.
-Festgelegt ist ein gemeinsamer Compose-Einstieg für mehrere spezialisierte
-Container. Detailaufteilung und Zusammenführung der heutigen Compose-Dateien
-sind noch umzusetzen; diese Umstellung ist ausdrücklich erst später gewünscht.
+Die Website bedient die Wallbox und zeigt Anschluss, tatsächliches Laden und
+Messwerte getrennt. Der optionale PV-/Zeitregler arbeitet im Reader. Der gemeinsame
+Start-/Stop-Einstieg behält die bestehenden Compose-Projekte statt sie zu verschmelzen.
 
 **Aktualisierte Oberflächenplanung:** Es wird kein eigenes Home-Assistant-Modul
 und keine eigene Home-Assistant-Integration entwickelt. Die Website soll später
@@ -769,7 +810,11 @@ Für die bedienende Website sind folgende Funktionen vorgesehen; die genaue
   Aktuellen Abschluss-/Freigabestand über PR #51 prüfen. Kein Pi-HTTPS-Deployment,
   produktives CA-Zertifikat oder echter Android-/iOS-Installationsnachweis.
 
-### Geplante Lademodi (noch nicht implementiert)
+### Ursprüngliches Anforderungsbild der Lademodi (historisch)
+
+Die folgenden Planungsfragen beschreiben den damaligen Stand. Implementierte
+Modi, Standortvoraussetzungen und Aktivierung siehe aktuellen Bedienstand oben
+und `docs/wallbox/automation-contract.md`.
 
 Für die spätere Ladesteuerung sind drei Modi vorgesehen:
 
@@ -790,10 +835,10 @@ zulässige Operationen sind noch festzulegen; Gerätegrenzen nicht umgehen.
 
 Verbindliche Anforderung vom 2026-10-29: Sämtliche bisher über `.env` gesetzten
 Projektkonfigurationen zentral unter **Settings** verwalten, nicht nur lokale
-Anzeigepräferenzen. Echte Dateibearbeitung inzwischen autorisiert, Implementierung
-in Arbeit. Admin-Login nur nach neuer ausdrücklicher Freigabe. Validierung,
-Secret-/Mountschutz und Unterscheidung gespeichert/wirksam sind erforderlich;
-kein Docker-Socket, keine anonym produktiv freigegebene Verwaltung. Die
+Anzeigepräferenzen. Der Settings-Editor bearbeitet freigegebene Dienstfelder
+nach bewusster Dateibereitstellung, ohne Login im vertrauenswürdigen LAN/VPN.
+Admin-Login nur nach neuer ausdrücklicher Freigabe. Validierung, Secret-/Mountschutz
+und Unterscheidung gespeichert/wirksam bleiben erforderlich; kein Docker-Socket. Die
 Messdaten-APIs und SQL-Zugriffe bleiben SELECT-only; ein Editor darf weder
 Secretdateien lesen noch Hardwarebefehle ausführen.
 
@@ -804,11 +849,11 @@ Secretdateien lesen noch Hardwarebefehle ausführen.
 - `esp32/platformio.ini`: ESP32 DevKit (4 MB), gepinnte Arduino-2-/MFRC522-Toolchain;
   Servo über nativen LEDC-Adapter statt ESP32Servo. `esp32/Dockerfile` baut native
   Tests mit Sanitizern und die komplette Firmware; opt-in Flash-Target separat.
-- `rasppi/src/main.py`: derzeit interaktive UART-Brücke, kein zentraler Backenddienst.
-- `rasppi/requirements.txt`: derzeit nur `pyserial`.
-- `rasppi/Dockerfile.uart` und `rasppi/compose.yaml`: interaktive UART-Testbrücke
-  mit Python/pyserial ausschließlich im Container, Hardwaregerät durchgereicht.
-- `rasppi/wallbox/`: rein lesender C++17-libmodbus-Dienst, Decoder-/JSON-Tests,
+- `bin/stack.sh`: gemeinsamer Betreiber-Einstieg, keine neue Compose-Projektidentität.
+- `rasppi/src/main.py`: interaktiver UART-Default oder opt-in MQTT-Gateway.
+- `rasppi/requirements.txt`: pyserial und paho-mqtt nur im UART-Container.
+- `rasppi/Dockerfile.uart` und `rasppi/compose.yaml`: ein UART-Portbesitzer.
+- `rasppi/wallbox/`: C++17/libmodbus-Reader mit Schreibkern und optionalem Regler, Decoder-/JSON-Tests,
   simulierte RTU-Tests, CMake sowie Dockerfile/Compose und Pi-Startanleitung.
 - `rasppi/weboverlay/`: PHP 8.4/Apache und ein PHP-CLI-
   MQTT-Subscriber und unabhängigem HTTP-Haus-Smartmeter-Worker; `php/` enthält
@@ -817,7 +862,7 @@ Secretdateien lesen noch Hardwarebefehle ausführen.
   `HistoryArchive`-Anbindung (PDO/mysqlnd) und
   SmartmeterConfig/-Client/-Cache und `smartmeter-worker.php`, `public/` den HTTP-Einstieg, `docker/` Apache-
   Konfiguration, Bash-Supervision und PHP-Healthcheck. Bestehende Browseroberfläche,
-  PHP-/Node-Tests und Docker/Compose; keine seriellen Ports/Schreibbefehle. Docker-CI
+  PHP-/Node-Tests und Docker/Compose; keine seriellen Ports, Bedienaufträge über MQTT. Frühere Docker-CI
   40365837026 für 06a3626 erfolgreich; Pi-Start und Live-Übersicht am 2026-10-26
   durch Projektinhaber/Screenshot bestätigt, gezielte Fehlerfallprüfung offen.
 - `rasppi/storage/`: MQTT-Collector für vorhandene MariaDB, Schema/Migration,
@@ -853,20 +898,18 @@ halten; laufende Hardwaretests erst nach bestätigten Ergebnissen dokumentieren.
 ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
                          |
                          +-- Wallbox-MQTT -> vorhandener Broker
-                         |                   -> Weboverlay (lesend)
+                         |                   <-> Weboverlay (Telemetrie / Aufträge)
                          |                   -> Speichercollector -> vorhandene MariaDB
                          |                   -> weitere Dienste (geplant)
-                         +-- UART-MQTT-Gateway (geplant)
+                         +-- UART-MQTT-Gateway (opt-in)
                          +-- DTSU666-Messwerterfassung (geplant)
                          +-- HTTP-Haus-Smartmeter -> PHP-Worker -> Website (optional)
 ```
 
 - Der Pi ist die zentrale Steuerungsplattform und Modbus-Master.
-- Später eine gemeinsame Docker-Compose-Datei für die Pi-Projektdienste:
-  ein Start-/Stop-Befehl für mehrere getrennte Container, kein All-in-one-
-  Container und kein zusätzlicher Container, der andere Container verwaltet.
-  Docker/Compose übernimmt den Containerlebenszyklus; ein geplanter Ladecontroller
-  übernimmt ausschließlich die fachliche Ladeautomatisierung über MQTT.
+- `bash bin/stack.sh up` bzw. `stop` für die Dienste im geprüften lokalen Plan.
+  Docker/Compose verwaltet die getrennten Projekte. Der Reader liest Plan und
+  Hauswerte per HTTP und ist der einzige Modbus-Owner; kein Verwaltungscontainer.
 - Vorhandener MQTT-Broker und MariaDB werden weiterhin extern wiederverwendet,
   nicht ersetzt oder beim Stoppen des Projektstacks mit heruntergefahren.
   Aktuell bleiben die einzelnen Dienst-Compose-Dateien unverändert; keine
@@ -1011,13 +1054,15 @@ ESP32 <-> UART <-> Raspberry Pi <-> USB-RS485 / Modbus RTU <-> ABB Terra AC
   vor Ort sicher koordinieren, kein Erase-All/Stock-SPIFFS-Zugriff.
 - Laut Projektinhaber wurde eine Reader-Firmwarekennung `0x82` beobachtet.
   Das ist ein SPI-Diagnosehinweis, kein Nachweis vollständiger RFID-Funktion.
-- Ladezustand startet OFF und wird durch Pi-UART-Befehle gespiegelt, steuert
+- Der Gateway-Ladespiegel startet UNKNOWN und wird durch Pi-UART-Befehle aktualisiert, steuert
   **keine reale Wallbox**. Keine neue ESP32-Wallbox-Schnittstelle als offene Architekturentscheidung
   darstellen: die reale Steuerung soll über den Pi und Modbus erfolgen.
 
 ### UART und Pi
 
-Zeilenbasiertes ASCII-Protokoll mit Newline; dokumentiert in
+Historischer interaktiver Basispfad; die Firmware-v2-Gatewayoperationen für
+Servoziele, RFID und Ladespiegel sind separat in `docs/esp32-gateway-contract.md`
+beschrieben. Zeilenbasiertes ASCII-Protokoll mit Newline; dokumentiert in
 `docs/uart-protocol.md`:
 
 - `CMD:CHARGE:ON`, `CMD:CHARGE:OFF`, `CMD:STATUS`.
@@ -1034,8 +1079,8 @@ Zeilenbasiertes ASCII-Protokoll mit Newline; dokumentiert in
 
 ASCII-Frames maximal 192 Bytes, LF/CRLF, absolute 2-s-Frist; ungültige/abgelaufene
 Frames bis LF verwerfen, pro Loop maximal 64 Bytes/ein Befehl. Keine Protokoll-
-authentifizierung: physischer UART vertraut dem Pi. Kein anonymes MQTT-/HTTP-
-Management; spätere Gateway-/Webbedienung separat geschützt implementieren.
+authentifizierung: physischer UART vertraut dem Pi. Das opt-in Webgateway hat
+keinen Login; nur im vertrauenswürdigen LAN/VPN betreiben.
 Die Schreibweise mit `|` oben bezeichnet Alternativen, keine wörtlichen Nachrichten.
 `CMD:STATUS` meldet drei Statuszeilen. Zustandsänderungen und Bootzustände werden
 gemeldet. Das Pi-Skript druckt empfangene Zeilen und übersetzt interaktive
@@ -1055,7 +1100,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   verbinden; SIGINT/SIGTERM schließen den Port. Ownership-basierte Freigabe
   stellt auch bei Ausnahmen Port-Einstellungen wieder her und schließt den Port.
   JSON-Ausgabe auf stdout ist unterbrechbar und bei vollen Pipes auf 1 s
-  begrenzt; Ausgabefehler beenden den Dienst. Keine Schreibfunktionen.
+  begrenzt; Ausgabefehler beenden den Dienst. `--once` bleibt rein lesend.
 - CMake-Build und beide Tests bestanden unter Debian/WSL (GCC 14.2,
   libmodbus 3.1.6 und 3.1.11): Decoder/JSON sowie simulierte RTU-Kommunikation über PTY.
   Fehlerfall-, CLI- und Shutdown-Prüfungen sind hardwareunabhängig, einschließlich
@@ -1070,7 +1115,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - Der Projektinhaber hat einen kurzen zyklischen Docker-Betrieb protokolliert: 13 Abfragen
   über etwa 25 s, davon 12 erfolgreich und 1 Timeout; beim folgenden Read
   Recovery ohne Eingriff. Stromlimit dort 6 A, Messströme/Leistung 0. Der Reader
-  setzt keine Limits; Wechsel von zuvor 16 A wurde nicht vom Reader verursacht,
+  setzte bei diesem historischen Lesetest keine Limits; der Wechsel von zuvor 16 A wurde nicht vom Reader verursacht,
   seine Ursache ist ungeklärt (z. B. interne Wallbox-Logik oder andere Steuerung).
   Diese Beobachtung nicht als Langzeitstabilität oder unabhängige Messvalidierung ausgeben.
 - Der Projektinhaber ordnet die anfänglich fehlende Ausgabe/fehlerhafte Exitcode-Abfrage
@@ -1088,7 +1133,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   oder andere Master vermeiden. Die Python-UART-Logik bleibt unverändert,
   ihr unterstützter Startweg ist jetzt `docker compose -f rasppi/compose.yaml
   run --rm --build uart-bridge` aus dem Repository-Hauptverzeichnis.
-- Keine Ladefreigabe oder SQL-Anbindung im Reader. MQTT-Empfang am Pi und
+- Kein SQL im Reader. MQTT-Empfang am Pi und
   lesende Live-Browserübersicht laut Projektinhaber am 2026-10-26 bestätigt.
 
 ### MQTT-Publisher im Reader
@@ -1115,7 +1160,8 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
 - Bei aktivem MQTT ist stderr best-effort/nichtblockierend; volle Logpipes
   dürfen den Callback-/Sample-Mutex und damit Modbus nicht blockieren.
   DNS kann Shutdown dennoch verzögern; siehe dokumentierte Fristgrenze im Vertrag.
-- UART-MQTT-Bridge und Steuerbefehle bleiben geplant; Weboverlay abonniert lesend.
+- State/Availability sind reine Telemetrie. Bedieneingriffe und UART-Gateway
+  verwenden davon getrennte Request-/Result-Pfade.
 
 ### Vorhandener MQTT-Broker und bestätigte Vorbereitung
 
@@ -1139,7 +1185,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Bestätigt Wallbox → Reader → vorhandener Broker → Subscriber, nicht
   Langzeitstabilität, gezielte Ausfälle oder unabhängige Messwertvalidierung.
 
-### Rein lesendes Weboverlay
+### Historische Basis des Weboverlays: lesende Anzeige, Theme und erste Diagrammseiten
 
 - Website-Logo separat autorisiert: bereitgestellte sechs SVG-Pfade als
   `static/icon.svg` in Sidebar/Mobilkopf aller drei Seiten und als Favicon;
@@ -1191,7 +1237,7 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   Simulierte Desktop-/Mobilbilder von Übersicht, Diagrammen und Settings angesehen;
   keine neue Pi-Ausführung. Separater älterer Diagrammtest wird beim Sammeln von
   Samples auf geänderte angezeigte Zeitmarken synchronisiert statt nur „Live“.
-  Theme „Compact / Dense“ für Dark/Light nach Entwurf Nr. 8; kompakter
+  Historischer Layoutstand vor der Vier-Seiten-UI: Theme „Compact / Dense“ für Dark/Light nach Entwurf Nr. 8; kompakter
   nativer Checkbox-Schiebeschalter links unten auf allen drei Seiten (160×52 px,
   beweglicher 42-px-Schieber, Sonne/Mond, LIGHT MODE/DARK MODE, Tastatur/Screenreader).
   Am Desktop im Sidebar-Fuß, mobil unten links fixiert. „Settings“ mit Zahnrad
@@ -1594,33 +1640,27 @@ Diese Befehle schalten derzeit **nur den ESP32-Zustand**, nicht die Wallbox.
   SSH-/Dockerzugang allein
   ersetzt SQL-Rechte nicht. Entwicklung/isolierte Tests können unabhängig weitergehen.
 
-## Geplant / noch nicht implementiert
+## Offene Abnahmen und noch nicht implementierte Funktionen
 
 - Tatsächliche Pi-Aktivierung/Migration und Prüfung des implementierten Kalender-
   archivs/Backfills bis ein Jahr; keine Remote-/Langzeit-/Ausfallnachweise durch CI.
-- Dauerbetriebs-/Fehlerfallprüfung und weitere Hardwarevalidierung der ABB-Abfragen sowie
-  anschließende Pi-Modbus-Steuerung der ABB Terra AC.
+- Dauerbetriebs-/Fehlerfallprüfung und weitere Hardwarevalidierung der ABB-Abfragen;
+  gesondert freizugebende reale Schreibabnahme der manuellen und automatischen Bedienung.
 - DTSU666-Messwerterfassung und Berechnung verfügbarer Ladeleistung.
-- UART-MQTT-Gateway und dessen Topic-/Payload-Vertrag. Wallbox-Telemetrie ist definiert.
+- Reale Prüfung des implementierten UART-MQTT-Gateways mit passender Firmware.
 - Weitergehender Websiteumbau und echte Handyabnahme der separat implementierten
   Smartphone-PWA; zunächst lokales HTTPS mit eigener CA ohne Domain, spätere
   konfigurierbare Domainanbindung vorgesehen. Zielbrowser/Vertrauensinstallation
   und weitergehende mobile Gestaltung offen. Keine native App/Home-Assistant-
   Integration als Teil dieser Planung.
-- Bedienende Website (inklusive modularer Wallbox-Einrichtungsfunktion),
+- Weitergehende modulare Wallbox-Einrichtungsfunktion;
   Gezielte Pi-/Langzeit-/Fehlerfallvalidierung der optionalen lesenden SQL-Historie und weitere Datenmodelle für
   Ladesessions, UART/RFID und Zählerdaten.
-- Ladeautomatisierung nach verfügbarer Leistung und Dringlichkeit mit den drei
-  geplanten Modi „Laden wenn Solarstrom“, „Laden ohne Solarstrom“ und
-  „Benutzerdefiniert“; Detailregeln siehe Anforderungen oben.
-- Gemeinsamer Compose-Einstieg für getrennte modulare Pi-Projektdienste,
-  erst später umzusetzen. Konkrete Dienste/Startabhängigkeiten und kontrollierte
-  Migration der bisherigen Einzel-Stacks noch offen; bestehende Infrastruktur
-  bleibt extern. Kein Container-Orchestrator im Projekt und kein Docker-Socket-
-  Zugriff für den fachlichen Ladecontroller.
+- Tatsächliche Ladephasenzahl und (für PV) Hauszählereinschluss bestätigen;
+  eine weitergehende Priorisierung nach Dringlichkeit ist nicht umgesetzt.
+- Betreiberabnahme des gemeinsamen Stack-Einstiegs und optionalen Boothelfers.
 - Tatsächliches ESP32-Flashen und Hardware-/Fehlerfallprüfung der neuen
-  RFID-Allowlist/Persistenz/LEDC-Startreihenfolge; geschützte Webkonfiguration
-  über das weiterhin geplante UART-MQTT-Gateway.
+  RFID-Allowlist/Persistenz/LEDC-Startreihenfolge und Webbedienung am realen Gateway.
 - Anforderungen mit dem Lehrer sowie Diplomarbeitsanmeldung abstimmen.
 
 Wallbox-Decoder-/Simulationstests stehen unter `rasppi/wallbox/tests/`;

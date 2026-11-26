@@ -2,10 +2,12 @@ name: Wallbox Docker tests
 on:
   push:
     paths:
+      - 'bin/stack.sh'
       - 'rasppi/wallbox/**'
       - '.github/workflows/wallbox-docker.yml'
   pull_request:
     paths:
+      - 'bin/stack.sh'
       - 'rasppi/wallbox/**'
       - '.github/workflows/wallbox-docker.yml'
 permissions:

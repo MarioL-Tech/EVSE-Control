@@ -3,17 +3,18 @@
 // Bump this generation whenever the trusted static shell changes. Never store
 // documents with measurement UI, HTTP responses from APIs, or arbitrary URLs.
 const CACHE_PREFIX = 'evse-control-shell-';
-const CACHE_NAME = CACHE_PREFIX + 'v22';
+const CACHE_NAME = CACHE_PREFIX + 'v23';
 const STATIC_PATHS = Object.freeze([
   '/static/app.js', '/static/wallbox-control.js', '/static/charging-settings.js', '/static/charts.js', '/static/history.js', '/static/newcalendar.js',
   '/static/esp32.js',
   '/static/charging-mode.js',
+  '/static/settings-ui.js', '/static/settings.css',
   '/static/theme.js', '/static/smartmeter.js', '/static/smartmeter-chart.js', '/static/house-history.js', '/static/pwa.js', '/static/style.css',
   '/static/icon.svg', '/static/app-192.png', '/static/app-512.png',
   '/static/app-maskable-512.png', '/static/apple-touch-icon.png',
   '/manifest.webmanifest', '/static/offline.html'
 ]);
-const PAGE_PATHS = ['/', '/wallbox', '/diagramme', '/einstellungen'];
+const PAGE_PATHS = ['/', '/wallbox', '/diagramme', '/diagnose', '/einstellungen'];
 
 function requestKind(request, origin) {
   if (request.method !== 'GET') return null;

@@ -1,5 +1,57 @@
 # Changelog
 
+## 2026-11-26 21:11 (Europe/Vienna)
+
+- Lokale Docker-Abnahme von Bedienung, Regler, Storage, UART, ESP32, Web und
+  Stack in `docs/integration-checklist.md` zusammengeführt. Kaltstartprüfung
+  der opt-in Archivnetzreparatur von SQL-Bestandstest, Browser-TLS und echter
+  Host-Portveröffentlichung unterschieden. Kein Merge, Deployment oder Flash.
+
+## 2026-11-26 21:09 (Europe/Vienna)
+
+- Alle 17 Web-Workflow-Schritte lokal im isolierten AMD64-Docker-Gast auf
+  korrigiertem Stand bestanden. 207 JS-Tests im Kaltbuild, 18+18+10 SQL-Fälle,
+  34 HOUSE-API-Prüfungen, TLS/PWA und elf integrierte Chromium-Suiten. Elf
+  simulierte Desktop-/Mobilbilder tatsächlich angesehen. Der vollständige
+  Wiederholungslauf nutzte den Buildcache und neue Laufzeitfixtures; kein
+  gehosteter CI-, Pi- oder Hardwaretest.
+
+## 2026-11-26 20:24 (Europe/Vienna)
+
+- Git checkt `rasppi/storage/migrations/*.sql` auch unter Windows mit LF aus.
+  CRLF-Kopien ließen die isolierten HOUSE-/Minutenarchivtests beim Vergleich
+  mit den hinterlegten SHA-256-Werten abbrechen. Die SQL-Anweisungen, die
+  gespeicherten Prüfsummen und die Prüfungen selbst bleiben unverändert.
+
+## 2026-11-26 19:51 (Europe/Vienna)
+
+- README, Installationsanleitung und Projektkontext an die vier Web-Seiten
+  angepasst: Profilentwurf, bewusste Modusaktivierung und Reader-Rückmeldung
+  getrennt; Feldhilfe, Diagnose-Reihenfolge und mobiles Servoziel beschrieben.
+- Schnellstart für vorhandene Compose-Projekte mit `plan`, `up`, `check` und
+  `stop`; optionale Archivnetz-Reparatur beim Boot vom normalen Start und von
+  SQL-Bereitschaft abgegrenzt. Frühere Prüfnachweise bleiben den jeweiligen
+  Ständen zugeordnet. Keine neuen Laufzeit- oder Hardwaretests für diese Doku.
+
+## 2026-11-26 19:16 (Europe/Vienna)
+
+- Stack-Einstieg aktiviert die vorhandenen Komponentenprüfungen gemeinsam.
+  Zwei unabhängige vollständige Web-/GUI-Jobs mit getrennten Screenshotarchiven;
+  ESP32-Webintegration aus dem PR-Checkout und PWA-Shellvergleich mit den
+  statischen Dateien. Historische Laufzeiten/Timeouts in der Integrationsliste.
+  CI konfiguriert, noch kein neuer Lauf oder Hardwaretest bestätigt.
+
+## 2026-11-26 19:08 (Europe/Vienna)
+
+- Gemeinsamer Stack-Einstieg für bestehende Compose-Projekte mit explizitem
+  Plan, Bestands-/Profilabgleich und getrennten Archivnetz-/API-Prüfungen.
+  Opt-in Host-Oneshot bindet eine vorher geprüfte Webcontainer-/Netzidentität,
+  repariert höchstens den fehlenden Archivanschluss und übernimmt keine Ersatz-
+  oder gestoppten Container. Installation und Deaktivierung in `docs/stack.md`.
+- Synthetische Docker-CI für Betreiberablauf, SQL-Bestand und installierte
+  Boot-Unit einschließlich Zustandswechsel/Rennen ergänzt; keine lokale
+  Laufzeit-, Neustart- oder Hardwareabnahme daraus ableiten.
+
 ## 2026-10-30 23:18 (Europe/Vienna)
 
 - Abschluss-Codehead d4d60ef besteht Web41135320070, native Reader-Matrix

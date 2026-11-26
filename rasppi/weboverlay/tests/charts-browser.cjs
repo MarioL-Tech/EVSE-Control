@@ -7,9 +7,9 @@ const { METRICS } = require('../static/charts.js');
 // while exercising billion-scale diagnostic axis labels (not a hardware claim).
 const LIVE_RAW_CODE = 0x80008100;
 
-async function liveChartGeometry(page, width) {
+async function liveChartGeometry(page, width, diagnosis) {
   const figures = page.locator('#chart-grid > figure, #chart-diagnostics-grid > figure');
-  assert.equal(await figures.count(), 9);
+  assert.equal(await figures.count(), diagnosis ? 5 : 4);
   for (const figure of await figures.all()) {
     const id = await figure.getAttribute('id');
     const svg = figure.locator('svg');
@@ -50,8 +50,10 @@ async function liveChartGeometry(page, width) {
       `${width} ${id}/${box.label}: SVG grid/axis/line bounding box stays inside viewBox: ${JSON.stringify(box)}`);
     }
   }
-  const flagLabels = await page.locator('#chart-flags .chart-axis').allTextContents();
-  assert(flagLabels.includes('Nein') && flagLabels.includes('Ja'), 'Boolean 0/1 endpoints remain labelled');
+  if (diagnosis) {
+    const flagLabels = await page.locator('#chart-flags .chart-axis').allTextContents();
+    assert(flagLabels.includes('Nein') && flagLabels.includes('Ja'), 'Boolean 0/1 endpoints remain labelled');
+  }
 }
 
 (async () => {
@@ -75,6 +77,40 @@ async function liveChartGeometry(page, width) {
   // work must not advance a one-minute history window behind our assertions.
   await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000));
   const paint = () => page.clock.runFor(32);
+  const visit = async route => {
+    await page.locator(`nav a[href="${route}"]`).click();
+    await page.waitForURL(`**${route}`);
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Live');
+    await paint();
+  };
+  const collect = async count => {
+    for (let i = 0; i < count; i++) {
+      const previous = await page.locator('#timestamp').innerText();
+      await page.clock.runFor(1100);
+      await page.waitForFunction(before => document.getElementById('status')?.textContent === 'Live'
+        && document.getElementById('timestamp')?.textContent !== before, previous);
+      await paint();
+    }
+  };
+  const owners = () => page.locator('ul.chart-options').evaluateAll(lists => Object.fromEntries(lists.map(list =>
+    [list.closest('figure').id, [...list.querySelectorAll('input')].map(input => input.id).sort()])));
+  async function allOff(count) {
+    const figures = page.locator('figure:has(ul.chart-options)');
+    for (const checkbox of await page.locator('ul.chart-options input').all()) await checkbox.uncheck();
+    await paint();
+    assert(await page.locator('#status').isVisible());
+    assert(await page.locator('#wallbox-warning').isVisible());
+    assert.equal(await figures.count(), count);
+    for (const figure of await figures.all()) {
+      assert(await figure.isVisible(), 'All-off figure remains visible');
+      assert(!await figure.locator('svg').isVisible(), 'Only SVG is hidden');
+      const controls = figure.locator('ul.chart-options input');
+      assert(await controls.first().isVisible(), 'Own controls remain available');
+      await controls.first().check();
+      await paint();
+      assert(await figure.locator('svg').isVisible(), 'Each figure can recover without global reset');
+    }
+  }
   await page.route('**/api/state', async route => {
     const now = await page.evaluate(() => Date.now());
     const timestamp = new Date(now).toISOString();
@@ -103,28 +139,48 @@ async function liveChartGeometry(page, width) {
     for (const id of ['power', 'current-0', 'current-1', 'current-2', 'voltage-1']) assert(await page.locator(`#${id}`).isVisible(), id);
     assert(await page.locator('thead .phase-current').isVisible());
     assert.equal(await page.locator('.summary-card:visible').count(), 4);
-    await page.locator('.technical-details > summary').click();
     for (const metric of await page.locator('[data-metric]').all()) assert(await metric.isVisible(), 'Overview ignores all-off diagram preferences');
     assert(await page.locator('#wallbox-warning').isVisible());
     assert(await page.locator('#timestamp').isVisible());
-    await page.locator('.sidebar nav a[href="/diagramme"]').click();
-    await page.waitForURL('**/diagramme', { waitUntil: 'domcontentloaded' });
+    await visit('/diagnose');
+    assert.equal(await page.locator('#chart-grid, #chart-house, #wallbox-control').count(), 0);
+    assert.equal(await page.locator('#chart-diagnostics-grid > figure > ul.chart-options').count(), 5);
+    assert.equal(await page.locator('ul.chart-options input').count(), 7);
+    assert.equal(await page.locator('#chart-diagnostics-grid svg:visible').count(), 0);
+    assert.equal(await page.locator('#below').innerText(), 'Ja', 'All-off preferences never hide the live reading');
+    assert.deepEqual(await owners(), {
+      'chart-flags': ['show-below', 'show-charging', 'show-plugged'], 'chart-error': ['show-wallbox-error'],
+      'chart-state': ['show-charging-state'], 'chart-raw': ['show-charging-raw'], 'chart-lock': ['show-lock']
+    });
+    await page.locator('#reset-display').click();
+    await collect(3);
+    for (const width of [1920, 2560, 320]) {
+      await page.setViewportSize({ width, height: width === 320 ? 844 : 1050 });
+      await paint();
+      await liveChartGeometry(page, width, true);
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${width}: diagnoses fit viewport`);
+      if (width !== 2560) {
+        fs.mkdirSync('/artifacts', { recursive: true });
+        await page.screenshot({ path: `/artifacts/live-diagnostics-${width}.png`, fullPage: true });
+        await page.locator('#chart-raw').screenshot({ path: `/artifacts/live-raw-code-${width}.png` });
+      }
+    }
+    await allOff(5);
+    await page.locator('#reset-display').click();
+    await page.setViewportSize({ width: 1440, height: 1050 });
+    await visit('/diagramme');
     assert.deepEqual(errors, [], 'Initial calendar publication must not access uninitialized renderer state');
     await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Live');
     await paint();
     assert(new URL(page.url()).pathname === '/diagramme');
     assert.equal(await page.locator('#chart-grid > figure').count(), 4);
-    assert.equal(await page.locator('#chart-diagnostics-grid > figure').count(), 5);
+    assert.equal(await page.locator('#chart-diagnostics-grid').count(), 0);
     assert.equal(await page.locator('.display-options, #metric-options, .history-note').count(), 0);
-    assert.equal(await page.locator('#chart-grid > figure > ul.chart-options, #chart-diagnostics-grid > figure > ul.chart-options').count(), 9);
-    assert.equal(await page.locator('ul.chart-options input[type="checkbox"]').count(), 16);
-    const owners = await page.locator('ul.chart-options').evaluateAll(lists => Object.fromEntries(lists.map(list =>
-      [list.closest('figure').id, [...list.querySelectorAll('input')].map(input => input.id).sort()])));
-    assert.deepEqual(owners, {
+    assert.equal(await page.locator('#chart-grid > figure > ul.chart-options').count(), 4);
+    assert.equal(await page.locator('ul.chart-options input[type="checkbox"]').count(), 9);
+    assert.deepEqual(await owners(), {
       'chart-power': ['show-power'], 'chart-current': ['show-current-0', 'show-current-1', 'show-current-2', 'show-limit'],
-      'chart-voltage': ['show-voltage-0', 'show-voltage-1', 'show-voltage-2'], 'chart-energy': ['show-energy'],
-      'chart-flags': ['show-below', 'show-charging', 'show-plugged'], 'chart-error': ['show-wallbox-error'],
-      'chart-state': ['show-charging-state'], 'chart-raw': ['show-charging-raw'], 'chart-lock': ['show-lock']
+      'chart-voltage': ['show-voltage-0', 'show-voltage-1', 'show-voltage-2'], 'chart-energy': ['show-energy']
     }, 'Each metric belongs to its own figure, exactly once');
     assert(await page.locator('#chart-power').isVisible(), 'Figure and controls remain reachable');
     assert(!await page.locator('#chart-power svg').isVisible(), 'Diagram preference hides only SVG');
@@ -157,31 +213,18 @@ async function liveChartGeometry(page, width) {
 
     // Fast-forward browser timers, not host time: collect multiple real HTTP
     // responses through the chart integration without a long wall-clock test.
-    for (let i = 0; i < 25; i++) {
-      const previous = await page.locator('#timestamp').innerText();
-      await page.clock.runFor(1100);
-      await page.waitForFunction(before => document.getElementById('status')?.textContent === 'Live'
-        && document.getElementById('timestamp')?.textContent !== before, previous);
-      await paint();
-    }
+    await collect(25);
     const line = await page.locator('[data-series="power"]').getAttribute('d');
     assert(line.includes('L'), 'Distinct sample timestamps should form a line');
     // Reuse the collected HTTP samples; resizing must not need fabricated chart
-    // points or longer polling deadlines. Open the lazy diagnostic renderer first.
-    await page.locator('.history-diagnostics > summary').click();
+    // points or longer polling deadlines.
     for (const width of [1920, 2560, 320]) {
       await page.setViewportSize({ width, height: width === 320 ? 844 : 1050 });
       await paint();
-      await liveChartGeometry(page, width);
+      await liveChartGeometry(page, width, false);
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
-        `${width}: open diagnostics do not overflow the browser`);
-      if (width === 1920 || width === 320) {
-        fs.mkdirSync('/artifacts', { recursive: true });
-        await page.screenshot({ path: `/artifacts/live-diagnostics-${width}.png`, fullPage: true });
-        await page.locator('#chart-raw').screenshot({ path: `/artifacts/live-raw-code-${width}.png` });
-      }
+        `${width}: diagrams do not overflow the browser`);
     }
-    await page.locator('.history-diagnostics > summary').click();
     await page.setViewportSize({ width: 1440, height: 1050 });
     await paint();
     fs.mkdirSync('/artifacts', { recursive: true });
@@ -205,26 +248,7 @@ async function liveChartGeometry(page, width) {
       && ((document.querySelector('[data-series="power"]').getAttribute('d') || '').match(/M/g) || []).length >= 2);
     assert(((await page.locator('[data-series="power"]').getAttribute('d')).match(/M/g) || []).length >= 2,
       'Recovery must start a disconnected segment');
-    await page.locator('.history-diagnostics > summary').click();
-    assert(await page.locator('.history-diagnostics').evaluate(details => details.open), 'Native diagnostics disclosure opens');
-    await page.locator('#show-charging').check();
-    await paint();
-    assert(await page.locator('#chart-diagnostics-grid .chart-line').count() > 0, 'Diagnostics render lazily on opening');
-    const wallboxFigures = page.locator('#chart-grid > figure, #chart-diagnostics-grid > figure');
-    for (const checkbox of await page.locator('ul.chart-options input').all()) await checkbox.uncheck();
-    await paint();
-    assert(await page.locator('#status').isVisible());
-    assert(await page.locator('#wallbox-warning').isVisible());
-    assert.equal(await wallboxFigures.count(), 9);
-    for (const figure of await wallboxFigures.all()) {
-      assert(await figure.isVisible(), 'All-off figure remains visible');
-      assert(!await figure.locator('svg').isVisible(), 'Only SVG is hidden');
-      const controls = figure.locator('ul.chart-options input');
-      assert(await controls.first().isVisible(), 'Own controls remain available');
-      await controls.first().check();
-      await paint();
-      assert(await figure.locator('svg').isVisible(), 'Each figure can recover without global reset');
-    }
+    await allOff(4);
     await page.locator('#reset-display').click();
     await paint();
     const prefs = await page.evaluate(() => JSON.parse(localStorage.getItem('evse-display-v1')));

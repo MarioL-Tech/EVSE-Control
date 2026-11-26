@@ -1,5 +1,5 @@
 'use strict';
-// Standalone simulated DOM/API contract, not a hardware or integrated-page test.
+// Standalone mode contracts plus an isolated real dashboard with mocked API reads.
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -17,6 +17,50 @@ const control = automation => ({ status: 'ok', csrf: H(64), command_sent: false,
   session: H(32), lease: H(32), fresh_for_seconds: 8, read_only: true, minimum_ma: 6000, software_max_ma: 32000,
   hardware_max_ma: 32000, installation_max_ma: null, effective_max_ma: null, firmware_raw: null,
   write: null, preparation: null, ...(automation ? { automation } : {}) } });
+async function dashboardReaderFeedback(browser) {
+  const ctx = await browser.newContext({ serviceWorkers: 'block' });
+  const base = process.env.WEB_TEST_URL || 'http://127.0.0.1:8080';
+  let reader = auto({ requested_mode: 'pv', state: 'adjusting' }), choose = false, failDraft = false, release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const writes = [];
+  try {
+    await ctx.route('**/api/**', async route => {
+      const req = route.request(), path = new URL(req.url()).pathname;
+      if (req.method() !== 'GET') { writes.push(path); return route.abort(); }
+      if (path === '/api/wallbox-control') {
+        if (failDraft) await gate;
+        return route.fulfill({ json: control(reader) });
+      }
+      if (path === '/api/charging-mode') {
+        if (failDraft) return route.abort();
+        // The existing post-selection control refresh now sees a new house/read
+        // state, but the same guard, activation and plan as the preflight read.
+        if (choose) reader = { ...reader, state: 'source_unavailable', house: 'transport_unavailable' };
+        return route.fulfill({ json: draft({ missing_by_mode: { pv: [], custom: ['custom.windows'] } }) });
+      }
+      return route.fulfill({ status: 503, json: {} });
+    });
+    const page = await ctx.newPage();
+    const region = (id, text) => page.locator(`#${id}[role="status"]`).filter({ hasText: text }).waitFor();
+    await page.goto(base);
+    await region('automation-status', /passt Strom an/);
+    choose = true; await page.locator('#control-mode-custom').click();
+    await region('automation-feedback', /Benutzerdefiniert.*Zeitfenster/);
+    await region('automation-status', /Kein frischer Hauswert für PV/);
+    assert(await page.locator('#control-mode-pv').isChecked());
+    for (const [id, fragment] of [['automation-setup-link', 'env-heading'], ['automation-profile-link', 'charging-heading']]) {
+      const link = page.locator(`#${id}`); assert(await link.isVisible());
+      assert.equal(await link.getAttribute('href'), `/einstellungen#${fragment}`);
+    }
+    // Fail the passive draft GET before the delayed existing control GET returns.
+    failDraft = true; reader = { ...reader, state: 'frozen', plan: 'clock_error' };
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await region('automation-feedback', /Regelprofile nicht abrufbar/); release();
+    await region('automation-status', /Automatik gesperrt/);
+    await region('automation-feedback', /Regelprofile nicht abrufbar/);
+    assert.deepEqual(writes, [], 'Neither a rejected choice nor passive observation sends any POST');
+  } finally { release(); await ctx.close(); }
+}
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const errors = [];
@@ -28,7 +72,7 @@ const control = automation => ({ status: 'ok', csrf: H(64), command_sent: false,
       <div id="wallbox-control"><label><input type="radio" id="control-mode-pv" name="charging-mode">PV-Regelung</label>
       <label><input type="radio" id="control-mode-manual" name="charging-mode">Manuell</label>
       <label><input type="radio" id="control-mode-custom" name="charging-mode">Benutzerdefiniert</label>
-      <p id="automation-status" role="status"></p><button id="control-stop">Stop</button></div>
+      <p id="automation-status" role="status"></p><div id="automation-feedback" role="status"></div><button id="control-stop">Stop</button></div>
       <script>window.modeEvents=[];window.refreshes=0;addEventListener('evse:automation-mode',e=>modeEvents.push(e.detail));
       addEventListener('evse:refresh-control',()=>refreshes++);</script><script src="/charging-mode.js"></script></html>` }));
     await context.route(`${origin}/charging-mode.js`, route => route.fulfill({ contentType: 'application/javascript', body: source }));
@@ -56,7 +100,8 @@ const control = automation => ({ status: 'ok', csrf: H(64), command_sent: false,
     page.on('pageerror', error => errors.push(String(error)));
     const settle = () => page.waitForFunction(() => window.modeEvents.length && !window.modeEvents.at(-1).pending);
     const observe = value => page.evaluate(automation => dispatchEvent(new CustomEvent('evse:automation-observation', { detail: { automation } })), value);
-    const text = () => page.locator('#automation-status').textContent();
+    const actual = () => page.locator('#automation-status').textContent();
+    const feedback = () => page.locator('#automation-feedback').textContent();
     const checked = async mode => { assert.equal(await page.locator('input:checked').count(), 1); assert.equal(await page.locator(`#control-mode-${mode}`).isChecked(), true); };
     const select = async mode => { await page.locator(`#control-mode-${mode}`).click(); await settle(); };
     await page.goto(`${origin}/fixture`); await settle();
@@ -70,28 +115,29 @@ const control = automation => ({ status: 'ok', csrf: H(64), command_sent: false,
     await observe(reader); calls.length = 0;
     await select('pv');
     assert.deepEqual(calls, ['control', 'mode', 'post']);
-    assert.match(await text(), /angefordert/); assert.doesNotMatch(await text(), /aktiviert/);
+    assert.match(await feedback(), /angefordert/); assert.doesNotMatch(await feedback(), /aktiviert/);
+    assert.match(await actual(), /Reader: Manuell/);
     await checked('pv');
     reader = auto({ requested_mode: 'pv', activation_id: current.activation.id, state: 'adjusting' });
-    await observe(reader); assert.match(await text(), /passt Strom an/);
+    await observe(reader); assert.match(await actual(), /passt Strom an/); assert.equal(await feedback(), '');
     const beforeForeign = posts.length;
     reader = auto({ requested_mode: 'custom', activation_id: H(32, '9'), state: 'resuming' });
     await observe(reader); await checked('custom');
     assert.equal(posts.length, beforeForeign, 'Another operator activation is observed, never overwritten or replayed');
     reader = auto({ guard: H(32, 'e'), state: 'manual_override', requested_mode: 'pv' });
-    await observe(reader); await checked('manual'); assert.match(await text(), /manuellen Eingriff/);
+    await observe(reader); await checked('manual'); assert.match(await actual(), /manuellen Eingriff/);
     await select('pv'); await checked('pv');
-    assert.match(await text(), /angefordert/, 'New matching-guard intent is pending, not the old manual override');
+    assert.match(await feedback(), /angefordert/, 'New matching-guard intent is pending, not the old manual override');
     reader = auto({ guard: H(32, 'd'), state: 'manual_override', requested_mode: 'pv' });
     await observe(reader); await checked('manual');
     // Reader restart requires deliberate reselection, no automatic replay.
     reader = auto({ guard: H(32, 'f'), requested_mode: 'pv', state: 'awaiting_activation' });
     const beforeRestart = posts.length; await observe(reader); await checked('pv');
-    assert.match(await text(), /erneut wählen/); assert.equal(posts.length, beforeRestart);
+    assert.match(await actual(), /erneut wählen/); assert.equal(posts.length, beforeRestart);
     await select('pv'); assert.equal(posts.at(-1).guard, H(32, 'f')); assert.equal(posts.length, beforeRestart + 1);
     // Frozen state remains visible and can only be retried by an explicit click.
     reader = auto({ guard: H(32, 'f'), requested_mode: 'pv', state: 'frozen' }); await observe(reader);
-    assert.match(await text(), /gesperrt/); await select('pv');
+    assert.match(await actual(), /gesperrt/); await select('pv');
     // Every native arrow action produces exactly one request, still exclusive.
     reader = auto(); await observe(reader); await select('manual');
     const beforeKeys = posts.length;
@@ -101,15 +147,15 @@ const control = automation => ({ status: 'ok', csrf: H(64), command_sent: false,
     assert.equal(posts.length, beforeKeys + 3);
     for (const code of [400, 403, 409]) {
       failure = code; const before = posts.length; await select('pv'); assert.equal(posts.length, before + 1);
-      assert.match(await text(), code === 400 ? /Settings ergänzen: Phasenanzahl, Netzbezugsgrenze/ : code === 403 ? /nicht erlaubt/ : /Konflikt/);
-      assert.doesNotMatch(await text(), /installation\.phases/);
+      assert.match(await feedback(), code === 400 ? /Settings ergänzen: Phasenanzahl, Netzbezugsgrenze/ : code === 403 ? /nicht erlaubt/ : /Konflikt/);
+      assert.doesNotMatch(await feedback(), /installation\.phases/);
       await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pageshow'))); await settle(); assert.equal(posts.length, before + 1);
     }
     for (const kind of ['abort', 'oversize', 'duplicate']) {
       failure = kind; const before = posts.length; await select('pv');
-      assert.match(await text(), /Ausgang unbekannt|Aktivierungsausgang unbekannt/);
+      assert.match(await feedback(), /Ausgang unbekannt|Aktivierungsausgang unbekannt/);
       await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pageshow'))); await settle();
-      await observe(reader); assert.match(await text(), /unbekannt/); assert.equal(posts.length, before + 1);
+      await observe(reader); assert.match(await feedback(), /unbekannt/); assert.equal(posts.length, before + 1);
     }
     failure = null;
     // Support cached from an earlier observation cannot replace the fresh inspection.
@@ -128,10 +174,10 @@ const control = automation => ({ status: 'ok', csrf: H(64), command_sent: false,
     const timeoutEntered = new Promise(resolve => { timeoutEnter = resolve; });
     held = { promise: new Promise(resolve => { timeoutRelease = resolve; }), enter: timeoutEnter };
     await page.locator('#control-mode-pv').click(); await timeoutEntered; await settle();
-    const afterTimeout = posts.length; assert.match(await text(), /unbekannt/);
+    const afterTimeout = posts.length; assert.match(await feedback(), /unbekannt/);
     timeoutRelease();
     await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pageshow'))); await settle();
-    assert.equal(posts.length, afterTimeout); assert.match(await text(), /unbekannt/);
+    assert.equal(posts.length, afterTimeout); assert.match(await feedback(), /unbekannt/);
     // A later manual Stop is independent, cancels our local flow and changes guard.
     let release, enter;
     const entered = new Promise(resolve => { enter = resolve; });
@@ -142,7 +188,7 @@ const control = automation => ({ status: 'ok', csrf: H(64), command_sent: false,
     await page.evaluate(() => dispatchEvent(new CustomEvent('evse:wallbox-busy', { detail: { busy: true } })));
     reader = auto({ guard: H(32, 'e'), state: 'manual_override' }); await observe(reader);
     release(); await settle(); await checked('manual');
-    assert.match(await text(), /unbekannt|keine Aktivierung gesendet/);
+    assert.match(await feedback(), /unbekannt|keine Aktivierung gesendet/);
     await page.evaluate(() => dispatchEvent(new CustomEvent('evse:wallbox-busy', { detail: { busy: false } })));
     await settle(); assert.ok(posts.length <= beforePending + 1);
     // Foreground refresh is readonly, no control polling or queued activation.
@@ -153,12 +199,16 @@ const control = automation => ({ status: 'ok', csrf: H(64), command_sent: false,
     // selection must work without reviving/retrying the cancelled request.
     const beforeRecoveryClock = posts.length;
     await page.evaluate(() => { window.realModeNow = Date.now; Date.now = () => window.realModeNow() + 10000; });
-    await select('pv'); assert.equal(posts.length, beforeRecoveryClock); assert.match(await text(), /Zeitfehler/);
+    await select('pv'); assert.equal(posts.length, beforeRecoveryClock); assert.match(await feedback(), /Zeitfehler/);
     await select('pv'); assert.equal(posts.length, beforeRecoveryClock + 1);
     await page.evaluate(() => { Date.now = window.realModeNow; delete window.realModeNow; });
     assert.deepEqual(await page.evaluate(() => [localStorage.length, sessionStorage.length]), [0, 0]);
     assert.deepEqual(errors, []);
     await context.close();
-    console.log('Charging mode simulated browser contracts passed');
+    if (!process.argv.includes('--standalone-only')) {
+      await dashboardReaderFeedback(browser);
+      console.log('Integrated reader/draft feedback passed');
+    }
+    console.log('Standalone charging mode browser contracts passed');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

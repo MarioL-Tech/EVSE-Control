@@ -3,7 +3,10 @@ const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const base = process.env.WEB_TEST_URL || 'http://127.0.0.1:8080';
-const routes = ['/', '/diagramme'];
+const routes = ['/', '/diagramme', '/diagnose'];
+const titles = { '/': 'Übersicht', '/diagramme': 'Diagramme', '/diagnose': 'Diagnose' };
+const electrical = ['power', 'energy', 'limit', 'current-0', 'current-1', 'current-2', 'voltage-0', 'voltage-1', 'voltage-2'];
+const diagnostic = ['plugged', 'charging', 'below', 'wallbox-error', 'charging-state', 'charging-raw', 'lock'];
 const palettes = {
   dark: { bg: '#0c151a', surface: '#111b22', 'surface-top': '#18242d', border: '#2b3c47',
     text: '#edf4f8', muted: '#acc0cb', accent: '#55dab6', 'on-accent': '#072b23',
@@ -90,9 +93,18 @@ async function layoutFreeze(page, width, route) {
     // auto-fit reports collapsed empty tracks as 0px; they are not visible columns.
     const columns = grid => grid.gridTemplateColumns.trim().split(/\s+/)
       .filter(track => parseFloat(track) > 0).length;
-    assert.equal(columns(layout.overview), width > 1200 ? 4 : width > 480 ? 2 : 1, 'Four/two/one summary columns');
-    assert.equal(layout.overview.gap, '16px');
-    assert.equal(layout.summary.minHeight, width > 480 ? '134px' : '140px');
+    assert.equal(columns(layout.overview), width > 1200 ? 4 : 2, 'Four/two summary columns');
+    assert.equal(layout.overview.gap, width > 480 ? '16px' : '10px');
+    assert.equal(layout.summary.minHeight, width > 480 ? '134px' : '0px');
+    if (width <= 480) {
+      const [power, vehicle, energy, limit] = await page.locator('.summary-card').evaluateAll(cards => cards.map(card => {
+        const { left, right, top, bottom } = card.getBoundingClientRect(); return { left, right, top, bottom };
+      }));
+      near(power.left, energy.left, 'power spans left edge'); near(power.right, limit.right, 'power spans right edge');
+      near(vehicle.left, power.left, 'vehicle spans left edge'); near(vehicle.right, power.right, 'vehicle spans right edge');
+      near(energy.top, limit.top, 'energy and limit share one row'); assert(energy.right < limit.left);
+      assert(power.bottom <= vehicle.top && vehicle.bottom <= energy.top);
+    }
     assert.equal(columns(layout.measurements), width >= 704 ? 2 : 1, 'Phase/house measurements retain auto-fit layout');
     assert.equal(layout.measurements.gap, '16px');
   }
@@ -124,8 +136,8 @@ async function globals(page) {
     const main = document.getElementById('main-content');
     const content = [...main.children].filter(element => element.tagName !== 'NOSCRIPT');
     return content[0].matches('.page-header') && content[1].id === 'wallbox-warning'
-      && content.at(-1).matches('.status-panel.current-data');
-  }), 'Warning above content; current-data panel last on both pages');
+      && (location.pathname === '/diagnose' ? content[2] : content.at(-1)).matches('.status-panel.current-data');
+  }), 'Warning above content; diagnosis starts with live status, operator and diagrams keep status last');
 }
 async function overflow(page, description) {
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth
@@ -200,7 +212,7 @@ async function systemTheme(page, scheme) {
   assert(await page.evaluate(value => matchMedia(`(prefers-color-scheme: ${value})`).matches, scheme));
   await settle(scheme);
   const initial = await colors();
-  assert.equal(await page.locator('.card').first().evaluate(element => getComputedStyle(element).borderTopLeftRadius), '6px', 'Compact theme uses restrained card rounding');
+  assert.equal(await page.locator('.card').first().evaluate(element => getComputedStyle(element).borderTopLeftRadius), '12px', 'Shared card rounding');
   await compactTheme(page, scheme);
   await textContrast(page, scheme);
   await page.emulateMedia({ colorScheme: scheme === 'light' ? 'dark' : 'light', reducedMotion: 'reduce' });
@@ -238,7 +250,7 @@ async function setup(browser, options = {}, denied = false) {
   context.on('page', page => {
     page.on('pageerror', error => errors.push(String(error)));
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
-    page.on('request', request => requests.push({ method: request.method(), url: request.url() }));
+    page.on('request', request => requests.push({ method: request.method(), url: request.url(), document: page.url() }));
   });
   return { context, page: await context.newPage(), errors, requests };
 }
@@ -248,6 +260,8 @@ function clean(run) {
     assert.equal(request.method, 'GET', 'No commands or other write requests');
     const url = new URL(request.url);
     assert.equal(url.origin, new URL(base).origin, 'No external resources');
+    if (new URL(request.document).pathname === '/diagnose' && url.pathname.startsWith('/api/'))
+      assert(['/api/state', '/api/history'].includes(url.pathname), `Diagnosis must not inspect controls or poll HOUSE: ${url.pathname}`);
     if (url.pathname === '/api/history') assert.equal(url.search, '?minutes=15');
     assert(routes.includes(url.pathname) || ['/api/state', '/api/smartmeter', '/api/history', '/api/house-history', '/api/charging-mode', '/api/wallbox-control', '/api/esp32-control'].includes(url.pathname)
       || url.pathname.startsWith('/static/') || ['/favicon.ico', '/manifest.webmanifest', '/service-worker.js'].includes(url.pathname), request.url);
@@ -271,11 +285,11 @@ function clean(run) {
         assert(!/unsafe-inline|unsafe-eval/.test(csp));
         await live(page);
         assert.equal(await page.locator('h1').count(), 1);
-        assert.equal(await page.locator('h1').innerText(), route === '/' ? 'Übersicht' : 'Diagramme');
+        assert.equal(await page.locator('h1').innerText(), titles[route]);
         assert(await page.locator('h2').count() > 0);
         assert.equal(await page.locator('nav[aria-label="Hauptnavigation"]').count(), 1);
-        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').evaluateAll(links => links.map(a => a.getAttribute('href'))), ['/', '/diagramme', '/einstellungen']);
-        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').allTextContents().then(labels => labels.map(label => label.trim())), ['Übersicht', 'Diagramme', 'Settings']);
+        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').evaluateAll(links => links.map(a => a.getAttribute('href'))), [...routes, '/einstellungen']);
+        assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').allTextContents().then(labels => labels.map(label => label.trim())), ['Übersicht', 'Diagramme', 'Diagnose', 'Settings']);
         const settings = page.getByRole('link', { name: 'Settings', exact: true });
         assert.equal(await settings.getAttribute('href'), '/einstellungen');
         assert.equal(await settings.locator('svg').count(), 1);
@@ -284,9 +298,9 @@ function clean(run) {
           const { x, y, width, height } = link.getBoundingClientRect(); return { x, y, width, height };
         }));
         if (width > 900) {
-          assert(navBoxes[2].y >= navBoxes[1].y + navBoxes[1].height, 'Settings below Diagramme');
+          assert(navBoxes.slice(1).every((box, i) => box.y >= navBoxes[i].y + navBoxes[i].height), 'Each navigation link has its own row');
         } else {
-          assert(navBoxes.every(box => Math.abs(box.y - navBoxes[0].y) <= 1), 'Three compact navigation tabs in one row');
+          assert(navBoxes.every(box => Math.abs(box.y - navBoxes[0].y) <= 1), 'Four compact navigation tabs in one row');
           assert(navBoxes.every(box => box.x >= 0 && box.x + box.width <= width), 'Tabs fit viewport');
         }
         assert.equal(await page.locator('nav [aria-current="page"]').count(), 1);
@@ -299,7 +313,7 @@ function clean(run) {
            route === '/' ? ['control-current', 'control-mode-custom', 'control-mode-manual', 'control-mode-pv'] : ['calendar-custom', 'calendar-date', 'calendar-from', 'calendar-to']);
          assert.deepEqual(await page.locator('button').evaluateAll(nodes => nodes.map(n => n.id).sort()),
            (route === '/' ? ['control-apply', 'control-start', 'control-stop', 'esp32-lock', 'esp32-unlock'] : ['', '', '', '', '', '', '', 'calendar-load', 'calendar-next', 'calendar-now', 'calendar-prev', 'reset-display']).sort());
-        if (route === '/diagramme') {
+        if (route !== '/') {
           assert.equal(await page.locator('#reset-display').getAttribute('type'), 'button');
           assert.deepEqual(await page.locator('button[data-calendar-period]').evaluateAll(nodes =>
             nodes.map(node => node.dataset.calendarPeriod)), ['live', 'hour', 'day', 'week', 'month', 'year', 'custom']);
@@ -308,19 +322,16 @@ function clean(run) {
         assert.equal(await page.locator('#theme-toggle').getAttribute('type'), 'checkbox');
         const boxes = page.locator('ul.chart-options input[type="checkbox"]');
         assert.equal(await page.locator('#metric-options, .display-options, .history-note').count(), 0);
-        assert.equal(await boxes.count(), route === '/' ? 0 : 16);
-        if (route === '/diagramme') assert.deepEqual(await boxes.evaluateAll(inputs => inputs.map(input => input.id).sort()),
-          ['power', 'energy', 'limit', 'current-0', 'current-1', 'current-2', 'voltage-0', 'voltage-1',
-            'voltage-2', 'plugged', 'charging', 'below', 'wallbox-error', 'charging-state', 'charging-raw', 'lock']
-            .map(id => `show-${id}`).sort(), 'All 16 preferences remain available per chart');
+        const metrics = route === '/' ? [] : route === '/diagramme' ? electrical : diagnostic;
+        const figureCount = route === '/diagramme' ? 4 : 5;
+        assert.deepEqual(await boxes.evaluateAll(inputs => inputs.map(input => input.id).sort()),
+          metrics.map(id => `show-${id}`).sort(), 'Every preference is on its owning page');
         assert(await boxes.evaluateAll(inputs => inputs.every(input => input.checked && !input.disabled
           && [...input.labels].some(label => label.textContent.trim()))), 'Native labelled checkboxes');
         assert.equal(await page.locator('details[open]').count(), 0);
         if (route === '/') {
           assert.equal(await page.locator('.summary-card').count(), 4);
-          for (const id of ['power', 'energy', 'limit', 'current-0', 'current-1', 'current-2',
-            'voltage-0', 'voltage-1', 'voltage-2', 'plugged', 'charging', 'below',
-            'wallbox-error', 'charging-state', 'charging-raw', 'lock']) {
+          for (const id of [...electrical, 'plugged', 'charging']) {
             assert.equal(await page.locator(`#${id}`).count(), 1, `Preserved wallbox metric ${id}`);
             assert.equal(await page.locator(`#show-${id}`).count(), 0, `No overview preference ${id}`);
           }
@@ -333,61 +344,67 @@ function clean(run) {
           assert.equal(await page.locator('.details-grid.measurements #smartmeter').count(), 1);
           assert.equal(await page.locator('.details-grid.measurements #voltage-0').count(), 1);
           assert(await page.locator('#smartmeter').isVisible(), 'House data always visible');
-          assert(!await page.locator('#below').isVisible(), 'Below-limit row starts in collapsed diagnostics');
-        } else {
+          assert.equal(await page.locator('#below, #charging-raw, #lock, #wallbox-error, #charging-state').count(), 0, 'Detailed telemetry moved, not duplicated');
+        } else if (route === '/diagramme') {
           assert.equal(await page.locator('#chart-grid > figure').count(), 4);
           const order = await page.evaluate(() => {
             const house = document.getElementById('smartmeter'), grid = document.getElementById('chart-grid');
-            const toolbar = document.querySelector('.calendar-toolbar'), diagnostics = document.querySelector('.history-diagnostics');
+            const toolbar = document.querySelector('.calendar-toolbar');
             return { dom: !!(house.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING),
               belowControls: house.getBoundingClientRect().top >= toolbar.getBoundingClientRect().bottom,
-              beforeWallbox: house.getBoundingClientRect().bottom <= grid.getBoundingClientRect().top,
-              beforeDiagnostics: house.getBoundingClientRect().bottom <= diagnostics.getBoundingClientRect().top };
+              beforeWallbox: house.getBoundingClientRect().bottom <= grid.getBoundingClientRect().top };
           });
-          assert(Object.values(order).every(Boolean), 'Shared controls, HOUSE first, Wallbox curves, then diagnostics at every viewport');
-          assert.equal(await page.locator('.history-diagnostics figure').count(), 5);
+          assert(Object.values(order).every(Boolean), 'Shared controls, HOUSE first, then electrical curves at every viewport');
+          assert.equal(await page.locator('#chart-diagnostics-grid, #chart-flags').count(), 0);
           assert.equal(await page.locator('#chart-grid svg[role="img"][aria-label]').count(), 4);
           await page.waitForFunction(() => document.querySelector('#chart-grid .chart-line'));
+        } else {
+          assert.equal(await page.locator('#chart-grid, #chart-house, #wallbox-control').count(), 0);
+          assert.equal(await page.locator('#chart-diagnostics-grid svg[role="img"][aria-label]').count(), 5);
+          await page.waitForFunction(() => document.querySelector('#chart-flags .chart-line'));
+          for (const id of ['below', 'charging-raw', 'lock', 'wallbox-error', 'charging-state', 'last-success', 'read-error', 'broker', 'availability'])
+            assert(await page.locator(`#${id}`).isVisible(), `Live diagnostic field ${id}`);
+          assert.equal(await page.locator('#below').innerText(), 'Ja');
         }
         await globals(page);
         await layoutFreeze(page, width, route);
         await systemTheme(page, scheme);
         await overflow(page, `${route} ${scheme} ${width}: default`);
         const size = { 320: 'phone', 390: 'mobile', 768: 'tablet', 1440: 'desktop' }[width];
-        if (size) await page.screenshot({ path: `/artifacts/${route === '/' ? 'dashboard' : 'diagrams'}-${scheme}-${size}.png`, fullPage: true });
-        await page.locator('.technical-details > summary').click();
+        const artifact = route === '/' ? 'dashboard' : route === '/diagramme' ? 'diagrams' : 'diagnostics';
+        if (size) await page.screenshot({ path: `/artifacts/${artifact}-${scheme}-${size}.png`, fullPage: true });
         if (route === '/') {
-          assert(await page.locator('.technical-details #below').isVisible());
-          assert((await page.locator('.technical-details article[data-metrics]').getAttribute('data-metrics')).split(/\s+/).includes('below'));
+          await page.locator('.control-details > summary').click();
+          assert(await page.locator('.control-details #control-actual').isVisible());
           assert.equal(await page.locator('#reset-display').count(), 0);
         } else {
-          assert.equal(await page.locator('#reset-display').innerText(), 'Alle Kurven anzeigen');
-          assert.equal(await page.locator('figure ul.chart-options').count(), 9);
+          assert.equal(await page.locator('#reset-display').innerText(), route === '/diagnose' ? 'Alle Diagnosekurven anzeigen' : 'Alle Kurven anzeigen');
+          assert.equal(await page.locator('figure ul.chart-options').count(), figureCount);
           assert(await boxes.evaluateAll(inputs => inputs.every(input => input.getClientRects().length)),
-            'Diagnostic controls reachable after opening details');
+            'Chart controls reachable directly on their owning page');
         }
         await overflow(page, `${route} ${width}: technical details`);
-        if (route === '/diagramme') {
-          for (let i = 0; i < 16; i++) await boxes.nth(i).uncheck();
+        if (route !== '/') {
+          for (const box of await boxes.all()) await box.uncheck();
           await paint(page);
           assert(await boxes.evaluateAll(inputs => inputs.every(input => !input.checked)));
           await globals(page);
           assert.equal(await page.locator('#display-empty').count(), 0);
-          assert.equal(await page.locator('figure:has(ul.chart-options):visible').count(), 9);
+          assert.equal(await page.locator('figure:has(ul.chart-options):visible').count(), figureCount);
           assert.equal(await page.locator('figure:has(ul.chart-options) svg:visible').count(), 0);
-          assert.equal(await page.locator('figure:has(ul.chart-options) svg[hidden]').count(), 9);
-          assert.equal(await page.locator('ul.chart-options input:visible').count(), 16);
+          assert.equal(await page.locator('figure:has(ul.chart-options) svg[hidden]').count(), figureCount);
+          assert.equal(await page.locator('ul.chart-options input:visible').count(), metrics.length);
+          if (route === '/diagnose') assert.equal(await page.locator('#below').innerText(), 'Ja');
           await overflow(page, `${route} ${width}: all off`);
           // Shared all-off preferences must not hide any overview card or diagnostic value.
           await page.locator('nav a[href="/"]').click(); await live(page);
           assert.equal(await page.locator('.summary-card:visible').count(), 4);
           assert.equal(await page.locator('ul.chart-options, #reset-display').count(), 0);
           assert(await page.locator('#smartmeter').isVisible());
-          await page.locator('.technical-details > summary').click();
           assert.equal(await page.locator('[data-metric]:not(:visible), [data-metrics]:not(:visible)').count(), 0);
           await globals(page);
           await overflow(page, `${route} ${width}: overview ignores all-off preferences`);
-          await page.locator('nav a[href="/diagramme"]').click(); await live(page);
+          await page.locator(`nav a[href="${route}"]`).click(); await live(page);
           await paint(page);
           assert(await boxes.evaluateAll(inputs => inputs.every(input => !input.checked)));
           await page.locator('#reset-display').click();
@@ -395,8 +412,8 @@ function clean(run) {
           assert(await boxes.evaluateAll(inputs => inputs.every(input => input.checked)));
           assert.equal(await page.locator('#chart-grid svg[hidden], #chart-diagnostics-grid svg[hidden]').count(), 0);
         }
-        if (await page.locator('.technical-details[open] > summary').count())
-          await page.locator('.technical-details[open] > summary').click();
+        if (await page.locator('.control-details[open] > summary').count())
+          await page.locator('.control-details[open] > summary').click();
         clean(run);
       } finally { await context.close(); }
     }
@@ -412,6 +429,20 @@ function clean(run) {
       await run.page.waitForURL(new URL('/diagramme', base).href); await live(run.page);
       await run.page.locator('ul.chart-options #show-power').uncheck();
       assert(await run.page.evaluate(() => localStorage.getItem('evse-display-v1') !== null));
+      // Two independently mounted documents can hold different in-memory drafts.
+      // A range edit or local reset must not overwrite the other route's choice.
+      const diagnosis = await run.context.newPage();
+      await diagnosis.goto(new URL('/diagnose', base).href); await live(diagnosis);
+      await diagnosis.locator('#show-lock').uncheck();
+      await run.page.bringToFront();
+      await run.page.locator('#chart-range').selectOption('15');
+      const choices = () => run.page.evaluate(() => JSON.parse(localStorage.getItem('evse-display-v1')));
+      let shared = await choices();
+      assert.equal(shared.minutes, 15); assert.equal(shared.selected.lock, false); assert.equal(shared.selected.power, false);
+      await diagnosis.bringToFront(); await diagnosis.locator('#reset-display').click();
+      shared = await choices();
+      assert.equal(shared.minutes, 15); assert.equal(shared.selected.lock, true); assert.equal(shared.selected.power, false);
+      await diagnosis.close(); await run.page.bringToFront();
       await run.page.locator('nav a[href="/"]').click(); await live(run.page);
       assert.equal(await run.page.locator('.summary-card:visible').count(), 4);
       assert(await run.page.locator('#power').isVisible());
@@ -447,8 +478,8 @@ function clean(run) {
       const denied = await setup(browser, {}, true);
       try {
         await denied.page.goto(new URL(route, base).href); await live(denied.page);
-        const first = denied.page.locator('ul.chart-options #show-power');
-        if (route === '/diagramme') {
+        const first = denied.page.locator(route === '/diagnose' ? '#show-charging' : '#show-power');
+        if (route !== '/') {
           await first.uncheck(); assert.equal(await first.isChecked(), false);
         } else {
           assert.equal(await denied.page.locator('ul.chart-options, #reset-display').count(), 0);
@@ -460,11 +491,11 @@ function clean(run) {
           Object.defineProperty(event, 'persisted', { value: true }); window.dispatchEvent(event);
         });
         await live(denied.page);
-        if (route === '/diagramme')
+        if (route !== '/')
           assert.equal(await first.isChecked(), false, 'Cached page keeps session-only choices without storage');
         else assert.equal(await denied.page.locator('.summary-card:visible').count(), 4);
         await denied.page.reload(); await live(denied.page);
-        if (route === '/diagramme') assert.equal(await first.isChecked(), true);
+        if (route !== '/') assert.equal(await first.isChecked(), true);
         else assert.equal(await denied.page.locator('.summary-card:visible').count(), 4);
         clean(denied);
       } finally { await denied.context.close(); }
@@ -484,6 +515,6 @@ function clean(run) {
       assert(!await failure.page.locator('#wallbox-warning').isVisible(), 'Stale hardware warning not kept as current');
       clean(failure);
     } finally { await failure.context.close(); }
-    console.log('Layout browser: both pages, dark/light, 320/390/768/1440/1920/2560px full content width, navigation, keyboard, CSP, storage and protected status passed');
+    console.log('Layout browser: overview, diagrams and diagnosis, dark/light, 320/390/768/1440/1920/2560px full content width, navigation, keyboard, CSP, storage and protected status passed');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

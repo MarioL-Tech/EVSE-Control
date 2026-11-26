@@ -63,8 +63,12 @@ struct Action {
     double issued_at = 0, issued_utc = 0;
     bool requires_house = false;
     bool clock_protection = false; // One load-reducing Stop, never Start/SetCurrent.
+    bool limit_protection = false; // One Stop after an ACK without verified reduction.
 };
-struct Outcome { bool attempted = false, acknowledged = false; };
+struct Outcome {
+    bool attempted = false, acknowledged = false; // acknowledged = complete operation contract
+    bool set_current_ack_without_verified_limit = false; // standalone FC16 ACK, not a verified limit
+};
 // Start is a compound owner operation: fresh SetCurrent, then Start on the SAME
 // WriteCore/deadline. Report aggregate ACK only if BOTH strict ACKs succeeded.
 bool action_is_current(const Action &, const Input &) noexcept;
@@ -84,13 +88,17 @@ private:
     std::vector<std::string> seen_activations_; // No replay/eviction; 4096 per process, then fail closed.
     std::optional<Action> issue(Operation, int, const Input &);
     void reset_activation(const Settings &);
+    void clear_release() noexcept;
+    void observe_lifecycle(const Telemetry &, double sample_at) noexcept;
     void consume_pending_activation(const Settings &);
     Status status_ = Status::AwaitingActivation;
     std::string activation_, revision_;
     Mode mode_ = Mode::Manual;
     bool baseline_ = false, armed_ = false, frozen_ = false, manual_ = false;
-    bool start_wait_ = false, stop_wait_ = false, auto_stopped_ = false;
-    bool observed_running_ = false, finished_ = false, unplugged_ = false;
+    bool start_wait_ = false, stop_wait_ = false, observed_running_ = false, finished_ = false;
+    enum class LimitRecovery { None, OfferStop, ManualRecovery };
+    LimitRecovery limit_recovery_ = LimitRecovery::None;
+    bool pending_reduction_ = false;
     std::optional<int> ack_target_, candidate_;
     double candidate_since_ = 0, last_now_ = 0, last_utc_ = 0;
     double command_sample_at_ = -1;

@@ -28,7 +28,7 @@ def wait(predicate, message, seconds=7):
 
 
 class Fixture:
-    def __init__(self, binary, directory):
+    def __init__(self, binary, directory, interval_ms=300, timeout_ms=200):
         self.lock = threading.Lock()
         self.activation = uuid.uuid4().hex
         self.guard = "1" * 32
@@ -45,8 +45,18 @@ class Fixture:
         self.drop_start = False
         self.mismatch = False
         self.delay_preparation = False
-        self.preparation_entered = threading.Event()
         self.prepared = False
+        self.change_on_prepare = self.preflight_state = None
+        self.changed_reads = []
+        self.ignore_reduction = None
+        self.omit_effective = False
+        self.lost_readback = threading.Event()
+        self.slow_invalid_cap = False
+        self.fail_next_cap = False
+        self.gate_poll = threading.Event()
+        self.gate_after_effective = False
+        self.at_frame = threading.Event()
+        self.published = threading.Event()
         self.writes = []
         self.reads = []
         self.errors = []
@@ -102,7 +112,7 @@ class Fixture:
                    MQTT_PASSWORD_FILE="", WALLBOX_INSTALLATION_MAX_MA="32000",
                    WALLBOX_AUTOMATION_WEB_URL=f"http://127.0.0.1:{self.server.server_port}")
         self.process = subprocess.Popen([binary, "--device", os.ttyname(self.slave),
-                                         "--interval-ms", "300", "--timeout-ms", "200"],
+                                         "--interval-ms", str(interval_ms), "--timeout-ms", str(timeout_ms)],
                                         env=env, stdout=self.log, stderr=self.log)
         self.serial = threading.Thread(target=self.serve, daemon=True)
         self.serial.start()
@@ -115,6 +125,8 @@ class Fixture:
                 if not select.select([self.master], [], [], .03)[0]:
                     continue
                 for request in parser.feed(os.read(self.master, 512)):
+                    gated = False
+                    delay = 0
                     with self.lock:
                         function = request[1]
                         address = int.from_bytes(request[2:4], "big")
@@ -122,32 +134,67 @@ class Fixture:
                             self.reads.append((time.monotonic(), address))
                             if address == 0x4008:
                                 words = [0] * 24
-                                words[4:6] = pair((4 if self.running else 1) << 8)
+                                state = 4 if self.running else 1
+                                decivolts = 2300
+                                if self.preflight_state is not None:
+                                    check(self.reads[-2][1] == 0x4006, "changed ordinary poll instead of Start preflight")
+                                    state, decivolts = self.preflight_state
+                                    self.preflight_state = None
+                                    self.changed_reads.append((state, decivolts))
+                                words[4:6] = pair(state << 8)
                                 words[6:8] = pair(self.effective)
                                 # U1..U3 are 0x4016..401B, scaled 0.1 V.
                                 for index in (14, 16, 18):
-                                    words[index:index+2] = pair(2300)
+                                    words[index:index+2] = pair(decivolts)
                                 response = read_response(words)
                             elif address == 0x4004:
-                                response = read_response(pair(1) + pair(32000))
+                                if self.fail_next_cap:
+                                    self.fail_next_cap = False
+                                    continue
+                                response = read_response(pair(1) + pair(0 if self.slow_invalid_cap else 32000))
                             elif address == 0x4006:
                                 response = read_response(pair(32000))
                             elif address == 0x400E:
+                                if self.omit_effective:
+                                    self.omit_effective = False
+                                    self.lost_readback.set()
+                                    continue  # FC16 already acknowledged; NO effective-limit observation
+                                if self.gate_after_effective:
+                                    self.gate_after_effective = False
+                                    self.gate_poll.set()
                                 response = read_response(pair(self.effective + (1000 if self.mismatch else 0)))
                             elif address == 0x400C:
                                 response = read_response(pair((4 if self.running else 1) << 8))
                             else:
                                 raise AssertionError("unexpected read " + hex(address))
+                            if address == 0x4008 and self.gate_poll.is_set():
+                                # Subscriber is already ready. Deliver Inspect during
+                                # this full read, then leave ample time for optional
+                                # cap I/O so the queue, not merely slack, must win.
+                                self.gate_poll.clear()
+                                self.at_frame.set()
+                                gated = True
+                                delay = .03
+                            elif self.slow_invalid_cap and address in (0x4008, 0x4004):
+                                delay = .37  # within 450 ms apiece; two exceed a 700-ms cycle
                         else:
                             self.writes.append((time.monotonic(), request))
                             if function == 16:
                                 check(address == 0x4100, "arbitrary write")
-                                self.effective = struct.unpack(">I", request[7:11])[0]
+                                target = struct.unpack(">I", request[7:11])[0]
+                                if self.ignore_reduction:
+                                    check(target < self.effective, "fixture did not request a reduction")
+                                    self.omit_effective = self.ignore_reduction == "timeout"
+                                    self.ignore_reduction = None  # keep higher physical limit despite the FC16 ACK
+                                else:
+                                    self.effective = target
                                 self.prepared = True
+                                self.preflight_state, self.change_on_prepare = self.change_on_prepare, None
                                 if self.delay_preparation:
                                     self.delay_preparation = False
-                                    self.preparation_entered.set()
-                                    time.sleep(.16)  # allow MQTT Stop to queue DURING IO
+                                    self.at_frame.set()
+                                    gated = True
+                                    delay = .03
                             else:
                                 check(address == 0x4105, "arbitrary command")
                                 start = request[4:6] == b"\x00\x00"
@@ -161,22 +208,35 @@ class Fixture:
                                 self.drop_start = False
                                 continue
                             response = request[:6]
+                    # Delay only the serial response, never the independent HTTP sources.
+                    if gated:
+                        check(self.published.wait(.14), "control request not published during held RTU frame")
+                    if delay:
+                        time.sleep(delay)
                     os.write(self.master, framed(response))
         except BaseException as error:
             self.errors.append(str(error))
 
-    def command(self, operation="inspect", current=0):
+    def command(self, operation="inspect", current=0, queue_at=None):
         identity = uuid.uuid4().hex
         session = self.reply["session"] if operation != "inspect" else "-"
         lease = self.reply["lease"] if operation != "inspect" else "-"
         sub = subprocess.Popen(["mosquitto_sub", "-h", "127.0.0.1", "-p", str(self.broker.port),
-                                "-t", "test/wallbox/control/result/" + identity, "-C", "1", "-W", "4"],
+                                "-t", "test/wallbox/control/result/" + identity, "-C", "1", "-W",
+                                "12" if queue_at else "4"],
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         try:
             time.sleep(.08)
+            if queue_at:
+                self.at_frame.clear()
+                self.published.clear()
+                queue_at()
+                check(self.at_frame.wait(6), "no RTU frame to queue request in")
             subprocess.run(["mosquitto_pub", "-h", "127.0.0.1", "-p", str(self.broker.port),
                             "-t", "test/wallbox/control/request", "-m",
                             f"v1|{identity}|{session}|{lease}|{operation}|{current}"], check=True, timeout=2)
+            if queue_at:
+                self.published.set()
             output, error = sub.communicate(timeout=5)
             check(sub.returncode == 0, "no correlated owner reply: " + error)
             self.reply = json.loads(output)
@@ -187,7 +247,9 @@ class Fixture:
                 sub.wait()
 
     def arm(self, topology=True):
-        reply = self.command()
+        self.activate(self.command(), topology)
+
+    def activate(self, reply, topology=True):
         check(reply["status"] == "ok", "inspect failed")
         with self.lock:
             self.guard = reply["automation"]["guard"]
@@ -231,6 +293,14 @@ def run(binary, directory):
         first = [r for _, r in f.writes[:2]]
         check(first[0][1] == 16 and first[1] == bytes.fromhex("090641050000"), "compound order")
         check(struct.unpack(">I", first[0][7:11])[0] == 6000, "PV whole-amp calculation")
+        # Cross the original 10 s cap TTL without a browser/manual inspection.
+        # Stable healthy inputs must not cause Stop/restart oscillation; verify
+        # an actual owner capability read, not a synthetic freshness extension.
+        start_time = f.writes[1][0]
+        wait(lambda: any(a == 0x4008 and t > start_time + 11 for t, a in f.reads),
+             "no normal polls across capability TTL", seconds=15)
+        check(any(a == 0x4004 and t > start_time for t, a in f.reads), "cap not reacquired")
+        check(len(f.writes) == 2, "stable autonomous charging stopped/restarted on cap renewal")
         # Source loss while known running allows ONE protective Stop, never a restart.
         with f.lock:
             f.house = "unavailable"
@@ -281,16 +351,30 @@ def run(binary, directory):
         wait(lambda: len(f.writes) > unknown_count, "custom action missing")
         time.sleep(.7)
         check(len(f.writes) == unknown_count + 1, "mismatched preparation sent Start")
+        # Previous regular poll is plugged and NOT charging; only the actual
+        # post-FC16, pre-FC06 full-block read changes. Check the wire and the
+        # frozen aggregate outcome after later normal polls, not just a reason.
+        # With 4500 W budget the ordinary 230 V poll permits 6 A; three
+        # 260 V phases in the final full read no longer do (4680 W needed).
+        for sample in ((0, 2300), (4, 2300), (1, 2600)):
+            with f.lock:
+                f.mismatch = False
+                f.change_on_prepare = sample
+            before = len(f.writes)
+            f.arm()
+            wait(lambda: sample in f.changed_reads, "changed Start preflight missing")
+            check(f.command()["automation"]["state"] == "frozen", "partial preparation not frozen")
+            check([r[1] for _, r in f.writes[before:]] == [16], "changed preflight issued FC06 or retried")
         # Manual Stop arriving DURING preparation cancels every subsequent IO.
         # A safely acknowledged partial preparation may freeze automation but
         # must not invalidate/drop that pending manual request.
-        with f.lock:
-            f.mismatch = False
-            f.delay_preparation = True
+        lease = f.command()
+        def arm_preparation():
+            with f.lock:
+                f.delay_preparation = True
+            f.activate(lease)
         before_race = len(f.writes)
-        f.arm()
-        wait(f.preparation_entered.is_set, "race preparation missing")
-        manual = f.command("stop")
+        manual = f.command("stop", queue_at=arm_preparation)
         check(manual["status"] == "acknowledged", "queued manual Stop was lost")
         race = [r for _, r in f.writes[before_race:]]
         check(len(race) == 2 and race[0][1] == 16 and race[1] == bytes.fromhex("090641050001"),
@@ -316,13 +400,34 @@ def run(binary, directory):
         with f.lock:
             f.mode = "pv"
             f.drop_start = False
-        f.arm()
         before_broker_loss = len(f.writes)
+        f.arm()
         wait(lambda: len(f.writes) > before_broker_loss, "fresh activation before broker loss missing")
+        # While charging at the acknowledged higher limit, lower the PV budget.
+        # Return the exact FC16 echo but no 0x400E; later regular polls still
+        # show the old effective limit. Do not treat a wire ACK as a reduction.
+        with f.lock:
+            check(f.running and f.effective == 16000, "missing higher running limit")
+            f.ignore_reduction = "timeout"
+            before_reduction = len(f.writes)
+            f.power = -4500
+        wait(f.lost_readback.is_set, "no reduction readback lost after FC16 ACK")
+        wait(lambda: any(a == 0x4008 and t > f.writes[before_reduction][0] + .5 for t, a in f.reads),
+             "no subsequent telemetry after readback timeout")
+        check(f.command()["automation"]["state"] == "frozen", "unconfirmed reduction not frozen")
+        check(len(f.writes) == before_reduction + 1 and f.effective == 16000 and
+              f.writes[-1][1] == bytes.fromhex("0910410000020400001770"), "reduction repeated or effective limit invented")
+        f.arm()  # new automatic plan alone cannot clear unconfirmed reduction under load
+        time.sleep(2.5)
+        check(len(f.writes) == before_reduction + 1 and f.command()["automation"]["state"] == "frozen",
+              "automatic activation rearmed after an unconfirmed reduction")
+        check(f.command("stop")["status"] == "acknowledged", "manual recovery failed")
+        f.arm()
+        wait(lambda: f.running and f.effective == 6000, "fresh activation after manual Stop failed")
         f.broker.stop()
         with f.lock:
+            before_protection = len(f.writes)
             f.house = "unavailable"
-        before_protection = len(f.writes)
         wait(lambda: any(r == bytes.fromhex("090641050001") for _, r in f.writes[before_protection:]),
              "broker loss blocked autonomous protective Stop")
         time.sleep(2.5)
@@ -335,6 +440,66 @@ def run(binary, directory):
         f.close()
 
 
+def slow_cap(binary, directory):
+    f = Fixture(binary, directory, interval_ms=700, timeout_ms=450)
+    try:
+        time.sleep(2.6)
+        with f.lock:
+            f.power = -11040  # 16 A at 3 x 230 V
+        f.arm()
+        wait(lambda: f.running and f.effective == 16000, "slow-cap fixture never started")
+        # Contrast a valid but still-too-high readback with transport timeout:
+        # on this healthy bus, exactly one protective Stop is possible.
+        stop = bytes.fromhex("090641050001")
+        before = len(f.writes)
+        def reduce_after_subscribe():
+            with f.lock:
+                f.ignore_reduction = "stays_high"
+                f.gate_after_effective = True
+                f.power = -4500
+        # Queue a passive Inspect on the decision that has the one-shot Stop.
+        # Neither that ticket nor the Inspect may be lost.
+        check(f.command(queue_at=reduce_after_subscribe)["status"] == "ok",
+              "Inspect lost while one-shot protection was due")
+        check(not f.running, "passive Inspect discarded the one-shot protective Stop")
+        wait(lambda: any(a == 0x4008 and t > f.writes[-1][0] for t, a in f.reads), "no post-Stop poll")
+        check([r for _, r in f.writes[before:]] == [bytes.fromhex("0910410000020400001770"), stop]
+              and f.effective == 16000, "incorrect reduction recovery on healthy transport")
+        f.arm()
+        wait(lambda: f.running, "new activation after observed Stop failed")
+        with f.lock:
+            f.slow_invalid_cap = True
+            start = time.monotonic()
+        # Both the full poll and the cap return legally but together take
+        # longer than the poll interval. No optional read fits this slot.
+        invalid = f.command()
+        check(invalid["status"] == "ok" and invalid["hardware_max_ma"] == 0, "invalid cap not exercised")
+        wait(lambda: any(t > start and r == stop for t, r in f.writes), "cap refresh starved protective Stop")
+        check(f.command(queue_at=f.gate_poll.set)["status"] == "ok", "optional cap starved manual pre-Stop Inspect")
+        check(f.command("stop")["status"] == "acknowledged", "manual Stop lost after Inspect")
+        check([r for t, r in f.writes if t > start] == [stop, stop], "unexpected slow-cap writes")
+        check(sum(t > start and a == 0x4004 for t, a in f.reads) == 2,
+              "optional cap used an occupied slot; expected only two explicit inspections")
+        # Losing the read in the explicit Inspect slot must be visible to
+        # the engine before the next ordinary poll successfully reconnects.
+        with f.lock:
+            f.slow_invalid_cap = False
+        f.arm()
+        wait(lambda: f.running, "missing running session before inspection failure")
+        with f.lock:
+            before_failure = len(f.writes)
+            f.fail_next_cap = True  # just armed: cached cap is not due for idle refresh
+        failed = f.command()
+        check(failed["reason"] == "inspection_read_failed" and failed["automation"]["state"] == "frozen",
+              "explicit inspection hid the bus loss")
+        recovered = f.command()
+        check(recovered["status"] == "ok" and recovered["automation"]["state"] == "frozen"
+              and len(f.writes) == before_failure, "reconnect or Inspect bypassed freeze")
+    finally:
+        f.close()
+
+
 with tempfile.TemporaryDirectory(prefix="evse-auto-owner-") as temp:
     run(sys.argv[1], Path(temp))
+    slow_cap(sys.argv[1], Path(temp))
 print("automation owner integration fixtures passed")

@@ -21,6 +21,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <thread>
+#include <utility>
 
 namespace {
 
@@ -234,10 +235,10 @@ int run(const Options &o) {
             break;
         }
         const auto next_poll = cycle + std::chrono::milliseconds(o.interval_ms);
-        auto latest_input = [&] {
+        auto latest_input = [&](std::shared_ptr<const Snapshot> snapshot = nullptr) {
             Input input;
             // Exactly one immutable HTTP publication per decision/check.
-            if (source) input.sources = source->snapshot()->sources;
+            if (source) input.sources = (snapshot ? snapshot : source->snapshot())->sources;
             input.activation_guard = guard.value_or("");
             input.now = monotonic(); input.utc = utc();
             input.bus_connected = connected && !recovery_required && !stopped && guard.has_value();
@@ -247,37 +248,91 @@ int run(const Options &o) {
             if (installation_max_ma) input.installation_max_ma = static_cast<int>(installation_max_ma);
             return input;
         };
+        auto evaluated = source ? source->snapshot() : nullptr;
+        auto action = evaluated ? engine.step(latest_input(evaluated)) : std::optional<Action>{};
+        auto observe_disconnect = [&] {
+            // A successful reconnect at the next poll must not hide a loss
+            // inside this slot (including an explicit failed Inspect).
+            if (source) {
+                evaluated = source->snapshot();
+                (void)engine.step(latest_input(evaluated)); // already disconnected: cannot issue I/O
+            }
+        };
+        // Only called in an idle slot AFTER take() (including Inspect) and
+        // engine.step(). Do not spend the next poll's time, or repair an
+        // expired cap ahead of a protective Stop which does not need one.
+        auto try_refresh_cap = [&] {
+            const auto input = latest_input();
+            const auto &s = input.sources.settings;
+            const bool feedback = s.mode == Mode::Pv || s.custom.pv_enabled.value_or(true);
+            const bool plan_ready = s.valid && s.expires > input.now && !input.sources.clock_error && guard &&
+                s.guard == *guard && s.mode != Mode::Manual && installation_max_ma && values &&
+                values->plugged_in.value_or(false) && values->charging.has_value() && values->error_code == 0 &&
+                (!feedback || (input.sources.house.valid && input.sources.house.expires > input.now));
+            const auto timeout = std::chrono::milliseconds(o.timeout_ms);
+            // Renew early enough for the next telemetry read, but only if the
+            // full configured response budget fits this actual remaining slot.
+            if (plan_ready && (!hardware_max_ma || input.hardware_expires <= input.now + (o.interval_ms + o.timeout_ms) / 1000.0) &&
+                !control.manual_pending() && !stopped && wallbox::WriteClock::now() + timeout <= next_poll) {
+                std::array<std::uint16_t,4> registers{};
+                if (modbus_read_registers(ctx.get(),0x4004,4,registers.data()) == 4) {
+                    const auto cap = (static_cast<std::uint32_t>(registers[2]) << 16) | registers[3];
+                    hardware_max_ma = cap >= 6000 && cap <= 32000 ? std::optional<int>(static_cast<int>(cap)) : std::nullopt;
+                    hardware_at = monotonic();
+                } else {
+                    hardware_max_ma.reset(); control.invalidate_session(); rotate_guard();
+                    modbus_close(ctx.get()); connected = false;
+                    observe_disconnect();
+                }
+                return true;
+            }
+            return false;
+        };
         auto automation_reply = [&]() -> std::optional<wallbox::AutomationReply> {
             if (!guard) return {};
             wallbox::AutomationReply a; a.guard = *guard; a.state = engine.status();
-            a.plan = a.house = HttpStatus::Disabled;
-            if (source) {
-                const auto s = source->snapshot();
-                a.requested_mode = s->sources.settings.mode;
-                a.activation_id = s->sources.settings.activation;
-                a.config_revision = s->sources.settings.revision;
-                a.plan = s->plan_status; a.house = s->house_status;
+            a.plan = a.house = base && *base ? HttpStatus::TransportUnavailable : HttpStatus::Disabled;
+            if (evaluated) {
+                // Never label a new HTTP intent with an older engine decision.
+                // A subsequently arrived plan will be observed on the next poll.
+                a.requested_mode = evaluated->sources.settings.mode;
+                a.activation_id = evaluated->sources.settings.activation;
+                a.config_revision = evaluated->sources.settings.revision;
+                a.plan = evaluated->plan_status; a.house = evaluated->house_status;
             }
             return a;
         };
-        auto action = source ? engine.step(latest_input()) : std::optional<Action>{};
         // One control action per poll interval, never an unbounded drain that
         // starves telemetry. Network callbacks only enqueue; all serial I/O here.
-        bool handled = false;
-        while (!stopped && std::chrono::steady_clock::now() < next_poll) {
+        bool handled = false, first_slot = true;
+        // Even a delayed telemetry poll gets one dispatch opportunity. Actual
+        // writes/Inspect retain their own absolute deadlines; optional I/O
+        // gets no such extension. No action drains the queue across polls.
+        while (!stopped && (first_slot || wallbox::WriteClock::now() < next_poll)) {
+            const bool allow_refresh = std::exchange(first_slot, false);
             // Accepted manual intent must win even when a blocking automatic
             // operation lets its transport deadline expire before take().
             if (control.consume_manual_override()) { engine.manual_override(); rotate_guard(); }
-            const auto command = handled ? std::optional<wallbox::ControlRequest>{} : control.take();
+            // A passive Inspect may wait one poll, but must not consume a
+            // one-shot protection ticket. An accepted manual write still
+            // wins, including when it arrives during autonomous preflight.
+            const bool protection = action && (action->clock_protection || action->limit_protection);
+            const auto command = handled || (protection && !control.manual_pending()) ?
+                std::optional<wallbox::ControlRequest>{} : control.take();
             if (!command) {
                 if (!handled && source && connected && !recovery_required) {
                     // Autonomous decisions use the current HTTP plan/causal
                     // guard, not the unrelated manual MQTT connection's lease.
                     if (action) {
                         handled = true;
-                        wallbox::WriteCore core(ctx.get(), {true, installation_max_ma}, stopped,
+                        std::optional<wallbox::Telemetry> start_sample;
+                        wallbox::WriteCore core(ctx.get(), {true, installation_max_ma, true}, stopped,
                             [] { return wallbox::WriteClock::now(); }, [&] {
-                                return control.manual_pending() || !engine.accepts(*action, latest_input());
+                                auto input = latest_input();
+                                // Use the newest voltages/power for the PV budget,
+                                // without extending any original freshness deadline.
+                                if (start_sample) input.sample = *start_sample;
+                                return control.manual_pending() || !engine.accepts(*action, input);
                             });
                         const auto deadline = wallbox::WriteClock::time_point(
                             std::chrono::duration_cast<wallbox::WriteClock::duration>(std::chrono::duration<double>(action->deadline)));
@@ -287,17 +342,21 @@ int run(const Options &o) {
                         std::optional<wallbox::WriteResult> preparation;
                         if (op == wallbox::WriteOperation::Start) {
                             preparation = core.execute({wallbox::WriteOperation::SetCurrent, static_cast<std::uint32_t>(action->target_ma), deadline});
-                            if (preparation->acknowledged && preparation->effective_current_ma &&
-                                *preparation->effective_current_ma <= static_cast<std::uint32_t>(action->target_ma) &&
-                                preparation->reason == std::string("protocol_ack_only"))
-                                result = core.execute({op, static_cast<std::uint32_t>(action->target_ma), deadline});
+                            if (preparation->current_limit_checked)
+                                result = core.execute({op, static_cast<std::uint32_t>(action->target_ma), deadline},
+                                    [&](const wallbox::Telemetry &v) { start_sample = v; });
                         } else result = core.execute({op, static_cast<std::uint32_t>(action->target_ma), deadline});
                         const bool attempted = result.attempted || (preparation && preparation->attempted);
-                        const bool acknowledged = result.acknowledged && (!preparation || preparation->acknowledged) &&
-                            (op != wallbox::WriteOperation::SetCurrent ||
-                                (result.reason == std::string("protocol_ack_only") && result.effective_current_ma &&
-                                 *result.effective_current_ma <= static_cast<std::uint32_t>(action->target_ma)));
-                        engine.complete(*action, {attempted, acknowledged});
+                        // Engine completion is aggregate evidence; a missing
+                        // 0x400E observation does not erase the FC16 wire ACK.
+                        const bool confirmed = result.acknowledged && (!preparation || preparation->current_limit_checked) &&
+                            (op != wallbox::WriteOperation::SetCurrent || result.current_limit_checked);
+                        // Only standalone SetCurrent can be a reduction. A
+                        // missing echo or a partially prepared Start is not
+                        // this case. Engine owns the previous target/sample.
+                        const bool ack_without_limit = op == wallbox::WriteOperation::SetCurrent &&
+                            result.acknowledged && !result.current_limit_checked;
+                        engine.complete(*action, {attempted, confirmed, ack_without_limit});
                         const auto unknown = [](const wallbox::WriteResult &r) {
                             return r.status == wallbox::WriteStatus::OutcomeUnknown || r.transport_errno != 0;
                         };
@@ -310,24 +369,10 @@ int run(const Options &o) {
                         }
                         (void)modbus_set_response_timeout(ctx.get(), o.timeout_ms / 1000, (o.timeout_ms % 1000) * 1000);
                         action.reset();
-                    } else if (!hardware_max_ma || hardware_at + 10 <= monotonic()) {
-                        // One bounded capability read is this interval's action;
-                        // never borrow a stale inspection value or another master.
-                        handled = true;
-                        std::array<std::uint16_t,4> registers{};
-                        if (!control.manual_pending()) {
-                            if (modbus_read_registers(ctx.get(),0x4004,4,registers.data()) == 4) {
-                                const auto cap = (static_cast<std::uint32_t>(registers[2]) << 16) | registers[3];
-                                hardware_max_ma = cap >= 6000 && cap <= 32000 ? std::optional<int>(static_cast<int>(cap)) : std::nullopt;
-                                hardware_at = monotonic();
-                            } else {
-                                hardware_max_ma.reset(); control.invalidate_session(); rotate_guard();
-                                modbus_close(ctx.get()); connected = false;
-                            }
-                        }
-                    }
+                    } else if (allow_refresh) handled = try_refresh_cap();
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds(20)); continue;
+                std::this_thread::sleep_until(std::min(next_poll, wallbox::WriteClock::now() + std::chrono::milliseconds(20)));
+                continue;
             }
             handled = true;
             if (action) { engine.complete(*action, {}); action.reset(); }
@@ -373,6 +418,7 @@ int run(const Options &o) {
                     rotate_guard(); hardware_max_ma.reset();
                     if (connected) modbus_close(ctx.get());
                     connected = false;
+                    observe_disconnect();
                 }
                 (void)modbus_set_response_timeout(ctx.get(), o.timeout_ms / 1000, (o.timeout_ms % 1000) * 1000);
             } else if (recovery_required) {
@@ -387,9 +433,7 @@ int run(const Options &o) {
                     // Two EXPLICIT steps of the requested web action, not an
                     // implicit core write. Report partial completion honestly.
                     reply.preparation = core.execute({wallbox::WriteOperation::SetCurrent, command->current_ma, command->deadline});
-                    if (reply.preparation->acknowledged && reply.preparation->effective_current_ma &&
-                        *reply.preparation->effective_current_ma <= command->current_ma &&
-                        reply.preparation->reason == std::string("protocol_ack_only"))
+                    if (reply.preparation->current_limit_checked)
                         reply.write = core.execute({operation, command->current_ma, command->deadline});
                 } else {
                     reply.write = core.execute({operation, command->current_ma, command->deadline});

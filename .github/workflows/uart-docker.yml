@@ -2,6 +2,8 @@ name: UART gateway Docker tests
 on:
   push:
     paths:
+      - 'bin/stack.sh'
+      - 'rasppi/.dockerignore'
       - 'rasppi/src/**'
       - 'rasppi/tests/uart_gateway*'
       - 'rasppi/Dockerfile.uart'
@@ -10,6 +12,8 @@ on:
       - '.github/workflows/uart-docker.yml'
   pull_request:
     paths:
+      - 'bin/stack.sh'
+      - 'rasppi/.dockerignore'
       - 'rasppi/src/**'
       - 'rasppi/tests/uart_gateway*'
       - 'rasppi/Dockerfile.uart'

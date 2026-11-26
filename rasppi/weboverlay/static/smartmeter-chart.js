@@ -203,7 +203,10 @@
       (!selectedRange || (timestamp(selectedRange.from) === timestamp(batch.range.from) && timestamp(selectedRange.to) === timestamp(batch.range.to))));
     const live = archive ? [] : history.window(now, minutes);
     const points = archive ? [] : store ? store.points(live, now, minutes) : live;
-    const width = Math.max(240, Math.round(figure.getBoundingClientRect().width - 32 || 500)), height = 250;
+    // This figure has no inline padding. Match its CSS-pixel plot width even while the SVG
+    // itself is hidden; a hard-coded card inset scales the labels at narrow screen sizes.
+    const width = Math.max(240, Math.round(figure.getBoundingClientRect().width || 500));
+    const height = Math.max(212, Math.min(280, Math.round(width * .52)));
     const signature = JSON.stringify([statusRevision, archive ? null : history.revision, store?.revision, archiveQuery, minutes, selection,
       selectedRange, checkbox.checked, width, archive ? null : [points.length, points[0]?.t]]);
     if (signature === lastDraw) return;

@@ -12,7 +12,6 @@
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <script src="/static/theme.js"></script>
   <link rel="stylesheet" href="/static/style.css">
-  <script src="/static/charts.js" defer></script>
   <script src="/static/wallbox-control.js" defer></script>
   <script src="/static/charging-mode.js" defer></script>
   <script src="/static/esp32.js" defer></script>
@@ -27,6 +26,7 @@
       <nav aria-label="Hauptnavigation">
         <a class="nav-link" href="/" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Übersicht</a>
         <a class="nav-link" href="/diagramme"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4v16h16M7 15l4-5 4 3 5-7"/></svg>Diagramme</a>
+        <a class="nav-link" href="/diagnose"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M2 12h5l3-8 4 16 3-8h5"/></svg>Diagnose</a>
         <a class="nav-link" href="/einstellungen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 3-.6 2.4-2 .9-2.2-.7-2 3.4 1.7 1.7v2.6L2.2 15l2 3.4 2.2-.7 2 .9L9 21h4l.6-2.4 2-.9 2.2.7 2-3.4-1.7-1.7v-2.6L19.8 9l-2-3.4-2.2.7-2-.9L13 3Z"/><circle cx="11" cy="12" r="3"/></svg>Settings</a>
       </nav>
       <div class="sidebar-footer">
@@ -53,7 +53,10 @@
           <label><input id="control-mode-manual" type="radio" name="charging-mode" value="manual" checked disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4v16M12 4v16M19 4v16M2 9h6m1 7h6m1-8h6"/></svg>Manuell</label>
           <label><input id="control-mode-custom" type="radio" name="charging-mode" value="custom" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6m10-6v6M3 11h18m-13 4h2m4 0h2m-8 3h2"/></svg>Benutzerdefiniert</label>
         </div></fieldset>
-        <p id="automation-status" class="subtle" role="status" hidden></p>
+        <p id="automation-status" class="subtle" role="status"></p>
+        <a id="automation-setup-link" class="text-link" href="/einstellungen#charging-heading" hidden>Einstellungen öffnen</a>
+        <div id="automation-feedback" class="subtle" role="status"></div>
+        <a id="automation-profile-link" class="text-link" href="/einstellungen#charging-heading" hidden>Regelprofile öffnen</a>
         <div class="control-editor">
           <label for="control-current">Ladestrom <output id="control-draft" for="control-current">—</output></label>
           <input id="control-current" type="range" min="6" max="6" step="1" value="6" disabled aria-describedby="control-hint">
@@ -61,6 +64,10 @@
         </div>
         <p id="control-hint" class="subtle">Grenzen werden geprüft.</p>
         <p id="control-result" class="subtle" role="status" hidden></p>
+        <details class="control-details"><summary>Auftragsdetails und Grenzen</summary>
+          <dl class="control-facts"><div><dt>Zuletzt angefordert</dt><dd id="control-requested">—</dd></div><div><dt>Protokollbestätigung</dt><dd id="control-ack">Noch kein Auftrag</dd></div><div><dt>Tatsächlich (Live)</dt><dd id="control-actual">Unbekannt</dd></div>
+          <div><dt>Wallboxmaximum</dt><dd id="control-hardware-max">—</dd></div><div><dt>Installationsmaximum</dt><dd id="control-installation-max">—</dd></div><div><dt>Wirksame Obergrenze</dt><dd id="control-effective-max">—</dd></div><div><dt>Firmware (Rohwert)</dt><dd id="control-firmware">—</dd></div><div><dt>Stromvorbereitung</dt><dd id="control-preparation">—</dd></div><div><dt>Schreibschritt</dt><dd id="control-write">—</dd></div></dl>
+        </details>
         <section id="esp32-control" class="esp32-panel" aria-labelledby="esp32-heading">
           <h3 id="esp32-heading">Diebstahlsicherung</h3>
           <p id="esp32-status" class="subtle" role="status">ESP32 noch nicht geprüft.</p>
@@ -84,18 +91,10 @@
         <details class="source-details"><summary>Info</summary><p class="subtle">Netzleistung, kein verfügbarer Ladestrom. Zeitangabe = HTTP-Abruf, nicht Gerätemesszeit.</p></details>
       </article>
       </section>
-      <details class="technical-details"><summary>Diagnose</summary><section class="details-grid" aria-label="Technische Diagnose">
-        <article class="card control-details"><h2>Wallbox-Steuerung</h2>
-          <dl class="control-facts"><div><dt>Zuletzt angefordert</dt><dd id="control-requested">—</dd></div><div><dt>Protokollbestätigung</dt><dd id="control-ack">Noch kein Auftrag</dd></div><div><dt>Tatsächlich (Live)</dt><dd id="control-actual">Unbekannt</dd></div>
-          <div><dt>Wallboxmaximum</dt><dd id="control-hardware-max">—</dd></div><div><dt>Installationsmaximum</dt><dd id="control-installation-max">—</dd></div><div><dt>Wirksame Obergrenze</dt><dd id="control-effective-max">—</dd></div><div><dt>Firmware (Rohwert)</dt><dd id="control-firmware">—</dd></div><div><dt>Stromvorbereitung</dt><dd id="control-preparation">—</dd></div><div><dt>Schreibschritt</dt><dd id="control-write">—</dd></div></dl>
-        </article>
-        <article class="card" data-metrics="wallbox-error charging-state charging-raw lock below"><h2>Wallbox-Diagnose</h2><p data-metric="wallbox-error" id="wallbox-error" class="diagnostic">—</p><dl class="facts"><div data-metric="charging-state"><dt>Ladezustand</dt><dd id="charging-state">—</dd></div><div data-metric="charging-raw"><dt>Ladezustand (Rohwert)</dt><dd id="charging-raw">—</dd></div><div data-metric="lock"><dt>Wallbox-Buchse (Rohwert)</dt><dd id="lock">—</dd></div><div data-metric="below"><dt>Unter Sollstrom</dt><dd id="below">Unbekannt</dd></div></dl></article>
-        <article class="card"><h2>Datenprotokoll</h2><dl class="facts timestamps"><div><dt>Letzte gültige Abfrage</dt><dd id="last-success">—</dd></div><div><dt>Lesefehler</dt><dd id="read-error">—</dd></div></dl></article>
-      </section></details>
       <section class="status-panel current-data" aria-labelledby="current-data-heading">
         <h2 id="current-data-heading">Aktuelle Wallbox-Messdaten</h2>
         <div class="status-line" role="status"><span id="status" class="badge" data-tone="muted">Warten auf Daten</span><span id="reason">Verbindung zur Anzeige wird hergestellt.</span></div>
-        <div class="metadata"><span>MQTT-Broker <strong id="broker">Unbekannt</strong></span><span>Telemetrie <strong id="availability">Unbekannt</strong></span><span>Restgültigkeit <strong id="freshness">—</strong></span><span>Letzte Messung <strong id="timestamp">—</strong></span><span>Messwertalter <strong id="age">—</strong></span></div>
+        <div class="metadata"><span>Letzte Messung <strong id="timestamp">—</strong></span><span>Messwertalter <strong id="age">—</strong></span><span>Restgültigkeit <strong id="freshness">—</strong></span></div>
       </section>
       <noscript><p class="notice">Für aktuelle Messwerte muss JavaScript aktiviert sein.</p></noscript>
     </main>

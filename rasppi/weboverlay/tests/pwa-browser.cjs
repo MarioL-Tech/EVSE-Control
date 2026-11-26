@@ -6,6 +6,8 @@ const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const net = require('node:net');
 const fs = require('node:fs');
+const { createHash } = require('node:crypto');
+const { basename } = require('node:path');
 const { CACHE_NAME, CACHE_PREFIX, STATIC_PATHS } = require('../static/service-worker.js');
 const base = process.env.PWA_BASE_URL || process.env.WEB_TEST_URL || 'https://evse.test:8443';
 const broker = process.env.PWA_MQTT_HOST || process.env.MQTT_HOST || 'broker';
@@ -188,6 +190,23 @@ async function networkPhase(request, confirmed) {
     assert.equal(swHeaders.allowed, '/'); assert.equal(swHeaders.cache, 'no-store');
     let entries = await cacheEntries(page);
     assert.deepEqual(entries[CACHE_NAME], [...STATIC_PATHS].sort());
+    for (const path of ['/static/settings-ui.js', '/static/settings.css']) assert(entries[CACHE_NAME].includes(path), path);
+    assert(!entries[CACHE_NAME].includes('/diagnose'), 'Diagnostic page must not be in the shell');
+    // Verify the installed bytes, not just an allowlist of cache keys: a 200
+    // fallback document or stale asset must not masquerade as a valid shell.
+    const digests = await page.evaluate(async name => {
+      const cache = await caches.open(name);
+      const hashes = {};
+      for (const request of await cache.keys()) {
+        const body = await (await cache.match(request)).arrayBuffer();
+        hashes[new URL(request.url).pathname] = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', body)));
+      }
+      return hashes;
+    }, CACHE_NAME);
+    for (const path of STATIC_PATHS) {
+      const expected = fs.readFileSync(`/static/${basename(path)}`);
+      assert.equal(Buffer.from(digests[path]).toString('hex'), createHash('sha256').update(expected).digest('hex'), path);
+    }
     assert.deepEqual(entries['unrelated-pwa-test'], ['/unrelated']);
     assert.equal(entries[CACHE_PREFIX + 'old'], undefined);
     assert(Object.values(entries).flat().every(path => !path.startsWith('/api/') && path !== '/healthz'));
@@ -224,10 +243,12 @@ async function networkPhase(request, confirmed) {
     assert.equal(await page.locator('#limit').innerText(), '—');
     fixture.setPower(2345); fixture.check();
     const offlinePage = await context.newPage();
-    await offlinePage.goto(new URL('/diagramme', base).href);
-    assert.equal(await offlinePage.locator('h1').innerText(), 'Offline');
-    assert.match(await offlinePage.locator('body').innerText(), /keine Livewerte/i);
-    assert.equal(await offlinePage.locator('#status, #power, #chart-grid').count(), 0);
+    for (const route of ['/diagramme', '/diagnose']) {
+      await offlinePage.goto(new URL(route, base).href);
+      assert.equal(await offlinePage.locator('h1').innerText(), 'Offline');
+      assert.match(await offlinePage.locator('body').innerText(), /keine Livewerte/i);
+      assert.equal(await offlinePage.locator('#status, #power, #chart-grid, #chart-diagnostics-grid, #charging-raw').count(), 0);
+    }
     await offlinePage.screenshot({ path: '/artifacts/pwa-offline-dark-mobile.png', fullPage: true });
     const offlineEntries = await cacheEntries(offlinePage);
     assert.deepEqual(offlineEntries[CACHE_NAME], [...STATIC_PATHS].sort());

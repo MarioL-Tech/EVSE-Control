@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { METRICS, GROUPS, MAX_POINTS, RETENTION_MS, createHistory, buildPlot,
-  defaults, normalizePreferences, loadPreferences, savePreferences, readings } = require('../static/charts.js');
+  defaults, normalizePreferences, loadPreferences, savePreferences, editPreferences, readings } = require('../static/charts.js');
 const epoch = Date.parse('2026-10-04T12:00:00Z');
 const values = { active_power_w: 7400, session_energy_wh: 1500, current_limit_a: 16,
   current_a: [6.123, 5, 0], voltage_v: [235.7, 234, 236], plugged_in: true, charging: false,
@@ -318,6 +318,19 @@ test('disabled/unavailable storage degrades without losing current-page preferen
   const denied = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('quota'); } };
   assert.deepEqual(loadPreferences(denied), defaults()); assert.equal(savePreferences(denied, defaults()), false);
   assert.deepEqual(loadPreferences(null), defaults());
+});
+test('a diagnostics reset and a stale diagram tab edit retain all 16 choices across both pages', () => {
+  const storage = { value: null, getItem() { return this.value; }, setItem(key, value) { this.value = value; } };
+  const staleTab = defaults();
+  const draft = editPreferences(storage, staleTab, { power: false, charging: false }, 15);
+  savePreferences(storage, draft);
+  const reset = editPreferences(storage, staleTab, Object.fromEntries(METRICS.filter(m =>
+    GROUPS.find(g => g.id === m.group).step).map(m => [m.id, true])));
+  assert.equal(reset.selected.power, false); assert.equal(reset.selected.charging, true); assert.equal(reset.minutes, 15);
+  savePreferences(storage, editPreferences(storage, reset, { lock: false }));
+  const updated = editPreferences(storage, staleTab, { 'current-1': false });
+  assert.equal(updated.selected.lock, false); assert.equal(updated.selected['current-1'], false);
+  assert.equal(Object.keys(updated.selected).length, 16); assert.equal(updated.minutes, 15);
 });
 
 const iso = t => new Date(t).toISOString();

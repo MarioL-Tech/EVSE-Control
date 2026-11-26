@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#171c22">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" sizes="180x180">
+  <script src="/static/pwa.js" defer></script>
+  <title>Diagnose · EVSE Control</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <script src="/static/theme.js"></script>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/charts.js" defer></script>
+  <script src="/static/history.js" defer></script>
+  <script src="/static/newcalendar.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Zum Inhalt</a>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Arbeitsbereich">
+      <a class="brand" href="/" aria-label="EVSE Control – Übersicht"><span class="brand-mark" aria-hidden="true"><img class="brand-logo" src="/static/icon.svg" alt="" width="40" height="40"></span><span>EVSE<span class="brand-subtitle">CONTROL</span></span></a>
+      <nav aria-label="Hauptnavigation">
+        <a class="nav-link" href="/"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Übersicht</a>
+        <a class="nav-link" href="/diagramme"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4v16h16M7 15l4-5 4 3 5-7"/></svg>Diagramme</a>
+        <a class="nav-link" href="/diagnose" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M2 12h5l3-8 4 16 3-8h5"/></svg>Diagnose</a>
+        <a class="nav-link" href="/einstellungen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 3-.6 2.4-2 .9-2.2-.7-2 3.4 1.7 1.7v2.6L2.2 15l2 3.4 2.2-.7 2 .9L9 21h4l.6-2.4 2-.9 2.2.7 2-3.4-1.7-1.7v-2.6L19.8 9l-2-3.4-2.2.7-2-.9L13 3Z"/><circle cx="11" cy="12" r="3"/></svg>Settings</a>
+      </nav>
+      <div class="sidebar-footer">
+        <label class="theme-switch" for="theme-toggle">
+          <input id="theme-toggle" type="checkbox" role="switch" aria-label="Dunkles Design" aria-checked="false" disabled>
+          <span class="theme-track" aria-hidden="true"><span class="theme-thumb"><svg class="theme-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg><svg class="theme-moon" viewBox="0 0 24 24"><path d="M20.5 14A9 9 0 0 1 10 3.5 9 9 0 1 0 20.5 14Z"/></svg></span><span class="theme-mode-label" id="theme-caption">System</span></span>
+        </label>
+      </div>
+    </aside>
+    <main id="main-content" tabindex="-1">
+      <header class="page-header"><h1>Diagnose</h1><span class="readonly">Nur lesen</span></header>
+      <p id="wallbox-warning" class="warning-message" data-tone="warning" role="status" hidden></p>
+      <section class="status-panel current-data" aria-labelledby="current-data-heading">
+        <h2 id="current-data-heading">Aktuelle Wallbox-Messdaten</h2>
+        <div class="status-line" role="status"><span id="status" class="badge" data-tone="muted">Warten auf Daten</span><span id="reason">Verbindung zur Anzeige wird hergestellt.</span></div>
+        <div class="metadata"><span>MQTT-Broker <strong id="broker">Unbekannt</strong></span><span>Telemetrie <strong id="availability">Unbekannt</strong></span><span>Restgültigkeit <strong id="freshness">—</strong></span><span>Letzte Messung <strong id="timestamp">—</strong></span><span>Messwertalter <strong id="age">—</strong></span></div>
+      </section>
+      <section class="details-grid" aria-label="Technische Diagnose">
+        <article class="card"><h2>Wallbox-Diagnose</h2><p id="wallbox-error" class="diagnostic">—</p>
+          <dl class="facts"><div><dt>Ladezustand</dt><dd id="charging-state">—</dd></div><div><dt>Ladezustand (Rohwert)</dt><dd id="charging-raw">—</dd></div><div><dt>Wallbox-Buchse (Rohwert)</dt><dd id="lock">—</dd></div><div><dt>Unter Sollstrom</dt><dd id="below">Unbekannt</dd></div></dl>
+        </article>
+        <article class="card"><h2>Datenprotokoll</h2><dl class="facts timestamps"><div><dt>Letzte gültige Abfrage</dt><dd id="last-success">—</dd></div><div><dt>Lesefehler</dt><dd id="read-error">—</dd></div></dl></article>
+      </section>
+      <section class="history-section" aria-labelledby="history-heading">
+        <div class="section-heading history-heading"><h2 id="history-heading">Zustandsverlauf</h2><button id="reset-display" type="button">Alle Diagnosekurven anzeigen</button></div>
+        <div class="calendar-toolbar" role="group" aria-label="Kalenderhistorie">
+          <div class="calendar-periods" role="group" aria-label="Zeitraumart"><button type="button" data-calendar-period="live" aria-pressed="true">Live</button><button type="button" data-calendar-period="hour" aria-pressed="false">Stunde</button><button type="button" data-calendar-period="day" aria-pressed="false">Tag</button><button type="button" data-calendar-period="week" aria-pressed="false">Woche</button><button type="button" data-calendar-period="month" aria-pressed="false">Monat</button><button type="button" data-calendar-period="year" aria-pressed="false">Jahr</button><button type="button" data-calendar-period="custom" aria-pressed="false">Zeitraum</button></div>
+          <select id="calendar-mode" aria-label="Ansicht" hidden><option value="live">Live</option><option value="hour">Stunde</option><option value="day">Tag</option><option value="week">Woche</option><option value="month">Monat</option><option value="year">Jahr</option><option value="custom">Zeitraum</option></select>
+          <label for="chart-range">Live-Zeitfenster <select id="chart-range"><option value="1">1 Minute</option><option value="5" selected>5 Minuten</option><option value="15">15 Minuten</option></select></label>
+          <label id="calendar-picker-label" class="calendar-picker" hidden><span id="calendar-picker-caption">Datum · Europe/Vienna</span><input id="calendar-date" type="date" aria-label="Datum wählen · Europe/Vienna" hidden></label>
+          <div class="calendar-navigation"><button id="calendar-prev" type="button" aria-label="Vorheriger Zeitraum" disabled>‹</button><button id="calendar-now" type="button">Heute</button><button id="calendar-next" type="button" aria-label="Nächster Zeitraum" disabled>›</button></div>
+          <p id="calendar-label" class="calendar-label" role="status">Live-Verlauf</p>
+          <form id="calendar-custom" hidden><label for="calendar-from">Von · Europe/Vienna<input id="calendar-from" type="datetime-local" required></label><label for="calendar-to">Bis (exklusiv) · Europe/Vienna<input id="calendar-to" type="datetime-local" required></label><button id="calendar-load" type="submit">Zeitraum laden</button><span>Maximal ein Kalenderjahr; Grenzen werden serverseitig geprüft.</span></form>
+        </div>
+        <p class="history-state" role="status"><span id="history-source">Live-Verlauf</span><span id="history-detail">Browserverlauf seit Seitenöffnung.</span></p>
+        <div id="chart-diagnostics-grid" class="chart-grid"></div>
+      </section>
+      <noscript><p class="notice">Für Messwerte und Zeitverläufe muss JavaScript aktiviert sein.</p></noscript>
+    </main>
+  </div>
+</body>
+</html>

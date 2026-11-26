@@ -13,7 +13,7 @@ test('Nur exakte lokale GET-Ressourcen sind cachefähig', () => {
   for (const path of ['/api/state', '/api/wallbox-control', '/api/charging-settings', '/api/smartmeter', '/api/history?minutes=15', '/healthz?x=1']) {
     assert.equal(requestKind(request(path), origin), 'live');
   }
-  for (const path of ['/', '/wallbox', '/diagramme', '/einstellungen']) {
+  for (const path of ['/', '/wallbox', '/diagramme', '/diagnose', '/einstellungen']) {
     assert.equal(requestKind(request(path, { mode: 'navigate' }), origin), 'navigation');
     assert(!STATIC_PATHS.includes(path), 'Keine Dashboard-Dokumente im Shellcache');
   }
@@ -206,13 +206,13 @@ test('Installations-/Registrierungsfehler lassen sichere, deaktivierte Zustände
   normal.controller.beforeInstall({ preventDefault() {}, prompt: async () => { throw new Error('abgebrochen'); } });
   await normal.controller.install(); assert.equal(normal.state().canInstall, false);
 });
-test('Manifest und alle drei Dokumente enthalten nur lokale Installationsressourcen', () => {
+test('Manifest und alle vier Dokumente enthalten nur lokale Installationsressourcen', () => {
   const manifest = JSON.parse(fs.readFileSync(require.resolve('../static/manifest.webmanifest'), 'utf8'));
   assert.deepEqual([manifest.id, manifest.start_url, manifest.scope], ['/', '/', '/']);
   assert.equal(manifest.display, 'standalone'); assert.equal(manifest.lang, 'de');
   assert.equal(manifest.name, 'EVSE-Control'); assert.equal(manifest.short_name, 'EVSE');
   assert.deepEqual(manifest.icons.map(icon => [icon.sizes, icon.purpose]), [['192x192', 'any'], ['512x512', 'any'], ['512x512', 'maskable']]);
-  for (const name of ['index', 'diagrams', 'settings']) {
+  for (const name of ['index', 'diagrams', 'diagnostics', 'settings']) {
     const html = fs.readFileSync(require.resolve(`../static/${name}.html`), 'utf8');
     assert.match(html, /rel="manifest" href="\/manifest.webmanifest"/);
     assert.match(html, /rel="apple-touch-icon" href="\/static\/apple-touch-icon.png"/);

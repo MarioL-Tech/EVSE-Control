@@ -59,7 +59,12 @@
       const hidden = !settings && !manual; if (root.hidden !== hidden) root.hidden = hidden;
       put('status', !ready ? 'ESP32 nicht verfügbar / veraltet.' : s.store_ready !== true ? 'Speicher nicht bereit.' :
         s.servo_ready !== true ? 'Servo nicht bereit.' : s.reader_ready !== true ? 'RFID-Leser nicht bereit.' : 'ESP32 aktuell (max. 8 s).');
-      put('state', 'Verriegelungsziel ' + (!ready || s.antitheft === null ? 'unbekannt' : s.antitheft ? 'aktiv' : 'inaktiv'));
+      if (!settings) {
+        // Only the existing fresh inspection drives the indicator, never a button click or command ACK.
+        const target = !ready || s.antitheft === null ? 'unknown' : s.antitheft ? 'active' : 'inactive';
+        if (root.dataset.target !== target) root.dataset.target = target;
+        put('state', 'Verriegelungsziel ' + (target === 'unknown' ? 'unbekannt' : target === 'active' ? 'aktiv' : 'inaktiv'));
+      }
       put('count', ready && s.cards !== null ? String(s.cards) + ' / 16' : 'Unbekannt');
       put('enrolling', !ready || s.enrolling === null ? 'Unbekannt' : s.enrolling ? 'Anlernen aktiv (30 s / eine Karte).' : 'Anlernen inaktiv.');
       put('result', lastResult);

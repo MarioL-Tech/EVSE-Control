@@ -1,6 +1,6 @@
 # Ladeautomatisierung: Core- und Owner-Integrationsvertrag
 
-Stand: 2026-10-30. Eigenständige Module auf Basis `c5ac0d7`, jetzt in den einzigen
+Stand: 2026-11-26. Eigenständige Module auf Basis `c5ac0d7`, jetzt in den einzigen
 Reader-Owner integriert; kein Hardwarezugriff und kein neuer Dienst/Container.
 HTTP-API, Website-DNS-Alias, Statusanzeige und zentraler Installationsguide werden
 vom Parent integriert/geprüft. Gesamt-Codeheadd4d60ef besteht Web41135320070,
@@ -56,10 +56,19 @@ bewusster Wahl mit neuem Guard. Keine versteckte unbegrenzte Replayliste.
   jetzt nicht const: auch hier beobachtete neue Nonces werden während offener
   Aktionen quarantänisiert; Zeit-/Busfehler verriegeln die Engine.
   Bei false nichts mehr senden;
-  `complete(action,{attempted, acknowledged})` melden. Owner priorisiert manuelle
+  `complete(action,{attempted, acknowledged, set_current_ack_without_verified_limit})`
+  melden. Das zweite Feld bestätigt den **gesamten** Aktionsvertrag; das dritte
+  gilt nur für eigenständiges SetCurrent mit strikt passendem FC16-ACK, aber
+  ohne rechtzeitig validierte Limitbeobachtung ≤ Ziel (`current_limit_checked`).
+  Es gilt weder für verlorene Schreib-ACKs noch für die Vorbereitung eines
+  zusammengesetzten Starts. Der Owner priorisiert manuelle
   Befehle, hält den einzigen RS485-Port und führt maximal eine Aktion je Poll aus.
   `Start` bedeutet ausdrücklich **SetCurrent, danach Start im selben WriteCore
-  und derselben Deadline**. Aggregat-ACK nur bei beiden strikten ACKs. Wenn nur der
+  und derselben Deadline**. Vor dem automatischen Start muss auch der letzte
+  volle Registerblock noch „angesteckt, nicht ladend“ zeigen. Seine Spannungen
+  und seine Wallboxleistung ersetzen die älteren Pollwerte für die abschließende
+  Budgetprüfung; keine Frist wird verlängert. Die manuelle Startprüfung bleibt
+  unverändert. Aggregat-ACK nur bei beiden strikten ACKs. Wenn nur der
   erste Teil versucht wurde und der zweite entfällt, `attempted=true,
   acknowledged=false`: Automatik friert ein. Kein Retry, kein zweiter Master.
 - `manual_override()` vor jedem manuellen Start/Stop/SetCurrent: verriegelt die
@@ -94,8 +103,8 @@ Keine Wiederholung.
 Eine neue Aktivierung darf niemals den Zeitfehler derselben Eingabe löschen.
 Ungültige UTC/Monotonie/Drift (>2 s) wird nicht als neue Zeitbaseline installiert;
 erst eine gültige Uhr plus wirklich neue Aktivierung kann die Sperre lösen.
-Konservative Uhrpolitik: auch Schutz-Stop wird bei Zeitfehler/Busverlust nicht
-automatisch freigegeben; manuelles Stoppen bleibt Sache des Owners. Stop-Tickets
+Bei Uhrfehler ist ausschließlich der oben beschriebene einmalige monotone
+Schutz-Stop zulässig; bei Busverlust findet kein serieller Auftrag statt. Stop-Tickets
 brauchen dagegen ausdrücklich KEIN frisches Sample, keine Hausdaten und keinen
 Hardwarecap: zuvor beobachtetes oder per Start-ACK angefordertes Laden genügt
 für genau einen Schutz-Stop. Danach bleibt unbekanntes Laden unbekannt und löst
@@ -130,6 +139,40 @@ ohne PV benötigt weder Hausleistung, Importgrenze noch Zählertopologie; Phasen
 Bestätigtes Sollziel statt wirksamen Limits merken: internes Lastmanagement löst
 keine Wiederholungen aus. Quellenablauf während aktiver Automatik löst höchstens
 eine noch mögliche Stopaktion aus; Wiederanlauf braucht frische Daten/Verzögerung.
+Ein Start-ACK ohne neu beobachtetes Laden ist weiterhin eine erteilte Freigabe.
+Eine neue PV-/Custom-Aktivierung setzt die Verzögerungen neu an, verwirft aber
+weder diese Freigabe noch ihr letztes bestätigtes Soll oder einen ausstehenden
+Stop. Das gilt auch beim erneuten Aktivieren desselben Modus. Ein neueres
+`charging=false` allein schließt die Startfreigabe nicht: Erst beobachtetes
+Ladeende, Abstecken oder Stop mit nachfolgender Nichtladebeobachtung beenden sie.
+Eine bewusste Aktivierung von **Manuell** oder ein angenommener manueller Auftrag
+übergibt die Verantwortung ohne impliziten Stop an den Bediener. Erst eine weitere
+gültige Aktivierung übergibt sie zurück; sie darf auch nach Fahrzeugende neu starten.
+Währenddessen keinen zweiten Start und keine Stromerhöhung senden. Sinkt das
+Budget, ist nach Anpassungsverzögerung ein niedrigerer Sollstrom zulässig; unter
+6 A oder außerhalb eines Pause-Fensters nach Pausenverzögerung einmal stoppen,
+auch wenn noch kein Ladestrom beobachtet wurde. Außerhalb `manual` bleibt
+unverändert ohne automatische Aktion.
+
+Ist das angeforderte Limit niedriger als das letzte bestätigte Soll oder das
+beobachtete wirksame Limit, genügt ein FC16-ACK ohne passende rechtzeitige
+Rücklesung **nicht** als Reduktionsnachweis. Das alte Soll bleibt erhalten,
+die Regelung friert ein. Genau bei der nächsten Entscheidung ist bei weiter
+offener Freigabe oder beobachtetem Laden ein einziger Schutz-Stop möglich
+(normales 3-s-Ticket, intakter Bus/Uhr, kein wartender manueller Schreibauftrag).
+Ein bereits wartender, rein lesender Inspect kann diesen einmaligen Stop nicht
+verdrängen. Ein wegen Ablauf, Bus- oder Uhrfehler verworfenes Schutzticket
+wird nicht wieder zulässig. Kein Wiederholen
+von SetCurrent, kein Nachholen des Stops nach Buswiederkehr, kein automatischer
+Neustart. Eine neue Auto-ID allein löst die Sperre nicht: Bei ungeklärter
+Freigabe bleibt nur die bewusste manuelle Übernahme; nach beobachtetem Ende
+oder Abstecken ist eine neue Aktivierung erforderlich. Ein reiner Inspect
+repariert allenfalls den Transport und belegt keinen Writeeffekt.
+Fehlt dagegen der Schreib-ACK selbst, gibt es keine solche Stop-Ausnahme.
+Nach neuer bewusster Aktivierung ist das vor dem unklaren SetCurrent bekannte
+Soll keine verlässliche Basis für eine Erhöhung oder Reduktion: Solange der
+Start noch auf Ladebeobachtung wartet, bleibt jeder positive Sollauftrag
+gesperrt, ein nötiger Stop bei Nullbudget bleibt möglich.
 
 Custom: feste Wiener Ortszeit, Wochentage 1–7, maximal16 Fenster, ODER-Verknüpfung,
 Ende exklusiv. Übernachtfenster gehören zum Startwochentag. Gleiche Endpunkte sind
@@ -147,7 +190,45 @@ Feste Enginestatuscodes: `awaiting_activation`, `manual`, `manual_override`,
 `charging`, `vehicle_finished`. HTTP: `waiting`, `ok`, `transport_unavailable`,
 `invalid_response`, `disabled`, `clock_error`, `invalid_base`.
 
+## Einrichtung und Rückmeldung auf der Übersicht
+
+- Ohne Reader-URL bleibt die Automatik aus. Die Übersicht nennt die interne
+  Website-Origin und den erforderlichen Reader-Neustart durch Neuerstellen. Bei
+  falscher URL, nicht abrufbarem Plan oder deaktiviertem Settings-Editor zeigt
+  sie den jeweiligen Prüfschritt. Weder ein Link noch ein Reload schaltet frei.
+- `GET /api/charging-mode` liefert für genau die gelesene Entwurfsrevision
+  zusätzlich `missing_by_mode: {pv: [...], custom: [...]}` mit bekannten
+  Feldnamen. Die Übersicht benennt fehlende Felder vor dem POST. Der Server
+  prüft sie beim tatsächlichen POST unter Lock erneut. Eine leere Liste ist
+  **keine** Bestätigung von Gerät, Standortgrenze oder Ausführung.
+- Manuelles Starten/Stromsetzen bleibt an die üblichen technischen Grenzen
+  gebunden; Stop ist davon und von den Modus-APIs unabhängig. Ein passiver
+  Settings-GET blockiert die Handbedienung nicht. Wählt der Betreiber Manuell,
+  kann er bei ausgefallenem Regler-/Profilzugang die Handbedienung verwenden.
+  Das schaltet nicht still den Reader um: erst ein tatsächlich angenommener
+  manueller Auftrag hat beim Owner Vorrang. Die UI kennzeichnet den nicht
+  bestätigten Moduswechsel; ein möglicherweise gesendeter POST wird nie wiederholt.
+- Der Owner meldet die ausgewertete Plan-ID mit dem zugehörigen Reglerstatus,
+  nicht eine zwischenzeitlich eingetroffene, noch nicht verarbeitete HTTP-Absicht.
+
 ## Änderungs-/Prüfledger
+
+2026-11-26: Die unten dokumentierte frühere Cap-Erneuerung erst im freien
+Aktionsslot nach Ablauf konnte gesunden Ladebetrieb alle zehn Sekunden stoppen.
+Der Owner entscheidet **zuerst** mit der tatsächlich verfügbaren Grenze. Nur
+wenn die Engine keine Aktion verlangt und kein Bedienauftrag (auch kein Inspect)
+übernommen wurde, darf er im freien Slot vorsorglich `0x4004..0x4007` lesen:
+passender frischer Plan, Grenze fehlt oder läuft bis zum Ende der nächsten
+Pollantwort ab, und das volle Antworttimeout passt noch bis zum nächsten Poll.
+Bei bereits fehlender Grenze hat ein nötiger Stop Vorrang. Die optionale Lesung
+verbraucht den Slot; bei knapper Zeit entfällt sie statt den Poll zu verzögern.
+Nur ein gültiger Read erneuert den Zehn-Sekunden-Wert. Ein fehlgeschlagener
+Cap-Read (auch bei explizitem Inspect) verriegelt die Automatik noch vor einem
+möglicherweise erfolgreichen Wiederverbinden. WriteCore prüft unabhängig vor
+jedem Strom-/Startauftrag frisch. Neue PTY-Fixtures decken den TTL-Wechsel ohne
+Browser/Inspect, fehlende bzw. widersprechende Rücklesung, späte Änderungen im
+Start-Preflight und langsame Antworten ab. Neue CI-Ausführung ausstehend; keine
+Hardware-/Pi-Abnahme.
 
 2026-10-30 18:43 (Europe/Vienna): Ownerverdrahtung mit einem HTTP-Thread und
 genau einem seriellen Owner, höchstens einer Aktion je Poll. Manuelle Requests

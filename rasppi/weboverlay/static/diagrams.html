@@ -28,6 +28,7 @@
       <nav aria-label="Hauptnavigation">
         <a class="nav-link" href="/"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Übersicht</a>
         <a class="nav-link" href="/diagramme" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4v16h16M7 15l4-5 4 3 5-7"/></svg>Diagramme</a>
+        <a class="nav-link" href="/diagnose"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M2 12h5l3-8 4 16 3-8h5"/></svg>Diagnose</a>
         <a class="nav-link" href="/einstellungen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 3-.6 2.4-2 .9-2.2-.7-2 3.4 1.7 1.7v2.6L2.2 15l2 3.4 2.2-.7 2 .9L9 21h4l.6-2.4 2-.9 2.2.7 2-3.4-1.7-1.7v-2.6L19.8 9l-2-3.4-2.2.7-2-.9L13 3Z"/><circle cx="11" cy="12" r="3"/></svg>Settings</a>
       </nav>
       <div class="sidebar-footer">
@@ -61,11 +62,10 @@
         <p class="history-state" role="status"><span id="history-source">Live-Verlauf</span><span id="history-detail">Browserverlauf seit Seitenöffnung.</span></p>
         <div id="chart-grid" class="chart-grid"></div>
       </section>
-      <details class="technical-details history-diagnostics"><summary>Zustände &amp; Diagnose</summary><div id="chart-diagnostics-grid" class="chart-grid"></div></details>
       <section class="status-panel current-data" aria-labelledby="current-data-heading">
         <h2 id="current-data-heading">Aktuelle Wallbox-Messdaten</h2>
         <div class="status-line" role="status"><span id="status" class="badge" data-tone="muted">Warten auf Daten</span><span id="reason">Verbindung zur Anzeige wird hergestellt.</span></div>
-        <div class="metadata"><span>MQTT-Broker <strong id="broker">Unbekannt</strong></span><span>Telemetrie <strong id="availability">Unbekannt</strong></span><span>Restgültigkeit <strong id="freshness">—</strong></span><span>Letzte Messung <strong id="timestamp">—</strong></span></div>
+        <div class="metadata"><span>Letzte Messung <strong id="timestamp">—</strong></span><span>Restgültigkeit <strong id="freshness">—</strong></span></div>
       </section>
       <noscript><p class="notice">Für Messwerte und Zeitverläufe muss JavaScript aktiviert sein.</p></noscript>
     </main>

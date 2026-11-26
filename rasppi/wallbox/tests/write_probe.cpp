@@ -85,6 +85,7 @@ void print(const char *stage, const wallbox::WriteResult &r, long long elapsed, 
               << wallbox::write_status_name(r.status) << "\",\"reason\":\"" << r.reason
               << "\",\"attempted\":" << (r.attempted ? "true" : "false")
               << ",\"acknowledged\":" << (r.acknowledged ? "true" : "false")
+              << ",\"current_limit_checked\":" << (r.current_limit_checked ? "true" : "false")
               << ",\"elapsed_us\":" << elapsed << ",\"response_us\":"
               << (seconds * 1000000ULL + micros) << ",\"byte_us\":"
               << (byte_seconds * 1000000ULL + byte_micros) << ",\"hardware_ma\":";

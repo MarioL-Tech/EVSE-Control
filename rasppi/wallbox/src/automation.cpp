@@ -62,6 +62,10 @@ bool valid_schedule(const Profile &p) {
     for (auto w:p.windows) if (w.from<0 || w.from>1439 || w.to<0 || w.to>1439 || w.from==w.to) return false;
     return true;
 }
+bool outside_manual(const Settings &s,double utc) {
+    return s.mode==Mode::Custom && s.custom.use_schedule.value_or(false) &&
+        s.custom.outside==Profile::Outside::Manual && !schedule_contains(s.custom,utc);
+}
 }
 bool action_is_current(const Action &a, const Input &i) noexcept {
     if (a.operation==Operation::Stop && a.clock_protection) {
@@ -100,13 +104,32 @@ bool action_is_current(const Action &a, const Input &i) noexcept {
     }
     return true;
 }
+void Engine::clear_release() noexcept {
+    start_wait_=stop_wait_=observed_running_=false;
+    ack_target_.reset(); limit_recovery_=LimitRecovery::None;
+}
+void Engine::observe_lifecycle(const Telemetry &v,double sample_at) noexcept {
+    if ((start_wait_ || stop_wait_ || limit_recovery_!=LimitRecovery::None) && sample_at<=command_sample_at_) return;
+    if (v.plugged_in && !*v.plugged_in) { clear_release(); finished_=false; return; }
+    if (!v.charging) return;
+    if (*v.charging) { observed_running_=true; start_wait_=false; }
+    else if (stop_wait_ || observed_running_) {
+        finished_=!stop_wait_; clear_release();
+    } // False alone cannot revoke a Start before the first running observation.
+}
 void Engine::reset_activation(const Settings &s) {
     activation_=s.activation; revision_=s.revision; mode_=s.mode; armed_=s.mode!=Mode::Manual;
-    frozen_=manual_=start_wait_=stop_wait_=auto_stopped_=observed_running_=finished_=unplugged_=false;
-    ack_target_.reset(); candidate_.reset();
+    // A new automatic plan restarts its timers, not the physical session. A
+    // deliberate activation may restart after an observed vehicle finish.
+    if (!armed_) clear_release();
+    frozen_=limit_recovery_!=LimitRecovery::None;
+    manual_=finished_=false; candidate_.reset();
 }
-void Engine::manual_override() noexcept { manual_=true; candidate_.reset(); status_=Status::ManualOverride; }
+void Engine::manual_override() noexcept {
+    manual_=true; clear_release(); candidate_.reset(); status_=Status::ManualOverride;
+}
 void Engine::consume_pending_activation(const Settings &s) {
+    if (pending_ && s.activation!=pending_->activation) pending_->limit_protection=false;
     if (!pending_ || !epoch(s.activation) || s.activation==pending_->activation ||
         std::find(consumed_activations_.begin(),consumed_activations_.end(),s.activation)!=consumed_activations_.end()) return;
     if (consumed_activations_.size()==64) { nonce_overflow_=frozen_=true; return; }
@@ -120,6 +143,13 @@ bool Engine::accepts(const Action &a,const Input &i) noexcept {
     const bool clock_ok=std::isfinite(i.now) && utc_valid(i.utc) && (!have_clock_ ||
         (i.now>=last_now_ && i.utc>=last_utc_ && std::abs((i.utc-last_utc_)-(i.now-last_now_))<=2));
     if (!clock_ok || i.sources.clock_error || !i.bus_connected) frozen_=true;
+    if (a.operation==Operation::Stop && a.limit_protection) {
+        if (!pending_ || pending_->serial!=a.serial || !pending_->limit_protection) return false;
+        if (!manual_ && clock_ok && a.activation==i.sources.settings.activation &&
+            !outside_manual(i.sources.settings,i.utc) && action_is_current(a,i)) return true;
+        pending_->limit_protection=false; // Never revive a refused one-shot on a later check.
+        return false;
+    }
     return pending_ && pending_->serial==a.serial && !manual_ && !frozen_ && clock_ok && action_is_current(a,i);
 }
 std::optional<Action> Engine::issue(Operation op,int ma,const Input &i) {
@@ -128,6 +158,11 @@ std::optional<Action> Engine::issue(Operation op,int ma,const Input &i) {
     a.revision=i.sources.settings.revision; a.deadline=i.now+3;
     a.guard=i.activation_guard; a.issued_at=i.now; a.issued_utc=i.utc;
     a.requires_house=op!=Operation::Stop && (i.sources.settings.mode==Mode::Pv || i.sources.settings.custom.pv_enabled.value_or(true));
+    // The last accepted target may exceed the effective limit under internal
+    // load management. Either it or a higher observed limit proves a reduction
+    // was requested; neither proves that this new request took effect.
+    pending_reduction_=op==Operation::SetCurrent &&
+        ((ack_target_ && ma<*ack_target_) || (i.sample && i.sample->current_limit_a>ma/1000.0));
     command_sample_at_=i.sample_at;
     pending_=a; candidate_.reset(); return a;
 }
@@ -136,10 +171,17 @@ void Engine::complete(const Action &a, Outcome result) {
     const auto completed=*pending_;
     pending_.reset();
     if (!result.acknowledged) {
-        if (result.attempted) { frozen_=true; status_=Status::Frozen; }
+        if (result.attempted) {
+            frozen_=true; status_=Status::Frozen;
+            if (!manual_ && pending_reduction_ && result.set_current_ack_without_verified_limit)
+                limit_recovery_=LimitRecovery::OfferStop;
+            else if (completed.operation==Operation::SetCurrent)
+                ack_target_.reset(); // an uncertain FC16 may have replaced the old setpoint
+        }
         return;
     }
-    if (completed.operation==Operation::Stop) { stop_wait_=true; start_wait_=false; auto_stopped_=true; }
+    if (manual_) return; // An in-flight completion cannot reclaim manual ownership.
+    if (completed.operation==Operation::Stop) { stop_wait_=true; start_wait_=false; }
     else { ack_target_=completed.target_ma; if(completed.operation==Operation::Start) start_wait_=true; }
 }
 std::optional<Action> Engine::step(const Input &i) {
@@ -159,6 +201,8 @@ std::optional<Action> Engine::step(const Input &i) {
         (observed_running_ || start_wait_) && i.bus_connected && std::isfinite(i.now) && i.now>=last_now_;
     // Invalid observations must never poison the reference used by later gates.
     if (clock_ok) { last_now_=i.now; last_utc_=i.utc; have_clock_=true; }
+    const bool sample_ok=i.bus_connected && i.sample && std::isfinite(i.sample_at) && i.sample_at>=0 && i.sample_at<=i.now && fresh(i.sample_expires,i.now);
+    const auto *v=sample_ok?&*i.sample:nullptr;
     if (s.valid && fresh(s.expires,i.now) && !s.activation.empty()) {
         const bool seen=std::find(seen_activations_.begin(),seen_activations_.end(),s.activation)!=seen_activations_.end();
         if (!seen) {
@@ -179,30 +223,35 @@ std::optional<Action> Engine::step(const Input &i) {
         else if (armed_ && (s.revision!=revision_ || s.mode!=mode_)) frozen_=true; // saving never activates
     }
     if (!clock_ok || !i.bus_connected) frozen_=true;
+    if (pending_ && pending_->limit_protection && (!clock_ok || !action_is_current(*pending_,i) || outside_manual(s,i.utc)))
+        pending_->limit_protection=false;
+    if (clock_ok && v && armed_ && !manual_ && !pending_) observe_lifecycle(*v,i.sample_at);
     if (clock_stop) {
         status_=Status::Frozen;
         auto stop=issue(Operation::Stop,0,i);
         stop->clock_protection=true; pending_->clock_protection=true;
         return stop;
     }
+    if (limit_recovery_==LimitRecovery::OfferStop) {
+        // Exactly one opportunity on the next decision; never queue for a
+        // reconnect, never fall through to another current write. If unused
+        // or unsuccessful, manual recovery remains available.
+        limit_recovery_=LimitRecovery::ManualRecovery;
+        if (clock_ok && i.bus_connected && !nonce_overflow_ && !manual_ && !pending_ &&
+            !outside_manual(s,i.utc) && (start_wait_ || observed_running_) && !stop_wait_) {
+            status_=Status::Frozen;
+            auto stop=issue(Operation::Stop,0,i);
+            stop->limit_protection=true; pending_->limit_protection=true;
+            return stop;
+        }
+    }
     if (frozen_) { status_=Status::Frozen; return {}; }
     if (manual_) { status_=Status::ManualOverride; return {}; }
     if (!armed_) { status_=baseline_ && s.mode==Mode::Manual?Status::Manual:Status::AwaitingActivation; return {}; }
     if (pending_) return {};
-    bool sample_ok=i.bus_connected && i.sample && std::isfinite(i.sample_at) && i.sample_at>=0 && i.sample_at<=i.now && fresh(i.sample_expires,i.now);
-    const auto *v=sample_ok?&*i.sample:nullptr;
     if (v && v->plugged_in && !*v->plugged_in) {
-        unplugged_=true; finished_=false; start_wait_=stop_wait_=false; observed_running_=false;
-        ack_target_.reset(); candidate_.reset(); status_=Status::Unplugged; return {};
+        candidate_.reset(); status_=Status::Unplugged; return {};
     }
-    if (v && v->charging && (!(start_wait_ || stop_wait_) || i.sample_at>command_sample_at_)) {
-        if (*v->charging) { observed_running_=true; start_wait_=false; }
-        else {
-            if (stop_wait_) { stop_wait_=false; observed_running_=false; }
-            else if (observed_running_) { finished_=true; observed_running_=false; }
-        }
-    }
-    if (unplugged_ && v && v->plugged_in.value_or(false)) { unplugged_=false; finished_=false; }
     const auto &p=s.mode==Mode::Pv?s.pv:s.custom;
     bool feedback=s.mode==Mode::Pv || p.pv_enabled.value_or(true);
     bool config_ok=valid_profile(p,feedback) && range(s.phases,1,3) && (!feedback || s.meter_includes_wallbox.has_value())
@@ -232,7 +281,6 @@ std::optional<Action> Engine::step(const Input &i) {
         return {};
     }
     if (stop_wait_) { status_=Status::AwaitingStop; return {}; }
-    if (start_wait_) { status_=Status::AwaitingStart; return {}; }
     int target=std::min({*p.max_current_ma,*i.installation_max_ma,*i.hardware_max_ma,32000});
     target=(target/1000)*1000;
     if (feedback) {
@@ -242,15 +290,22 @@ std::optional<Action> Engine::step(const Input &i) {
     if (outside) target=0;
     if (target<6000) target=0;
     const bool charging=*v->charging;
-    if (!target && !charging) { candidate_.reset(); status_=Status::Pausing; return {}; }
-    if (target && finished_ && !charging && !auto_stopped_) { status_=Status::VehicleFinished; return {}; }
+    // An acknowledged Start is an outstanding authorization even if the EV
+    // has not drawn current yet. Keep checking PV budget and window. Never
+    // start twice or raise that authorization while feedback is outstanding.
+    if (start_wait_ && target && (!ack_target_ || target>=*ack_target_)) {
+        candidate_.reset(); status_=Status::AwaitingStart; return {};
+    }
+    const bool needs_start=!charging && !start_wait_;
+    if (!target && needs_start) { candidate_.reset(); status_=Status::Pausing; return {}; }
+    if (target && finished_ && !charging) { status_=Status::VehicleFinished; return {}; }
     if (target && charging && ack_target_ && target==*ack_target_) { candidate_.reset(); status_=Status::Charging; return {}; }
     if (!candidate_ || *candidate_!=target) { candidate_=target; candidate_since_=i.now; }
-    const int delay=!target?*p.pause_seconds:(!charging?*p.resume_seconds:*p.adjust_seconds);
-    status_=!target?Status::Pausing:(!charging?Status::Resuming:Status::Adjusting);
+    const int delay=!target?*p.pause_seconds:(needs_start?*p.resume_seconds:*p.adjust_seconds);
+    status_=!target?Status::Pausing:(needs_start?Status::Resuming:Status::Adjusting);
     if (i.now-candidate_since_<delay) return {};
     if (!target) return issue(Operation::Stop,0,i);
-    if (!charging) { auto_stopped_=false; return issue(Operation::Start,target,i); }
+    if (needs_start) return issue(Operation::Start,target,i);
     return issue(Operation::SetCurrent,target,i);
 }
 } // namespace wallbox::automation

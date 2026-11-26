@@ -79,7 +79,8 @@ void WriteCore::invalidate_session() noexcept {
     recovery_required_ = true;
 }
 
-WriteResult WriteCore::execute(const WriteRequest &request) {
+WriteResult WriteCore::execute(const WriteRequest &request,
+                               const std::function<void(const Telemetry &)> &on_start_sample) {
     WriteResult result;
     const auto deny = [&](WriteStatus status, const char *reason) {
         result.status = status;
@@ -182,9 +183,12 @@ WriteResult WriteCore::execute(const WriteRequest &request) {
                 return deny(WriteStatus::PreflightFailedNotSent, "active_wallbox_fault");
             if (telemetry.charging_state > 4)
                 return deny(WriteStatus::PreflightFailedNotSent, "charging_state_unknown");
+            if (policy_.autonomous_start && (telemetry.plugged_in != true || telemetry.charging != false))
+                return deny(WriteStatus::PreflightFailedNotSent, "automatic_start_state_changed");
             result.effective_current_ma = pair_value(registers.data() + 6);
             if (*result.effective_current_ma > request.current_ma)
                 return deny(WriteStatus::PreflightFailedNotSent, "effective_limit_above_request");
+            if (on_start_sample) on_start_sample(telemetry);
         }
     }
     if (!ready()) return result;
@@ -249,6 +253,7 @@ WriteResult WriteCore::execute(const WriteRequest &request) {
             // it is an observation, never an echo of the write-only setpoint.
             prepared_current_ma_ = request.current_ma;
             prepared_until_ = request.deadline;
+            result.current_limit_checked = true;
         }
     } else {
         if (!read(0x400C, 2, observation.data())) return result;
