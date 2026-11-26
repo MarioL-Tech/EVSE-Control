@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-27 00:20 (Europe/Vienna)
+
+- Stack-Prüflauf: Fehler nach abgezogenem Archivnetz erneut geöffnet. Exakte
+  Fehlerzeile/Phase ohne Payload protokollieren und ausschließlich in der
+  Testkopie die Weiterleitung fehlender synthetischer DNS-Namen an externe
+  Resolver verhindern. Die Prüfung verlangt weiterhin beide HTTP-503-Antworten,
+  funktionierende Liveness und identische gespeicherte Werte nach Wiederkehr.
+
 ## 2026-11-27 00:09 (Europe/Vienna)
 
 - Gegenprüfung des Kaltstarttests: Auf einem frischen GitHub-Runner stieß

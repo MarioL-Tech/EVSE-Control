@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Disposable GitHub-hosted Linux runner ONLY. No production config or hardware.
-set -euo pipefail
+set -Eeuo pipefail
+stage=setup
+trap 'rc=$?; echo "Stack fixture failed: stage=$stage line=$LINENO exit=$rc" >&2; exit "$rc"' ERR
 [[ ${GITHUB_ACTIONS:-} == true && ${RUNNER_ENVIRONMENT:-} == github-hosted && ${RUNNER_OS:-} == Linux ]]
 existing=$(docker ps -aq); [[ -z $existing ]] # refuse shared/unavailable daemons
 git check-ignore -q bin/.env
@@ -120,6 +122,12 @@ sed -i '\|^      - ../../.evse-settings:|a\      - /nonexistent-ci.sock:/run/ext
 if result=$(stack plan 2>&1); then exit 1; fi
 grep -Fq 'Ungültiges wirksames Stack-Modell' <<< "$result"
 cp "$fixture/original-web" "$wp/compose.yaml"
+
+# Docker's embedded resolver still resolves real peers/aliases. On detachment
+# there is intentionally no upstream DNS for the synthetic single-label DB
+# name. Do not send it to a hosted runner's external resolver or wait for its
+# timeouts. Production Compose and its DNS configuration remain unchanged.
+sed -i '/^  weboverlay:$/a\    dns: [127.0.0.1]' "$wp/compose.yaml"
 
 # The production base declares evse-mqtt external; create it only here, on an
 # empty ephemeral runner. The two infrastructure containers aren't Compose-owned.
@@ -252,7 +260,9 @@ archive_snapshot() {
       $code=$status === "unavailable" ? 503 : 200;
       if (!str_contains($http_response_header[0] ?? "", " ".$code." ") ||
           ($r["read_only"] ?? null)!==true || ($r["status"] ?? null)!==$status ||
-          !is_array($r["samples"] ?? null) || count($r["samples"])!==$count) exit(1);
+          !is_array($r["samples"] ?? null) || count($r["samples"])!==$count) {
+        fwrite(STDERR, "Fixture $endpoint: expected HTTP $code, $status and $count samples; response did not match.\n"); exit(1);
+      }
       $snapshot[$endpoint]=[];
       foreach ($r["samples"] as $s) {
         $value=$endpoint === "history" ? ($s["values"]["active_power_w"] ?? null) : ($s["power_w"] ?? null);
@@ -316,15 +326,19 @@ reject stack plan
 docker rm stackci-conflict >/dev/null
 docker restart "$w" >/dev/null
 stack check
+stage=detached-check
 docker network disconnect stackci-data "$w"
 if result=$(stack check 2>&1); then exit 1; fi
 grep -Fq 'weboverlay: konfigurierte DB-Netzmitgliedschaft fehlt tatsächlich.' <<< "$result"
 grep -Fq 'weboverlay: /api/history nicht wie erwartet (ok).' <<< "$result"
 grep -Fq 'weboverlay: /api/house-history nicht wie erwartet (ok).' <<< "$result"
+stage=detached-liveness
 docker exec "$w" php /app/docker/healthcheck.php # liveness stays independent
+stage=detached-archives
 archive_snapshot unavailable 0 >/dev/null
 
 # Same exact action as the opt-in unit, here with real old SQL data.
+stage=archive-repair
 bash bin/archive-link.sh --reconcile < "$fixture/expected"
 assert_archive_row
 stack check
@@ -337,12 +351,14 @@ grep -Fq 'weboverlay: konfigurierte DB-Netzmitgliedschaft fehlt tatsächlich.' <
 grep -Fq 'weboverlay: /api/history nicht wie erwartet (ok).' <<< "$result"
 stack up # project-local overlay selection restored; no new parallel web project
 docker stop stackci-maria >/dev/null
+stage=db-unavailable
 if result=$(stack check 2>&1); then exit 1; fi
 grep -Fq 'weboverlay: DB-Netzmitgliedschaft bestätigt.' <<< "$result"
 grep -Fq 'weboverlay: /api/history nicht wie erwartet (ok).' <<< "$result"
 grep -Fq 'weboverlay: /api/house-history nicht wie erwartet (ok).' <<< "$result"
 archive_snapshot unavailable 0 >/dev/null
 docker start stackci-maria >/dev/null
+stage=db-recovery
 for i in {1..40}; do docker exec stackci-maria healthcheck.sh --connect --innodb_initialized && break; sleep 1; done
 stack check
 assert_archive_row # the original observation survived DB outage, not merely a healthy diagnostic
