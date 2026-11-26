@@ -34,6 +34,22 @@ function mountedCalendar(saved = null, clock = () => now) {
   const pressed = () => buttons.filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.getAttribute('data-calendar-period'));
   return { ids, buttons, instance, calls, writes, click, pressed, events, eventTarget };
 }
+test('calendar failure ends loading without inventing a range; retained snapshots keep their period title', () => {
+  const ui = mountedCalendar({ period: 'year', date: '2024', tz: calendar.ZONE });
+  assert.match(ui.ids['calendar-label'].textContent, /wird geladen/);
+  ui.instance.status('unavailable', false);
+  assert.match(ui.ids['calendar-label'].textContent, /nicht verfügbar/);
+  assert.doesNotMatch(ui.ids['calendar-label'].textContent, /geladen/);
+  assert.equal(calendar.currentRange, null);
+  assert.equal(ui.ids['calendar-date'].value, '2024');
+  ui.instance.status('disabled', false);
+  assert.match(ui.ids['calendar-label'].textContent, /deaktiviert/);
+  const title = ui.ids['calendar-label'].textContent;
+  ui.instance.status('unavailable', true);
+  assert.equal(ui.ids['calendar-label'].textContent, title);
+  ui.click('live'); ui.instance.status('unavailable', false);
+  assert.equal(ui.ids['calendar-label'].textContent, 'Live-Verlauf');
+});
 test('native period buttons reuse hidden mode change selection and synchronize captions/wrappers', () => {
   const ui = mountedCalendar(), { ids } = ui;
   assert.deepEqual(ui.pressed(), ['live']); assert(ids['calendar-picker-label'].hidden);

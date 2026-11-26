@@ -142,6 +142,7 @@ async function interactions(page, name, observed, shot, touch) {
     assert.equal(await input.inputValue(), ''); assert.match(await input.getAttribute('placeholder'), /^z\. B\./);
     await input.fill('-1');
     assert.equal(await input.getAttribute('aria-invalid'), 'true');
+    assert(await page.locator('#charging-save').isDisabled(), 'Invalid draft has no active Save action');
     await focus(page, '#charging-pv-max_import_w', false); await shot('focus-invalid-input', false);
     await shot('invalid-draft');
     await input.fill('250');
@@ -179,7 +180,8 @@ async function interactions(page, name, observed, shot, touch) {
     await page.locator('#calendar-date').fill('2024-01-02T12:00');
     await page.locator('#calendar-date').dispatchEvent('change'); await request;
     if (!negative) await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok' && document.querySelector('.chart-line'));
-    else await page.waitForFunction(() => /nicht verfügbar|fehlgeschlagen|Fehler/i.test(document.querySelector('.history-state').textContent));
+    else await page.waitForFunction(() => /nicht verfügbar/.test(document.getElementById('calendar-label').textContent) &&
+      document.getElementById('history-source').dataset.historyStatus === 'unavailable');
     await shot(negative ? 'archive-unavailable' : 'archive-populated');
     assert(observed.archives.some(url => url.includes('period=hour')), 'Real calendar request');
     assert.deepEqual(observed.posts, [], 'Charts/diagnosis never write');

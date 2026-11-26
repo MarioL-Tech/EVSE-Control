@@ -211,6 +211,9 @@
       selectedRange, checkbox.checked, width, archive ? null : [points.length, points[0]?.t]]);
     if (signature === lastDraw) return;
     lastDraw = signature;
+    const caption = figure.querySelector('figcaption');
+    const title = archive ? 'Hausarchiv · kW' : 'Hausverlauf · Live-Zeitfenster · kW';
+    if (caption.textContent !== title) caption.textContent = title;
     svg.hidden = !checkbox.checked || (archive && !matches);
     svg.toggleAttribute('hidden', svg.hidden);
     svg.setAttribute('display', svg.hidden ? 'none' : 'block');

@@ -3,10 +3,32 @@
   'use strict';
   const doc = document;
   let opened = null, pinned = false, serial = 0;
-  function close() { if (opened) opened.open = false; opened = null; pinned = false; }
+  const resize = typeof ResizeObserver === 'function'
+    ? new ResizeObserver(() => { if (opened?.isConnected) reserve(opened); }) : null;
+  function reserve(help) {
+    help.closest('.esp32-revoke').style.paddingBottom = help.querySelector('.setting-tip').getBoundingClientRect().height + 'px';
+  }
+  function close() {
+    resize?.disconnect();
+    if (opened) { opened.open = false; opened.closest('.esp32-revoke')?.style.removeProperty('padding-bottom'); }
+    opened = null; pinned = false;
+  }
   function show(help) {
     if (opened !== help) { close(); opened = help; }
     help.open = true;
+    // Only the UID row borders the independent enrollment actions above it.
+    // Reflowing every focused field moves form buttons between down and up.
+    if (help.parentElement.dataset.settingInfo === 'esp32-uid') {
+      reserve(help);
+      resize?.observe(help.querySelector('.setting-tip'));
+    }
+  }
+  function reveal(input) {
+    requestAnimationFrame(() => {
+      if (doc.activeElement !== input) return;
+      const row = input.closest('.setting-field, .esp32-revoke') || input;
+      row.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
   }
   function helpFor(title, text, input) {
     const help = doc.createElement('details'), trigger = doc.createElement('summary'), tip = doc.createElement('span');
@@ -29,7 +51,18 @@
       if (opened === help && pinned) close(); else { show(help); pinned = true; }
     });
     if (input) {
-      input.addEventListener('focus', () => show(help));
+      input.addEventListener('focus', () => {
+        if (input.getAttribute('aria-invalid') === 'true') close(); else show(help);
+        reveal(input);
+      });
+      input.addEventListener('input', () => {
+        // Validators run on the same event. Reveal their resulting inline
+        // message, not merely the native input box at the viewport edge.
+        requestAnimationFrame(() => {
+          if (doc.activeElement === input && input.getAttribute('aria-invalid') === 'true') close();
+          reveal(input);
+        });
+      });
       input.addEventListener('blur', () => { if (opened === help && !pinned) close(); });
       input.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') show(help); });
       input.addEventListener('pointerleave', () => {

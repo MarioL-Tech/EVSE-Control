@@ -50,6 +50,19 @@ client() { env -i PATH="$PATH" HOME="$HOME" DOCKER_CONFIG="${DOCKER_CONFIG:-$HOM
 host=$(client docker context inspect --format '{{.Endpoints.docker.Host}}')
 [[ $host == unix:///* ]] || die 'Nur lokaler Unix-Docker-Kontext.'
 d() { client docker --host "$host" "$@"; }
+# One ordered overlay/profile selection for config checks, build and operation.
+# Only the pure build uses synthetic interpolation and always includes HTTPS.
+compose_for() (
+  local r=$1 file=$2; shift 2
+  cd "$root/${paths[$r]}"
+  local args=(--env-file "$file" -f compose.yaml)
+  [[ ${opt[$r]:-base} != *auth* ]] || args+=(-f compose.auth.yaml)
+  [[ ${opt[$r]:-base} != *history* ]] || args+=(-f compose.history.yaml)
+  [[ $r != storage || ! ${opt[rollup]:-} ]] || args+=(--profile history)
+  [[ $r != web || ( $action != build && ! ${opt[https]:-} ) ]] || args+=(--profile https)
+  [[ $r != uart ]] || args+=(--profile tools)
+  d compose "${args[@]}" "$@"
+)
 # Build every runtime image, independently of the operational selection. Keep
 # selected overlays; omitted roles use base. Never read site .env or mounts.
 if [[ $action == build ]]; then
@@ -62,19 +75,13 @@ MQTT_PASSWORD_HOST_FILE=/nonexistent/evse-build-password
 HISTORY_DB_PASSWORD_HOST_FILE=/nonexistent/evse-build-history-password
 EOF
   for role in storage web reader uart; do
-    (
-      cd "$root/${paths[$role]}"
-      args=(--env-file "$build_env" -f compose.yaml)
-      [[ ${opt[$role]:-base} != *auth* ]] || args+=(-f compose.auth.yaml)
-      [[ ${opt[$role]:-base} != *history* ]] || args+=(-f compose.history.yaml)
-      case $role in
-        storage) selected=(storage);;
-        web) selected=(weboverlay https); args+=(--profile https);;
-        reader) selected=(wallbox-reader);;
-        uart) selected=(uart-bridge); args+=(--profile tools);;
-      esac
-      d compose "${args[@]}" build "${selected[@]}"
-    )
+    case $role in
+      storage) selected=(storage);;
+      web) selected=(weboverlay https);;
+      reader) selected=(wallbox-reader);;
+      uart) selected=(uart-bridge);;
+    esac
+    compose_for "$role" "$build_env" build "${selected[@]}"
   done
   exit 0
 fi
@@ -105,17 +112,7 @@ for role in "${roles[@]}"; do
   [[ $(stat -c %s -- "$dest") -le 65536 ]] || die "Dienst-.env zu groß: $role."
   chmod 0400 -- "$dest"
 done
-dc() (
-  local r=$1; shift
-  cd "$root/${paths[$r]}"
-  local args=(--env-file "$scratch/$r.env" -f compose.yaml)
-  [[ ${opt[$r]} != *auth* ]] || args+=(-f compose.auth.yaml)
-  [[ ${opt[$r]} != *history* ]] || args+=(-f compose.history.yaml)
-  [[ $r != storage || ! ${opt[rollup]:-} ]] || args+=(--profile history)
-  [[ $r != web || ! ${opt[https]:-} ]] || args+=(--profile https)
-  [[ $r != uart ]] || args+=(--profile tools)
-  d compose "${args[@]}" "$@"
-)
+dc() { local r=$1; shift; compose_for "$r" "$scratch/$r.env" "$@"; }
 image=python:3.12-slim-bookworm@sha256:44cf1793efa7c7a476bb0f2cff81443f4a072c90c1cb127e2924933daa3e8c64
 for role in "${roles[@]}"; do
   p="$root/${paths[$role]}"

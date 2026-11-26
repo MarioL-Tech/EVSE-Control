@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-26 23:55 (Europe/Vienna)
+
+- Visuelle Befunde bearbeitet: Skip-Link nur im Tastaturfokus sichtbar,
+  ungültige Regelentwürfe ohne aktive Speichertaste, UID-Hilfe ohne verdeckte
+  RFID-Aktionen, fokussierte Eingabe mit Fehlermeldung im Sichtbereich.
+  Touch-Ziele bleiben auch bei gemischter Eingabemethode groß. Shell v26.
+- Bei fehlendem Kalenderarchiv zeigen Diagramme keinen Live-Zeitmaßstab für
+  das gewählte historische Datum. Haus-Livewert und Archivkurve beschriftet.
+  Bestehende Archivwerte bei Abruffehlern und alle Datenlücken bleiben erhalten.
+- Gemeinsame Overlay-/Profilauswahl für Build, Start und Prüfung; keine
+  Änderung der getrennten Compose-Identitäten oder produktiver Dateien.
+
 ## 2026-11-26 23:47 (Europe/Vienna)
 
 - KVM-Kaltstart mit neuer Boot-ID, automatischem Anschluss und beiden vorher
