@@ -26,14 +26,14 @@ Die SHA-256-Prüfungen für HOUSE- und Minutenarchiv erwarten die kanonischen
 LF-Bytes der SQL-Migrationen. `rasppi/storage/migrations/*.sql` deshalb auch
 in Windows-Checkouts mit LF belassen; keine Prüfsummen auf CRLF umstellen.
 
-Lokaler Web-Abschlussnachweis: Alle 17 Shell-Schritte des Web-Workflows auf
+Historischer lokaler Webnachweis vor PR #73: Alle 17 Shell-Schritte des Web-Workflows auf
 Linux/amd64 im unabhängigen Docker-KVM-Gast bestanden, einschließlich isolierter
 SQL-/HOUSE-/TLS-/PWA- und elf integrierter Chromium-Suiten. `--standalone-only`
 lief vorher ohne Netzwerk. Elf neue Bilder mit simulierten Daten angesehen;
 beide Livekurven auch gemeinsam auf Desktop und Mobilgerät geprüft. Das ist
 kein zweiter gehosteter GitHub-Runner und kein Pi- oder Hardwaretest.
 
-**Aktueller Bedienstand (Arbeitsbaum, kein neuer CI-/Pi-Nachweis):** Die vier
+**Bedienstand (hardwarefreie Nachweise in der Aufgabencheckliste):** Die vier
 Routen stehen in `rasppi/weboverlay/public/index.php`: Übersicht `/`, Diagramme
 `/diagramme`, Diagnose `/diagnose`, Settings `/einstellungen`; GET `/wallbox`
 leitet auf `/`. Elektrische Kurven folgen dem Hausdiagramm. Diagnose zeigt
@@ -57,15 +57,16 @@ Compose-Projektidentitäten. Optionale root-eigene systemd-Oneshot-Unit nach
 dem vorab gebundenen bestehenden Archivnetz verbinden, kein Recreate/Retry,
 keine Eingriffe in Broker/DB/Hardware. Änderungen oder neue IDs verlangen eine
 neue Betreiberfreigabe. Keine atomare Zusage gegen externe Docker-Eingriffe.
-Zwei isolierte CI-Jobs vorgesehen, keine Pi-/Bootabnahme behaupten. Frühere
+Zwei isolierte CI-Jobs und gesonderter KVM-Kaltstart, keine Pi-Abnahme. Frühere
 Aussagen zum noch nicht vorhandenen gemeinsamen Einstieg sind historisch.
 
 Für Änderungen an `bin/stack.sh` prüfen die Komponenten-Workflows zusätzlich
 die volle Storage-, UART-, ESP32-, Reader- und Webmatrix. Zwei unabhängige
 Webrunner bauen denselben Checkout und liefern getrennte GUI-Artefakte; der
 TLS-Browser vergleicht den installierten PWA-Shellinhalt bytegenau. Laufzeiten
-der früheren Jobs und Erwartungen in `docs/integration-checklist.md`. Noch kein
-CI-Ergebnis oder visueller Abnahmenachweis für diesen neuen Gesamtstand.
+der früheren Jobs und Erwartungen in `docs/integration-checklist.md`. Die
+aktuellen Jobs und tatsächlichen Sichtbefunde stehen getrennt nach Komponente
+und geprüftem Commit in `docs/aufgaben-checkliste.md` (A1–E4).
 
 Abschluss-Codehead d4d60ef besteht vollständig: Web41135320070, native Reader-
 Matrix41135320145 (AMD64/ARM64, Bookworm/Trixie, zehn Suiten plus Sanitizer-Core),

@@ -15,10 +15,10 @@
 ### Nachweisgrundlage des integrierten Kandidaten
 
 Produktcode `c60bcad82bfe2121239f5a3763d65d025ada148f`, Ausgangspunkt
-`cbf15d4` auf `main`. Danach änderten `24936ff`, `0533743` und `c442c4f`
-ausschließlich isolierte Tests und das Changelog. Aktuelle Läufe:
+`cbf15d4` auf `main`. Seitdem betreffen die Änderungen nach `c60bcad` ausschließlich
+isolierte Tests und Dokumentation. Aktuelle Läufe:
 [Stack/Boot `0533743`](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/45910328714),
-[Web/GUI `c442c4f`](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/45910580342).
+[Web/GUI `ac48c20`](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/45911719752).
 Der Projektstand vor den Arbeiten (`656ee43`) bleibt
 ebenfalls über die Historie erreichbar. Dokumentationsnachträge getrennt vom
 geprüften Produktcode betrachten. Die verlinkten externen Dienste sind **nur
@@ -26,7 +26,7 @@ GitHub-Prüfläufe**, keine Verbindung zur Installation.
 
 | Kürzel | Prüfumfang und Nachschlageort |
 |---|---|
-| [Stack](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/45909290844) | `tests/stack/isolated-ci.sh`, `archive-boot-ci.sh`: alle Images ohne Start, Bestandsplan, Profile, Bindungen, Eigentum, unveränderte Mounts und Daten, SQL-Netz-/DB-Ausfall, installierte Unit und Docker-Kaltstarts. `24936ff` unterscheidet sich von `c60bcad` **nur im Kaltstarttest und Changelog**: bestätigtes Runner-Startlimit nach sauberem Stop vor dem nächsten absichtlichen Start zurücksetzen. [Vorlauf](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/45908364746): `stack` grün, `archive-boot` rot, nicht als Gesamterfolg gewertet. |
+| [Stack](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/45910328714) | `isolated-ci.sh` (reiner Build, Bestandsplan, Projekte, Profile, Mounts, SQL und Netzausfall), `archive-boot-ci.sh` (installierte Unit, Docker-Kaltstarts, Identitätswechsel). Vorläufe **nicht** als Gesamterfolg zählen: auf [`c60bcad`](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/45908364746) nur Stack grün (Startlimit des Testdaemons), auf [`24936ff`](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/45909290844) nur Boot grün (Stack brach nach dem Disconnect ohne präzise Fehlerzeile ab). `0533743` prüft mit phasenbezogenen Fehlern und ohne Weiterleitung fixturefremder DNS-Anfragen. |
 | [Reader](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/45908364763) | Je zehn CTest-Suiten, native Bookworm/Trixie × AMD64/ARM64, Sanitizer-Kern. `automation_test.cpp`, `automation_http_test.py`, `automation_owner_test.py`, `write_test.py`: Politik, Quellen, aktiver Portbesitzer und tatsächliche RTU-Frames auf PTY. |
 | [Web](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/45908364669) | Zwei getrennte Builds/Runners: HTTP/PHP, MQTT und PTY in beiden Steuerpfaden; SQL/HOUSE, Settings-Provisionierung, TLS mit vertrauenswürdiger Test-CA, PWA mit Proxy-Ausfall, JS und Chromium. GUI-Matrizen verwenden kontrollierte API-Antworten, nicht echte Hardware. |
 | [Storage](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/45908364711) | MariaDB 10.11/11.8.8/11.8, Collector/SQL-Integration und Runtime-Smoke. Unveränderte Datenmodelle und Migrationen. |
@@ -43,8 +43,15 @@ GitHub-Prüfläufe**, keine Verbindung zur Installation.
 
 ### A2 – Archivzugriff und Wiederkehr · SQL/API
 
-- [ ] Beim Start und bei verzögert verfügbarer DB echten lesenden Zugriff auf Wallbox- **und** HOUSE-Archiv sicherstellen. Deaktiviert, vorübergehend nicht verfügbar und erfolgreich leer unterscheiden. **Nachweis:** Stack-Job auf `c60bcad`: beide echten HTTP-Endpunkte – leer/ok, unavailable, ok mit Daten; disabled zusätzlich Web-Runtime-Smoke. **Wieder offen:** Erneuter Stacklauf auf `24936ff` endete nach dem Disconnect ohne Zeilendiagnose. Vorlauf nicht als endgültigen Nachweis übernehmen.
-- [ ] In der Simulation vorhandene SQL-Werte vor und nach Netz-/DB-Ausfall vergleichen. Liveanzeige und Bedienung bleiben unabhängig; keine Löschung, Migration oder Neuaggregation als Reparatur. **Nachweis:** `isolated-ci.sh`: +1729 W/−619 W vor und nach Netzverlust, DB-Stop und Projektwiederanlauf; KVM-Kaltstart separat. **Wieder offen:** Erneuter Stacklauf auf `24936ff` endete nach dem Disconnect ohne Zeilendiagnose. Vorlauf nicht als endgültigen Nachweis übernehmen.
+Zusatzprüfung im KVM-Gast mit finalem Webimage: Web mit **gestoppter** DB
+gestartet. `stack up` meldete beide Archivprüfungen negativ; HTTP-Liveness
+blieb positiv. Nach verspätetem Start allein derselben Datenbank erschienen
+die vorher gespeicherten +1701/−701 W über die lesenden APIs, ohne zweites
+`up`, Webneustart oder Migration. Separate Netzwerkfixture: nach Disconnect
+beide Antworten HTTP 503/`unavailable` ohne Samples, bei Wiederanschluss `ok`.
+
+- [x] Beim Start und bei verzögert verfügbarer DB echten lesenden Zugriff auf Wallbox- **und** HOUSE-Archiv sicherstellen. Deaktiviert, vorübergehend nicht verfügbar und erfolgreich leer unterscheiden. **Nachweis:** Beide Stackjobs auf `0533743` bestanden; nach spätem DB-Start zusätzlich beide Archivwerte ohne zweite Stack-Aktion gelesen (KVM oben).
+- [x] In der Simulation vorhandene SQL-Werte vor und nach Netz-/DB-Ausfall vergleichen. Liveanzeige und Bedienung bleiben unabhängig; keine Löschung, Migration oder Neuaggregation als Reparatur. **Nachweis:** `isolated-ci.sh` auf `0533743`: ursprüngliche IDs, Zeitstempel und Werte +1729/−619 W nach Netztrennung, DB-Ausfall und Projektwiederanlauf per HTTP verglichen. Vorher wieder geöffnet, jetzt mit beiden grünen Jobs geschlossen.
 
 ### A3 – Gemeinsamer Start/Stop · Stack-Einstieg
 
@@ -148,7 +155,7 @@ GitHub-Prüfläufe**, keine Verbindung zur Installation.
 
 ### E1 – Gesamter hardwarefreier Testlauf · Parallelisierbare Testgruppen
 
-- [ ] Operatorablauf, Build-only, Start/Stop, Boot, Archivnetz und SQL-Wiederkehr im isolierten Docker-/VM-Test prüfen.
+- [x] Operatorablauf, Build-only, Start/Stop, Boot, Archivnetz und SQL-Wiederkehr im isolierten Docker-/VM-Test prüfen. **Nachweis:** Stack/Boot `45910328714` komplett grün. Zusätzlich dieselbe KVM-Disk kalt gestartet, Vier-Rollen-Plan zweimal gestartet/gestoppt und verspäteten DB-Start geprüft – siehe A1–A4.
 - [ ] Weboverlay vollständig prüfen: PHP/JS, SQL/HOUSE, TLS/PWA, Browser und beide simulierten Steuerpfade. Vorherigen fehlgeschlagenen Web-CI-Lauf untersuchen und den finalen Stand in **beiden** Web-Jobs bestätigen.
   - Job `140153165232` aus `45890946168`: Buildtest `tests/integration.cjs:396` beim zweiten Broker-Wiederanlauf; der MQTT-Subscriber beendete sich, der Supervisor stoppte Apache. Der Log nennt keine Exceptionursache. **Nicht** der ESP32-Pfad. Neuerer Ausgangsstand `cbf15d4`: Weblauf `45901462337` grün, Bootjob `140187980676` rot. Das ist noch kein Abschlussnachweis.
 - [x] Storage-Matrix mit vorhandenen MariaDB-Versionen ausführen. **Nachweis:** [45908364711](https://github.com/MarioL-Tech/EVSE-Control/actions/runs/45908364711), `c60bcad`: 10.11, 11.8.8 und 11.8 einschließlich Runtime ohne DB.
@@ -160,6 +167,7 @@ GitHub-Prüfläufe**, keine Verbindung zur Installation.
 - [ ] **Durchgang 1:** Übersicht, Diagramme, Diagnose und Settings auf Desktop und Mobil in Hell/Dunkel am integrierten Build prüfen. Bedienung, Live/Archiv, Status und Einstellungen in Screenshots und Interaktionen beurteilen.
 - [ ] **Durchgang 2:** Separat dieselben vier Seiten auf Desktop und Mobil prüfen, mit Schwerpunkt auf Leer-/Fehler-/Offlinefällen, Touch/Tastatur/Fokus, abgeschnittenen Inhalten und sichtbarem Feedback. Screenshots erneut tatsächlich ansehen, nicht nur das Vorhandensein von Artefakten prüfen.
   - Lokale Vorprüfung am UI-Code `c0582f5`: zwei getrennte Prüfer haben die beiden 60-PNG-Matrizen ausgewertet. Skip-Link, ungültigen Regelentwurf, Kalendermodus und mobile Feldhilfe korrigiert. Weitere tatsächliche Bildprüfung an `0ad067d`: UID-Hilfe lag bei 320 px unter dem Viewport; auf `c60bcad` korrigiert, Sichtbarkeit zusätzlich im echten Browser geprüft.
+  - Zwei weitere Sichtprüfer sahen je 68 PNGs auf `c442c4f`, einschließlich sichtbarem Tastatur-Skiplink und modelliertem Lesefehler. Das helle Desktop-Archivbild des ersten lokalen Durchgangs war unten abgeschnitten; der zweite Durchgang hatte keinen solchen Befund. Deshalb auf `ac48c20` die Daten beider Quellen vor diesem Bild abwarten und die gespeicherte PNG-Höhe jedes Fullpage-Bilds gegen das Dokument prüfen. Keine zusätzliche Bedienaktion zur Bilderzeugung.
 
 ### E3 – Zusätzliche Vollständigkeitsprüfung · Nach dem Abhaken
 
