@@ -19,7 +19,7 @@ jobs:
         if: failure()
         run: |
           sudo systemctl show evse-archive-link.service -p Result -p ExecMainCode -p ExecMainStatus
-          sudo journalctl -b -u evse-archive-link.service --no-pager -o cat | grep '^Archiv-Netz:' | tail -20 || :
+          sudo journalctl -b -u evse-archive-link.service --no-pager -o cat | grep -E '^Archiv-Netz:|: (docker|setpriv|bash): command not found$' | tail -20 || :
   stack:
     runs-on: ubuntu-latest
     timeout-minutes: 25

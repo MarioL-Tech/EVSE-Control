@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-26 23:31 (Europe/Vienna)
+
+- Isolierte KVM-Prüfung für zwei SQL-Messwerte über einen echten Gast-Kaltstart
+  ergänzt. Boot-Unit berücksichtigt Docker im administrierten `/usr/local/bin`
+  nach den Distributionspfaden; CI meldet den Prozess-Exitcode bei Fehlern.
+  Reiner Image-Build im Schnellstart und Installationsguide ergänzt.
+
 ## 2026-11-26 23:25 (Europe/Vienna)
 
 - Gesamtauftrag nach „Start“ fortgesetzt. Reguläre State-Abfragen ersetzen

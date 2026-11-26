@@ -9,7 +9,7 @@ User=root
 Group=root
 ExecStart=/bin/bash /usr/local/libexec/evse-archive-link --boot
 StandardInput=file:/etc/evse-archive-link/expected
-Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/bin
 Environment=DOCKER_CONFIG=/etc/evse-archive-link/docker-config
 TimeoutStartSec=180
 UMask=0077
