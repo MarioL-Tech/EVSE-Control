@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Dedicated empty, disposable GitHub VM. Tests the installed unit and real
 # Docker races. The image is deliberately inert; SQL/API is in isolated-ci.sh.
-set -euo pipefail
+set -Eeuo pipefail
 [[ ${GITHUB_ACTIONS:-} == true && ${RUNNER_ENVIRONMENT:-} == github-hosted && ${RUNNER_OS:-} == Linux ]]
 existing=$(docker ps -aq); [[ -z $existing ]]
 # Copy only tracked paths, but their WORKTREE bytes. git archive HEAD silently
@@ -182,6 +182,12 @@ cold_start() {
   sudo systemctl stop docker.service docker.socket
   [[ $(systemctl show -p ActiveState --value docker.service) == inactive ]]
   [[ $(systemctl show -p ActiveState --value docker.socket) == inactive ]]
+  # Two intentional cold starts on a newly provisioned runner can exhaust
+  # systemd's start-rate budget. Clear the counters only AFTER proving both
+  # units stopped cleanly, never retry a failed startup or change site policy.
+  [[ $(systemctl show -p Result --value docker.service) == success ]]
+  [[ $(systemctl show -p Result --value docker.socket) == success ]]
+  sudo systemctl reset-failed docker.service docker.socket
   # No Docker CLI while stopped: socket activation would invalidate the test.
   sudo systemctl start docker.service
   [[ $(systemctl show -p MainPID --value docker.service) != "$oldpid" ]]

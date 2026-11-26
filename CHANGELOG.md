@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-27 00:09 (Europe/Vienna)
+
+- Gegenprüfung des Kaltstarttests: Auf einem frischen GitHub-Runner stieß
+  der zweite absichtliche Docker-Start auf systemds Startlimit. Nur in der
+  leeren Test-VM die Zähler nach belegtem sauberem Stop zurücksetzen; jeder
+  Start muss beim ersten Versuch gelingen. Kein Umgehen eines Produktfehlers
+  oder Ändern der installierten Unit.
+
 ## 2026-11-27 00:01 (Europe/Vienna)
 
 - Mobiler Sichttest: Angetippte Feldhilfe konnte unterhalb des Viewports liegen.
