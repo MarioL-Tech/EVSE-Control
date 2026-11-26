@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-27 00:26 (Europe/Vienna)
+
+- Nachweise auf Aufgabenebene zugeordnet: Storage-Matrix, vier native
+  Readerjobs, UART, ESP32 und beide Webjobs auf dem Produktstand `c60bcad`.
+  KVM-Kaltstart mit unveränderten Archivwerten und beide Vier-Rollen-Start-/
+  Stop-Zyklen wiederholt. Ergänzender 20-px-Texttest auf allen vier Routen.
+  Kaltstart-/Stack- und GUI-Nachtests gesondert verfolgen; keine Hardwareabnahme.
+
 ## 2026-11-27 00:22 (Europe/Vienna)
 
 - Beide Bildprüfer fanden eine Nachweislücke: der Skiplink war nach Stop

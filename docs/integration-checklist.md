@@ -1,5 +1,9 @@
 # Integrationsauftrag: Bedienung, Betrieb und Prüfung
 
+**Historischer Prüfstand aus PR #73.** Für den fortgesetzten Gesamtauftrag
+sind Umfang, offene Punkte, abschließende Prüfnachweise und Übergabe in
+[`aufgaben-checkliste.md`](aufgaben-checkliste.md) maßgeblich.
+
 Ausgangspunkt `e83f9f6` bleibt über die Git-Historie wiederherstellbar. Ziel ist ein Gesamt-PR, kein Merge oder Deployment. Diese Liste hält den Auftrag auch bei einem Kontextwechsel fest. Ein Eintrag ist kein Testnachweis.
 
 - Archiv nach Neustart/Neuerstellung: konfigurierte und tatsächliche DB-Netzmitgliedschaft und lesende Archivantwort prüfen. HTTP-Liveness nicht von MariaDB abhängig machen.
