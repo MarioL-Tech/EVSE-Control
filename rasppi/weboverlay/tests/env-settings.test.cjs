@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseResponse, createDraft, editDraft, changesFor } = require('../static/env-settings.js');
+const { parseResponse, createDraft, editDraft, changesFor, problemFor, placeholder, presentation, relatedProblems } = require('../static/env-settings.js');
 
 function response() {
   const definition = (secret = false, readonly = false) => ({ type: 'text', min: 0, max: 4096, secret, readonly, choices: [] });
@@ -67,6 +67,28 @@ test('snapshot must match service, revision, flags and CSRF; secret values are d
   assert.equal(ownValue(parseResponse(body, 'weboverlay').snapshot.entries.SECRET), false);
 });
 function ownValue(entry) { return Object.prototype.hasOwnProperty.call(entry, 'value'); }
+test('related checks use only known values, never invent missing device config', () => {
+  const draft = createDraft({ service: 'wallbox', entries: { WALLBOX_TIMEOUT_MS: { value: '500' }, WALLBOX_INTERVAL_MS: { value: null } } });
+  editDraft(draft, 'WALLBOX_TIMEOUT_MS', '1000'); assert.deepEqual(Object.keys(relatedProblems(draft)), []);
+  editDraft(draft, 'WALLBOX_INTERVAL_MS', '1000'); assert.equal(Object.keys(relatedProblems(draft)).length, 2);
+  editDraft(draft, 'WALLBOX_INTERVAL_MS', '1001'); assert.deepEqual(Object.keys(relatedProblems(draft)), []);
+  const storage = createDraft({ service: 'storage', entries: { STORAGE_RETENTION_MINUTE_DAYS: {value:'0'}, STORAGE_RETENTION_HOUR_DAYS: {value:'0'} } });
+  editDraft(storage, 'STORAGE_RETENTION_HOUR_DAYS', '30'); assert.deepEqual(Object.keys(relatedProblems(storage)), ['STORAGE_RETENTION_HOUR_DAYS']);
+});
+test('UI checks new edits without echoing submitted strings, placeholders are not values', () => {
+  const def = { type: 'integer', min: 10, max: 20 };
+  assert.match(placeholder(def), /z\. B\./); assert.equal(problemFor(def, '10'), '');
+  for (const v of ['', '1e1', '21', '10.5', ' 11']) assert.match(problemFor(def, v), /Ganze Zahl/);
+  for (const [type, good, bad] of [['url', 'https://beispiel.example/test', 'https://user@beispiel.example/test'],
+    ['host', 'broker-a.example', '-.example'], ['host', '192.0.2.12', '300.0.2.1'], ['topic', 'bereich/rolle', 'bereich/+'],
+    ['device', '/dev/geraet', '/dev/../etc'], ['identifier', 'dienst-a', 'dienst a'], ['database', 'Archiv1', '1Archiv'],
+    ['network', 'daten.test', '.daten'], ['text', 'Beispiel', 'a$b'], ['enum', 'true', 'unknown']]) {
+    const d = { type, min: 0, max: 100, choices: ['true'] }; assert.equal(problemFor(d, good), '', type);
+    const message = problemFor(d, bad); assert(message); assert(!message.includes(bad));
+  }
+  assert.equal(problemFor({ type: 'url', secret: true }, ''), '');
+  assert.match(presentation('STORAGE_RETENTION_DAY_DAYS', def).title, /Tagesdaten/);
+});
 test('missing files preserve absent state; edits do not invent defaults', () => {
   const body = response(); body.snapshot.status = 'missing'; body.snapshot.revision = null;
   body.snapshot.entries.TEXT = { present: false, configured: false, readonly: false, secret: false, value: null };

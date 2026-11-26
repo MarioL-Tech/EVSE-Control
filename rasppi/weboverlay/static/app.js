@@ -133,13 +133,13 @@
       write(presentFreshness(view));
       // This is also the loader/retry and chart clock. Keep it running on
       // unchanged/offline freshness ticks independently of presentation caches.
-      charts.update(view);
+      charts?.update(view);
     };
   }
   if (typeof module !== 'undefined' && module.exports) module.exports = { createViewState, present, presentStatic, createRenderer, flag, TIMEOUT_MS };
   if (typeof document === 'undefined') return;
   const state = createViewState();
-  const charts = window.OverlayCharts.mount();
+  const charts = window.OverlayCharts?.mount();
   const renderView = createRenderer({ document, charts });
   let active = null, pollTimer = null;
   function render() {
@@ -178,7 +178,7 @@
   }
   document.addEventListener('visibilitychange', resetView);
   window.addEventListener('pageshow', event => {
-    if (event.persisted) { charts.restore(); resetView(); }
+    if (event.persisted) { charts?.restore(); resetView(); }
   });
   // This clock is independent of HTTP; a hung request cannot preserve live values.
   setInterval(render, 100);

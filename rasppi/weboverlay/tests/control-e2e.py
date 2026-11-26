@@ -157,7 +157,8 @@ def main():
                    'MQTT_ENABLED': 'true', 'MQTT_TOPIC_PREFIX': 'evse/test',
                    'MQTT_CLIENT_ID': 'control-e2e-reader', 'MQTT_USERNAME': '',
                    'MQTT_PASSWORD': '', 'MQTT_PASSWORD_FILE': '',
-                   'WALLBOX_INSTALLATION_MAX_MA': '16000', 'WEB_CONTROL_ORIGIN': origin}
+                   'WALLBOX_INSTALLATION_MAX_MA': '16000', 'WALLBOX_AUTOMATION_WEB_URL': '',
+                   'SETTINGS_EDITOR_ENABLED': '0', 'WEB_CONTROL_ORIGIN': origin}
             reader_args = ['/usr/local/bin/evse-wallbox', '--device', simulator.path,
                            '--interval-ms', '200', '--timeout-ms', '100']
             reader = subprocess.Popen(reader_args, env=env,
@@ -191,6 +192,9 @@ def main():
             check(code == 200 and initial['status'] == 'ok', 'Read-only inspection failed: ' + repr(initial))
             check(initial['inspection']['hardware_max_ma'] == 16000, 'Hardware cap missing')
             check(initial['inspection']['installation_max_ma'] == 16000, 'Explicit synthetic installation cap missing')
+            automation = initial['inspection']['automation']
+            check(automation['plan'] == automation['house'] == 'disabled' and automation['activation_id'] is None,
+                  'Empty reader URL must report disabled, not an active/staged automation')
             token = initial['csrf']
             check(simulator.count() == 0, 'GET emitted write')
             code, invalid = request(body={'operation': 'set_current', 'current_ma': 17000}, token=token)

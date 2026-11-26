@@ -8,6 +8,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" sizes="180x180">
   <script src="/static/pwa.js" defer></script>
+  <script src="/static/settings-ui.js" defer></script>
   <script src="/static/env-settings.js" defer></script>
   <script src="/static/charging-settings.js" defer></script>
   <script src="/static/esp32.js" defer></script>
@@ -15,6 +16,7 @@
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <script src="/static/theme.js"></script>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/settings.css">
 </head>
 <body>
   <a class="skip-link" href="#main-content">Zum Inhalt</a>
@@ -24,6 +26,7 @@
       <nav aria-label="Hauptnavigation">
         <a class="nav-link" href="/"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Übersicht</a>
         <a class="nav-link" href="/diagramme"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4v16h16M7 15l4-5 4 3 5-7"/></svg>Diagramme</a>
+        <a class="nav-link" href="/diagnose"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M2 12h5l3-8 4 16 3-8h5"/></svg>Diagnose</a>
         <a class="nav-link" href="/einstellungen" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 3-.6 2.4-2 .9-2.2-.7-2 3.4 1.7 1.7v2.6L2.2 15l2 3.4 2.2-.7 2 .9L9 21h4l.6-2.4 2-.9 2.2.7 2-3.4-1.7-1.7v-2.6L19.8 9l-2-3.4-2.2.7-2-.9L13 3Z"/><circle cx="11" cy="12" r="3"/></svg>Settings</a>
       </nav>
       <div class="sidebar-footer">
@@ -34,32 +37,36 @@
       </div>
     </aside>
     <main id="main-content" class="settings-main" tabindex="-1">
-      <header class="page-header"><h1>Settings</h1><span class="readonly">Konfiguration</span></header>
+      <header class="page-header"><h1>Settings</h1></header>
       <div class="settings-placeholder">
         <section class="card" aria-labelledby="charging-heading">
-          <h2 id="charging-heading">Lademodi</h2>
+          <h2 id="charging-heading">Ladeprofile</h2>
+          <p class="section-intro">Speichern aktiviert keinen Modus. Die Auswahl erfolgt auf der Übersicht.</p>
           <p id="charging-status" role="status">Lade Einstellungen …</p>
           <form id="charging-form" autocomplete="off">
             <fieldset id="charging-fields" disabled><legend class="sr-only">Moduskonfiguration</legend></fieldset>
-            <p><button id="charging-save" type="submit" disabled>Regeln speichern</button>
-              <button id="charging-reload" type="button" disabled>Neu laden</button></p>
+            <div class="settings-actions"><button id="charging-save" type="submit" disabled>Regeln speichern</button>
+              <button id="charging-reload" type="button" disabled>Neu laden</button></div>
           </form>
         </section>
         <section class="card" id="esp32-rfid" aria-labelledby="esp32-rfid-heading">
-          <h2 id="esp32-rfid-heading">RFID-Karten</h2>
+          <p class="eyebrow">Diebstahlsicherung</p><h2 id="esp32-rfid-heading">RFID-Karten</h2>
           <p id="esp32-rfid-status" class="subtle" role="status">ESP32 noch nicht geprüft.</p>
           <dl class="facts"><div><dt>Gespeicherte Karten</dt><dd id="esp32-rfid-count">Unbekannt</dd></div>
             <div><dt>Anlernen</dt><dd id="esp32-rfid-enrolling">Unbekannt</dd></div></dl>
+          <div class="setting-heading" data-setting-info="esp32-enroll" data-title="Karte anlernen" data-help="Das Anlernfenster gilt für eine Karte und endet nach 30 Sekunden. Karte erst nach dem Start neu auflegen. Abbrechen beendet das Fenster."><strong>Karte anlernen</strong></div>
           <div class="esp32-actions"><button type="button" id="esp32-enroll" disabled>Anlernen starten</button>
             <button type="button" id="esp32-cancel" disabled>Abbrechen</button></div>
-          <div class="esp32-revoke"><label for="esp32-uid">Private Karten-UID zum Widerrufen</label>
-            <input id="esp32-uid" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="29">
+          <div class="esp32-revoke"><div class="setting-heading" data-setting-info="esp32-uid" data-title="Karte widerrufen" data-help="Trage die privat notierte UID ein. Erst „Karte widerrufen“ sendet sie. Gespeicherte UIDs werden nicht angezeigt."><label for="esp32-uid">Private Karten-UID</label></div>
+            <input id="esp32-uid" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="29" pattern="(?:[0-9A-Fa-f]{2}:){3}(?:(?:[0-9A-Fa-f]{2}:){3}){0,2}[0-9A-Fa-f]{2}" aria-describedby="uid-format-error" placeholder="Format: XX:XX:XX:XX …">
             <button type="button" id="esp32-revoke" disabled>Karte widerrufen</button></div>
+          <p class="setting-error" id="uid-format-error" role="status" hidden>Bitte 4, 7 oder 10 Hexadezimalpaare mit Doppelpunkt trennen.</p>
           <p id="esp32-rfid-result" class="subtle" role="status" hidden></p>
         </section>
         <section class="card" aria-labelledby="env-heading">
           <h2 id="env-heading">Dienstkonfiguration (.env)</h2>
-          <label for="env-service">Dienst</label>
+          <p class="section-intro">Gespeicherte Änderungen gelten erst nach Neuerstellung des Dienstes.</p>
+          <div class="setting-heading" data-setting-info="env-service" data-title="Dienst" data-help="Jeder Dienst hat eine eigene Datei. Beim Wechsel bleiben ungespeicherte Eingaben dieses Tabs erhalten."><label for="env-service">Dienst auswählen</label></div>
           <select id="env-service" disabled>
             <option value="uart">UART</option><option value="wallbox">Wallbox</option>
             <option value="storage">Storage</option><option value="weboverlay" selected>Weboverlay</option>
@@ -67,13 +74,13 @@
           <p id="env-status" role="status" aria-live="polite">Konfigurationseditor wird geladen.</p>
           <form id="env-form" autocomplete="off">
             <fieldset id="env-fields" disabled><legend>Variablen</legend></fieldset>
-            <p><label><input id="env-create" type="checkbox" disabled> Fehlende .env ausdrücklich anlegen</label></p>
+            <div id="env-create-row" class="setting-heading" data-setting-info="env-create" data-title="Neue Datei" data-help="Nur nötig, wenn noch keine .env für diesen Dienst existiert. Es werden keine Beispielwerte übernommen." hidden><label><input id="env-create" type="checkbox" disabled> Fehlende .env ausdrücklich anlegen</label></div>
+            <div class="settings-actions">
             <button id="env-save" type="submit" disabled>.env speichern</button>
-            <button id="env-reload" type="button" disabled>Neu laden und Änderungen verwerfen</button>
+            <button id="env-reload" type="button" disabled>Neu laden</button></div>
           </form>
         </section>
-        <section class="card"><h2>Darstellung</h2><p class="subtle">Die Auswahl gilt nur in diesem Browser.</p><button id="theme-system" type="button" disabled>Systemdarstellung verwenden</button></section>
-        <p class="subtle"><a class="text-link" href="/">Zur Übersicht</a></p>
+        <section class="card"><p class="eyebrow">Browser</p><div class="setting-heading" data-setting-info="theme-system" data-title="Darstellung" data-help="Entfernt die manuelle Hell-/Dunkelwahl nur in diesem Browser. Danach folgt die Anzeige dem Betriebssystem."><h2>Darstellung</h2></div><button id="theme-system" type="button" disabled>Systemdarstellung verwenden</button></section>
       </div>
       <noscript><p class="notice">Ohne JavaScript folgt die Darstellung der Systemeinstellung. Der Konfigurationseditor benötigt JavaScript und bleibt deaktiviert.</p></noscript>
     </main>

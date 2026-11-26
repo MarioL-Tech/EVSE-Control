@@ -1,9 +1,7 @@
 # Test-only image. Build existing Web runtime as evse-weboverlay:test first.
-# Named firmware context must be a git archive of reviewed commit 4e5b213:
-#   mkdir -p /tmp/evse-firmware-source
-#   git archive 4e5b213 esp32 | tar -x -C /tmp/evse-firmware-source
-#   docker build --build-context firmware=/tmp/evse-firmware-source \
-#     -f rasppi/weboverlay/Dockerfile.esp32-test -t evse-esp32-e2e:test .
+# Build at the repository root; the native probe tests the same firmware tree
+# that the ESP32 workflow compiles. No access to other Git revisions needed.
+#   docker build -f rasppi/weboverlay/Dockerfile.esp32-test -t evse-esp32-e2e:test .
 #   docker run --rm --network none --cap-drop ALL \
 #     --security-opt no-new-privileges evse-esp32-e2e:test
 # No Git, Python, compiler or broker is added to the production Web image.
@@ -15,8 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY rasppi/requirements.txt /esp32-e2e/requirements.txt
 RUN python3 -m venv /esp32-e2e/venv \
     && /esp32-e2e/venv/bin/pip install --no-cache-dir -r /esp32-e2e/requirements.txt
-COPY --from=firmware /esp32/include/ /esp32-e2e/firmware/include/
-COPY --from=firmware /esp32/src/gateway.cpp /esp32/src/security.cpp /esp32/src/protocol.cpp /esp32-e2e/firmware/src/
+COPY esp32/include/gateway.h esp32/include/security.h esp32/include/protocol.h /esp32-e2e/firmware/include/
+COPY esp32/src/gateway.cpp esp32/src/security.cpp esp32/src/protocol.cpp /esp32-e2e/firmware/src/
 COPY rasppi/weboverlay/tests/esp32-firmware-probe.cpp /esp32-e2e/
 RUN g++ -std=c++17 -Wall -Wextra -Werror -O2 \
       -I/esp32-e2e/firmware/include /esp32-e2e/esp32-firmware-probe.cpp \

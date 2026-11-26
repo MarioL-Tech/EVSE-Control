@@ -28,11 +28,13 @@ $assets = ['wallbox-control.js' => 'text/javascript', 'env-settings.js' => 'text
     'app-maskable-512.png' => 'image/png', 'apple-touch-icon.png' => 'image/png',
     'offline.html' => 'text/html'];
 $assets['charging-settings.js'] = 'text/javascript';
+$assets['settings-ui.js'] = 'text/javascript';
+$assets['settings.css'] = 'text/css';
 $assets['esp32.js'] = 'text/javascript';
 $assets['charging-mode.js'] = 'text/javascript';
 $rootAssets = ['/manifest.webmanifest' => ['manifest.webmanifest', 'application/manifest+json'],
     '/service-worker.js' => ['service-worker.js', 'text/javascript']];
-$pages = ['/' => 'index.html', '/diagramme' => 'diagrams.html', '/einstellungen' => 'settings.html'];
+$pages = ['/' => 'index.html', '/diagramme' => 'diagrams.html', '/diagnose' => 'diagnostics.html', '/einstellungen' => 'settings.html'];
 if ($path === '/wallbox') {
     if (in_array($_SERVER['REQUEST_METHOD'], ['GET', 'HEAD'], true)) {
         header('Location: /', true, 302);

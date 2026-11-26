@@ -82,6 +82,7 @@ final class ChargingModeHttp
             $csrf = $_SESSION['csrf']; session_write_close();
         } catch (\Throwable) { $reply(['status' => 'unavailable'], 503); }
         $settings = new ChargingSettings(self::root(), true); $store = new ChargingModeStore(self::root(), true);
+        $readiness = [];
         if ($method === 'POST') {
             if (($_SERVER['HTTP_ORIGIN'] ?? '') !== $origin || !hash_equals($csrf, $_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''))
                 $reply(['status' => 'forbidden'], 403);
@@ -108,10 +109,14 @@ final class ChargingModeHttp
             $draft = $settings->operate();
             if ($draft['status'] !== 'ok') $reply(['status' => 'unavailable'], 503);
             $draftRevision = ChargingModeStore::draftRevision($draft);
+            // Pure preview of this draft revision, not a hardware/site approval.
+            // Reuse the very same validator under lock on explicit activation.
+            $readiness['missing_by_mode'] = ['pv' => ChargingModeStore::required('pv', $draft['config']),
+                'custom' => ChargingModeStore::required('custom', $draft['config'])];
             $state = $store->read();
             if ($state['status'] !== 'ok') $reply(['status' => 'unavailable'], 503);
         }
         $reply(['status' => 'ok', 'mode_revision' => $state['mode_revision'], 'config_revision' => $draftRevision,
-            'activation' => ['mode' => $state['active']['mode'], 'id' => $state['active']['id'], 'guard' => $state['active']['guard']], 'required' => []]);
+            'activation' => ['mode' => $state['active']['mode'], 'id' => $state['active']['id'], 'guard' => $state['active']['guard']], 'required' => [], ...$readiness]);
     }
 }

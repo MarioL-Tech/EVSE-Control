@@ -2,10 +2,12 @@ name: ESP32 Docker tests and firmware build
 on:
   push:
     paths:
+      - 'bin/stack.sh'
       - 'esp32/**'
       - '.github/workflows/esp32-docker.yml'
   pull_request:
     paths:
+      - 'bin/stack.sh'
       - 'esp32/**'
       - '.github/workflows/esp32-docker.yml'
 permissions:

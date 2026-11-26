@@ -251,6 +251,7 @@ def successful(binary):
     for ma in (6000, 10000, 16000, 32000):
         rows, seen = run(binary, f"current-{ma}", f"set{ma // 1000}", prepare(ma))
         row = status(rows, "acknowledged", attempted=True)
+        check(row["current_limit_checked"], "valid FC16 limit observation not confirmed")
         check(row["effective_ma"] == ma and row["hardware_ma"] == 32000, "Readback lost")
         check(sum(frame[1] in (6, 16) for frame in seen) == 1, "More than one write")
     rows, _ = run(binary, "lower-actual", "set10", prepare(effective=6000))
@@ -306,6 +307,16 @@ def starts(binary):
     status(rows, "preparation_required", "consumed")
     # A valid transport ACK never invents physical success. Keep noncharging,
     # unknown, and still-charging observations independently visible after ACK.
+    # The additional plugged/not-charging preflight is autonomous-only. The
+    # explicit manual operation retains its existing known-state contract.
+    for state in (0, 4):
+        rows, _ = run(binary, f"manual-start-known-state-{state}", "start", prepare() + [
+            exchange(read_request(0x4006, 2), read_response(pair(32000))),
+            exchange(read_request(0x4008, 24), telemetry(state=state)),
+            exchange(stop_request(True), stop_request(True)),
+            exchange(read_request(0x400C, 2), read_response(pair(state << 8)))])
+        status(rows, "acknowledged", attempted=True)
+        status(rows, "preparation_required", "consumed")
     for raw, observed in ((0, False), (1 << 8, False), (5 << 8, None),
                           (0x8400, True)):
         rows, _ = run(binary, f"start-observed-{raw}", "start", prepare() + [
@@ -380,7 +391,9 @@ def write_failures(binary):
                             ("stop", [exchange(stop_request(), stop_request()),
                                       exchange(read_request(0x400C, 2), None)])):
         rows, _ = run(binary, scenario + "-ack-read-failure", scenario, script)
-        status(rows, "acknowledged", attempted=True, reason="observation_read_failed")
+        row = status(rows, "acknowledged", attempted=True, reason="observation_read_failed")
+        check(not row["current_limit_checked"] and row["effective_ma"] is None,
+              "wire ACK after readback timeout invented an effective-limit observation")
         status(rows, "recovery_required", "read_failure_latched")
     rows, _ = run(binary, "preflight-read-timeout", "set10", [
         exchange(read_request(0x4006, 2), None)])

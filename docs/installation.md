@@ -6,12 +6,14 @@ werden. Die Betriebsschritte setzen einen vorbereiteten Pi voraus. Hardware-
 und Erstvorbereitungsreferenz stehen in Abschnitt 8; eine vollständige OS-,
 Docker- oder Broker-Neuinstallation ist damit noch nicht beschrieben.
 
-**Stand:** 2026-10-30. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
+**Stand:** 2026-11-26. Wallbox-Reader läuft in Docker. Einmal-Lesen und ein kurzer
 zyklischer Betrieb wurden vom Projektinhaber bestätigt. Der vorhandene MQTT-Broker ist
 erreichbar; der Empfang der echten Reader-Messwerte wurde ebenfalls bestätigt.
 Der Mess-/Archivteil des PHP-Weboverlays bleibt rein lesend. Separat autorisierte
 manuelle Bedienung, optionaler Hintergrundregler und ESP32-Webgateway sind als
-Gesamt-Codeheadd4d60ef Docker-geprüft (PR#72); keine reale Schreib-/Flashabnahme.
+früherer Gesamtstand `d4d60ef` Docker-geprüft (PR #72). Dieser Nachweis gilt
+nicht für das neue Layout, die geänderten Reglerprüfungen oder den Stack-Einstieg;
+keine reale Schreib-/Flashabnahme.
 Pi-Start und Live-Übersicht vom Projektinhaber am 2026-10-26 bestätigt;
 gezielte Ausfalltests, Diagramme und neuer manueller Theme-Schalter noch offen
 (Abschnitt 9).
@@ -32,7 +34,7 @@ Keine native Handy-App und kein automatisches Pi-/Netzwerkdeployment.
 6. [ESP32-UART testen](#6-optionale-esp32-uart-testbrücke)
 7. [Wiederinstallation vorbereiten](#7-was-für-eine-spätere-wiederholung-gesichert-werden-muss)
 8. [Hardware und Erstvorbereitung](#8-hardware-und-erstvorbereitung)
-9. [Lesendes Weboverlay](#9-lesendes-weboverlay)
+9. [Weboberfläche: Zugriff, Anzeige und Settings](#9-lesendes-weboverlay)
 10. [MQTT-Zustandsspeicherung](#10-mqtt-zustandsspeicherung-in-der-vorhandenen-mariadb)
 
 ## 1. Voraussetzungen und Regeln
@@ -68,21 +70,27 @@ Entwicklungsrechner ausdrücklich. Befehle einzeln einfügen; sichtbarer Zeilenu
 im Terminal darf nicht als zusätzliches Enter übernommen werden. Es gab beim
 Test ein vom Projektinhaber Windows zugeordnetes Aufrufproblem.
 
-### Späterer gemeinsamer Compose-Einstieg (noch nicht umgesetzt)
+### Gemeinsamer Start/Stop und optionale Archiv-Bootreparatur
 
-Vereinbart ist eine gemeinsame Compose-Datei für mehrere spezialisierte
-Pi-Projektcontainer. Ziel: gemeinsamer Start mit `docker compose up -d` und
-Stop mit `docker compose down` im später festgelegten Stack-Verzeichnis.
-**Diese Gesamtstart-Anleitung ist noch nicht verfügbar:** derzeit gelten die
-getrennten Befehle der jeweiligen Dienstabschnitte, keine Umstellung jetzt.
+Nach Einrichtung der **einzelnen** Dienste einmalig die bisherige Auswahl
+(Projektnamen, Overlay-Dateien und Profile) nach [Stack-Betriebsablauf](stack.md)
+in `bin/.env` übernehmen. Im bisherigen Repository-Hauptverzeichnis:
 
-Ein fachlicher Ladecontroller wird später per MQTT die Ladeautomatisierung
-übernehmen, nicht andere Container starten/stoppen. Kein zusätzlicher Docker-
-Verwaltungscontainer und kein Docker-Socket-Mount für diese Aufgabe.
-Vorhandener Broker, MariaDB und andere fremde Dienste bleiben außerhalb des
-Projektstacks; gemeinsames Stoppen darf diese Infrastruktur nicht beenden.
-Kontrollierte Übernahme der bisherigen Stacks, Hardwareport-Eigentum, externe
-Netzwerke, Secrets und Startabhängigkeiten werden erst bei Umsetzung dokumentiert.
+| Aktion | Befehl |
+|---|---|
+| Plan gegen den Bestand prüfen, ohne Dienste zu starten | `bash bin/stack.sh plan` |
+| Geplante Dienste gemeinsam starten | `bash bin/stack.sh up` |
+| Geplante Dienste mit Build aktualisieren und starten | `bash bin/stack.sh build-up` |
+| Archivkonfiguration, tatsächlichen Netzanschluss und Archivantwort unterscheiden | `bash bin/stack.sh check` |
+| Geplante Dienste stoppen, ohne Volumes zu löschen | `bash bin/stack.sh stop` |
+
+Kein Root-Compose-Projekt: Schlägt ein späterer Teilschritt fehl, können frühere
+Dienste bereits laufen. Keine Migration; externer Broker und MariaDB bleiben
+unberührt. Für den **einmaligen Anschlussversuch beim Boot** ist die optionale
+Host-systemd-Unit gesondert einzurichten. Nur ein verlorenes Archivnetz des
+freigegebenen laufenden Webcontainers wird verbunden; keine Ersatzcontainer,
+kein Neustart, keine SQL-Reparatur. Nach Recreate/ID-Wechsel erneut freigeben.
+Installation, Deaktivierung und Identitätsprüfung: [Bootreparatur](stack.md).
 
 ### Lademodi und Freigabegrenzen
 
@@ -95,6 +103,14 @@ Hauszähler-Wallbox-Einschluss bleiben bis zur Betreiberklärung ungesetzt;
 werden nicht automatisch auf schreibende Automatik umgestellt.
 
 ## 2. Repository bereitstellen und Stand notieren
+
+Die SQL-Migrationen unter `rasppi/storage/migrations/` müssen auch beim Build
+aus einem Windows-Checkout LF-Zeilenenden behalten. Die Archivprüfung vergleicht
+ihre Bytes, nicht nur die SQL-Anweisungen. Einen bestehenden Checkout mit
+`git ls-files --eol -- 'rasppi/storage/migrations/*.sql'` prüfen: Erwartet sind
+`i/lf` und `w/lf`. Bei einer abweichenden Prüfsumme auch das verwendete Image
+prüfen; weder Registry noch Bestandsdaten ändern und keine Migration allein
+wegen dieser Meldung wiederholen.
 
 Für eine neue Arbeitskopie mit bereits vorhandenem Git:
 
@@ -148,23 +164,23 @@ Keine automatische Anwendung auf dem Pi durch Agenten. Im bestehenden Reader-
 nicht ungeprüft. Zusätzlich `WALLBOX_AUTOMATION_WEB_URL=http://weboverlay:8080`
 setzen. Das ist die interne Website-Origin über das vorhandene `evse-mqtt`, keine
 neue Hausquelle. Leer bleibt deaktiviert. Kein Pfad/Query/Credentials in der URL.
-Vorhandene Reader-/Websitecontainer bewusst neu erstellen; Speichern≠Anwenden:
-
-```sh
-git pull --ff-only &&
-(cd rasppi/weboverlay && docker compose -f compose.yaml -f compose.history.yaml up -d --build weboverlay) &&
-(cd rasppi/wallbox && docker compose up -d --build wallbox-reader)
-```
-
-Nur tatsächlich verwendete Overlays ergänzen; kein unkonfiguriertes Authoverlay.
-Website und Reader bleiben getrennt, bestehender Broker/MariaDB unverändert.
-Unter Settings → Lademodi zuerst tatsächliche Ladephasenzahl und Hauszähler-
-Wallbox-Einschluss festlegen. Beides ist noch beim Betreiber angefragt: nichts
-raten. W/A-Grenzen und Anpassungs-/Pause-/Wiederaufnahmeverzögerungen bewusst
-eintragen. NULL bleibt unbekannt und verhindert automatische Ladefreigabe.
+Unter **Settings → Dienstkonfiguration (.env) → Wallbox** speichern oder die
+bestehende Reader-`.env` pflegen. Danach als Betreiber den Reader mit der
+bisherigen Compose-Auswahl neu erstellen; ein bloßer Restart übernimmt keine
+neue Umgebung. Für ein Softwareupdate die passenden Images bauen und bisherige
+Auth-/History-/HTTPS-Auswahl beibehalten. Website und Reader bleiben getrennt.
+Unter **Settings → Ladeprofile** die tatsächliche Ladephasenzahl und, bei PV,
+den Hauszähler-Wallbox-Einschluss angeben. Beides ist noch beim Betreiber angefragt:
+nichts raten. W/A-Grenzen und Anpassungs-/Pause-/Wiederaufnahmeverzögerungen
+bewusst eintragen. Fehlende Pflichtwerte verhindern die jeweilige Aktivierung.
 Custom benötigt zusätzlich explizite Zeit-/PV-Schalter und bei Zeitsteuerung
 Wochentage, Zeitfenster und Verhalten außerhalb. Erst danach bewusst die
-entsprechende Übersichtskarte wählen; fehlende Parameter werden benannt.
+entsprechende Übersichtskarte wählen. Die Übersicht unterscheidet Meldungen
+zu **Moduswahl** von **Reader** (zuletzt beobachteter Reglerzustand); je nach
+Sperrgrund verweist sie auf `/einstellungen#charging-heading` (Profil) oder
+`/einstellungen#env-heading` (Dienstkonfiguration). Eine Auswahl allein beweist
+keine Ausführung. Ohne erreichbaren Regler ist die Wahl Manuell keine bestätigte
+Umschaltung: erst ein angenommener manueller Auftrag hat Vorrang.
 
 Der vorhandene Reader regelt browserunabhängig, verwendet den bestehenden
 Haus-API-Wert und besitzt weiterhin allein RS485. Nach Readerneustart vorhandene
@@ -185,8 +201,9 @@ bewusstes „Regeln speichern“ erzeugt dort `charging.json` (nicht geheim,0640
 neben separatem `charging.lock` (0600). Diese Datei zusätzlich zu vorhandenen
 .env-Dateien in die private Konfigurationssicherung aufnehmen; kein Kopieren in
 öffentliche Beispiel-/Repositorydateien. Keine Verzeichnisse durch HTTP anlegen.
-Weder Speichern noch Modusauswahl aktiviert einen Regler oder ersetzt das echte
-Installationsstrommaximum. Fehlt es, bleiben Start und Übernehmen gesperrt.
+Speichern aktiviert keine Automatik. Erst die bewusste Wahl bindet die
+gespeicherte Profilversion an den aktuellen Reader-Guard (Kennung des gültigen
+Bedienzustands, kein Login). Ohne Standortmaximum bleiben Start und Übernehmen gesperrt.
 
 - Nur vertrauenswürdiges LAN/VPN, **jeder erreichbare Nutzer kann ohne Passwort
   bedienen**. Keine öffentliche Freigabe. Login folgt separat; CSRF ist kein Login.
@@ -217,7 +234,7 @@ Installationsstrommaximum. Fehlt es, bleiben Start und Übernehmen gesperrt.
 - Der Slider kann ohne Stromfreigabe als **lokaler Entwurf** bewegt werden;
   Start/Übernehmen bleiben bei fehlenden technischen Grenzen gesperrt. Ein
   Entwurfsbereich bis32A ist keine zulässige Installationsbelastung. Im
-  Abschnitt „Wallbox-Steuerung“ unter „Diagnose“ auf der Übersicht
+  Abschnitt **Auftragsdetails und Grenzen** auf der Übersicht
   fehlen unbekannte Werte weiterhin ausdrücklich. Fachlich bestätigtes Maximum
   über Settings → Wallbox konfigurieren und Reader bewusst neu erstellen;
   für die hier bestätigte32-A-Installation lautet der Eintrag32000mA, nicht32.
@@ -512,8 +529,9 @@ Lokale `.env` in `rasppi/wallbox/`, keine Geheimnisse in Git:
 
 Nur ein Publisher pro Topic-Präfix, sonst überschreiben Reader sich gegenseitig.
 `MQTT_ENABLED=false` benötigt weiterhin das existierende Compose-Netzwerk, aber
-keine erreichbare Broker-Verbindung. Der Reader bleibt unabhängig von Brokerausfällen
-lesend und gibt JSON aus. Beim Reconnect wird nur der neueste Snapshot übertragen,
+keine erreichbare Broker-Verbindung. Bei Brokerausfall liest der Reader weiter
+und gibt JSON aus; das ist kein Ausschalter für den separat aktivierten HTTP-Regler.
+Beim Reconnect wird nur der neueste Snapshot übertragen,
 kein Verlauf; State-/Availability-Topics sind keine Steuerkanäle.
 
 Wenn der vorhandene Broker Benutzer/Passwort verlangt, vorhandene sichere
@@ -610,7 +628,9 @@ nur über bewussten read-only-Einzelmount aus
 [UART-Anleitung](../rasppi/README.uart.md) einbinden. Keine vorhandenen Secrets
 kopieren/anzeigen, keinen anonymen zweiten Broker oder öffentlichen Zugriff.
 
-Übersicht (manuell): explizites Aktivieren/Deaktivieren des **Servoziels**.
+Übersicht → Manuell → **Diebstahlsicherung**: mobil unter den Wallbox-Aktionen,
+bei breitem Layout daneben. **Aktivieren/Deaktivieren** setzt das Servoziel;
+die Zustandsanzeige stammt von der frischen Gateway-Rückmeldung, nicht vom Antippen.
 Settings: 30-s-Anlernfenster/eine frische Karte, Abbrechen, Kartenanzahl und
 Widerruf über private write-only UID. Keine UID-Liste, URL-/Storage-/Logausgabe.
 Firmware-ACK bedeutet Ziel/Persistierung, keine mechanische Endposition.
@@ -983,15 +1003,20 @@ installieren, keinen parallelen Read starten. Mehr [Registerreferenzen](wallbox/
 - Wallbox-Socket-Lock existiert nur bei passenden Modellen; unabhängig vom
   ESP32-Modellservo. Entriegelungsbedingungen im Herstellerhandbuch beachten.
 - Start-/Stop-Notizen sind widersprüchlich. Handbuch v1.7 nennt 0=Start, 1=Stop;
-  die Reader-Anwendung sendet **keine Schreibbefehle**. Keine unvalidierten
-  Steuerbefehle ausführen oder diese Fähigkeiten als implementiert darstellen.
+  nur das Einmal-Lesen (`--once`) ist ein reiner Lesetest. Im Dauerbetrieb
+  verarbeitet der Reader validierte Aufträge. Keine Rohbefehle ausprobieren.
 - ABB-Handbuch: [Modbus v1.7](wallbox/ABB_Terra_AC_Charger_ModbusCommunication_v1.7.pdf).
 
-## 9. Lesendes Weboverlay
+<a id="9-lesendes-weboverlay"></a>
+
+## 9. Weboberfläche: Zugriff, Anzeige und Settings
 
 ### Aufbau und Voraussetzungen
 
-`rasppi/weboverlay/` ist ein eigener Docker-Dienst. Die Migration ersetzt
+`rasppi/weboverlay/` ist ein eigener Docker-Dienst. Lese-APIs greifen nicht
+auf die Hardware zu; Bedienaufträge gehen über MQTT an Reader oder UART-Gateway.
+
+**Historischer Stand der PHP-Migration:** Die Migration ersetzte
 nur sein Websitebackend durch PHP 8.4/Apache und genau einen PHP-CLI-MQTT-
 Subscriber mit `php-mqtt/client` exakt 2.3.2 im selben Container. HTML/CSS/JS,
 Seiten, Diagramme, API-Schema, deutsche Statusgründe, Frische-/Read-only-Semantik,
@@ -1005,8 +1030,7 @@ noch auf dem Pi geprüft werden. Docker-CI 40486476429 für 3c92398 erfolgreich:
 80 neue PHP-Prüfungen, 17 isolierte HTTP-Szenarien, insgesamt 49 JS-Tests und
 fünf Chromium-Suiten einschließlich 30 Theme-/Einstellungsfällen sowie bisherige
 Backend-/Runtime-Prüfungen. Simulierte Desktop-/Mobilbilder in Hell/Dunkel angesehen.
-**Kein zusätzlicher Broker, kein Zugriff auf RS485/UART,
-keine Schreibbefehle.** Der laufende Wallbox-Reader muss nicht gestoppt werden.
+**Kein zusätzlicher Broker, kein direkter Zugriff des Webcontainers auf RS485/UART.**
 
 Voraussetzungen: Abschnitt 5 eingerichtet (`evse-mqtt`, `mqtt-broker`), laufender
 Reader und aktueller Repository-Stand nach Merge der Weboverlay-PR. Build und
@@ -1044,7 +1068,9 @@ oder gemeinsame Compose-Datei in diesem Arbeitsschritt.
 
 ### Auf dem Pi starten
 
-Aus dem Repository-Verzeichnis:
+Für das Web-Basisprojekt ohne zusätzliche Overlays, aus dem Repository-Verzeichnis.
+Im Bestand die bisherigen Dateien/Profile verwenden, vorzugsweise den geprüften
+Stack-Plan; ein Aufruf nur mit der Basisdatei kann den Archivanschluss verlieren.
 
 ```bash
 git switch main
@@ -1366,14 +1392,28 @@ nicht. Docker-/Browsernachweis siehe oben; echter Pi-/Smartmeternachweis offen.
 
 ### Erwartete Anzeige und Frische
 
-Startseite **Übersicht** (`/`): kompakte Karten für Wirkleistung, Fahrzeug,
-Sessionenergie und Wallbox-Limit, darunter Phasen und Haus-Netzleistung
-nebeneinander (mobil untereinander). Die Infokarte „Leistungsrahmen“ entfällt;
-„Unter Sollstrom“ bleibt als Messwert in der Diagnose verfügbar. Technische
-Rohwerte und Detailprotokoll sind unter **„Diagnose“**
-einklappbar. Navigation am Desktop links, auf kleinen Bildschirmen oben;
-helles/dunkles Farbschema folgt dem Browser. Datenstatus, Messzeit, Frische und
-aktive Fehlerwarnungen sind nicht in den einklappbaren Bereichen versteckt.
+Die vier Navigationseinträge erscheinen in dieser Reihenfolge:
+
+1. **Übersicht `/`**: Wirkleistung, Fahrzeug, Sessionenergie, Limit, Moduswahl,
+   Wallbox-Bedienung und in Manuell das ESP32-Servoziel. Anforderung, ACK und
+   tatsächliche Ladung unter **Auftragsdetails und Grenzen** vergleichen. Phasen,
+   Haus-Netzleistung und Datenstatus folgen unter den Bedienelementen.
+2. **Diagramme `/diagramme`**: Zeitraum wählen, dann Haus-Netzleistung und
+   elektrische Wallbox-Kurven (Leistung, Ströme/Limit, Spannungen, Sessionenergie).
+3. **Diagnose `/diagnose`**: zuerst Frische und Verbindung, dann **Wallbox-Diagnose**
+   mit Rohwerten und **Datenprotokoll**, darunter Zeitwahl und Zustandskurven.
+   Rein lesend: kein Start/Stop, RFID-Auftrag oder zusätzlicher Steuer-Inspect.
+4. **Settings `/einstellungen`**: Ladeprofile, RFID-Karten, Dienstkonfiguration
+   und Darstellung. Das kleine **ⓘ** öffnet die Feldhilfe per Hover, Tastaturfokus
+   oder Antippen. Platzhalter sind Beispiele, keine Vorgaben. „Regeln speichern“
+   sichert den Profilentwurf; „.env speichern“ ändert nur die gewählte Dienstdatei.
+   RFID-Anlernen und Widerrufen sind dagegen ausdrückliche Geräteaktionen.
+
+Mobil sitzen Navigation und Themeschalter im Kopf, ohne schwebenden Schalter vor
+den Aktionen. **Systemdarstellung verwenden** in Settings löscht nur die lokale
+Hell-/Dunkelwahl. Der alte GET-Link `/wallbox` führt auf die Übersicht.
+
+<details><summary>Historische Design- und Browserprüfungen (nicht das heutige Layout)</summary>
 
 Das Theme entspricht „Compact / Dense“ nach Entwurf Nr. 8 in Hell/Dunkel:
 kühle Graphitflächen, feine blau-graue Rahmen, 6-px-Kartenecken, zurückhaltende Verläufe/
@@ -1421,10 +1461,12 @@ Theme-CI 40369056814 für ff496f2 erfolgreich: beide Seiten in Hell/Dunkel bei
 geschützte Status-/Warnungsanzeige. Desktop-/Mobilbilder mit simulierten Werten
 visuell geprüft; kein tatsächlicher Pi-Nachweis.
 
+</details>
+
 **Diagramme** über die Navigation oder direkt **http://127.0.0.1:8080/diagramme**
 öffnen (bei abweichendem Tunnelport entsprechend anpassen). Separate Seite,
-gleicher Container/SSH-Tunnel, keine neue Freigabe. Vier elektrische Diagramme;
-weitere Kurven unter **„Zustands- & Diagnoseverläufe“** öffnen.
+gleicher Container/SSH-Tunnel, keine neue Freigabe. Zustandskurven separat auf
+**http://127.0.0.1:8080/diagnose** öffnen.
 
 Die Oberfläche zeigt Fahrzeuganschluss und tatsächliches Laden getrennt,
 Phasenströme/-spannungen, Wirkleistung, Sessionenergie, Wallbox-Limit, Fehlercode
@@ -1432,7 +1474,8 @@ und Messzeit. Zusätzlich eigene **Netzleistung Haus** bei eingerichteter URL.
 **Verfügbarer Gebäudestrom ist noch nicht berechnet**; die neue HTTP-Netzleistung
 in W ist kein Ladestrom in A und keine DTSU666-Anbindung.
 Die Wallbox-Verriegelung ist nicht der ESP32-Servo.
-Es gibt keine Start-/Stop-, Limit- oder frei eingebbaren Steuerbefehle.
+Diagramme und Diagnose senden keine Steuerbefehle. Start/Stop und Stromvorgabe
+gibt es nur auf der Übersicht; eine freie Wallbox-Befehlseingabe gibt es nicht.
 
 Messwerte erscheinen nur, wenn Brokerverbindung, `availability online`, ein
 gültiges `status=ok`-Sample und dessen Frische zusammenpassen. Default maximal
@@ -1452,11 +1495,11 @@ werden nach Backend-Reconnect erst mit beiden Topics und gültiger Frische gezei
 ### Diagramme und Messwerte auswählen
 
 Die **Checkboxen direkt am jeweiligen Diagramm** schalten dessen Kurven ein/aus.
-Die 16 Wallbox-Präferenzen gelten nur für Diagramme; die Übersicht zeigt alle
-Messwerte ohne Auswahlfenster. Auch bei vollständig abgewählten Kurven bleiben
+Die 16 Wallbox-Präferenzen gelten für die Kurven auf Diagramme und Diagnose,
+nicht für aktuelle Messwerte. Auch bei vollständig abgewählten Kurven bleiben
 Karte und Checkboxen zum Wiedereinschalten sichtbar. Der Datenstatus mit Verbindung,
-Frische und Messzeit steht auf beiden Seiten ganz unten; aktive Fehlerwarnungen
-bleiben zusätzlich oben. Periodentasten wählen Live/Stunde/Tag/Woche/Monat/Jahr/
+Frische und Messzeit steht auf Übersicht und Diagramme unten, auf Diagnose oben.
+Aktive Fehlerwarnungen bleiben sichtbar. Periodentasten wählen Live/Stunde/Tag/Woche/Monat/Jahr/
 Zeitraum, der Datumswähler passt sich an. Die große Verlaufshinweiskarte entfällt;
 kurze Lade-/Fehler-/Unvollständigkeitsmeldungen bleiben erhalten.
 
@@ -1464,12 +1507,13 @@ kurze Lade-/Fehler-/Unvollständigkeitsmeldungen bleiben erhalten.
 signed kW (Bezug + / Einspeisung −), maximal 15 Minuten/1200 HTTP-Abrufe im RAM.
 Neuladen leert ohne die zusätzliche Einrichtung unten diesen Verlauf. Optional
 ergänzt ein getrenntes HOUSE-Archiv dauerhafte SQL-Daten und dieselben Kalenderperioden.
-Eigene Checkbox, keine Erweiterung der 16 Wallbox-Präferenzen. Hausdiagramm oberhalb
-von „Diagnose“; ohne eingerichtetes Archiv keine erfundene Kalenderkurve.
+Eigene Checkbox, keine Erweiterung der 16 Wallbox-Präferenzen. Hausdiagramm vor
+den elektrischen Wallbox-Kurven; ohne eingerichtetes Archiv keine erfundene Kalenderkurve.
 Ausfälle/Nullwerte/Veraltung/Lifecycle-/Zeitbrüche erzeugen Lücken, keine Nullen.
 
-**„Alle Kurven anzeigen“** setzt Auswahl und Zeitfenster auf die Defaults
-zurück. Auswahl/Zeitraum werden in diesem Browser im localStorage unter
+**„Alle Kurven anzeigen“** bzw. **„Alle Diagnosekurven anzeigen“** schaltet nur
+die Wallbox-Kurven der geöffneten Seite ein; andere Seite und Zeitfenster bleiben
+erhalten. Auswahl/Live-Zeitfenster werden in diesem Browser im localStorage unter
 `evse-display-v1` gespeichert, weder auf dem Pi noch kontoübergreifend.
 Blockierter/defekter Browserspeicher darf die Anzeige nicht verhindern; dann
 gelten Defaults beziehungsweise die Auswahl der geöffneten Seite. Zum vollständigen
@@ -1504,7 +1548,8 @@ historisch markiert; aktuelle Werte bleiben dann ausgeblendet. Maus über den
 letzten Punkt zeigt dessen Wert/Zeit. Sessionenergie ist je Ladesitzung und
 kann zurückgesetzt werden, nicht der Gesamtverbrauch.
 
-Update der Dashboard-/Diagrammversion nach Merge, auf dem Pi:
+Update des Basisprojekts ohne Zusatz-Overlays nach Merge, auf dem Pi. Im Bestand
+stattdessen die vorhandene Datei-/Profilauswahl beibehalten (siehe Stack-Plan):
 
 ```bash
 cd ~/EVSE-Control
@@ -1520,7 +1565,7 @@ Keine neue Netzwerk-/SSH-Freigabe oder Host-Pakete erforderlich.
 
 Nach dem Update auf `/` aktuelle Werte/Status prüfen, dann über **Diagramme**
 wechseln: `/diagramme`, gleiches Status-/Warnungsband, Verlauf ab Seitenöffnung.
-Die Diagnosekurven aufklappen. Eine Anzeigeoption ändern und zurück zur Übersicht
+Dann **Diagnose** öffnen und die Zustandskurven prüfen. Eine Anzeigeoption ändern und zurück zur Übersicht
 wechseln: die Auswahl bleibt, der Diagrammverlauf nicht. Mobilansicht ebenfalls
 prüfen; unbekannte/offline Werte dürfen nicht als Null oder „Nein“ erscheinen.
 Diese vollständige Prüffolge bleibt nach Updates sinnvoll; bestätigt ist bisher
@@ -1544,12 +1589,10 @@ PR #33 wurde durch den Projektinhaber gemergt; obige Updatefolge verwenden.
 
 ### Lokale Konfiguration und optionale Zugangsdaten
 
-**Geplant, noch nicht verfügbar:** Alle bisher über `.env` gesetzten
-Projektkonfigurationen sollen später zentral unter Settings verwaltbar sein.
-Bis zu einer gesondert implementierten, geschützten Administration bleibt die
-nachfolgende lokale Einrichtung verbindlich. Zugangsdaten nicht in Browserstorage
-ablegen; geänderte Compose-Umgebungswerte benötigen weiterhin die dokumentierte
-Containerneuerstellung. Die heutige Website schreibt keine Konfiguration.
+Die lokale Einrichtung bleibt möglich. Der [Settings-Editor](#settings-echte-env-dateibearbeitung-ohne-anmeldung-im-vertrauenswürdigen-lan)
+bearbeitet nach Provisionierung freigegebene Felder der echten Dienstdateien.
+Er zeigt keine Secretdateien an und startet keinen Container. Geänderte
+Compose-Umgebungswerte brauchen eine bewusste Neuerstellung durch den Betreiber.
 
 Eigene `.env` unter `rasppi/weboverlay/`, unabhängig von `rasppi/wallbox/.env`:
 

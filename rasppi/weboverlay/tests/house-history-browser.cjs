@@ -155,6 +155,9 @@ function year(query) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       const d = await curve.getAttribute('d');
+      assert(await page.locator('#house-chart-svg').evaluate(svg =>
+        svg.viewBox.baseVal.width === Math.round(svg.closest('figure').getBoundingClientRect().width)),
+      'Archived HOUSE plot uses the current figure width on desktop and phone');
       assert.equal((d.match(/M/g) || []).length, 1, 'Partial NULL keeps the existing signed mean');
       assert.equal((d.match(/L/g) || []).length, 167, 'Known signed means connect without claiming raw continuity');
       assert(!/[HVZ]/.test(d));

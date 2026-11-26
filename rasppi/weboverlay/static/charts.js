@@ -58,6 +58,20 @@
     try { storage.setItem(STORAGE_KEY, JSON.stringify(normalizePreferences(prefs))); return true; }
     catch (_) { return false; }
   }
+  // Both pages share the original 16-field preference record. Update only the
+  // edited fields of the latest record; a stale tab must not reset the other
+  // page's hidden choices just because it changed one checkbox.
+  function editPreferences(storage, fallback, selected, minutes) {
+    let latest = fallback;
+    try {
+      const raw = storage.getItem(STORAGE_KEY);
+      if (raw !== null) latest = JSON.parse(raw);
+    } catch (_) { /* blocked or malformed: retain this page's choices */ }
+    const next = normalizePreferences(latest);
+    for (const m of METRICS) if (Object.hasOwn(selected, m.id) && typeof selected[m.id] === 'boolean') next.selected[m.id] = selected[m.id];
+    if ([1, 5, 15].includes(minutes)) next.minutes = minutes;
+    return next;
+  }
   function readings(values) {
     return Object.fromEntries(METRICS.map(m => {
       const raw = m.index === null ? values[m.field] : values[m.field]?.[m.index];
@@ -337,15 +351,14 @@
     return { lo, hi, paths, metrics, count: visible.length, geometry, points: visible };
   }
   const api = { METRICS, GROUPS, RETENTION_MS, MAX_POINTS, MAX_GAP_MS, STORAGE_KEY,
-    defaults, normalizePreferences, loadPreferences, savePreferences, readings, createHistory, buildPlot };
+    defaults, normalizePreferences, loadPreferences, savePreferences, editPreferences, readings, createHistory, buildPlot };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.OverlayCharts = api;
 
   api.mount = function () {
     const chartGrid = document.getElementById('chart-grid');
-    // Diagram preferences never hide values on the overview, which has no
-    // selection controls and must remain fully readable.
-    if (!chartGrid) return { update() {}, restore() {} };
+    const diagnosticGrid = document.getElementById('chart-diagnostics-grid');
+    if (!chartGrid && !diagnosticGrid) return { update() {}, restore() {} };
     const history = createHistory();
     let storage;
     try { storage = root.localStorage; } catch (_) { storage = null; }
@@ -366,7 +379,9 @@
     };
     const colorClass = (m, g) => `series-${(m.index !== null ? m.index : m.id === 'limit' ? 3
       : METRICS.filter(item => item.group === g.id).findIndex(item => item.id === m.id)) % 4}`;
-    for (const g of chartGrid ? GROUPS : []) {
+    for (const g of GROUPS) {
+      const grid = g.step ? diagnosticGrid : chartGrid;
+      if (!grid) continue;
       const figure = node('figure', null, { class: 'card chart-card', id: `chart-${g.id}` });
       figure.append(node('figcaption', `${g.label} · ${g.unit}`));
       const svg = node('svg', null, { viewBox: '0 0 500 225', role: 'img', 'aria-label': g.label }, true);
@@ -375,12 +390,11 @@
         const li = node('li', null), label = node('label', null, { class: colorClass(m, g) });
         const checkbox = node('input', null, { type: 'checkbox', id: `show-${m.id}` });
         checkbox.checked = prefs.selected[m.id]; controls.set(m.id, checkbox);
-        checkbox.addEventListener('change', () => { prefs.selected[m.id] = checkbox.checked; apply(); });
+        checkbox.addEventListener('change', () => edit({ [m.id]: checkbox.checked }));
         label.append(checkbox, node('span', m.label)); li.append(label); legend.append(li);
       }
       const description = node('p', 'Warte auf erste Messwerte.', { class: 'chart-description' });
-      const grid = ['power', 'current', 'voltage', 'energy'].includes(g.id) ? chartGrid : document.getElementById('chart-diagnostics-grid');
-      figure.append(legend, svg, description); (grid || chartGrid).append(figure);
+      figure.append(legend, svg, description); grid.append(figure);
       const entry = { figure, svg, legend, description, nodes: new Map(), plot: null, inspection: 0 };
       svg.setAttribute('tabindex', '0');
       function inspect(index) {
@@ -461,24 +475,20 @@
       onChange: () => { layoutRevision++; lastRevision = -1; draw(Date.now()); } });
     if (range) {
       range.value = String(prefs.minutes);
-      range.addEventListener('change', () => { prefs.minutes = Number(range.value); loader?.invalidate(); apply(); });
+      range.addEventListener('change', () => { loader?.invalidate(); edit({}, Number(range.value)); });
     }
     document.getElementById('reset-display')?.addEventListener('click', () => {
-      prefs = defaults(); if (range) range.value = String(prefs.minutes);
-      for (const m of METRICS) document.getElementById(`show-${m.id}`).checked = true;
-      apply();
+      edit(Object.fromEntries([...controls.keys()].map(id => [id, true])));
     });
+    let writable = true;
+    function edit(selected, minutes) {
+      prefs = editPreferences(writable ? storage : null, prefs, selected, minutes);
+      writable = savePreferences(storage, prefs);
+      apply();
+    }
     function apply() {
-      for (const element of document.querySelectorAll('[data-metric]')) element.hidden = !prefs.selected[element.dataset.metric];
-      for (const element of document.querySelectorAll('[data-metrics]'))
-        element.hidden = !element.dataset.metrics.split(' ').some(id => prefs.selected[id]);
-      for (const type of ['current', 'voltage']) {
-        const hidden = ![0, 1, 2].some(i => prefs.selected[`${type}-${i}`]);
-        for (const element of document.querySelectorAll(`.phase-${type}`)) element.hidden = hidden;
-      }
-      const empty = document.getElementById('display-empty');
-      if (empty) empty.hidden = Object.values(prefs.selected).some(Boolean);
-      savePreferences(storage, prefs);
+      if (range) range.value = String(prefs.minutes);
+      for (const [id, checkbox] of controls) checkbox.checked = prefs.selected[id];
       layoutRevision++; lastRevision = -1; draw(Date.now());
     }
     function draw(now) {
@@ -501,7 +511,7 @@
       // Read card geometry together, before any SVG writes cause layout work.
       const widths = new Map();
       for (const [id, { figure }] of figures) {
-        if (METRICS.some(m => m.group === id && prefs.selected[m.id]) && !figure.closest('details:not([open])'))
+        if (METRICS.some(m => m.group === id && prefs.selected[m.id]))
           widths.set(id, Math.max(240, Math.round(figure.getBoundingClientRect().width - 40)));
       }
       for (const g of GROUPS.filter(g => figures.has(g.id))) {
@@ -509,7 +519,10 @@
         const enabled = METRICS.some(m => m.group === g.id && prefs.selected[m.id]);
         svg.toggleAttribute('hidden', !enabled);
         figure.hidden = false;
-        if (!enabled || figure.closest('details:not([open])')) continue;
+        if (!enabled) {
+          if (description.textContent !== 'Keine Kurve ausgewählt.') description.textContent = 'Keine Kurve ausgewählt.';
+          continue;
+        }
         const width = widths.get(g.id);
         const height = Math.max(230, Math.min(280, Math.round(width * .5)));
         // Raw uint32 codes need space for complete integer labels. Uncertain
@@ -579,17 +592,10 @@
       }
       lastDraw = now; lastRevision = history.revision;
     }
+    writable = savePreferences(storage, prefs);
     apply();
     function resize() { layoutRevision++; lastRevision = -1; lastArchiveDraw = null; draw(Date.now()); }
     root.addEventListener('resize', resize);
-    const diagnostics = document.querySelector('.history-diagnostics');
-    diagnostics?.addEventListener('toggle', resize);
-    if (diagnostics && typeof root.MutationObserver === 'function') {
-      // `toggle` is a deferred/coalesced task. Observe the actual open state
-      // so opening already-selected curves schedules its first paint promptly,
-      // without waiting for another telemetry response or browser timer.
-      new root.MutationObserver(resize).observe(diagnostics, { attributes: true, attributeFilter: ['open'] });
-    }
     document.addEventListener('visibilitychange', () => { if (!document.hidden) resize(); });
     root.addEventListener('pageshow', resize);
     return {
@@ -598,12 +604,10 @@
         // was frozen in the back/forward cache. Preserve session-only choices
         // if storage cannot be read, rather than resetting them silently.
         let raw;
-        try { raw = storage.getItem(STORAGE_KEY); } catch (_) { /* session-only */ }
+        try { if (writable) raw = storage.getItem(STORAGE_KEY); } catch (_) { /* session-only */ }
         if (raw !== undefined) {
           try { prefs = normalizePreferences(JSON.parse(raw)); } catch (_) { prefs = defaults(); }
         }
-        if (range) range.value = String(prefs.minutes);
-        for (const m of METRICS) document.getElementById(`show-${m.id}`).checked = prefs.selected[m.id];
         history.clear(); loader?.restore(); apply();
       },
       update(view, now = Date.now()) {

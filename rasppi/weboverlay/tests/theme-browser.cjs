@@ -64,13 +64,16 @@ async function mode(page, expected) {
 }
 async function switchLayout(page) {
   assert.equal(await page.locator('.quick-controls').count(), 0);
-  assert.deepEqual(await page.locator('nav[aria-label="Hauptnavigation"] a').evaluateAll(links => links.map(a => [a.getAttribute('href'), a.textContent.trim()])),
-    [['/', 'Übersicht'], ['/diagramme', 'Diagramme'], ['/einstellungen', 'Settings']]);
+  const nav = page.getByRole('navigation', { name: 'Hauptnavigation', exact: true });
+  assert.deepEqual(await nav.locator('a').evaluateAll(links => links.map(a => [a.getAttribute('href'), a.textContent.trim()])),
+    [['/', 'Übersicht'], ['/diagramme', 'Diagramme'], ['/diagnose', 'Diagnose'], ['/einstellungen', 'Settings']]);
+  assert.equal(await nav.locator('a[aria-current="page"]').getAttribute('href'), new URL(page.url()).pathname);
   const settings = page.getByRole('link', { name: 'Settings', exact: true });
   assert.equal(await settings.locator('svg').count(), 1);
   const label = page.locator('label.theme-switch');
   assert.equal(await label.locator('#theme-toggle').count(), 1);
   assert.equal(await page.locator('.sidebar .sidebar-footer .theme-switch').count(), 1);
+  const previousScroll = await page.evaluate(() => { const y = scrollY; scrollTo({ top: 0, behavior: 'instant' }); return y; });
   const [control, track, thumb, input] = await Promise.all([
     label.boundingBox(), page.locator('.theme-track').boundingBox(),
     page.locator('.theme-thumb').boundingBox(), page.locator('#theme-toggle').boundingBox()
@@ -91,15 +94,23 @@ async function switchLayout(page) {
     const gear = await settings.boundingBox();
     assert(gear.y >= diagrams.y + diagrams.height, 'Settings follows Diagramme vertically');
   } else {
-    assert.equal(await page.locator('.sidebar-footer').evaluate(el => getComputedStyle(el).position), 'fixed');
-    assert(Math.abs(control.x - 12) <= 2 && Math.abs(bottom - 12) <= 2, 'Mobile switch fixed bottom left');
-    const previousScroll = await page.evaluate(() => scrollY);
-    await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
-    const scrolled = await label.boundingBox();
-    assert(Math.abs(scrolled.x - 12) <= 2 && Math.abs(viewport.height - scrolled.y - scrolled.height - 12) <= 2,
-      'Mobile switch remains reachable after scrolling');
-    await page.evaluate(y => scrollTo(0, y), previousScroll);
+    const header = await page.locator('.sidebar').boundingBox(), brand = await page.locator('.brand').boundingBox();
+    const links = await nav.boundingBox();
+    assert(control.x >= brand.x + brand.width && control.y >= header.y && control.y + control.height <= header.y + header.height,
+      'Mobile/tablet switch occupies its own header space to the right of the brand');
+    if (viewport.width <= 740) assert(links.y >= control.y + control.height, 'Phone navigation sits below the switch');
+    else assert(links.x + links.width <= control.x, 'Tablet navigation fits beside the switch');
+    const scrolled = await page.evaluate(() => { scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }); return scrollY; });
+    assert(Math.abs((await label.boundingBox()).y - (control.y - scrolled)) <= 1, 'Switch scrolls with header, not over content');
   }
+  await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
+  assert(await page.locator('.sidebar .brand, .sidebar nav a, #theme-toggle').evaluateAll(controls => controls.every(el => {
+    const box = el.getBoundingClientRect(), hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+    return el.contains(hit);
+  })), 'Brand, every nav entry and switch have independently reachable pointer targets');
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.body.scrollWidth <= innerWidth),
+    'No horizontal overflow at this breakpoint');
+  await page.evaluate(y => scrollTo({ top: y, behavior: 'instant' }), previousScroll);
 }
 async function choose(page, selected) {
   if (selected === 'system') {
@@ -135,9 +146,9 @@ async function protectedUI(page, route) {
   }
   assert.equal(await page.locator('[role="button"], #theme-mode[role]').count(), 0);
   assert.equal(await page.locator('.display-options, #metric-options, .history-note').count(), 0);
-  assert.equal(await page.locator('ul.chart-options input[type="checkbox"]').count(), route === '/' ? 0 : 16);
+  assert.equal(await page.locator('ul.chart-options input[type="checkbox"]').count(), route === '/' ? 0 : 9);
   if (route === '/diagramme') {
-    assert.equal(await page.locator('ul.chart-options').count(), 9);
+    assert.equal(await page.locator('ul.chart-options').count(), 4);
     assert.equal(await page.locator('button[data-calendar-period]').count(), 7);
     assert(!await page.locator('#calendar-mode').isVisible());
     assert(await page.locator('.section-heading #reset-display').isVisible());
@@ -158,7 +169,7 @@ async function pageshow(page) {
   await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
 }
 async function setup(browser, options = {}, blocked = null) {
-  const context = await browser.newContext(options), errors = [], requests = [];
+  const context = await browser.newContext({ serviceWorkers: 'block', ...options }), errors = [], requests = [];
   // Independent inspection fixture: never contact the ESP32 MQTT gateway.
   await context.route('**/api/charging-mode', route => {
     assert.equal(route.request().method(), 'GET');
@@ -201,16 +212,75 @@ function clean(run) {
     assert.equal(request.method, 'GET', 'Theme controls must not send commands');
     const url = new URL(request.url); assert.equal(url.origin, origin, 'No foreign resources');
     if (url.pathname === '/api/history') assert.equal(url.search, '?minutes=15');
-    assert(routes.includes(url.pathname) || ['/einstellungen', '/api/state', '/api/smartmeter', '/api/history', '/api/house-history', '/api/settings-env', '/api/charging-settings', '/api/charging-mode', '/api/wallbox-control', '/api/esp32-control'].includes(url.pathname) || url.pathname.startsWith('/static/')
+    assert(routes.includes(url.pathname) || ['/diagnose', '/einstellungen', '/api/state', '/api/smartmeter', '/api/history', '/api/house-history', '/api/settings-env', '/api/charging-settings', '/api/charging-mode', '/api/wallbox-control', '/api/esp32-control'].includes(url.pathname) || url.pathname.startsWith('/static/')
       || ['/favicon.ico', '/manifest.webmanifest', '/service-worker.js'].includes(url.pathname), request.url);
   }
   cases++;
+}
+
+// Exercise the real page boundaries in a fresh context, independently of the
+// theme preference matrix. Only the simulated reader is available; never POST.
+async function secondGuiPass(browser, width, colorScheme) {
+  const run = await setup(browser, { colorScheme, hasTouch: width <= 740, viewport: { width, height: 900 } });
+  const { page } = run, nav = page.getByRole('navigation', { name: 'Hauptnavigation' });
+  const shot = name => page.screenshot({ path: `/artifacts/gui-pass2-${name}-${width}-${colorScheme}.png` });
+  try {
+    await page.route('**/api/wallbox-control', route => {
+      assert.equal(route.request().method(), 'GET');
+      return route.fulfill({ json: { status: 'ok', csrf: 'fixture', command_sent: false, command: null, inspection: {
+        schema_version: 1, status: 'ok', operation: 'inspect', read_only: true, id: 'a'.repeat(32),
+        session: 'b'.repeat(32), lease: 'c'.repeat(32), reason: 'read_only_inspection', fresh_for_seconds: 8,
+        minimum_ma: 6000, software_max_ma: 32000, firmware_raw: 123, hardware_max_ma: 16000,
+        installation_max_ma: null, effective_max_ma: null, write: null, preparation: null,
+        automation: { schema_version: 1, guard: 'd'.repeat(32), requested_mode: 'manual', activation_id: null,
+          config_revision: null, state: 'manual', plan: 'disabled', house: 'disabled' }
+      } } });
+    });
+    await page.goto(new URL('/', base).href); await ready(page); await switchLayout(page);
+    const link = page.locator('#automation-setup-link'); await link.waitFor();
+    assert.match(await page.locator('#automation-status').innerText(), /http:\/\/weboverlay:8080/);
+    assert.equal(await link.getAttribute('href'), '/einstellungen#env-heading');
+    assert(await page.locator('#control-start').isDisabled());
+    assert(await page.locator('#control-stop').isEnabled(), 'Missing installation limit does not block Stop');
+    assert.match(await page.locator('#control-hint').innerText(), /Installationsmaximum/);
+    const stop = page.locator('#control-stop'); await stop.scrollIntoViewIfNeeded();
+    // Actionability (including overlap and stable geometry), not a real click.
+    await stop.click({ trial: true }); await shot('bedienung');
+    await link.click(); await page.waitForURL(new URL('/einstellungen#env-heading', base).href);
+    assert.equal(await page.locator(':target').getAttribute('id'), 'env-heading');
+    await switchLayout(page);
+    const info = page.locator('[data-setting-info="esp32-uid"]'), trigger = info.locator('.setting-help > summary');
+    const tooltip = info.getByRole('tooltip'), uid = page.locator('#esp32-uid');
+    await uid.focus(); await page.keyboard.press('Shift+Tab');
+    assert(await trigger.evaluate(el => el === document.activeElement), 'Help is a keyboard stop separate from its field');
+    assert.equal(await trigger.getAttribute('aria-label'), 'Info: Karte widerrufen');
+    await tooltip.waitFor(); const tipId = await tooltip.getAttribute('id');
+    assert.equal(await trigger.getAttribute('aria-describedby'), tipId);
+    assert((await uid.getAttribute('aria-describedby')).split(/\s+/).includes(tipId));
+    assert.match(await tooltip.innerText(), /Gespeicherte UIDs werden nicht angezeigt/);
+    await tooltip.scrollIntoViewIfNeeded(); await shot('feldhilfe'); await page.keyboard.press('Escape');
+    assert.equal(await tooltip.count(), 0, 'Dismissed text leaves the accessibility tree');
+    assert(await trigger.evaluate(el => el === document.activeElement), 'Dismissal preserves keyboard focus');
+    await nav.getByRole('link', { name: 'Diagnose', exact: true }).click(); await ready(page); await switchLayout(page);
+    assert.match(await page.locator('#wallbox-warning').innerText(), /7/);
+    assert.deepEqual(await page.locator('ul.chart-options input').evaluateAll(nodes => nodes.map(el => el.id).sort()),
+      ['show-plugged', 'show-charging', 'show-below', 'show-wallbox-error', 'show-charging-state', 'show-charging-raw', 'show-lock'].sort());
+    assert.equal(await page.locator('#chart-grid, #wallbox-control, #esp32-control, #chart-house').count(), 0);
+    await shot('diagnose');
+    await nav.getByRole('link', { name: 'Diagramme', exact: true }).click(); await ready(page);
+    assert.equal(await page.locator('#chart-diagnostics-grid, #wallbox-control').count(), 0);
+    assert(await page.locator('#chart-house').isVisible());
+    await nav.getByRole('link', { name: 'Übersicht', exact: true }).click(); await ready(page);
+    assert.equal(await page.locator('#chart-diagnostics-grid, #chart-grid').count(), 0);
+    clean(run);
+  } finally { await run.context.close(); }
 }
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
   fs.mkdirSync('/artifacts', { recursive: true });
   try {
+    for (const [width, theme] of [[1440, 'dark'], [320, 'light']]) await secondGuiPass(browser, width, theme);
     // Two pages, both forced modes opposite to the OS, all required breakpoints.
     for (const route of routes) for (const selected of ['light', 'dark']) for (const width of [320, 390, 768, 1440]) {
       const opposite = selected === 'light' ? 'dark' : 'light';
@@ -324,7 +394,7 @@ function clean(run) {
         await run.context.addInitScript(({ key, selected }) => localStorage.setItem(key, selected), { key, selected });
         let gate;
         await run.context.route('**/static/pwa.js', async route => { await gate; await route.continue(); });
-        for (const path of ['/', '/diagramme', '/einstellungen', null]) {
+        for (const path of ['/', '/diagramme', '/diagnose', '/einstellungen', null]) {
           gate = new Promise(resolve => { release = resolve; });
           if (path) await run.page.goto(new URL(path, base).href, { waitUntil: 'commit' });
           else await run.page.reload({ waitUntil: 'commit' });
@@ -474,9 +544,16 @@ function clean(run) {
       });
       await page.goto(new URL('/einstellungen', base).href);
       await page.waitForFunction(() => !document.getElementById('env-fields').disabled);
+      for (const group of ['Website', 'Hauszähler']) await page.locator('.env-group > summary').filter({ hasText: group }).click();
       assert.equal(await page.locator('#env-key-SMARTMETER_URL').inputValue(), '');
       assert(await page.locator('#env-key-HISTORY_DB_PASSWORD_HOST_FILE').isDisabled());
       assert(await page.locator('#env-save').isDisabled());
+      const blind = page.locator('#env-key-SMARTMETER_URL');
+      await blind.fill('nicht-gueltige-url');
+      assert.equal(await blind.getAttribute('type'), 'password'); assert.equal(await blind.getAttribute('name'), null);
+      assert.equal(await blind.getAttribute('aria-invalid'), 'true'); assert(await page.locator('#env-save').isDisabled());
+      assert(!(await page.locator('main').innerText()).includes('nicht-gueltige-url'));
+      await blind.fill(''); assert(await page.locator('#env-save').isDisabled());
       await page.locator('#env-key-WEB_PORT').fill('8081');
       await page.locator('#env-save').click();
       await page.waitForFunction(() => document.getElementById('env-status').textContent.startsWith('.env gespeichert;'));
@@ -504,7 +581,7 @@ function clean(run) {
     // With JavaScript disabled, the native control must not promise an action it cannot perform.
     const noScript = await setup(browser, { javaScriptEnabled: false });
     try {
-      for (const route of [...routes, '/einstellungen']) {
+      for (const route of [...routes, '/diagnose', '/einstellungen']) {
         const response = await noScript.page.goto(new URL(route, base).href);
         assert.equal(response.status(), 200);
         assert(await noScript.page.locator('#theme-toggle').isDisabled());

@@ -10,7 +10,9 @@ services:
       HISTORY_DB_USERNAME: "${HISTORY_DB_USERNAME:-smartReader}"
       HISTORY_DB_PASSWORD_FILE: /run/secrets/history-password
     networks:
-      - database
+      # Use the same mapping form as the base: extend, do not replace mqtt
+      # (including its weboverlay alias) or the private HTTPS network.
+      database: {}
     volumes:
       - ${HISTORY_DB_PASSWORD_HOST_FILE:?Set an existing history DB password file readable by container UID 10001}:/run/secrets/history-password:ro
 networks:

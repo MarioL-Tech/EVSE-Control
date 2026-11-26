@@ -1,0 +1,52 @@
+/* Scoped to Settings; display preferences and the mobile theme switch stay independent. */
+.settings-main .section-intro { color: var(--muted); margin: .35rem 0 1rem; max-width: 70ch; }
+.settings-main .eyebrow { color: var(--blue); }
+.settings-main .card h2 { font-size: 1.18rem; }
+.settings-main #charging-fields, .settings-main #env-fields { min-width: 0; padding: 0; margin: 12px 0; border: 0; }
+.settings-main .settings-group-title, .settings-main .setting-heading strong { font-size: .88rem; margin: 0; }
+.settings-main .settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.settings-main .settings-actions button { margin: 0; min-height: 44px; }
+.settings-main [type=submit]:enabled, .settings-main #esp32-enroll:enabled { color: var(--on-accent); background: var(--accent); border-color: var(--accent); font-weight: 650; }
+.settings-main button:disabled { opacity: .62; cursor: not-allowed; }
+.settings-main .charging-profile, .settings-main .env-group { border: 1px solid var(--border); border-radius: 7px; margin-top: 8px; padding: 0 14px; background: var(--surface); }
+.settings-main .charging-profile[open], .settings-main .env-group[open] { padding-bottom: 14px; }
+.settings-main .charging-profile > summary, .settings-main .env-group > summary { cursor: pointer; padding: 12px 0; font-weight: 650; min-height: 46px; }
+.settings-main .charging-profile > summary::marker, .settings-main .env-group > summary::marker { color: var(--accent); }
+.settings-main .settings-grid, .settings-main .charging-profile-fields { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px 20px; align-items: start; }
+.settings-main .charging-installation { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.settings-main .setting-field { display: grid; align-content: start; gap: 4px; min-width: 0; }
+.settings-main .settings-grid-caption { grid-column: 1/-1; border-bottom: 1px solid var(--border); padding-bottom: 5px; margin: .33rem 0 0; color: var(--muted); font-size: .78rem; font-weight: 600; }
+.settings-main .setting-heading { position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; }
+.settings-main .setting-heading label { font-size: .86rem; font-weight: 600; }
+.settings-main .setting-help { display: inline-block; margin: 0; padding: 0; border: 0; flex: none; }
+.settings-main .setting-help > summary { display: grid; place-items: center; width: 32px; height: 32px; min-height: 32px; padding: 0; cursor: help; color: var(--blue); font: 0/1 system-ui; list-style: none; }
+.settings-main .setting-help > summary::-webkit-details-marker { display: none; }
+.settings-main .setting-help > summary::before { content: 'i'; display: grid; place-items: center; border: 1px solid currentColor; border-radius: 50%; width: 16px; height: 16px; font: bold 13px/1 Georgia, serif; }
+.settings-main .setting-help[open] > summary::before { color: var(--on-accent); background: var(--accent); }
+.settings-main .setting-tip { position: absolute; z-index: 3; top: 100%; left: 0; width: min(100%, 32rem); padding: 10px 12px; background: var(--sidebar); color: var(--text); border: 1px solid var(--blue); border-radius: 6px; box-shadow: var(--shadow); font-size: .83rem; line-height: 1.45; overflow-wrap: anywhere; }
+.settings-main .setting-field input:not([type=checkbox]), .settings-main .setting-field select { width: 100%; min-width: 0; min-height: 44px; }
+.settings-main .setting-field input::placeholder, .settings-main #esp32-uid::placeholder { color: var(--muted); opacity: 1; }
+.settings-main .setting-field input[aria-invalid=true], .settings-main .setting-field select[aria-invalid=true], .settings-main #esp32-uid[aria-invalid=true] { border-color: var(--bad) !important; }
+.settings-main .setting-meta { color: var(--muted); font-size: .76rem; }
+.settings-main .group-edits { margin-left: .6rem; font-size: .75rem; font-weight: 500; color: var(--warn); }
+.settings-main .is-edited .setting-meta::after { content: ' · geändert'; color: var(--warn); }
+.settings-main .setting-error { color: var(--bad); font-size: .83rem; }
+.settings-main .env-clear { display: flex; align-items: center; gap: 6px; font-size: .8rem; min-height: 32px; }
+.settings-main .schedule-heading { margin-top: 18px; }
+.settings-main .charging-days { gap: 6px; margin-top: 4px; }
+.settings-main .charging-days label { border: 1px solid var(--border); border-radius: 5px; padding: 6px 10px; min-height: 36px; cursor: pointer; }
+.settings-main .charging-days label:has(:checked) { background: var(--accent-soft); border-color: var(--accent); }
+.settings-main .charging-window { display: grid; grid-template-columns: repeat(2,minmax(0,12rem)) auto; align-items: end; justify-content: start; }
+.settings-main #esp32-rfid .esp32-revoke > .setting-heading { grid-column: 1/-1; }
+.settings-main #esp32-rfid .esp32-actions { margin: 4px 0 12px; }
+.settings-main #esp32-rfid .facts { margin: 12px 0; }
+.settings-main #esp32-revoke:enabled { color: var(--bad); }
+.settings-main #env-create-row, .settings-main #charging-status:not([hidden]), .settings-main #esp32-rfid-result:not([hidden]) { margin: 10px 0; }
+@media (max-width: 1000px) {
+  .settings-main .settings-grid, .settings-main .charging-profile-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 650px) {
+  .settings-main .settings-grid, .settings-main .charging-profile-fields { grid-template-columns: minmax(0,1fr); gap: 12px; }
+  .settings-main .charging-window { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .settings-main .charging-window button { grid-column: 1/-1; justify-self: start; }
+}

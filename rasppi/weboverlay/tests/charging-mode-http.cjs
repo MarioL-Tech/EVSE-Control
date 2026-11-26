@@ -63,6 +63,8 @@ http_response_code($p === '/healthz' ? 200 : 404);
       assert.equal((await fetch(endpoint, { method: 'POST', headers, body })).status, 400);
     const missing = await post({ ...command, mode: 'pv' }); assert.equal(missing.status, 400);
     const missingData = await missing.json(); assert.equal(missingData.reason, 'missing_configuration');
+    assert.deepEqual(initial.missing_by_mode.pv, missingData.required);
+    assert.deepEqual(initial.missing_by_mode.custom, (await (await post({ ...command, mode: 'custom' })).json()).required);
     assert.deepEqual(missingData.required, ['installation.phases', 'installation.meter_includes_wallbox', 'pv.max_import_w',
       'pv.max_current_ma', 'pv.adjust_seconds', 'pv.pause_seconds', 'pv.resume_seconds']);
     await assert.rejects(fs.stat(path.join(dir, 'charging-active.json')));
@@ -81,6 +83,11 @@ http_response_code($p === '/healthz' ? 200 : 404);
     const save = await fetch(settings, { method: 'POST', headers: draftHeaders,
       body: JSON.stringify({ revision: draft.revision, config }) });
     assert.equal(save.status, 200); const saved = await save.json();
+    const preview = await (await fetch(endpoint)).json();
+    assert.deepEqual(preview.missing_by_mode.pv, []);
+    assert(preview.missing_by_mode.custom.includes('custom.pv_enabled'));
+    assert.equal(preview.config_revision, saved.revision);
+    assert.deepEqual(preview.activation, selected.activation);
     assert.equal(await fs.readFile(path.join(dir, 'charging-active.json'), 'utf8'), before);
     const unchanged = await (await fetch(plan)).json(); assert.deepEqual(unchanged.config, initialPlan.config);
     assert.deepEqual(unchanged.activation, selected.activation);

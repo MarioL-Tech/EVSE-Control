@@ -1,9 +1,9 @@
 name: Storage Docker tests
 on:
   push:
-    paths: ['rasppi/storage/**', '.github/workflows/storage-docker.yml']
+    paths: ['bin/stack.sh', 'rasppi/storage/**', '.github/workflows/storage-docker.yml']
   pull_request:
-    paths: ['rasppi/storage/**', '.github/workflows/storage-docker.yml']
+    paths: ['bin/stack.sh', 'rasppi/storage/**', '.github/workflows/storage-docker.yml']
   workflow_dispatch:
 permissions:
   contents: read

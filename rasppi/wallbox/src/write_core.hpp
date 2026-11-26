@@ -12,6 +12,8 @@
 
 namespace wallbox {
 
+struct Telemetry;
+
 using WriteClock = std::chrono::steady_clock;
 constexpr std::uint32_t minimum_write_current_ma = 6000;
 // Conservative application ceiling, NOT an installation/current authorization.
@@ -23,6 +25,7 @@ enum class WriteOperation { SetCurrent, Start, Stop };
 struct WritePolicy {
     bool enabled = false;
     std::uint32_t installation_max_ma = 0; // No guessed installation default.
+    bool autonomous_start = false; // Final full FC03 must still show plugged in and NOT charging.
 };
 struct WriteRequest {
     WriteOperation operation = WriteOperation::Stop;
@@ -41,6 +44,9 @@ struct WriteResult {
     const char *reason = "invalid_request"; // Fixed labels, never raw input/errors.
     bool attempted = false; // Entered write call; transmission/effect may be unknown.
     bool acknowledged = false; // Valid protocol ACK, NOT proof of physical charging.
+    // FC16 only: strict ACK plus timely effective-limit observation <= requested.
+    // A failed/missing readback leaves this false without erasing the wire ACK.
+    bool current_limit_checked = false;
     int transport_errno = 0;
     std::optional<std::uint32_t> hardware_max_ma;
     std::optional<std::uint32_t> effective_current_ma;
@@ -64,7 +70,10 @@ public:
               std::function<bool()> session_cancelled = [] { return false; });
     WriteCore(const WriteCore &) = delete;
     WriteCore &operator=(const WriteCore &) = delete;
-    WriteResult execute(const WriteRequest &request);
+    // Synchronous notification to the sole owner after the final full Start
+    // preflight. Its following cancellation/budget check must see this read.
+    WriteResult execute(const WriteRequest &request,
+                        const std::function<void(const Telemetry &)> &on_start_sample = {});
     // A read failure, disconnect, or unknown write invalidates preparation.
     // Recovery needs an explicitly rebuilt session/core, never an implicit retry.
     void invalidate_session() noexcept;

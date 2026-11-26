@@ -24,7 +24,7 @@ const { FIELDS } = require('../static/newcalendar.js');
   let heldReady = null;
   const pending = [];
   const calendarRequests = [], heldCalendar = [];
-  let calendarFail = false, calendarHold = false, closedDiagnostics = null;
+  let calendarFail = false, calendarHold = false;
   const values = { error_code: 0, socket_lock_state: 273, charging_state_raw: 33024, charging_state: 1,
     below_commanded_current: false, plugged_in: true, charging: false, current_limit_a: 6,
     current_a: [0, 0, 0], voltage_v: [235, 234, 236], active_power_w: 1500, session_energy_wh: 2 };
@@ -130,11 +130,49 @@ const { FIELDS } = require('../static/newcalendar.js');
   });
   const path = () => page.locator('[data-series="power"]').getAttribute('d');
   const base = process.env.WEB_TEST_URL || 'http://127.0.0.1:8080';
+  async function switchArchive(route, period, bucketCount) {
+    // A new document must actually fetch and render the saved selection. The
+    // persisted period alone (or a still-empty SVG after the fetch) is not proof.
+    const previous = calendarRequests.length;
+    await page.locator(`nav a[href="${route}"]`).click();
+    await page.waitForURL(`**${route}`);
+    await page.waitForFunction(() => document.getElementById('history-source')?.dataset.historyStatus === 'ok');
+    await page.clock.runFor(32);
+    assert.equal(await page.locator('#calendar-mode').inputValue(), period);
+    assert(calendarRequests.slice(previous).some(query => new URLSearchParams(query).get('period') === period));
+    const svg = route === '/diagnose' ? '#chart-flags svg' : '#chart-power svg';
+    assert.equal(await page.locator(svg).getAttribute('data-bucket-count'), String(bucketCount));
+  }
+  async function assertIdleArchive(grid, expectedFigures) {
+    assert.equal(await page.locator(`${grid} > figure > svg`).count(), expectedFigures);
+    await page.evaluate(grid => {
+      window.__archiveWork = { plots: 0, layouts: 0, mutations: 0 };
+      const original = OverlayCalendar.buildSummaryPlot;
+      OverlayCalendar.buildSummaryPlot = (...args) => { window.__archiveWork.plots++; return original(...args); };
+      const measure = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = function () {
+        if (this.matches('#chart-grid figure, #chart-diagnostics-grid figure')) window.__archiveWork.layouts++;
+        return measure.call(this);
+      };
+      const observer = new MutationObserver(records => window.__archiveWork.mutations += records.length);
+      for (const svg of document.querySelectorAll(`${grid} svg`)) observer.observe(svg, { subtree: true, attributes: true, childList: true });
+    }, grid);
+    await page.clock.runFor(10000);
+    assert.deepEqual(await page.evaluate(() => window.__archiveWork), { plots: 0, layouts: 0, mutations: 0 },
+      `${grid}: 100 freshness ticks cause no archive builds, layouts or SVG writes`);
+  }
   try {
     fs.mkdirSync('/artifacts', { recursive: true });
     await page.goto(base);
     await page.waitForFunction(() => document.getElementById('status').textContent === 'Offline');
     assert.equal(historyRequests, 0, 'Dashboard never starts history requests');
+    await page.locator('nav a[href="/diagnose"]').click();
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Offline' &&
+      document.querySelector('#chart-flags [data-series="charging"]')?.getAttribute('d')?.includes('H'));
+    assert.match(await page.locator('#history-source').innerText(), /Wallbox-Archiv/);
+    assert.equal(await page.locator('#below').innerText(), 'Unbekannt', 'SQL history cannot make a live diagnosis fresh');
+    assert.equal(await page.locator('#chart-diagnostics-grid > figure').count(), 5);
+    assert.equal(await page.locator('ul.chart-options input').count(), 7);
     await page.goto(base + '/diagramme');
     await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok');
     await page.waitForFunction(() => document.querySelector('[data-series="power"]')?.getAttribute('d')?.includes('L'));
@@ -143,13 +181,13 @@ const { FIELDS } = require('../static/newcalendar.js');
     assert.equal(await page.locator('#status').innerText(), 'Offline');
     assert((await path()).includes('L'), 'Archive renders while MQTT is offline');
     assert.equal(await page.locator('#chart-grid > figure').count(), 4);
-    assert.equal(await page.locator('#chart-diagnostics-grid > figure').count(), 5);
-    assert.deepEqual(await page.locator('.sidebar nav a').allTextContents(), ['Übersicht', 'Diagramme', 'Settings']);
+    assert.equal(await page.locator('#chart-diagnostics-grid').count(), 0);
+    assert.deepEqual(await page.locator('.sidebar nav a').allTextContents(), ['Übersicht', 'Diagramme', 'Diagnose', 'Settings']);
     assert.equal(await page.locator('#theme-toggle').getAttribute('role'), 'switch');
     assert.equal(await page.locator('#chart-range').inputValue(), '5');
     assert.equal(await page.locator('.display-options, #metric-options, .history-note').count(), 0);
-    assert.equal(await page.locator('ul.chart-options').count(), 9);
-    assert.equal(await page.locator('ul.chart-options input').count(), 16);
+    assert.equal(await page.locator('ul.chart-options').count(), 4);
+    assert.equal(await page.locator('ul.chart-options input').count(), 9);
     assert(await page.locator('.section-heading #reset-display').isVisible());
     assert.equal(await page.locator('#calendar-mode').isVisible(), false);
     assert.equal(await page.locator('button[data-calendar-period]').count(), 7);
@@ -284,10 +322,9 @@ const { FIELDS } = require('../static/newcalendar.js');
         const curve = await page.locator('#chart-voltage .archive-line').first().getAttribute('d');
         assert.equal((curve.match(/M/g) || []).length, 2, 'An entirely unknown interval separates two connected numeric runs');
         assert((curve.match(/L/g) || []).length > 50, 'Unknown charging must not isolate known voltages');
-        assert.deepEqual(await page.locator('#chart-diagnostics-grid svg').evaluateAll(nodes => nodes.map(svg => svg.innerHTML)),
-          closedDiagnostics, 'Closed day diagnostics have not been redrawn for the week selection');
-        await page.locator('.history-diagnostics > summary').click();
-        await page.clock.runFor(32);
+        assert.equal(await page.locator('#chart-flags, #chart-error, #chart-state, #chart-raw, #chart-lock').count(), 0,
+          'No hidden diagnostics render work on the diagrams page');
+        await switchArchive('/diagnose', period, 168);
         const unknown = page.locator('#chart-flags [data-state-quality="unknown"][data-state-series="charging"]');
         assert((await unknown.getAttribute('d')).includes('H'), 'Unknown charging has a separate quality lane, not an invented No value');
         assert.equal(await page.locator('#chart-flags [data-series="charging"]').getAttribute('d'), '');
@@ -305,25 +342,10 @@ const { FIELDS } = require('../static/newcalendar.js');
           });
           assert(within, `${id}: calendar diagnostic axes/quality/last markers are not clipped`);
         }
+        await assertIdleArchive('#chart-diagnostics-grid', 5);
         await page.screenshot({ path: '/artifacts/calendar-diagnostics-week.png', fullPage: true });
-        await page.locator('.history-diagnostics > summary').click();
-        await page.clock.runFor(32);
-        closedDiagnostics = await page.locator('#chart-diagnostics-grid svg').evaluateAll(nodes => nodes.map(svg => svg.innerHTML));
-        await page.evaluate(() => {
-          window.__archiveWork = { plots: 0, layouts: 0, mutations: 0 };
-          const original = OverlayCalendar.buildSummaryPlot;
-          OverlayCalendar.buildSummaryPlot = (...args) => { window.__archiveWork.plots++; return original(...args); };
-          const measure = Element.prototype.getBoundingClientRect;
-          Element.prototype.getBoundingClientRect = function () {
-            if (this.matches('#chart-grid figure, #chart-diagnostics-grid figure')) window.__archiveWork.layouts++;
-            return measure.call(this);
-          };
-          const observer = new MutationObserver(records => window.__archiveWork.mutations += records.length);
-          for (const svg of document.querySelectorAll('#chart-grid svg')) observer.observe(svg, { subtree: true, attributes: true, childList: true });
-        });
-        await page.clock.runFor(10000);
-        assert.deepEqual(await page.evaluate(() => window.__archiveWork), { plots: 0, layouts: 0, mutations: 0 },
-          '100 freshness ticks cause no archive builds, layouts or SVG writes');
+        await switchArchive('/diagramme', period, 168);
+        await assertIdleArchive('#chart-grid', 4);
         const viewport = page.viewportSize();
         for (const [width, colorScheme, label] of [[1440, 'dark', 'desktop'], [390, 'light', 'mobile']]) {
           await page.setViewportSize({ width, height: 1050 });
@@ -358,9 +380,8 @@ const { FIELDS } = require('../static/newcalendar.js');
         const curve = await page.locator('#chart-voltage .archive-line').first().getAttribute('d');
         assert.equal((curve.match(/M/g) || []).length, 1, 'Partial NULLs in every day bucket retain a continuous known mean trend');
         assert.equal((curve.match(/L/g) || []).length, 299);
-        assert.equal(await page.locator('#chart-diagnostics-grid svg > *').count(), 0, 'Closed diagnostics are not drawn before first opening');
-        await page.locator('.history-diagnostics > summary').click();
-        await page.clock.runFor(32);
+        assert.equal(await page.locator('#chart-diagnostics-grid, #chart-flags').count(), 0, 'No off-route diagnostic plot');
+        await switchArchive('/diagnose', period, 300);
         for (const id of ['plugged', 'charging', 'below', 'wallbox-error', 'charging-state', 'charging-raw', 'lock']) {
           const step = page.locator(`#chart-diagnostics-grid [data-series="${id}"]`);
           const d = await step.getAttribute('d');
@@ -375,9 +396,7 @@ const { FIELDS } = require('../static/newcalendar.js');
         assert.match(await page.locator('#chart-flags .chart-description').innerText(), /Erfassungsqualität markiert/);
         assert((await page.locator('#chart-flags [data-state-quality="partial"][data-state-series="charging"]').getAttribute('d')).includes('H'));
         await page.screenshot({ path: '/artifacts/calendar-day-diagnostics-observations.png', fullPage: true });
-        await page.locator('.history-diagnostics > summary').click();
-        await page.clock.runFor(32);
-        closedDiagnostics = await page.locator('#chart-diagnostics-grid svg').evaluateAll(nodes => nodes.map(svg => svg.innerHTML));
+        await switchArchive('/diagramme', period, 300);
         await page.screenshot({ path: '/artifacts/calendar-day-partial-means.png', fullPage: true });
       }
       assert.equal(await page.locator('img').count(), 1, 'DTO reasons cannot add images');
@@ -393,8 +412,8 @@ const { FIELDS } = require('../static/newcalendar.js');
     assert.equal(await page.locator('#chart-power .archive-line').evaluate(el => getComputedStyle(el).strokeDasharray), 'none',
       'The aggregate trend remains a calm solid line in the active theme');
     assert(await page.locator('#chart-power *').count() <= 100, 'DOM budget is independent of 366 buckets');
-    assert.deepEqual(await page.locator('#chart-diagnostics-grid svg').evaluateAll(nodes => nodes.map(svg => svg.innerHTML)),
-      closedDiagnostics, 'Previously opened but now closed diagnostics are not redrawn during later calendar selections');
+    assert.equal(await page.locator('#chart-flags, #chart-error, #chart-state, #chart-raw, #chart-lock').count(), 0,
+      'Subsequent electrical calendar selections never mount the off-route diagnostic groups');
     await page.locator('#chart-power svg').focus();
     await page.keyboard.press('End');
     assert.match(await page.locator('#chart-power svg > title').textContent(), /30 Werte/);
@@ -408,10 +427,10 @@ const { FIELDS } = require('../static/newcalendar.js');
     await page.setViewportSize({ width: 1440, height: 1050 });
     await page.evaluate(() => window.dispatchEvent(new Event('resize')));
     await page.clock.runFor(32);
-    await page.evaluate(() => { window.__retainedCalendarPath = document.querySelector('#chart-power .summary-value'); });
+    await page.evaluate(() => { window.__retainedCalendarPath = document.querySelector('#chart-power .archive-line'); });
     await page.evaluate(() => { for (let i = 0; i < 25; i++) window.dispatchEvent(new Event('resize')); });
     await page.clock.runFor(32);
-    assert(await page.evaluate(() => window.__retainedCalendarPath === document.querySelector('#chart-power .summary-value')),
+    assert(await page.evaluate(() => window.__retainedCalendarPath && window.__retainedCalendarPath === document.querySelector('#chart-power .archive-line')),
       'Resize updates the keyed path in place rather than replacing the SVG tree');
     await page.evaluate(() => {
       window.__calendarMutations = 0;
@@ -457,7 +476,9 @@ const { FIELDS } = require('../static/newcalendar.js');
     await page.locator('#calendar-now').click();
     await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok');
     assert.equal(await page.locator('#calendar-mode').inputValue(), 'year');
-    const retainedGlyphs = await page.locator('[data-summary-series="power"]').count();
+    await page.clock.runFor(32);
+    const retainedPath = await page.locator('#chart-power .archive-line').getAttribute('d');
+    assert(retainedPath.includes('L'));
     calendarFail = true;
     await page.evaluate(() => {
       Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange'));
@@ -465,7 +486,7 @@ const { FIELDS } = require('../static/newcalendar.js');
     });
     await page.clock.runFor(300);
     await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'unavailable');
-    assert.equal(await page.locator('[data-summary-series="power"]').count(), retainedGlyphs);
+    assert.equal(await page.locator('#chart-power .archive-line').getAttribute('d'), retainedPath);
     const calendarStored = await page.evaluate(() => localStorage.getItem('evse-calendar-v1'));
     assert.equal(JSON.parse(calendarStored).period, 'year'); assert(!calendarStored.includes('buckets'));
     // Native limits are not sufficient: scripted/manual future changes must
@@ -479,7 +500,7 @@ const { FIELDS } = require('../static/newcalendar.js');
     assert((await page.locator('#calendar-label').innerText()).includes('Zukünftige'));
     await page.locator('[data-calendar-period="live"]').click();
     assert.equal(await page.locator('#chart-range').isDisabled(), false);
-    assert.equal(await page.locator('ul.chart-options input').count(), 16);
+    assert.equal(await page.locator('ul.chart-options input').count(), 9);
     assert.deepEqual(errors, []);
     console.log('History browser: offline archive/reload, isolated SQL failure, unchanged controls, RAM-only, hidden and BFCache passed');
   } finally { await browser.close(); }

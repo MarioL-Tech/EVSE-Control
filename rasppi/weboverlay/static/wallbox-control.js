@@ -6,8 +6,9 @@
   const nullableInteger = value => value === null || integer(value);
   const ampFormat = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 3 });
   const amp = value => integer(value) ? `${ampFormat.format(value / 1000)} A` : 'Unbekannt';
+  const measuredAmp = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? amp(Math.round(value * 1000)) : 'Unbekannt';
   function bounds(inspection) {
-    if (!inspection || !integer(inspection.hardware_max_ma) || inspection.hardware_max_ma < 6000 ||
+    if (!inspection || !integer(inspection.hardware_max_ma) || inspection.hardware_max_ma < 6000 || inspection.hardware_max_ma > 32000 ||
         !integer(inspection.installation_max_ma) || inspection.installation_max_ma < 6000 || inspection.installation_max_ma > 32000 ||
         inspection.minimum_ma !== 6000 || inspection.software_max_ma !== 32000) return null;
     const maximum = Math.min(inspection.hardware_max_ma, inspection.installation_max_ma, 32000);
@@ -70,7 +71,7 @@
     const prep = c.operation === 'start' ? `Stromvorbereitung: ${stepText(c.preparation)}. ` : '';
     return `${prep}${c.operation === 'start' ? 'Start' : c.operation === 'stop' ? 'Stop' : 'Stromvorgabe'}: ${stepText(c.write)}.`;
   }
-  const api = { bounds, draftBounds, limitReason, draftAmps, commandBody, parseResponse, stepText, resultText, GET_TIMEOUT_MS, POST_TIMEOUT_MS, REFRESH_MS };
+  const api = { bounds, draftBounds, limitReason, draftAmps, commandBody, parseResponse, stepText, resultText, measuredAmp, GET_TIMEOUT_MS, POST_TIMEOUT_MS, REFRESH_MS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof document === 'undefined') return;
   const root = document.getElementById('wallbox-control');
@@ -83,7 +84,7 @@
   };
   const disabled = (id, value) => { const el = get(id); if (el.disabled !== value) el.disabled = value; };
   let inspection = null, csrf = null, ready = false, draft = null, busy = false;
-  let mode = 'manual', modePending = false, reportedBusy = null;
+  let mode = 'manual', reportedBusy = null;
   let activeGet = null, activePost = null, timer = null, generation = 0, suspended = document.hidden;
   let lastActual = undefined;
   function render() {
@@ -96,8 +97,8 @@
     const fill = `${editing.max > editing.min ? (draft - editing.min) / (editing.max - editing.min) * 100 : 0}%`;
     if (range.style.getPropertyValue('--control-fill') !== fill) range.style.setProperty('--control-fill', fill);
     disabled('current', busy || document.hidden || suspended);
-    disabled('apply', !usable || !limits || mode !== 'manual' || modePending);
-    disabled('start', !usable || !limits || mode !== 'manual' || modePending);
+    disabled('apply', !usable || !limits || mode !== 'manual');
+    disabled('start', !usable || !limits || mode !== 'manual');
     if (reportedBusy !== busy) {
       reportedBusy = busy;
       window.dispatchEvent(new CustomEvent('evse:wallbox-busy', { detail: { busy } }));
@@ -110,7 +111,7 @@
     text('effective-max', amp(inspection?.effective_max_ma));
     text('firmware', integer(inspection?.firmware_raw) ? String(inspection.firmware_raw) : 'Unbekannt');
     const blocked = busy ? 'Auftrag läuft.' : document.hidden || suspended ? 'Bedienung pausiert.' :
-      mode !== 'manual' ? 'Manuelle Stromvorgaben nur im Modus Manuell.' : modePending ? 'Moduswahl wird geprüft.' :
+      mode !== 'manual' ? 'Manuelle Stromvorgaben nur im Modus Manuell.' :
       !ready || !csrf ? 'Keine geprüfte Bedienverbindung.' : limits ? '' : limitReason(inspection);
     text('hint', blocked || (limits?.max === 6 ? 'Nur 6 A zulässig (1-A-Schritte).' : `6–${limits.max} A`));
     for (const id of ['apply', 'start']) {
@@ -124,7 +125,9 @@
     ready = body.status === 'ok' && inspection?.status === 'ok';
     text('status', ready ? 'Verbindung geprüft.' : 'Bedienverbindung nicht verfügbar.');
     window.dispatchEvent(new CustomEvent('evse:automation-observation', { detail: {
-      automation: body.command?.automation ?? body.inspection?.automation ?? null
+      automation: body.command?.automation ?? body.inspection?.automation ?? null,
+      limitIssue: !inspection || bounds(inspection) ? null :
+        (integer(inspection.installation_max_ma) && inspection.installation_max_ma >= 6000 && inspection.installation_max_ma <= 32000 ? 'hardware' : 'installation')
     } }));
   }
   async function inspect() {
@@ -140,7 +143,10 @@
       if (!response.ok) throw new Error('http');
       accept(body);
     } catch (_) {
-      if (token === generation) { ready = false; csrf = null; text('status', 'Bedienprüfung fehlgeschlagen. Letztes Auftragsergebnis bleibt erhalten.'); }
+      if (token === generation) {
+        ready = false; csrf = null; text('status', 'Bedienprüfung fehlgeschlagen. Letztes Auftragsergebnis bleibt erhalten.');
+        window.dispatchEvent(new CustomEvent('evse:automation-observation', { detail: { automation: null } }));
+      }
     } finally {
       clearTimeout(timeout);
       if (activeGet === controller) activeGet = null;
@@ -150,7 +156,7 @@
   }
   async function send(operation) {
     if (busy || document.hidden || suspended || !ready || !csrf) return;
-    if ((mode !== 'manual' || modePending) && operation !== 'stop') return;
+    if (mode !== 'manual' && operation !== 'stop') return;
     const payload = commandBody(operation, draft, bounds(inspection));
     if (!payload) return;
     busy = true;
@@ -197,7 +203,7 @@
   window.addEventListener('evse:automation-mode', event => {
     if (!['manual', 'pv', 'custom'].includes(event.detail?.mode)) return;
     const changed = mode !== event.detail.mode;
-    mode = event.detail.mode; modePending = event.detail.pending === true;
+    mode = event.detail.mode;
     if (changed)
     window.dispatchEvent(new CustomEvent('evse:manual-mode', { detail: { manual: mode === 'manual' } }));
     render();
@@ -208,7 +214,7 @@
     const v = event.detail?.values;
     if (v === lastActual) return;
     lastActual = v;
-    text('actual', v ? `Limit ${amp(Math.round(v.current_limit_a * 1000))} · L1/L2/L3 ${v.current_a.map(a => amp(Math.round(a * 1000))).join(' / ')} · Lädt: ${v.charging === true ? 'Ja' : v.charging === false ? 'Nein' : 'Unbekannt'}` : 'Unbekannt – keine frischen Livewerte');
+    text('actual', v ? `Limit ${measuredAmp(v.current_limit_a)} · L1/L2/L3 ${[0, 1, 2].map(p => measuredAmp(v.current_a?.[p])).join(' / ')} · Lädt: ${v.charging === true ? 'Ja' : v.charging === false ? 'Nein' : 'Unbekannt'}` : 'Unbekannt – keine frischen Livewerte');
   });
   function reset(hiding = false) {
     suspended = hiding || document.hidden;

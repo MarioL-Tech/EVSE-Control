@@ -56,6 +56,12 @@ test('Drafts do not create commands, commands only have operation/current_ma', (
   assert.equal(commandBody('start', 6, null), null);
   assert.equal(commandBody('inspect', 6, limits), null);
 });
+test('Untrusted hardware maxima cannot grant manual writes; missing current never renders as zero', () => {
+  assert.equal(bounds(inspection({ hardware_max_ma: 64000 })), null);
+  const { measuredAmp } = require('../static/wallbox-control.js');
+  for (const absent of [null, undefined, false, '', NaN]) assert.equal(measuredAmp(absent), 'Unbekannt');
+  assert.equal(measuredAmp(0), '0 A'); assert.equal(measuredAmp(6.125), '6,125 A');
+});
 test('Partial Start never claims charging or a Start ACK', () => {
   const body = envelope({ command_sent: true, command: inspection({ operation: 'start', preparation: ack, write: null }) });
   assert.match(resultText(body), /Stromvorbereitung: Protokoll-ACK/);

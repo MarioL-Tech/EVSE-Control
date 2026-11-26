@@ -152,9 +152,15 @@ function sample(power_w = 1549.4, overrides = {}) {
       assert.equal(await zero.getAttribute('stroke-width'), '1');
       assert.equal(await page.locator('#house-chart-svg [data-house-zero-label]').textContent(), '0');
       const y = Number(await zero.getAttribute('y1'));
-      assert(Number.isFinite(y) && y >= 24 && y <= 212, 'Zero reference stays inside the signed plot');
+      const height = await page.locator('#house-chart-svg').evaluate(svg => svg.viewBox.baseVal.height);
+      assert(Number.isFinite(y) && y >= 24 && y <= height - 38, 'Zero reference stays inside the responsive signed plot');
     }
     await page.emulateMedia({ colorScheme: 'dark' });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForFunction(() => {
+      const svg = document.getElementById('house-chart-svg');
+      return svg.viewBox.baseVal.width === Math.round(svg.closest('figure').getBoundingClientRect().width);
+    });
     await page.locator('#smartmeter').screenshot({ path: path.join(artifacts, 'house-chart-dark-mobile.png') });
     mode = 'offline'; await text('grid-status', 'Offline');
     mode = 'positive'; await text('grid-status', 'Live');

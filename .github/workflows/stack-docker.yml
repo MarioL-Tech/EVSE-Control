@@ -1,0 +1,24 @@
+name: Unified stack and archive drift (isolated Docker)
+on:
+  push:
+    paths: ['bin/**', 'tests/stack/**', 'docs/stack.md', 'rasppi/**/compose*.yaml', 'rasppi/compose.yaml', 'rasppi/weboverlay/php/*History*.php', 'rasppi/weboverlay/public/index.php', 'rasppi/weboverlay/tests/history-init.sql', 'rasppi/storage/migrations/**', '.github/workflows/stack-docker.yml']
+  pull_request:
+    paths: ['bin/**', 'tests/stack/**', 'docs/stack.md', 'rasppi/**/compose*.yaml', 'rasppi/compose.yaml', 'rasppi/weboverlay/php/*History*.php', 'rasppi/weboverlay/public/index.php', 'rasppi/weboverlay/tests/history-init.sql', 'rasppi/storage/migrations/**', '.github/workflows/stack-docker.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  archive-boot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Installed one-shot systemd unit and pinned-endpoint races on disposable Docker
+        run: bash tests/stack/archive-boot-ci.sh
+  stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - name: Real separate Compose projects, external fixture DB/broker, restart and lost network endpoint
+        run: bash tests/stack/isolated-ci.sh

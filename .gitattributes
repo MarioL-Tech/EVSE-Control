@@ -10,6 +10,8 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.sh text eol=lf
+# The archive readers validate the SHA-256 of the canonical migration bytes.
+rasppi/storage/migrations/*.sql text eol=lf
 Dockerfile* text eol=lf
 *.png binary
 *.jpg binary

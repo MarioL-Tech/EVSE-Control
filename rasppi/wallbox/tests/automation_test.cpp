@@ -39,8 +39,118 @@ Action need(Engine &e,Input &i,Operation op,int ma=0) {
     auto a=e.step(i); check(a.has_value(),"missing action"); check(a->operation==op,"wrong operation");
     check(a->target_ma==ma,"wrong target"); return *a;
 }
+void release_across_activations() {
+    // Exercise new IDs both within a mode and crossing either direction.
+    for (Mode from : {Mode::Pv,Mode::Custom}) for (Mode to : {Mode::Pv,Mode::Custom})
+    for (int amps : {0,8,10,12}) {
+        Engine e; auto i=input(); auto &s=i.sources.settings;
+        s.custom.pv_enabled=true; s.mode=from; activate(e,i);
+        auto start=need(e,i,Operation::Start,10000); e.complete(start,{true,true});
+        s.mode=to; s.activation=std::string(32,'c'); s.revision=std::string(64,'d');
+        i.sources.house.power_w=-720*amps; tick(i);
+        if (amps==0) {
+            auto stop=need(e,i,Operation::Stop); e.complete(stop,{true,true});
+            s.activation=std::string(32,'d'); i.sources.house.power_w=-7200;
+            check(!e.step(i) && e.status()==Status::AwaitingStop,"new ID cannot consume pre-Stop false");
+            tick(i); i.sample->charging=true;
+            check(!e.step(i) && e.status()==Status::AwaitingStop,"late charging does not cancel Stop wait");
+            tick(i); i.sample->charging=false; need(e,i,Operation::Start,10000);
+        } else {
+            if (amps<10) {
+                auto lower=need(e,i,Operation::SetCurrent,8000); e.complete(lower,{true,true});
+                // The next activation cannot raise the now lower pending target.
+                s.activation=std::string(32,'d'); i.sources.house.power_w=-7200; tick(i);
+            }
+            check(!e.step(i) && e.status()==Status::AwaitingStart,"activation neither repeats nor raises outstanding Start");
+            tick(i); i.sample->charging=true;
+            if (amps==10) check(!e.step(i) && e.status()==Status::Charging,"matching running target needs no write");
+            else need(e,i,Operation::SetCurrent,amps<10?10000:amps*1000);
+        }
+    }
+    for (bool manual_command : {false,true}) {
+        Engine e; auto i=input(); auto &s=i.sources.settings; activate(e,i);
+        e.complete(need(e,i,Operation::Start,10000),{true,true});
+        if (manual_command) { e.manual_override(); i.activation_guard=s.guard=std::string(32,'2'); }
+        else { s.mode=Mode::Manual; s.activation=std::string(32,'c'); }
+        tick(i); check(!e.step(i) && e.status()==(manual_command?Status::ManualOverride:Status::Manual),
+                        "explicit manual takeover neither stops nor retains automatic ownership");
+        s.mode=Mode::Pv; s.activation=std::string(32,'d'); tick(i); need(e,i,Operation::Start,10000);
+    }
+    { Engine e; auto i=input(); activate(e,i); e.complete(need(e,i,Operation::Start,10000),{true,true});
+      tick(i); i.sample->charging=true; check(!e.step(i),"fresh charging");
+      tick(i); i.sample->charging=false; check(!e.step(i) && e.status()==Status::VehicleFinished,"observed end blocks auto restart");
+      i.sources.settings.activation=std::string(32,'c'); tick(i); need(e,i,Operation::Start,10000); }
+    { Engine e; auto i=input(); activate(e,i); e.complete(need(e,i,Operation::Start,10000),{true,true});
+      auto &s=i.sources.settings; s.activation=std::string(32,'c'); s.mode=Mode::Custom;
+      s.custom.use_schedule=true; s.custom.weekdays={1}; s.custom.windows={{0,1}}; s.custom.outside=Profile::Outside::Manual;
+      tick(i); check(!e.step(i) && e.status()==Status::ManualHandling,"outside-manual window suspends commands");
+      s.activation=std::string(32,'d'); s.mode=Mode::Pv; i.sources.house.power_w=0; tick(i);
+      need(e,i,Operation::Stop); } // suspending a schedule did not transfer ownership
+    { Engine e; auto i=input(); activate(e,i); auto start=need(e,i,Operation::Start,10000);
+      i.sources.settings.activation=std::string(32,'c'); tick(i); check(!e.step(i),"in-flight activation is quarantined");
+      e.complete(start,{true,true}); tick(i); check(!e.step(i) && e.status()==Status::Frozen,"late ACK cannot arm quarantined ID");
+      i.sources.settings.activation=std::string(32,'d'); tick(i);
+      check(!e.step(i) && e.status()==Status::AwaitingStart,"later activation retains late ACK release"); }
+}
+void missing_reduction_readback() {
+    for (bool running : {false,true}) for(int outcome=0;outcome<7;++outcome) {
+        Engine e; auto i=input(); activate(e,i); e.complete(need(e,i,Operation::Start,10000),{true,true});
+        i.sample->charging=running; i.sources.house.power_w=-5760; tick(i);
+        auto lower=need(e,i,Operation::SetCurrent,8000);
+        e.complete(lower,{true,false,true}); // FC16 ACK, effective limit missing or too high.
+        check(e.status()==Status::Frozen,"incomplete reduction freezes ordinary control immediately");
+        i.sources.settings.activation=std::string(32,'c'); tick(i);
+        if (outcome==0) {
+            i.bus_connected=false; check(!e.step(i),"no safety write on broken bus");
+            i.bus_connected=true; tick(i); check(!e.step(i),"no delayed safety write on transport recovery");
+        } else {
+            auto stop=need(e,i,Operation::Stop); check(stop.limit_protection && e.accepts(stop,i),"only bounded protective stop admitted");
+            if (outcome==1) {
+                e.manual_override(); check(!e.accepts(stop,i),"manual operator cancels protective Stop");
+                e.complete(stop,{}); continue;
+            }
+            if (outcome>=4) {
+                auto invalid=i;
+                if (outcome==4) { invalid.now=stop.deadline; invalid.utc+=3; }
+                else invalid.bus_connected=false;
+                if (outcome==6) check(!e.step(invalid),"no dispatch across disconnected poll");
+                else check(!e.accepts(stop,invalid),"expiry or disconnect refuses protective Stop");
+                check(!e.accepts(stop,i),"a later good check cannot revive the refused ticket");
+                e.complete(stop,{}); // refused before sending
+            } else e.complete(stop,{true,outcome==2}); // ACK or unknown Stop, no resend.
+            if (outcome==2) i.sample->charging.reset(); // no post-Stop false yet
+        }
+        tick(i); check(!e.step(i) && e.status()==Status::Frozen,"freeze persists without retries");
+        i.sources.settings.activation=std::string(32,'d'); tick(i);
+        check(!e.step(i) && e.status()==Status::Frozen,"new plan cannot substitute for physical recovery");
+        if (outcome==2) {
+            i.sample->charging=false; tick(i); check(!e.step(i),"settling protective stop cannot itself rearm");
+        } else {
+            e.manual_override(); i.sample->charging=false; i.activation_guard=i.sources.settings.guard=std::string(32,'2');
+            tick(i); check(!e.step(i),"hand operation does not automatically restart");
+        }
+        i.sources.settings.activation=std::string(32,'e'); tick(i); need(e,i,Operation::Start,8000);
+    }
+    { Engine e; auto i=input(); activate(e,i); e.complete(need(e,i,Operation::Start,10000),{true,true});
+      i.sources.house.power_w=-5760; tick(i); e.complete(need(e,i,Operation::SetCurrent,8000),{true,false});
+      tick(i); check(!e.step(i) && e.status()==Status::Frozen,"missing write ACK is not an ACK with missing readback");
+      i.sources.house.power_w=-6480; i.sources.settings.activation=std::string(32,'c'); tick(i);
+      check(!e.step(i) && e.status()==Status::AwaitingStart,"9 A might raise the unknown result of an 8 A attempt");
+      i.sources.house.power_w=0; tick(i); need(e,i,Operation::Stop); }
+    { Engine e; auto i=input(); activate(e,i); e.complete(need(e,i,Operation::Start,10000),{true,true});
+      i.sample->charging=true; i.sources.house.power_w=-8640; tick(i);
+      e.complete(need(e,i,Operation::SetCurrent,12000),{true,false});
+      i.sources.house.power_w=-7200; i.sources.settings.activation=std::string(32,'c'); tick(i);
+      need(e,i,Operation::SetCurrent,10000); } // previous 10 A no longer proves the requested target
+    { Engine e; auto i=input(); activate(e,i); i.sample->charging=true; i.sample->current_limit_a=16;
+      e.complete(need(e,i,Operation::SetCurrent,10000),{true,false,true}); tick(i);
+      auto stop=need(e,i,Operation::Stop); check(stop.limit_protection,"observed prior higher limit proves requested reduction");
+      auto changed=i; changed.sources.settings.activation=std::string(32,'c');
+      check(!e.accepts(stop,changed) && !e.accepts(stop,i),"intervening activation permanently cancels protective ticket"); }
+}
 void tests() {
     initialize_vienna_timezone();
+    release_across_activations(); missing_reduction_readback();
     { Engine e; auto i=input(); i.utc+=58; i.sources.settings.mode=Mode::Custom;
       const auto epoch=static_cast<time_t>(i.utc); tm local{}; localtime_r(&epoch,&local);
       const int minute=local.tm_hour*60+local.tm_min;
@@ -145,6 +255,23 @@ void tests() {
       p.outside=Profile::Outside::Pause; i.sample->charging=true; need(e,i,Operation::Stop); }
     { Engine e; auto i=input(); activate(e,i); auto a=need(e,i,Operation::Start,10000);
       e.complete(a,{true,true}); i.sources.settings.valid=false; tick(i); need(e,i,Operation::Stop); }
+    { Engine e; auto i=input(); i.sources.settings.pv.adjust_seconds=1; i.sources.settings.pv.pause_seconds=2;
+      activate(e,i); auto a=need(e,i,Operation::Start,10000); e.complete(a,{true,true});
+      tick(i); check(!e.step(i) && e.status()==Status::AwaitingStart,"do not repeat pending Start");
+      i.sources.house.power_w=-5760; tick(i); check(!e.step(i),"lower pending limit respects adjustment delay");
+      tick(i); a=need(e,i,Operation::SetCurrent,8000); check(e.accepts(a,i),"allow only freshly budgeted lower pending limit");
+      e.complete(a,{true,true}); i.sources.house.power_w=-7200; tick(i);
+      check(!e.step(i) && e.status()==Status::AwaitingStart,"never raise or restart while feedback outstanding");
+      i.sources.house.power_w=0; tick(i); check(!e.step(i) && e.status()==Status::Pausing,"pause delay begins");
+      tick(i,2); a=need(e,i,Operation::Stop); e.complete(a,{true,true});
+      check(!e.step(i) && e.status()==Status::AwaitingStop,"old false cannot confirm protective Stop");
+      tick(i); check(!e.step(i) && e.status()==Status::Pausing,"new false settles; no double Stop"); }
+    { Engine e; auto i=input(); i.sources.settings.mode=Mode::Custom;
+      i.utc=1793059197; auto &p=i.sources.settings.custom; p.use_schedule=true;
+      p.weekdays={1}; p.windows={{23*60,60}}; p.outside=Profile::Outside::Pause;
+      activate(e,i); auto a=need(e,i,Operation::Start,32000); e.complete(a,{true,true});
+      tick(i,2); check(!schedule_contains(p,i.utc),"custom window actually ended");
+      a=need(e,i,Operation::Stop); check(e.accepts(a,i),"closed pause window revokes pending Start"); }
     // A new nonce must not erase a fault in the very same observation.
     for (int fault=0;fault<4;++fault) {
       Engine e; auto i=input(); activate(e,i); i.sources.settings.activation=std::string(32,'c'); auto good=i;
