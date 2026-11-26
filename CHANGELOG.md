@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-11-27 00:34 (Europe/Vienna)
+
+- Visuelle Nachprüfung fand ein lokales helles Desktop-Archivbild mit 1541
+  statt 2057 Pixeln Höhe. Die getrennten Datenquellen müssen vor dem Bild
+  alle fünf Kurvengruppen gefüllt haben. Bei Fullpage-PNGs außerdem die
+  tatsächlich gespeicherte Höhe gegen das Dokument prüfen – kein Wiederholen
+  der Bedienaktion. Keine Produktcodeänderung.
+
+## 2026-11-27 00:30 (Europe/Vienna)
+
+- Ergänzender isolierter Betriebsfall: Website bei gestoppter DB gestartet.
+  Liveness blieb positiv, beide Archivprüfungen lehnten ab. Nach spätem Start
+  derselben DB beide vorher gespeicherten Werte gelesen, ohne zweite
+  Stack-Aktivierung oder Webneustart. Historische und aktuelle Prüfstände
+  im Arbeitskontext getrennt.
+
 ## 2026-11-27 00:26 (Europe/Vienna)
 
 - Nachweise auf Aufgabenebene zugeordnet: Storage-Matrix, vier native

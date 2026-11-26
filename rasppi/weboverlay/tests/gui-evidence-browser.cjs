@@ -186,6 +186,12 @@ async function interactions(page, name, observed, shot, touch) {
     if (!negative) await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok' && document.querySelector('.chart-line'));
     else await page.waitForFunction(() => /nicht verfügbar/.test(document.getElementById('calendar-label').textContent) &&
       document.getElementById('history-source').dataset.historyStatus === 'unavailable');
+    if (name === 'diagrams' && !negative) await page.waitForFunction(() => {
+      const cards = [...document.querySelectorAll('#chart-grid .chart-card')];
+      return cards.length === 4 && cards.every(card => card.querySelector('.chart-line')) &&
+        document.querySelector('#chart-house .chart-line') &&
+        /1800 Messpunkte/.test(document.getElementById('house-chart-description').textContent);
+    });
     await shot(negative ? 'archive-unavailable' : 'archive-populated');
     assert(observed.archives.some(url => url.includes('period=hour')), 'Real calendar request');
     assert.deepEqual(observed.posts, [], 'Charts/diagnosis never write');
@@ -213,7 +219,16 @@ async function interactions(page, name, observed, shot, touch) {
       const shot = async (state, fullPage = true) => {
         await layout(page);
         const file = `${name}--${scheme}--${device}-${width}--${state}.png`;
-        await page.screenshot({ path: path.join(root, file), fullPage, animations: 'disabled' });
+        const capture = () => page.screenshot({ path: path.join(root, file), fullPage, animations: 'disabled' });
+        let png = await capture();
+        if (fullPage) {
+          // Independent HOUSE and Wallbox renders can grow the document while
+          // Chromium takes a full-page capture. Check the PNG's actual IHDR
+          // rather than treating the mere existence of a file as evidence.
+          const height = () => page.evaluate(() => document.documentElement.scrollHeight);
+          if (png.readUInt32BE(20) + 1 < await height()) png = await capture(); // image only, never replay the interaction
+          assert(png.readUInt32BE(20) + 1 >= await height(), `Incomplete full-page capture: ${file}`);
+        }
         cell.images.push({ file, state, full_page: fullPage }); write();
       };
       try {
