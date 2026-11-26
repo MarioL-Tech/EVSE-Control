@@ -157,7 +157,11 @@ async function interactions(page, name, observed, shot, touch) {
     const trigger = page.locator('[data-setting-info="esp32-uid"] .setting-help > summary');
     if (touch) await trigger.tap(); else await trigger.hover();
     await page.locator('[data-setting-info="esp32-uid"] [role="tooltip"]').waitFor();
-    await trigger.scrollIntoViewIfNeeded(); await shot('field-help', false);
+    if (touch) await page.waitForFunction(() => {
+      const rect = document.querySelector('[data-setting-info="esp32-uid"] [role="tooltip"]').getBoundingClientRect();
+      return rect.height > 0 && rect.top >= 0 && rect.bottom <= innerHeight + 1;
+    });
+    await shot('field-help', false);
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => !document.getElementById('env-fields').disabled);
     await page.locator('#env-service').selectOption('weboverlay');

@@ -1,6 +1,6 @@
 # Arbeitskontext für Agents: EVSE-Control
 
-Stand: 2026-11-26. Diese Datei beschreibt den geprüften Repositoryzustand und
+Stand: 2026-11-27. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
@@ -15,6 +15,12 @@ GitHub-Tests, nicht dem Review oder der Schlussübergabe.
 Aktueller Prüfstand siehe Checkliste. Der opt-in TLS-Proxy behält den internen
 Apache-Upstream und bekommt ausschließlich für die Hostport-Veröffentlichung
 eine eigene Projektbridge ohne Masquerading, nicht das MQTT-/DB-Netz. Kein Deployment.
+`bash bin/stack.sh build` baut alle fünf Stack-Laufzeitimages ohne Start;
+eine fehlende `bin/.env` wird ohne Überschreiben vorbereitet, der Betreiber
+prüft die Auswahl und setzt vor `up`/`build-up` bewusst `ready yes`. Die
+Root-Systemunit begrenzt ihre Capabilities und liest Standortkonfiguration
+nur im unprivilegierten Zeugenprozess. PWA-Shell v27, getrennte Archive und
+Livewerte; ohne lesbares Kalenderarchiv keine Live-Achsen als Ersatz.
 
 Die SHA-256-Prüfungen für HOUSE- und Minutenarchiv erwarten die kanonischen
 LF-Bytes der SQL-Migrationen. `rasppi/storage/migrations/*.sql` deshalb auch

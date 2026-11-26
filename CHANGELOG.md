@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-27 00:01 (Europe/Vienna)
+
+- Mobiler Sichttest: Angetippte Feldhilfe konnte unterhalb des Viewports liegen.
+  Bei bewusster Aktivierung oder Tastaturfokus die Erklärung in Sicht scrollen,
+  nicht bei passivem Maus-Hover. Eigene Viewportprüfung, Shell v27. Erfolgreicher
+  reiner Build meldet ausdrücklich, dass kein Projektdienst gestartet wurde.
+
 ## 2026-11-26 23:55 (Europe/Vienna)
 
 - Visuelle Befunde bearbeitet: Skip-Link nur im Tastaturfokus sichtbar,

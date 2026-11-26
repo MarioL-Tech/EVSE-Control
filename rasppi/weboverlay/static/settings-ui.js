@@ -44,11 +44,21 @@
     help.append(trigger, tip);
     help.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') show(help); });
     help.addEventListener('pointerleave', () => { if (opened === help && !pinned && doc.activeElement !== trigger) close(); });
-    trigger.addEventListener('focus', () => show(help));
+    function revealTip() {
+      requestAnimationFrame(() => {
+        if (opened === help && (pinned || doc.activeElement === trigger)) {
+          tip.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }
+      });
+    }
+    trigger.addEventListener('focus', () => {
+      show(help);
+      if (trigger.matches(':focus-visible')) revealTip();
+    });
     trigger.addEventListener('blur', () => { if (opened === help) close(); });
     trigger.addEventListener('click', e => {
       e.preventDefault();
-      if (opened === help && pinned) close(); else { show(help); pinned = true; }
+      if (opened === help && pinned) close(); else { show(help); pinned = true; revealTip(); }
     });
     if (input) {
       input.addEventListener('focus', () => {

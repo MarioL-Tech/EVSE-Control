@@ -83,6 +83,7 @@ EOF
     esac
     compose_for "$role" "$build_env" build "${selected[@]}"
   done
+  echo 'Fünf Stack-Images gebaut. Keine Projektdienste gestartet, gestoppt oder neu erstellt.'
   exit 0
 fi
 # The editor's persistent 0600 locks belong to the website uid, not to the
