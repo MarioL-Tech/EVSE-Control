@@ -22,6 +22,14 @@ Root-Systemunit begrenzt ihre Capabilities und liest Standortkonfiguration
 nur im unprivilegierten Zeugenprozess. PWA-Shell v27, getrennte Archive und
 Livewerte; ohne lesbares Kalenderarchiv keine Live-Achsen als Ersatz.
 
+Aktueller Gesamtabschluss: Produktcode `c60bcad`, Stack-/Bootnachweis
+`0533743`/45910328714, finaler Web-Teststand `ac48c20`/45911719752 mit
+beiden getrennten Jobs grün. Zwei unabhängige Sichtprüfer sahen jeweils beide
+finalen lokalen 68-PNG-Matrizen; vollständiges 1440×2057-Archivbild und mobiles
+Fehlerarchiv zusätzlich aus den gehosteten Artefakten angesehen. P00–E2 sind
+belegt; E3 verlangt jetzt einen neu gestarteten unabhängigen Gesamtprüfer,
+erst danach E4/Gesamt-PR. Keine Pi-/Hardware-/Deploymentabnahme.
+
 Die SHA-256-Prüfungen für HOUSE- und Minutenarchiv erwarten die kanonischen
 LF-Bytes der SQL-Migrationen. `rasppi/storage/migrations/*.sql` deshalb auch
 in Windows-Checkouts mit LF belassen; keine Prüfsummen auf CRLF umstellen.

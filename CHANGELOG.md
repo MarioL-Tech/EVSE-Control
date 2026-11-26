@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-27 00:54 (Europe/Vienna)
+
+- E1/E2 am finalen Web-Teststand `ac48c20` belegt: GitHub-Lauf
+  45911719752 mit beiden unabhängigen Webjobs vollständig grün; beide
+  Artefakte mit je 16 erfolgreichen Zellen und 68 PNGs abgeglichen.
+  Zwei unabhängige Sichtprüfer sahen jeweils beide finalen lokalen Matrizen.
+  Vollständiges gehostetes Desktop-Archiv (1440×2057, alle fünf Kurvengruppen)
+  und mobiles Fehlerarchiv zusätzlich angesehen. Frühere abgeschnittene
+  Aufnahme ausgeschlossen; E3 noch nicht abgenommen. Kein Produktcodeumbau.
+
 ## 2026-11-27 00:34 (Europe/Vienna)
 
 - Visuelle Nachprüfung fand ein lokales helles Desktop-Archivbild mit 1541
