@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-26 21:49 (Europe/Vienna)
+
+- Gesamtauftrag in delegierbare Arbeitspakete mit Prüfkriterien, Abhängigkeiten
+  und Zuordnung zur Originalaufgabe gegliedert. Unabhängige Schlusskontrolle
+  nach dem vollständigen Abhaken und vor dem Gesamt-PR festgelegt. Nur Planung,
+  keine Freigabe zur Fortsetzung der Umsetzung.
+
+## 2026-11-26 21:36 (Europe/Vienna)
+
+- Markdown-Checkliste für den nächsten Gesamtauftrag angelegt. Aufgaben und
+  Prüfnachweise werden dort laufend festgehalten und erst danach abgehakt.
+
 ## 2026-11-26 21:11 (Europe/Vienna)
 
 - Lokale Docker-Abnahme von Bedienung, Regler, Storage, UART, ESP32, Web und

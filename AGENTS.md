@@ -4,6 +4,14 @@ Stand: 2026-11-26. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
+Der Gesamtauftrag mit Arbeitspaketen, Abhängigkeiten und der Zuordnung zu allen
+Originalpunkten steht in `docs/aufgaben-checkliste.md`. Die Umsetzung bleibt
+pausiert, bis der Projektinhaber sie fortsetzen lässt. Danach die Liste laufend
+pflegen und erst nach Umsetzung und Prüfung abhaken. Wenn alle Arbeits- und
+Prüfpunkte abgehakt sind, folgt eine unabhängige Vollständigkeitsprüfung am
+finalen Stand; erst danach den Gesamt-PR bereitstellen. Teil-PRs dienen nur
+GitHub-Tests, nicht dem Review oder der Schlussübergabe.
+
 Die SHA-256-Prüfungen für HOUSE- und Minutenarchiv erwarten die kanonischen
 LF-Bytes der SQL-Migrationen. `rasppi/storage/migrations/*.sql` deshalb auch
 in Windows-Checkouts mit LF belassen; keine Prüfsummen auf CRLF umstellen.
