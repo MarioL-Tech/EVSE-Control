@@ -1,6 +1,6 @@
 # EVSE-Control – Aufgabencheckliste
 
-**Status:** Umsetzung mit „Start“ freigegeben, Ausgangsstand `cbf15d4`. Begonnene Änderungen sind kein Abnahmenachweis.
+**Status:** P00–E3 hardwarefrei abgeschlossen; genau ein nicht-Draft-Gesamt-PR [#74](https://github.com/MarioL-Tech/EVSE-Control/pull/74) zur Review bereitgestellt. Umsetzung mit „Start“ freigegeben, Ausgangsstand `cbf15d4`. Begonnene Änderungen sind kein Abnahmenachweis; PR-Prüfstatus vom tatsächlichen jeweiligen Head getrennt beachten.
 
 ## Arbeitsweise
 
@@ -183,7 +183,8 @@ beide Antworten HTTP 503/`unavailable` ohne Samples, bei Wiederanschluss `ok`.
 
 ### E4 – Ein Gesamt-PR zur Review · Schlussübergabe
 
-- [ ] Erst nach bestandener Vollständigkeitsprüfung E3 **genau einen Gesamt-PR zur Review** bereitstellen und die Nachweise dem PR-Stand zuordnen. Eventuelle Teil-PRs bleiben reine Testläufe und stehen nicht zur Review. Kein Review abwarten und kein Merge im Auftrag enthalten.
+- [x] Erst nach bestandener Vollständigkeitsprüfung E3 **genau einen Gesamt-PR zur Review** bereitstellen und die Nachweise dem PR-Stand zuordnen. Eventuelle Teil-PRs bleiben reine Testläufe und stehen nicht zur Review. Kein Review abwarten und kein Merge im Auftrag enthalten. **Nachweis:** [Gesamt-PR #74](https://github.com/MarioL-Tech/EVSE-Control/pull/74), offen und nicht Draft, `feat/gesamtabschluss` → `main`. Vorher per API nach bestehendem Gesamt-PR gesucht: keiner vorhanden. Erst nach E3-PASS und Push des Dokumentationsstands `f789adc77c528df93943f17d332222e2e480e3b6` erstellt; tatsächliche Basis `cbf15d435d8cf4b78f4cfbd2782affa61ac7a4b4`. Dieser Nachtrag bleibt auf demselben Featurebranch und in derselben PR.
+  - Nachweiszuordnung unverändert: Produktcode `c60bcad`, Stack-/Boottests `0533743`, finale Web-/GUI-Tests `ac48c20`, unabhängiges E3 auf `c3aa32a`. Seitdem nur Dokumentation. Neue PR-Checks am abschließenden Dokumentationshead separat abwarten und real prüfen; frühere grüne Läufe nicht als noch ausstehende PR-Checks ausgeben. Kein Merge, kein Deployment, unbekanntes `evse.jsonl` unverändert.
 
 ## Delegation ohne Dateikonflikte
 

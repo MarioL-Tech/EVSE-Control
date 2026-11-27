@@ -30,7 +30,10 @@ Fehlerarchiv zusätzlich aus den gehosteten Artefakten angesehen. P00–E2 sind
 belegt. Neuer unabhängiger Gesamtprüfer (`openai/gpt-6.1-sol`) bestätigt E3 PASS
 auf `c3aa32a`: Originalpunkte/Ergänzungen gegen Code, selbst abgefragte CI-Daten
 und 15 tatsächlich angesehene lokale/gehostete Bilder, keine konkrete Lücke im
-hardwarefreien Umfang. E4/Gesamt-PR folgt getrennt. Keine Pi-/Hardware-/Deploymentabnahme.
+hardwarefreien Umfang. E4: genau ein offener nicht-Draft-Gesamt-PR #74 von
+`feat/gesamtabschluss` nach `main`, erstellt nach E3 auf Dokumentationshead
+`f789adc`; folgende Dokumentationsnachträge gehören zur selben PR. Tatsächliche
+abschließende PR-Checks gesondert prüfen. Kein Merge, keine Pi-/Hardware-/Deploymentabnahme.
 
 Die SHA-256-Prüfungen für HOUSE- und Minutenarchiv erwarten die kanonischen
 LF-Bytes der SQL-Migrationen. `rasppi/storage/migrations/*.sql` deshalb auch

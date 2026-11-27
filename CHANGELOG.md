@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-27 01:02 (Europe/Vienna)
+
+- Nach unabhängig bestandenem E3 genau einen nicht-Draft-Gesamt-PR
+  [#74](https://github.com/MarioL-Tech/EVSE-Control/pull/74) bereitgestellt:
+  `feat/gesamtabschluss` → `main`, Erstellungshead `f789adc`, Basis `cbf15d4`.
+  E4 mit URL und Versionszuordnung dokumentiert; dieser Nachtrag wird zur
+  selben PR gepusht. Abschließende PR-Checks getrennt von den bereits grünen
+  Komponenten-/Webläufen prüfen. Kein Merge oder Deployment.
+
 ## 2026-11-27 01:01 (Europe/Vienna)
 
 - E3 durch einen erst nach vollständigem P00–E2-Abhaken neu gestarteten,
