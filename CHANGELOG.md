@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-27 01:01 (Europe/Vienna)
+
+- E3 durch einen erst nach vollständigem P00–E2-Abhaken neu gestarteten,
+  unabhängigen lesenden Prüfer bestanden: `openai/gpt-6.1-sol`, Prüfhead
+  `c3aa32a`. Originalpunkte und Ergänzungen gegen tatsächliche Quellen,
+  Testpfade, selbst abgefragte GitHub-Daten und 15 geöffnete lokale/gehostete
+  Bilder geprüft. Keine konkrete Code-/Nachweislücke im hardwarefreien Umfang;
+  keine Hardware- oder Deploymentfreigabe. E4 bleibt bis zur PR-Bereitstellung offen.
+
 ## 2026-11-27 00:54 (Europe/Vienna)
 
 - E1/E2 am finalen Web-Teststand `ac48c20` belegt: GitHub-Lauf

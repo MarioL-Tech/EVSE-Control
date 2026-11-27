@@ -27,8 +27,10 @@ Aktueller Gesamtabschluss: Produktcode `c60bcad`, Stack-/Bootnachweis
 beiden getrennten Jobs grün. Zwei unabhängige Sichtprüfer sahen jeweils beide
 finalen lokalen 68-PNG-Matrizen; vollständiges 1440×2057-Archivbild und mobiles
 Fehlerarchiv zusätzlich aus den gehosteten Artefakten angesehen. P00–E2 sind
-belegt; E3 verlangt jetzt einen neu gestarteten unabhängigen Gesamtprüfer,
-erst danach E4/Gesamt-PR. Keine Pi-/Hardware-/Deploymentabnahme.
+belegt. Neuer unabhängiger Gesamtprüfer (`openai/gpt-6.1-sol`) bestätigt E3 PASS
+auf `c3aa32a`: Originalpunkte/Ergänzungen gegen Code, selbst abgefragte CI-Daten
+und 15 tatsächlich angesehene lokale/gehostete Bilder, keine konkrete Lücke im
+hardwarefreien Umfang. E4/Gesamt-PR folgt getrennt. Keine Pi-/Hardware-/Deploymentabnahme.
 
 Die SHA-256-Prüfungen für HOUSE- und Minutenarchiv erwarten die kanonischen
 LF-Bytes der SQL-Migrationen. `rasppi/storage/migrations/*.sql` deshalb auch
