@@ -298,11 +298,15 @@ class Gateway:
         while self.clock() < deadline and not self.stopping:
             if epoch != self.epoch or not self.ready:
                 raise SerialFailure()
+            char = self.port.read(1)
+            # A blocking read can return at/after expiry or after a callback has
+            # revoked this operation. Never accept even its final newline then.
             now = self.clock()
+            if now >= deadline or self.stopping or epoch != self.epoch or not self.ready:
+                raise SerialFailure()
             if self.rx_start is not None and now - self.rx_start >= 2:
                 self.discard = True
                 self.rx.clear()
-            char = self.port.read(1)
             if not char:
                 continue
             if char == b"\n":

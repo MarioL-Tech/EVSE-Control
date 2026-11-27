@@ -1,29 +1,52 @@
 # Arbeitskontext für Agents: EVSE-Control
 
-Stand: 2026-11-26. Diese Datei beschreibt den geprüften Repositoryzustand und
+Stand: 2026-11-27. Diese Datei beschreibt den geprüften Repositoryzustand und
 die vom Projektinhaber genannten Ziele. Geplante Funktionen sind **nicht** als
 bereits implementiert zu behandeln. Auf Deutsch kommunizieren.
 
 Der Gesamtauftrag mit Arbeitspaketen, Abhängigkeiten und der Zuordnung zu allen
-Originalpunkten steht in `docs/aufgaben-checkliste.md`. Die Umsetzung bleibt
-pausiert, bis der Projektinhaber sie fortsetzen lässt. Danach die Liste laufend
+Originalpunkten steht in `docs/aufgaben-checkliste.md`. Die Umsetzung ist durch
+„Start“ freigegeben. Die Liste laufend
 pflegen und erst nach Umsetzung und Prüfung abhaken. Wenn alle Arbeits- und
 Prüfpunkte abgehakt sind, folgt eine unabhängige Vollständigkeitsprüfung am
 finalen Stand; erst danach den Gesamt-PR bereitstellen. Teil-PRs dienen nur
 GitHub-Tests, nicht dem Review oder der Schlussübergabe.
 
+Aktueller Prüfstand siehe Checkliste. Der opt-in TLS-Proxy behält den internen
+Apache-Upstream und bekommt ausschließlich für die Hostport-Veröffentlichung
+eine eigene Projektbridge ohne Masquerading, nicht das MQTT-/DB-Netz. Kein Deployment.
+`bash bin/stack.sh build` baut alle fünf Stack-Laufzeitimages ohne Start;
+eine fehlende `bin/.env` wird ohne Überschreiben vorbereitet, der Betreiber
+prüft die Auswahl und setzt vor `up`/`build-up` bewusst `ready yes`. Die
+Root-Systemunit begrenzt ihre Capabilities und liest Standortkonfiguration
+nur im unprivilegierten Zeugenprozess. PWA-Shell v27, getrennte Archive und
+Livewerte; ohne lesbares Kalenderarchiv keine Live-Achsen als Ersatz.
+
+Aktueller Gesamtabschluss: Produktcode `c60bcad`, Stack-/Bootnachweis
+`0533743`/45910328714, finaler Web-Teststand `ac48c20`/45911719752 mit
+beiden getrennten Jobs grün. Zwei unabhängige Sichtprüfer sahen jeweils beide
+finalen lokalen 68-PNG-Matrizen; vollständiges 1440×2057-Archivbild und mobiles
+Fehlerarchiv zusätzlich aus den gehosteten Artefakten angesehen. P00–E2 sind
+belegt. Neuer unabhängiger Gesamtprüfer (`openai/gpt-6.1-sol`) bestätigt E3 PASS
+auf `c3aa32a`: Originalpunkte/Ergänzungen gegen Code, selbst abgefragte CI-Daten
+und 15 tatsächlich angesehene lokale/gehostete Bilder, keine konkrete Lücke im
+hardwarefreien Umfang. E4: genau ein offener nicht-Draft-Gesamt-PR #74 von
+`feat/gesamtabschluss` nach `main`, erstellt nach E3 auf Dokumentationshead
+`f789adc`; folgende Dokumentationsnachträge gehören zur selben PR. Tatsächliche
+abschließende PR-Checks gesondert prüfen. Kein Merge, keine Pi-/Hardware-/Deploymentabnahme.
+
 Die SHA-256-Prüfungen für HOUSE- und Minutenarchiv erwarten die kanonischen
 LF-Bytes der SQL-Migrationen. `rasppi/storage/migrations/*.sql` deshalb auch
 in Windows-Checkouts mit LF belassen; keine Prüfsummen auf CRLF umstellen.
 
-Lokaler Web-Abschlussnachweis: Alle 17 Shell-Schritte des Web-Workflows auf
+Historischer lokaler Webnachweis vor PR #73: Alle 17 Shell-Schritte des Web-Workflows auf
 Linux/amd64 im unabhängigen Docker-KVM-Gast bestanden, einschließlich isolierter
 SQL-/HOUSE-/TLS-/PWA- und elf integrierter Chromium-Suiten. `--standalone-only`
 lief vorher ohne Netzwerk. Elf neue Bilder mit simulierten Daten angesehen;
 beide Livekurven auch gemeinsam auf Desktop und Mobilgerät geprüft. Das ist
 kein zweiter gehosteter GitHub-Runner und kein Pi- oder Hardwaretest.
 
-**Aktueller Bedienstand (Arbeitsbaum, kein neuer CI-/Pi-Nachweis):** Die vier
+**Bedienstand (hardwarefreie Nachweise in der Aufgabencheckliste):** Die vier
 Routen stehen in `rasppi/weboverlay/public/index.php`: Übersicht `/`, Diagramme
 `/diagramme`, Diagnose `/diagnose`, Settings `/einstellungen`; GET `/wallbox`
 leitet auf `/`. Elektrische Kurven folgen dem Hausdiagramm. Diagnose zeigt
@@ -47,15 +70,16 @@ Compose-Projektidentitäten. Optionale root-eigene systemd-Oneshot-Unit nach
 dem vorab gebundenen bestehenden Archivnetz verbinden, kein Recreate/Retry,
 keine Eingriffe in Broker/DB/Hardware. Änderungen oder neue IDs verlangen eine
 neue Betreiberfreigabe. Keine atomare Zusage gegen externe Docker-Eingriffe.
-Zwei isolierte CI-Jobs vorgesehen, keine Pi-/Bootabnahme behaupten. Frühere
+Zwei isolierte CI-Jobs und gesonderter KVM-Kaltstart, keine Pi-Abnahme. Frühere
 Aussagen zum noch nicht vorhandenen gemeinsamen Einstieg sind historisch.
 
 Für Änderungen an `bin/stack.sh` prüfen die Komponenten-Workflows zusätzlich
 die volle Storage-, UART-, ESP32-, Reader- und Webmatrix. Zwei unabhängige
 Webrunner bauen denselben Checkout und liefern getrennte GUI-Artefakte; der
 TLS-Browser vergleicht den installierten PWA-Shellinhalt bytegenau. Laufzeiten
-der früheren Jobs und Erwartungen in `docs/integration-checklist.md`. Noch kein
-CI-Ergebnis oder visueller Abnahmenachweis für diesen neuen Gesamtstand.
+der früheren Jobs und Erwartungen in `docs/integration-checklist.md`. Die
+aktuellen Jobs und tatsächlichen Sichtbefunde stehen getrennt nach Komponente
+und geprüftem Commit in `docs/aufgaben-checkliste.md` (A1–E4).
 
 Abschluss-Codehead d4d60ef besteht vollständig: Web41135320070, native Reader-
 Matrix41135320145 (AMD64/ARM64, Bookworm/Trixie, zehn Suiten plus Sanitizer-Core),

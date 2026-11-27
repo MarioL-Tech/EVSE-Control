@@ -64,7 +64,7 @@
   const byId = id => document.getElementById(id);
   const fields = byId('charging-fields'), status = byId('charging-status');
   function message(value) { if (status.textContent !== value) status.textContent = value; status.hidden = !value; }
-  let baseline = null, nextWindow = 0;
+  let baseline = null, nextWindow = 0, valid = true;
   let revision = null, csrf = null, available = false, dirty = false, busy = false, active = null, activeSave = false, generation = 0;
   function element(tag, value) { const el = document.createElement(tag); if (value) el.textContent = value; return el; }
   function profile(name, title) {
@@ -149,6 +149,7 @@
       const hint = byId(input.id + '-error'); if (hint.textContent !== problem) hint.textContent = problem; hint.hidden = !problem;
       if (problem) ok = false;
     }
+    valid = ok;
     return ok;
   }
   function mark() {
@@ -196,15 +197,24 @@
   }
   function render() {
     fields.disabled = !available || busy;
-    byId('charging-save').disabled = !available || !dirty || busy;
+    byId('charging-save').disabled = !available || !dirty || busy || !valid;
     byId('charging-reload').disabled = busy;
     add.disabled = !available || busy || windows.children.length >= 16;
   }
   async function exchange(save = false) {
-    if (busy || save && (!available || !dirty || !form.reportValidity())) return;
+    if (busy || save && (!available || !dirty)) return;
+    // Revalidate even for a programmatic submit; disabled buttons are not a
+    // validation boundary. Null profile prerequisites remain valid drafts.
+    if (save) {
+      validateFields();
+      if (!form.reportValidity()) {
+        message('Ungespeichert. Markierte Eingaben prüfen.'); render(); return;
+      }
+    }
     let config;
     try { if (save) config = collect(); } catch (_) { message('Werte oder Zeitfenster ungültig.'); return; }
-    busy = true; const controller = new AbortController(), token = ++generation; active = controller; activeSave = save; render();
+    busy = true; const controller = new AbortController(), token = ++generation; active = controller; activeSave = save;
+    message(save ? 'Regeln werden gespeichert …' : 'Lade Einstellungen …'); render();
     const timeout = setTimeout(() => controller.abort(), 5000);
     try {
       const response = await fetch(ENDPOINT, { method: save ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', signal: controller.signal,

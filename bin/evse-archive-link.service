@@ -5,8 +5,11 @@ Requisite=docker.service
 
 [Service]
 Type=oneshot
-User=root
+# System units start as root. Explicit User=root combined with the sandbox
+# dropped effective CAP_SETUID on Ubuntu 24.04, breaking the unprivileged
+# witness. --boot independently requires uid/gid 0 and a protected receipt.
 Group=root
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_SETPCAP CAP_DAC_READ_SEARCH
 ExecStart=/bin/bash /usr/local/libexec/evse-archive-link --boot
 StandardInput=file:/etc/evse-archive-link/expected
 Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin

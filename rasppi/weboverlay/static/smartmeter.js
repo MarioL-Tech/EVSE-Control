@@ -8,9 +8,11 @@
     read_error: 'Die Hauszählerwerte konnten nicht gelesen werden.', clock_error: 'Die Zeitangaben sind nicht verlässlich.' };
   const keys = ['schema_version', 'read_only', 'status', 'reason', 'power_w', 'fetched_at', 'age_seconds', 'fresh_for_seconds'];
   const finite = value => typeof value === 'number' && Number.isFinite(value);
-  const number = (value, digits) => new Intl.NumberFormat('de-DE', {
+  const numberFormats = new Map([1, 2].map(digits => [digits, new Intl.NumberFormat('de-DE', {
     minimumFractionDigits: digits, maximumFractionDigits: digits
-  }).format(value);
+  })]));
+  const dateFormat = new Intl.DateTimeFormat('de-DE', { dateStyle: 'short', timeStyle: 'medium' });
+  const number = (value, digits) => numberFormats.get(digits).format(value);
   function utc(value) {
     if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)$/.test(value)) return null;
     const ms = Date.parse(value);
@@ -81,14 +83,17 @@
     return { 'grid-power': live ? `${power > 0 ? '+' : ''}${number(Object.is(power, -0) ? 0 : power / 1000, 2)} kW` : '—',
       'grid-direction': live ? power > 0 ? 'Netzbezug' : power < 0 ? 'Einspeisung' : 'Ausgeglichen' : 'Unbekannt',
       'grid-status': labels[view.status] || labels.read_error, 'grid-reason': reasons[view.status] || reasons.read_error,
-      'grid-fetched': fetched !== null && fetched !== undefined ? new Intl.DateTimeFormat('de-DE', {
-        dateStyle: 'short', timeStyle: 'medium' }).format(new Date(fetched)) : '—',
+      'grid-fetched': fetched !== null && fetched !== undefined ? dateFormat.format(new Date(fetched)) : '—',
       'grid-age': finite(view.age_seconds) ? `${number(view.age_seconds, 1)} s` : '—' };
   }
   if (typeof module !== 'undefined' && module.exports) module.exports = { createViewState, present, TIMEOUT_MS };
   if (typeof document === 'undefined' || !document.getElementById('smartmeter')) return;
   const state = createViewState();
-  let active = null, timer = null;
+  let active = null, timer = null, clockTimer = null, suspended = false;
+  function syncClock() {
+    if (clockTimer !== null) clearInterval(clockTimer);
+    clockTimer = !document.hidden && !suspended ? setInterval(render, 250) : null;
+  }
   function render() {
     const view = state.snapshot();
     window.OverlayHouseChart?.observe(view);
@@ -97,11 +102,11 @@
       if (element && element.textContent !== value) element.textContent = value;
     }
     const badge = document.getElementById('grid-status');
-    if (badge) badge.dataset.tone = view.status === 'live' ? 'good'
-      : ['disabled', 'waiting'].includes(view.status) ? 'muted' : 'warning';
+    const tone = view.status === 'live' ? 'good' : ['disabled', 'waiting'].includes(view.status) ? 'muted' : 'warning';
+    if (badge && badge.dataset.tone !== tone) badge.dataset.tone = tone;
   }
   async function poll() {
-    if (active || document.hidden) return;
+    if (active || document.hidden || suspended) return;
     clearTimeout(timer);
     const controller = new AbortController(), token = state.begin(), started = performance.now();
     active = controller;
@@ -113,22 +118,19 @@
     } catch (_) { state.fail(token); }
     finally {
       clearTimeout(timeout); active = null; render();
-      if (!document.hidden) timer = setTimeout(poll, Math.max(0, 1000 - (performance.now() - started)));
+      if (!document.hidden && !suspended) timer = setTimeout(poll, Math.max(0, 1000 - (performance.now() - started)));
     }
   }
   function resume() {
+    syncClock();
     clearTimeout(timer); state.reset();
     if (active) active.abort();
     render();
-    if (!document.hidden) poll();
+    if (!document.hidden && !suspended) poll();
   }
   document.addEventListener('visibilitychange', resume);
-  window.addEventListener('pageshow', resume);
-  window.addEventListener('pagehide', () => {
-    clearTimeout(timer); state.reset();
-    if (active) active.abort();
-    render();
-  });
-  setInterval(render, 250);
+  window.addEventListener('pageshow', () => { suspended = false; resume(); });
+  window.addEventListener('pagehide', () => { suspended = true; resume(); });
+  syncClock();
   render(); poll();
 })();

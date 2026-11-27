@@ -31,8 +31,7 @@ final class SharedState
         $this->locked(function () use ($change): void {
             [$state] = $this->read();
             $change($state);
-            // Latch clock faults even when no browser is polling.
-            $state->snapshot();
+            // write() exports the state and observes clock faults even without readers.
             $this->write($state, self::monotonic());
         });
     }
@@ -46,9 +45,13 @@ final class SharedState
                 if ($elapsed < 0 || $elapsed >= self::HEARTBEAT_SECONDS) {
                     return $this->unavailable();
                 }
+                $wasLatched = $state->futureSampleLatched();
                 $result = $state->snapshot();
-                // Persist the latch across PHP requests; never renew the heartbeat.
-                $this->write($state, $heartbeat);
+                // Only a newly discovered clock fault changes persistent state.
+                // Ordinary polling must neither churn the inode nor renew the heartbeat.
+                if (!$wasLatched && $state->futureSampleLatched()) {
+                    $this->write($state, $heartbeat);
+                }
                 return $result;
             });
         } catch (\Throwable) {

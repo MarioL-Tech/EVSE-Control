@@ -422,8 +422,10 @@
           : entry.inspection + (event.key === 'ArrowRight' ? 1 : -1));
       });
       svg.addEventListener('pointermove', event => {
-        const p = entry.plot, bounds = svg.getBoundingClientRect();
-        if (!p?.bucketCount || !bounds.width) return;
+        const p = entry.plot;
+        if (!p?.bucketCount) return;
+        const bounds = svg.getBoundingClientRect();
+        if (!bounds.width) return;
         const x = (event.clientX - bounds.left) / bounds.width * p.geometry.width;
         inspect(Math.floor((x - p.geometry.left) / (p.geometry.right - p.geometry.left) * p.bucketCount));
       });
@@ -434,6 +436,7 @@
     const browserNote = { source: source?.textContent, detail: detail?.textContent };
     const archive = root.OverlayCalendar?.createArchiveStore();
     let calendar = null;
+    let archiveStatus = 'browser';
     const loader = figures.size && root.OverlayHistory ? root.OverlayHistory.createHistoryLoader({
       importHistory: (batch, now) => history.importHistory(batch, now),
       importArchive: (batch, now, selection) => {
@@ -445,6 +448,10 @@
       },
       onReset: () => { history.clear(); archive?.clear(); calendar?.reset(); lastArchiveDraw = null; draw(Date.now()); },
       onState: state => {
+        archiveStatus = state.status;
+        calendar?.status(state.status, !!archive?.view());
+        lastArchiveDraw = null;
+        draw(Date.now());
         if (!source || !detail) return;
         source.dataset.historyStatus = state.status;
         if (calendar?.selection) {
@@ -493,6 +500,9 @@
     }
     function draw(now) {
       pendingNow = now;
+      // Visibility/pageshow already invalidate layout and request a fresh frame.
+      // Do not enqueue background frames for reset/import notifications.
+      if (document.hidden) return;
       if (frame !== null) return;
       frame = root.requestAnimationFrame(() => {
         frame = null;
@@ -517,10 +527,19 @@
       for (const g of GROUPS.filter(g => figures.has(g.id))) {
         const entry = figures.get(g.id), { figure, svg, description } = entry;
         const enabled = METRICS.some(m => m.group === g.id && prefs.selected[m.id]);
-        svg.toggleAttribute('hidden', !enabled);
+        svg.toggleAttribute('hidden', !enabled || (archiveMode && !archived));
         figure.hidden = false;
         if (!enabled) {
           if (description.textContent !== 'Keine Kurve ausgewählt.') description.textContent = 'Keine Kurve ausgewählt.';
+          continue;
+        }
+        if (archiveMode && !archived) {
+          // No server-confirmed calendar bounds: never display a live-window
+          // axis for an old selection, nor retain an inspected previous plot.
+          entry.plot = null;
+          svg.replaceChildren(); entry.nodes.clear();
+          description.textContent = archiveStatus === 'browser' ? 'Archiv wird geladen.'
+            : archiveStatus === 'disabled' ? 'Archiv ist deaktiviert.' : 'Archiv nicht verfügbar · keine Archivmesswerte darstellbar.';
           continue;
         }
         const width = widths.get(g.id);

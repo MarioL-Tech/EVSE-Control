@@ -231,6 +231,8 @@ const ack = { status: 'acknowledged', attempted: true, acknowledged: true };
     assert.equal(await range.getAttribute('max'), '6');
     assert.equal(await range.inputValue(), '6');
     await untilText('control-hint', /Nur 6 A zulässig/);
+    assert(await range.isDisabled(), 'A single permitted value is not an adjustable slider');
+    assert.match(await page.locator('#control-hint').innerText(), /nicht verstellbar/);
     assert(!await page.locator('#control-apply').isDisabled(), 'Verified 6 A is valid, just not an adjustable range');
     assert.equal(postCount, 4, 'Tighter verified limit only changes draft');
     onlySix = false; hardwareUnknown = true; await refresh();

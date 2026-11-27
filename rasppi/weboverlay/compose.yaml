@@ -65,6 +65,7 @@ services:
       - "${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_HTTPS_PORT:-443}:8443/tcp"
     networks:
       - web
+      - https-bind
     volumes:
       - https-data:/data
     read_only: true
@@ -80,6 +81,12 @@ services:
         max-size: "10m"
         max-file: "3"
 networks:
+  # An internal-only endpoint does not publish host ports on some Engines.
+  # Only Caddy joins this project-local bridge; upstream stays on internal web.
+  https-bind:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
   web:
     internal: true
   mqtt:

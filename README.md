@@ -13,11 +13,15 @@ Schreibtests, Firmware-Flashen oder unbeaufsichtigten Betrieb.
 
 1. Im bisherigen Checkout auf dem Pi den [Stack-Plan einrichten](docs/stack.md):
    bisherige Dienste, Projektnamen, Auth-/History-Overlays und Profile beibehalten.
-   Erst `bash bin/stack.sh plan` prüfen. Der Plan enthält keine Zugangsdaten.
+   Erst `bash bin/stack.sh plan` prüfen, dann `ready yes` in `bin/.env` setzen.
+   Der Plan enthält keine Zugangsdaten.
 2. **Start:** `bash bin/stack.sh up` aus dem Repository-Hauptverzeichnis.
    **Kontrolle:** `bash bin/stack.sh check`. **Stop:** `bash bin/stack.sh stop`.
    Die einzelnen Compose-Projekte behalten ihre `.env`, Volumes und Portbesitzer;
    Broker und MariaDB laufen separat weiter. Der Stack führt keine Migration aus.
+   **Nur bauen, nichts starten:** `bash bin/stack.sh build`. Eine vorhandene
+   `bin/.env` bleibt erhalten. Vor dem ersten Start die vorbereitete Auswahl
+   mit den tatsächlich genutzten Diensten und Overlays abgleichen.
    Bei einem **Softwareupdate** nach Prüfung des Plans `bash bin/stack.sh build-up`
    statt `up` verwenden, wenn die ausgewählten Images neu gebaut werden sollen.
 3. Bei der Standardbindung den [SSH-Tunnel](docs/installation.md#browserzugriff-über-vorhandenes-sshwireguard)

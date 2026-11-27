@@ -189,11 +189,34 @@ void gatewayOrchestration() {
   CHECK(Serial2.output == "EVSE:ERROR:GATEWAY_UNAVAILABLE\n");
   CHECK(security.ready() && security.locked());
 }
+void mirrorReplayDoesNotRefreshWatchdog() {
+  for (uint32_t base : {uint32_t(0), uint32_t(0xfffffff0)}) {
+    fresh(); sim.now = base;
+    const auto token = gatewayLease(1);
+    const auto req = gatewayRequest(2,token,"MIRROR:ON");
+    clearOutput(); command(req.c_str());
+    CHECK(charging.value() == evse::Charge::On);
+    const auto ack = "EVSE:GATEWAY:RESULT:"+gatewayId(2)+":"+bootSession+":MIRROR:OK\n";
+    CHECK(Serial2.output.find(ack) != std::string::npos);
+    sim.now = base + 9999;
+    clearOutput(); command(req.c_str());
+    CHECK(Serial2.output == ack); // cached outcome, not another executed MIRROR
+    CHECK(charging.value() == evse::Charge::On);
+    sim.now = base + 10000;
+    clearOutput(); loop();
+    CHECK(charging.value() == evse::Charge::Unknown);
+    CHECK(Serial2.output.find("CHARGING:UNKNOWN:SRC:watchdog") != std::string::npos);
+    clearOutput(); command(req.c_str()); // expired cache cannot revive spent lease
+    CHECK(Serial2.output.find(":MIRROR:INVALID_LEASE") != std::string::npos);
+    CHECK(charging.value() == evse::Charge::Unknown);
+    CHECK(std::find(sim.trace.begin(),sim.trace.end(),"PWM_WRITE") == sim.trace.end());
+  }
+}
 } // namespace
 int main() {
   try {
     bootAndPwm(); enrollmentAndPrivacy(); persistenceFailures(); readerFaults(); uartOrchestration();
-    gatewayOrchestration();
-    std::cout << "6 simulated firmware suites passed (not physical hardware tests)\n";
+    gatewayOrchestration(); mirrorReplayDoesNotRefreshWatchdog();
+    std::cout << "7 simulated firmware suites passed (not physical hardware tests)\n";
   } catch (const std::exception &error) { std::cerr << error.what() << '\n'; return 1; }
 }

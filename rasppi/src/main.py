@@ -31,20 +31,25 @@ ser = serial.Serial(PORT, BAUD, timeout=0.1, write_timeout=0.2, exclusive=True)
 print(f"EVSE UART bridge: listening on {PORT} @ {BAUD} baud")
 print("Commands: 'on' | 'off' | 'status' | <raw line> | Ctrl+C to stop")
 
+stdin_open = True
 try:
     while True:
         # Pi -> ESP32: interactive commands
-        if select.select([sys.stdin], [], [], 0)[0]:
-            line = sys.stdin.readline().strip()
-            if line == "":
-                continue
-            cmd = {
-                "on": "CMD:CHARGE:ON",
-                "off": "CMD:CHARGE:OFF",
-                "status": "CMD:STATUS",
-            }.get(line.lower(), line)
-            ser.write((cmd + "\n").encode())
-            print("TX -> ESP32: command sent")
+        if stdin_open and select.select([sys.stdin], [], [], 0)[0]:
+            raw = sys.stdin.readline()
+            if raw == "":
+                # EOF stays readable forever. Continue receive-only instead of
+                # spinning here and starving UART (also for blank input lines).
+                stdin_open = False
+            line = raw.strip()
+            if line:
+                cmd = {
+                    "on": "CMD:CHARGE:ON",
+                    "off": "CMD:CHARGE:OFF",
+                    "status": "CMD:STATUS",
+                }.get(line.lower(), line)
+                ser.write((cmd + "\n").encode())
+                print("TX -> ESP32: command sent")
 
         # ESP32 -> Pi: status / RFID events
         line = ser.readline()

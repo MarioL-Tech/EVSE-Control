@@ -413,7 +413,14 @@
     let saved = null;
     try { saved = JSON.parse(storage?.getItem(KEY) || 'null'); } catch (_) { /* default live */ }
     if (!select(saved, false)) select(null, false);
-    return { get selection() { return selection; }, loaded, reset() { navigation = null; controls(); publish(); } };
+    return { get selection() { return selection; }, loaded,
+      status(state, hasSnapshot) {
+        if (!selection || hasSnapshot) return;
+        const message = state === 'browser' ? 'wird geladen'
+          : state === 'disabled' ? 'deaktiviert' : state === 'ok' ? 'keine Archivmesswerte' : 'nicht verfügbar';
+        label.textContent = `Archiv · ${ZONE} · ${message}`;
+      },
+      reset() { navigation = null; controls(); publish(); } };
   }
   const api = { KEY, ZONE, MAX_BINS, PERIODS, FIELDS, utc, calendarLimits, selectionAllowed, validate, createArchiveStore, fieldFor, buildSummaryPlot, axisLabel, mount,
     currentSelection: null, currentRange: null };

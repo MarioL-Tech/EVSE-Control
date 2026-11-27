@@ -1,5 +1,146 @@
 # Changelog
 
+## 2026-11-27 01:02 (Europe/Vienna)
+
+- Nach unabhängig bestandenem E3 genau einen nicht-Draft-Gesamt-PR
+  [#74](https://github.com/MarioL-Tech/EVSE-Control/pull/74) bereitgestellt:
+  `feat/gesamtabschluss` → `main`, Erstellungshead `f789adc`, Basis `cbf15d4`.
+  E4 mit URL und Versionszuordnung dokumentiert; dieser Nachtrag wird zur
+  selben PR gepusht. Abschließende PR-Checks getrennt von den bereits grünen
+  Komponenten-/Webläufen prüfen. Kein Merge oder Deployment.
+
+## 2026-11-27 01:01 (Europe/Vienna)
+
+- E3 durch einen erst nach vollständigem P00–E2-Abhaken neu gestarteten,
+  unabhängigen lesenden Prüfer bestanden: `openai/gpt-6.1-sol`, Prüfhead
+  `c3aa32a`. Originalpunkte und Ergänzungen gegen tatsächliche Quellen,
+  Testpfade, selbst abgefragte GitHub-Daten und 15 geöffnete lokale/gehostete
+  Bilder geprüft. Keine konkrete Code-/Nachweislücke im hardwarefreien Umfang;
+  keine Hardware- oder Deploymentfreigabe. E4 bleibt bis zur PR-Bereitstellung offen.
+
+## 2026-11-27 00:54 (Europe/Vienna)
+
+- E1/E2 am finalen Web-Teststand `ac48c20` belegt: GitHub-Lauf
+  45911719752 mit beiden unabhängigen Webjobs vollständig grün; beide
+  Artefakte mit je 16 erfolgreichen Zellen und 68 PNGs abgeglichen.
+  Zwei unabhängige Sichtprüfer sahen jeweils beide finalen lokalen Matrizen.
+  Vollständiges gehostetes Desktop-Archiv (1440×2057, alle fünf Kurvengruppen)
+  und mobiles Fehlerarchiv zusätzlich angesehen. Frühere abgeschnittene
+  Aufnahme ausgeschlossen; E3 noch nicht abgenommen. Kein Produktcodeumbau.
+
+## 2026-11-27 00:34 (Europe/Vienna)
+
+- Visuelle Nachprüfung fand ein lokales helles Desktop-Archivbild mit 1541
+  statt 2057 Pixeln Höhe. Die getrennten Datenquellen müssen vor dem Bild
+  alle fünf Kurvengruppen gefüllt haben. Bei Fullpage-PNGs außerdem die
+  tatsächlich gespeicherte Höhe gegen das Dokument prüfen – kein Wiederholen
+  der Bedienaktion. Keine Produktcodeänderung.
+
+## 2026-11-27 00:30 (Europe/Vienna)
+
+- Ergänzender isolierter Betriebsfall: Website bei gestoppter DB gestartet.
+  Liveness blieb positiv, beide Archivprüfungen lehnten ab. Nach spätem Start
+  derselben DB beide vorher gespeicherten Werte gelesen, ohne zweite
+  Stack-Aktivierung oder Webneustart. Historische und aktuelle Prüfstände
+  im Arbeitskontext getrennt.
+
+## 2026-11-27 00:26 (Europe/Vienna)
+
+- Nachweise auf Aufgabenebene zugeordnet: Storage-Matrix, vier native
+  Readerjobs, UART, ESP32 und beide Webjobs auf dem Produktstand `c60bcad`.
+  KVM-Kaltstart mit unveränderten Archivwerten und beide Vier-Rollen-Start-/
+  Stop-Zyklen wiederholt. Ergänzender 20-px-Texttest auf allen vier Routen.
+  Kaltstart-/Stack- und GUI-Nachtests gesondert verfolgen; keine Hardwareabnahme.
+
+## 2026-11-27 00:22 (Europe/Vienna)
+
+- Beide Bildprüfer fanden eine Nachweislücke: der Skiplink war nach Stop
+  korrekt verborgen, aber beim tatsächlichen Tastaturfokus nicht abgebildet.
+  Beide GUI-Matrizen erhalten diesen Zustand sowie einen simulierten
+  Diagnoselesefehler ohne weitergeführten Gerätefehlercode. Nur Prüffälle.
+
+## 2026-11-27 00:20 (Europe/Vienna)
+
+- Stack-Prüflauf: Fehler nach abgezogenem Archivnetz erneut geöffnet. Exakte
+  Fehlerzeile/Phase ohne Payload protokollieren und ausschließlich in der
+  Testkopie die Weiterleitung fehlender synthetischer DNS-Namen an externe
+  Resolver verhindern. Die Prüfung verlangt weiterhin beide HTTP-503-Antworten,
+  funktionierende Liveness und identische gespeicherte Werte nach Wiederkehr.
+
+## 2026-11-27 00:09 (Europe/Vienna)
+
+- Gegenprüfung des Kaltstarttests: Auf einem frischen GitHub-Runner stieß
+  der zweite absichtliche Docker-Start auf systemds Startlimit. Nur in der
+  leeren Test-VM die Zähler nach belegtem sauberem Stop zurücksetzen; jeder
+  Start muss beim ersten Versuch gelingen. Kein Umgehen eines Produktfehlers
+  oder Ändern der installierten Unit.
+
+## 2026-11-27 00:01 (Europe/Vienna)
+
+- Mobiler Sichttest: Angetippte Feldhilfe konnte unterhalb des Viewports liegen.
+  Bei bewusster Aktivierung oder Tastaturfokus die Erklärung in Sicht scrollen,
+  nicht bei passivem Maus-Hover. Eigene Viewportprüfung, Shell v27. Erfolgreicher
+  reiner Build meldet ausdrücklich, dass kein Projektdienst gestartet wurde.
+
+## 2026-11-26 23:55 (Europe/Vienna)
+
+- Visuelle Befunde bearbeitet: Skip-Link nur im Tastaturfokus sichtbar,
+  ungültige Regelentwürfe ohne aktive Speichertaste, UID-Hilfe ohne verdeckte
+  RFID-Aktionen, fokussierte Eingabe mit Fehlermeldung im Sichtbereich.
+  Touch-Ziele bleiben auch bei gemischter Eingabemethode groß. Shell v26.
+- Bei fehlendem Kalenderarchiv zeigen Diagramme keinen Live-Zeitmaßstab für
+  das gewählte historische Datum. Haus-Livewert und Archivkurve beschriftet.
+  Bestehende Archivwerte bei Abruffehlern und alle Datenlücken bleiben erhalten.
+- Gemeinsame Overlay-/Profilauswahl für Build, Start und Prüfung; keine
+  Änderung der getrennten Compose-Identitäten oder produktiver Dateien.
+
+## 2026-11-26 23:47 (Europe/Vienna)
+
+- KVM-Kaltstart mit neuer Boot-ID, automatischem Anschluss und beiden vorher
+  gespeicherten SQL-Werten bestätigt. Stack-Build und Betrieb nutzen dieselbe
+  Overlayauswahl. Test vergleicht alle Mounts unabhängig von der nachweislich
+  wechselnden Reihenfolge in `docker inspect` und prüft die echte TLS-Bindung.
+- Zwei unabhängige lokale Sichtprüfungen ergaben konkrete mobile UI-Befunde;
+  keine vorzeitige GUI-Freigabe.
+
+## 2026-11-26 23:39 (Europe/Vienna)
+
+- Bootfehler im Ubuntu-KVM-Gast reproduziert und mit dem Runner-Journal
+  abgeglichen: `setpriv: setresuid failed`. Explizites `User=root` nahm der
+  sandboxed Unit effektiv CAP_SETUID. System-Unit mit Standard-Root und enger
+  Capability-Liste übernimmt den Privilegwechsel; die Konfiguration wird
+  weiterhin ausschließlich mit Betreiberrechten gehasht. Keine PATH-Erweiterung.
+- TLS-Netztest entfernt nur die zusätzliche leere Formatzeile von `docker inspect`
+  vor dem Vergleich der beiden erwarteten Netzwerkmitglieder.
+
+## 2026-11-26 23:35 (Europe/Vienna)
+
+- Stack: rein alle fünf Images bauen, privaten Plan vollständig und ohne
+  Überschreiben bereitstellen, `up`/`build-up` nur nach Planbestätigung. Der
+  UART-Buildkontext schließt benachbarte Standortdateien auf allen Buildwegen aus.
+- Web: inaktive Ansichten stoppen Renderuhren; Formatter und Chartgeometrie
+  wiederverwenden. Feedback beim Speichern, Touch-Feldhilfen, 6-A-Festbereich
+  und Löschen ungesendeter RFID-Eingaben beim Verlassen. PWA-Shell v25.
+- UART: EOF blockiert den Empfang nicht; nach einem blockierenden Read Frist,
+  Verbindung und Shutdown erneut prüfen. Neue Regressionen für UART und ESP32,
+  SQL-Wiederkehr und zwei GUI-Matrizen. Abschlussprüfung separat.
+
+## 2026-11-26 23:31 (Europe/Vienna)
+
+- Isolierte KVM-Prüfung für zwei SQL-Messwerte über einen echten Gast-Kaltstart
+  ergänzt. Boot-Unit berücksichtigt Docker im administrierten `/usr/local/bin`
+  nach den Distributionspfaden; CI meldet den Prozess-Exitcode bei Fehlern.
+  Reiner Image-Build im Schnellstart und Installationsguide ergänzt.
+
+## 2026-11-26 23:25 (Europe/Vienna)
+
+- Gesamtauftrag nach „Start“ fortgesetzt. Reguläre State-Abfragen ersetzen
+  die IPC-Datei nicht mehr; neu erkannte Uhrfehler werden weiterhin ohne
+  Heartbeatverlängerung persistiert. Redigierte IPC-Fehlerklassen und Inodetest.
+- Opt-in-HTTPS: eigene Veröffentlichungsbridge zusätzlich zum privaten Upstream;
+  Docker-Test prüft TLS über den gebundenen Loopback-Port mit der Fixture-CA.
+  Keine Änderung einer laufenden Installation.
+
 ## 2026-11-26 21:55 (Europe/Vienna)
 
 - Begonnenen Arbeitsstand zu Stack-Build und Plan, Archiv-Boothelfer,

@@ -11,8 +11,12 @@ root=$(cd "$(dirname "$0")/.." && pwd -P)
 exec 9<"$root"
 flock -n 9 || die 'Andere Stack-Operation läuft.'
 if [[ ! -e $root/bin/.env && ! -L $root/bin/.env ]]; then
-  (set -o noclobber; umask 077; cat "$root/bin/stack-plan.example" > "$root/bin/.env") || die 'Plan konnte nicht angelegt werden.'
-  echo 'Standardplan bin/.env angelegt; vor Betrieb gegen den Bestand prüfen.' >&2
+  # Publish the complete private template without replacing a concurrent plan.
+  # Never leave a partly written operational selection at the public path.
+  (umask 077; tmp=$(mktemp "$root/bin/.stack-plan.XXXXXXXX") || exit 1
+   trap 'rm -f -- "$tmp"' EXIT
+   cat "$root/bin/stack-plan.example" > "$tmp" && ln -T -- "$tmp" "$root/bin/.env") || die 'Plan konnte nicht angelegt werden.'
+  echo 'Unfreigegebenen Standardplan bin/.env angelegt; vor Start gegen den Bestand prüfen und ready yes setzen.' >&2
 fi
 [[ -f $root/bin/.env && ! -L $root/bin/.env ]] || die 'Plan muss eine reguläre Datei sein.'
 if [[ $action == archive-pin ]]; then before=$(bash "$root/bin/archive-link.sh" --witness "$root"); fi
@@ -21,7 +25,7 @@ declare -A opt=() projects=() db=() wall=() house=() device=() targets=() files=
 )
 while read -r k v extra || [[ -n ${k:-} ]]; do
   [[ -z $k || $k == '#'* ]] && continue
-  case "$k:$v" in web:base|web:history|web:auth|web:auth+history|storage:base|storage:auth|reader:base|reader:auth|rollup:on|https:on|uart:gateway) ;;
+  case "$k:$v" in ready:yes|web:base|web:history|web:auth|web:auth+history|storage:base|storage:auth|reader:base|reader:auth|rollup:on|https:on|uart:gateway) ;;
     *) die 'Unbekannter Planeintrag (keine Env-/Secretwerte im Plan).';; esac
   [[ -z $extra && -z ${opt[$k]+x} ]] || die 'Ungültiger oder doppelter Planeintrag.'
   opt[$k]=$v
@@ -31,6 +35,12 @@ done < "$root/bin/.env"
 roles=()
 for role in storage web reader uart; do [[ ! ${opt[$role]:-} ]] || roles+=("$role"); done
 ((${#roles[@]})) || die 'Leerer Plan.'
+if [[ $action == up || $action == build-up ]]; then
+  [[ ${opt[ready]:-} == yes ]] || die 'Plan nicht freigegeben: Bestand, Overlays und Profile prüfen; danach ready yes in bin/.env setzen.'
+fi
+if [[ $action == plan && ${opt[ready]:-} != yes ]]; then
+  echo 'Plan nicht freigegeben; plan prüft nur, up/build-up bleiben gesperrt.' >&2
+fi
 
 # No shared shell overrides (e.g. MQTT_CLIENT_ID). Preserve the installed
 # Docker client config/context; operate on a local Linux engine, never via SSH.
@@ -40,8 +50,21 @@ client() { env -i PATH="$PATH" HOME="$HOME" DOCKER_CONFIG="${DOCKER_CONFIG:-$HOM
 host=$(client docker context inspect --format '{{.Endpoints.docker.Host}}')
 [[ $host == unix:///* ]] || die 'Nur lokaler Unix-Docker-Kontext.'
 d() { client docker --host "$host" "$@"; }
-# Build only the selected projects, with their selected overlays. Interpolation
-# uses synthetic values and never reads site .env files or requires mounts.
+# One ordered overlay/profile selection for config checks, build and operation.
+# Only the pure build uses synthetic interpolation and always includes HTTPS.
+compose_for() (
+  local r=$1 file=$2; shift 2
+  cd "$root/${paths[$r]}"
+  local args=(--env-file "$file" -f compose.yaml)
+  [[ ${opt[$r]:-base} != *auth* ]] || args+=(-f compose.auth.yaml)
+  [[ ${opt[$r]:-base} != *history* ]] || args+=(-f compose.history.yaml)
+  [[ $r != storage || ! ${opt[rollup]:-} ]] || args+=(--profile history)
+  [[ $r != web || ( $action != build && ! ${opt[https]:-} ) ]] || args+=(--profile https)
+  [[ $r != uart ]] || args+=(--profile tools)
+  d compose "${args[@]}" "$@"
+)
+# Build every runtime image, independently of the operational selection. Keep
+# selected overlays; omitted roles use base. Never read site .env or mounts.
 if [[ $action == build ]]; then
   umask 077
   build_env=$(mktemp /dev/shm/evse-build.XXXXXXXX) || die 'Build-Snapshot nicht verfügbar.'
@@ -51,21 +74,16 @@ DB_HOST=build.invalid
 MQTT_PASSWORD_HOST_FILE=/nonexistent/evse-build-password
 HISTORY_DB_PASSWORD_HOST_FILE=/nonexistent/evse-build-history-password
 EOF
-  for role in "${roles[@]}"; do
-    (
-      cd "$root/${paths[$role]}"
-      args=(--env-file "$build_env" -f compose.yaml)
-      [[ ${opt[$role]} != *auth* ]] || args+=(-f compose.auth.yaml)
-      [[ ${opt[$role]} != *history* ]] || args+=(-f compose.history.yaml)
-      case $role in
-        storage) selected=(storage);;
-        web) selected=(weboverlay); [[ ! ${opt[https]:-} ]] || selected+=(https);;
-        reader) selected=(wallbox-reader);;
-        uart) selected=(uart-bridge); args+=(--profile tools);;
-      esac
-      d compose "${args[@]}" build "${selected[@]}"
-    )
+  for role in storage web reader uart; do
+    case $role in
+      storage) selected=(storage);;
+      web) selected=(weboverlay https);;
+      reader) selected=(wallbox-reader);;
+      uart) selected=(uart-bridge);;
+    esac
+    compose_for "$role" "$build_env" build "${selected[@]}"
   done
+  echo 'Fünf Stack-Images gebaut. Keine Projektdienste gestartet, gestoppt oder neu erstellt.'
   exit 0
 fi
 # The editor's persistent 0600 locks belong to the website uid, not to the
@@ -95,17 +113,7 @@ for role in "${roles[@]}"; do
   [[ $(stat -c %s -- "$dest") -le 65536 ]] || die "Dienst-.env zu groß: $role."
   chmod 0400 -- "$dest"
 done
-dc() (
-  local r=$1; shift
-  cd "$root/${paths[$r]}"
-  local args=(--env-file "$scratch/$r.env" -f compose.yaml)
-  [[ ${opt[$r]} != *auth* ]] || args+=(-f compose.auth.yaml)
-  [[ ${opt[$r]} != *history* ]] || args+=(-f compose.history.yaml)
-  [[ $r != storage || ! ${opt[rollup]:-} ]] || args+=(--profile history)
-  [[ $r != web || ! ${opt[https]:-} ]] || args+=(--profile https)
-  [[ $r != uart ]] || args+=(--profile tools)
-  d compose "${args[@]}" "$@"
-)
+dc() { local r=$1; shift; compose_for "$r" "$scratch/$r.env" "$@"; }
 image=python:3.12-slim-bookworm@sha256:44cf1793efa7c7a476bb0f2cff81443f4a072c90c1cb127e2924933daa3e8c64
 for role in "${roles[@]}"; do
   p="$root/${paths[$role]}"

@@ -1,5 +1,5 @@
 # DISPOSABLE CI fixture only. Never combine with production Compose files.
-# No published ports, production networks, credentials or CA volumes.
+# Only an ephemeral loopback TLS port. No production networks, credentials or CA volumes.
 name: evse-pwa-test
 x-proxy: &proxy
   image: evse-web-https:test
@@ -58,9 +58,11 @@ services:
     <<: *proxy
     environment:
       EVSE_TLS_HOST: evse.test
+    ports: ["127.0.0.1::8443/tcp"]
     networks:
       web-test:
         aliases: [evse.test]
+      https-bind: {}
     volumes: [https-test-data:/data]
   # Separate CA and listener to prove LAN IPv4 access without TLS SNI.
   https-ip:
@@ -90,6 +92,10 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
 networks:
+  https-bind:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
   web-test:
     internal: true
   mqtt-test:

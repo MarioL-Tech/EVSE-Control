@@ -1,3 +1,12 @@
-**/build/
-**/__pycache__/
-*.pyc
+# UART is the only image built with rasppi/ as its context. Do not send
+# adjacent deployment files to the builder, including on ordinary Compose up.
+**
+!Dockerfile.uart
+!requirements.txt
+!src/
+src/*
+!src/main.py
+!src/uart_gateway.py
+!tests/
+tests/*
+!tests/uart_gateway*.py

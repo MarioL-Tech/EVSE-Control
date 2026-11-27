@@ -1,6 +1,8 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const vm = require('node:vm');
+const fs = require('node:fs');
 const { createViewState, present, presentStatic, createRenderer, flag } = require('../static/app.js');
 const telemetry = {
   error_code: 0, socket_lock_state: 2, charging_state_raw: 3, charging_state: 3,
@@ -12,6 +14,51 @@ const live = (overrides = {}) => ({ schema_version: 1, read_only: true, status: 
   broker_connected: true, availability: 'online', timestamp: '2026-01-01T12:00:00Z',
   last_success_at: '2026-01-01T12:00:00Z', age_seconds: 0, fresh_for_seconds: 5,
   values: { ...telemetry }, error: null, ...overrides });
+
+for (const script of ['app', 'smartmeter']) test(`${script}: no hidden/frozen idle clock, resume refetches and stale still expires`, async () => {
+  const intervals = new Map(), timeouts = new Map(), listeners = {}, elements = new Map();
+  let next = 0, requests = 0, now = Date.parse('2026-01-01T12:00:00Z'), pending;
+  const listen = (name, callback) => { (listeners[name] ||= []).push(callback); };
+  const emit = (name, event = {}) => { for (const callback of listeners[name] || []) callback(event); };
+  const document = { hidden: false, addEventListener: listen, getElementById(id) {
+    if (!elements.has(id)) elements.set(id, { textContent: '', dataset: {}, hidden: false });
+    return elements.get(id);
+  } };
+  const flush = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
+  const data = () => script === 'app' ? live() : { schema_version: 1, read_only: true, status: 'live',
+    reason: '', power_w: 1000, fetched_at: new Date(now).toISOString(), age_seconds: 0, fresh_for_seconds: 5 };
+  const window = { addEventListener: listen, dispatchEvent() {} };
+  vm.runInNewContext(fs.readFileSync(require.resolve(`../static/${script}.js`), 'utf8'), {
+    document, window, AbortController, CustomEvent: class {},
+    Date: class extends Date { static now() { return now; } }, performance: { now: () => now },
+    setInterval(fn) { intervals.set(++next, fn); return next; }, clearInterval(id) { intervals.delete(id); },
+    setTimeout(fn) { timeouts.set(++next, fn); return next; }, clearTimeout(id) { timeouts.delete(id); },
+    fetch() { requests++; return new Promise(resolve => { pending = () => resolve({ ok: true, json: async () => data() }); }); }
+  });
+  assert.equal(intervals.size, 1); assert.equal(requests, 1);
+  pending(); await flush();
+  const status = () => elements.get(script === 'app' ? 'status' : 'grid-status').textContent;
+  assert.equal(status(), 'Live');
+  now += 6000;
+  for (const tick of intervals.values()) tick();
+  assert.equal(status(), script === 'app' ? 'Daten veraltet' : 'Veraltet');
+  document.hidden = true; emit('visibilitychange');
+  assert.equal(intervals.size, 0); assert.equal(timeouts.size, 0);
+  assert.notEqual(status(), 'Live');
+  now += 60000; document.hidden = false; emit('visibilitychange');
+  assert.equal(intervals.size, 1); assert.equal(requests, 2);
+  // A lifecycle boundary must discard even a successful late response.
+  emit('pagehide'); assert.equal(intervals.size, 0);
+  pending(); await flush();
+  assert.notEqual(status(), 'Live'); assert.equal(timeouts.size, 0);
+  emit('pageshow', { persisted: true });
+  assert.equal(intervals.size, 1); assert.equal(requests, 3);
+  pending(); await flush(); assert.equal(status(), 'Live');
+  emit('pageshow', { persisted: true });
+  assert.equal(intervals.size, 1, 'repeated pageshow never duplicates the idle clock');
+  document.hidden = true; emit('visibilitychange'); pending(); await flush();
+  assert.equal(intervals.size, 0); assert.equal(timeouts.size, 0);
+});
 function setup() {
   const time = { mono: 0, wall: 100000 };
   const state = createViewState(() => ({ ...time }));

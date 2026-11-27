@@ -268,6 +268,27 @@ function clean(run) {
   }
 }
 
+async function skipLinkState(page, visible) {
+  const state = await page.locator('.skip-link').evaluate(link => {
+    const style = getComputedStyle(link), rect = link.getBoundingClientRect();
+    return { focused: document.activeElement === link, keyboard: link.matches(':focus-visible'),
+      clip: style.clipPath, width: rect.width, height: rect.height,
+      inViewport: rect.top >= 0 && rect.left >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight,
+      hit: document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2) === link };
+  });
+  if (visible) {
+    assert(state.focused && state.keyboard && state.inViewport && state.hit,
+      `Keyboard skip link is visible, on screen and operable: ${JSON.stringify(state)}`);
+    assert.equal(state.clip, 'none');
+    assert(state.width > 40 && state.height >= 44, 'Keyboard skip link has readable text and a full target');
+  } else {
+    assert.equal(state.clip, 'inset(50%)', `Unfocused/non-keyboard skip link remains clipped: ${JSON.stringify(state)}`);
+    assert.equal(state.width, 1);
+    assert.equal(state.height, 1);
+    assert.equal(state.hit, false, 'Hidden link cannot cover or intercept controls');
+  }
+}
+
 (async () => {
   const browser = await chromium.launch({ headless: true });
   fs.mkdirSync('/artifacts', { recursive: true });
@@ -372,7 +393,9 @@ function clean(run) {
         await overflow(page, `${route} ${scheme} ${width}: default`);
         const size = { 320: 'phone', 390: 'mobile', 768: 'tablet', 1440: 'desktop' }[width];
         const artifact = route === '/' ? 'dashboard' : route === '/diagramme' ? 'diagrams' : 'diagnostics';
+        await skipLinkState(page, false);
         if (size) await page.screenshot({ path: `/artifacts/${artifact}-${scheme}-${size}.png`, fullPage: true });
+        await skipLinkState(page, false);
         if (route === '/') {
           await page.locator('.control-details > summary').click();
           assert(await page.locator('.control-details #control-actual').isVisible());
@@ -415,6 +438,65 @@ function clean(run) {
         if (await page.locator('.control-details[open] > summary').count())
           await page.locator('.control-details[open] > summary').click();
         clean(run);
+      } finally { await context.close(); }
+    }
+    // Actual keyboard and pointer input; no focus/CSS injection or screenshot masking.
+    // The isolated HTTP Stop fixture never reaches MQTT or hardware.
+    for (const width of [320, 390, 1440]) for (const scheme of ['light', 'dark']) {
+      const run = await setup(browser, { viewport: { width, height: 844 }, colorScheme: scheme });
+      const { page, context } = run;
+      let stops = 0;
+      const inspection = { schema_version: 1, status: 'ok', minimum_ma: 6000, software_max_ma: 32000,
+        id: 'a'.repeat(32), operation: 'inspect', reason: 'read_only_inspection', session: 'b'.repeat(32),
+        lease: 'c'.repeat(32), fresh_for_seconds: 8, read_only: true, hardware_max_ma: 16000,
+        installation_max_ma: 16000, effective_max_ma: 16000, firmware_raw: 123, write: null, preparation: null };
+      await context.route('**/api/wallbox-control', route => {
+        const post = route.request().method() === 'POST';
+        if (post) {
+          assert.deepEqual(route.request().postDataJSON(), { operation: 'stop', current_ma: 0 });
+          stops++;
+        }
+        return route.fulfill({ json: { status: 'ok', csrf: 'fixture-csrf', inspection, command_sent: post,
+          command: post ? { ...inspection, operation: 'stop', write: {
+            status: 'acknowledged', attempted: true, acknowledged: true } } : null } });
+      });
+      try {
+        await page.goto(new URL('/', base).href); await live(page);
+        await skipLinkState(page, false);
+        await page.keyboard.press('Tab');
+        await skipLinkState(page, true);
+        await page.keyboard.press('Tab');
+        assert(await page.locator('.brand').evaluate(el => el === document.activeElement),
+          'Skip link precedes the sidebar brand/navigation in the real Tab order');
+        await skipLinkState(page, false);
+        await page.keyboard.press('Shift+Tab');
+        await skipLinkState(page, true);
+        await page.keyboard.press('Enter');
+        assert(await page.locator('#main-content').evaluate(el => el === document.activeElement));
+        await skipLinkState(page, false);
+        await page.keyboard.press('Tab');
+        assert(await page.locator('#main-content').evaluate(el => el.contains(document.activeElement)),
+          'Tab after skip activation continues inside main, bypassing navigation');
+        await page.locator('#control-stop').click();
+        await page.waitForFunction(() => document.getElementById('control-write').textContent.includes('Protokoll-ACK'));
+        assert.equal(stops, 1, 'Exactly one synthetic Stop');
+        // Disabling Stop while pending may move Chrome focus to body. Neither
+        // outcome should reveal the skip link; record the actual focus/viewport.
+        assert(await page.locator('.skip-link').evaluate(el => el !== document.activeElement));
+        if (width < 768) assert(await page.evaluate(() => scrollY > 0), 'Mobile Stop scrolled the actual viewport');
+        console.log('Skip after Stop:', width, scheme, await page.evaluate(() => ({
+          focus: document.activeElement.id || document.activeElement.tagName, scrollY,
+          layoutHeight: innerHeight, visualHeight: visualViewport?.height, visualOffset: visualViewport?.offsetTop
+        })));
+        await skipLinkState(page, false);
+        await page.screenshot({ path: `/artifacts/skip-after-stop-${scheme}-${width}.png`, fullPage: true });
+        await skipLinkState(page, false);
+        // Also exercise an explicitly expanded layout viewport, independent of
+        // which Chrome version implements fullPage via resize versus captureBeyondViewport.
+        const height = await page.evaluate(() => document.documentElement.scrollHeight);
+        await page.setViewportSize({ width, height });
+        await skipLinkState(page, false);
+        assert.deepEqual(run.errors, []);
       } finally { await context.close(); }
     }
     // Real keyboard navigation and shared persistence, without comparing changing clock text / SVG paths.

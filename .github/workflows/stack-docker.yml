@@ -15,6 +15,11 @@ jobs:
       - uses: actions/checkout@v5
       - name: Installed one-shot systemd unit and pinned-endpoint races on disposable Docker
         run: bash tests/stack/archive-boot-ci.sh
+      - name: Redacted boot-helper diagnostics on failure
+        if: failure()
+        run: |
+          sudo systemctl show evse-archive-link.service -p Result -p ExecMainCode -p ExecMainStatus
+          sudo journalctl -b -u evse-archive-link.service --no-pager -o cat | grep -E '^Archiv-Netz:|: (docker|setpriv|bash): command not found$' | tail -20 || :
   stack:
     runs-on: ubuntu-latest
     timeout-minutes: 25

@@ -74,6 +74,8 @@ const defaults = () => {
     assert((await phases.getAttribute('aria-describedby')).split(/\s+/).includes(descriptionId));
     assert.equal(await trigger.getAttribute('aria-describedby'), descriptionId);
     assert.equal(await trigger.getAttribute('aria-label'), 'Info: ' + await page.locator(`label[for="charging-installation-phases"]`).innerText());
+    assert(await trigger.evaluate(el => el.getBoundingClientRect().width >= 44 && el.getBoundingClientRect().height >= 44),
+      'Touch help keeps a small icon inside a full touch target');
     assert.equal(posts, 0);
     fs.mkdirSync('/artifacts', { recursive: true });
     await page.screenshot({ path: '/artifacts/charging-settings-collapsed-1440-dark.png', fullPage: true });
@@ -102,35 +104,52 @@ const defaults = () => {
     assert(await page.locator('#charging-save').isDisabled());
     assert.match(await page.locator('#charging-pv-max_import_w').getAttribute('placeholder'), /^z\. B\./);
     await page.locator('#charging-pv-max_import_w').fill('250');
+    assert(await page.locator('#charging-save').isEnabled(), 'Partial profiles with unknown phases, topology and timings remain saveable drafts');
     await page.locator('#charging-pv-max_import_w').press('Enter'); assert.equal(posts, 0, 'Enter in a draft field cannot submit');
     await page.locator('#charging-pv-max_import_w').fill(''); assert(await page.locator('#charging-save').isDisabled(), 'Reverting a draft clears dirty state');
     await page.locator('#charging-pv-max_import_w').fill('-1');
     assert.equal(await page.locator('#charging-pv-max_import_w').getAttribute('aria-invalid'), 'true');
     assert.match(await page.locator('#charging-pv-max_import_w-error').innerText(), /0 bis 100000/);
+    assert(await page.locator('#charging-save').isDisabled(), 'Invalid draft cannot display an enabled green save action');
+    assert.equal(await page.locator('#charging-status').innerText(), 'Ungespeichert. Markierte Eingaben prüfen.');
+    assert.equal(await page.locator('#charging-pv-max_import_w').evaluate(el => el.validity.rangeUnderflow), true, 'Real native range validation is retained');
     await page.locator('details.charging-profile > summary').nth(1).click();
-    await page.locator('#charging-save').click();
+    await page.locator('#charging-form').evaluate(el => el.requestSubmit());
     await page.waitForFunction(() => document.getElementById('charging-pv-max_import_w').closest('details').open);
     assert.equal(posts, 0, 'Invalid collapsed profile opens without saving');
     await page.locator('#charging-pv-max_import_w').fill('123');
+    assert(await page.locator('#charging-save').isEnabled());
+    for (const value of ['100001', '0.5', '1e3']) {
+      await page.locator('#charging-pv-max_import_w').fill(value);
+      assert(await page.locator('#charging-save').isDisabled(), `Invalid numeric draft ${value} blocks saving`);
+      await page.locator('#charging-form').evaluate(el => el.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+      assert.equal(posts, 0, 'Synthetic submit cannot bypass validation');
+    }
+    await page.locator('#charging-pv-max_import_w').fill('123');
     await page.locator('#charging-pv-max_current_ma').fill('10');
     await page.locator('#charging-custom-use_schedule').selectOption('true');
+    assert(await page.locator('#charging-save').isEnabled(), 'Missing activation prerequisites (days/windows) alone do not invalidate a saved draft');
     await page.locator('#charging-custom-pv_enabled').selectOption('true');
     await page.locator('#charging-custom-outside_window').selectOption('pause');
     await page.locator('#charging-day-1').check(); await page.locator('#charging-day-5').check();
     for (const [from, to] of [['07:15', '09:00'], ['22:30', '06:00']]) {
       await page.locator('#charging-add-window').click();
+      assert(await page.locator('#charging-save').isDisabled(), 'New incomplete window is a genuinely invalid draft');
       await page.locator('.charging-window').last().locator('[data-time="from"]').fill(from);
       await page.locator('.charging-window').last().locator('[data-time="to"]').fill(to);
     }
     const secondWindow = page.locator('.charging-window').last();
     await secondWindow.locator('[data-time="to"]').fill('22:30');
     assert.match(await secondWindow.locator('.setting-error:visible').innerText(), /verschieden/);
+    assert(await page.locator('#charging-save').isDisabled(), 'Equal endpoints block saving');
     await secondWindow.locator('[data-time="from"]').fill('07:15');
     await secondWindow.locator('[data-time="to"]').fill('09:00');
     assert.match(await secondWindow.locator('.setting-error:visible').innerText(), /bereits vorhanden/);
+    assert(await page.locator('#charging-save').isDisabled(), 'Duplicate windows block saving');
     await secondWindow.locator('[data-time="from"]').fill('22:30');
     await secondWindow.locator('[data-time="to"]').fill('06:00');
     assert.equal(await secondWindow.locator('.setting-error:visible').count(), 0);
+    assert(await page.locator('#charging-save').isEnabled(), 'Correcting schedules restores save without requiring optional fields');
     assert.equal(posts, 0, 'Configuration editing has no write until Save');
     await page.locator('#charging-save').click();
     await page.waitForFunction(() => document.getElementById('charging-status').textContent === 'Gespeichert.');
@@ -147,8 +166,53 @@ const defaults = () => {
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       assert(await page.locator('.charging-profile input[type="number"], .charging-window input').evaluateAll(inputs =>
         inputs.every(input => input.getBoundingClientRect().height >= 44)), 'Numeric/time inputs have touch-sized targets');
+      assert(await page.locator('.charging-days label').evaluateAll(labels =>
+        labels.every(label => label.getBoundingClientRect().height >= 44)), 'Weekdays have touch-sized labels');
+      assert(await page.locator('#charging-fields input:not([type=checkbox]), #charging-fields select, #env-key-WEB_PORT, #env-service, #esp32-uid').evaluateAll(inputs =>
+        inputs.every(input => parseFloat(getComputedStyle(input).fontSize) >= 16)), 'Touch editing text is at least 16px');
       fs.mkdirSync('/artifacts', { recursive: true });
       await page.screenshot({ path: `/artifacts/charging-settings-${width}-${colorScheme}.png`, fullPage: true });
+    }
+    // Exercise actual focus, scrolling, wrapping and hit targets in a short
+    // mobile viewport, rather than accepting a full-page screenshot as proof.
+    for (const width of [320, 390]) {
+      await page.setViewportSize({ width, height: 480 });
+      const uid = page.locator('#esp32-uid');
+      await uid.focus();
+      const uidHelp = page.locator('.setting-heading[data-setting-info="esp32-uid"] .setting-help');
+      assert(await uidHelp.locator('.setting-tip').isVisible());
+      assert(await page.evaluate(() => {
+        const heading = document.querySelector('[data-setting-info="esp32-uid"]');
+        const tip = heading.querySelector('.setting-tip').getBoundingClientRect();
+        const actions = document.querySelector('#esp32-rfid .esp32-actions').getBoundingClientRect();
+        const input = document.getElementById('esp32-uid').getBoundingClientRect();
+        const revoke = document.getElementById('esp32-revoke').getBoundingClientRect();
+        return tip.top >= Math.max(actions.bottom, input.bottom, revoke.bottom) - 1 && tip.left >= 0 && tip.right <= innerWidth;
+      }), 'UID explanation reserves real space below both groups without moving the revoke button');
+      await page.keyboard.press('Escape');
+      await page.locator('#esp32-enroll').scrollIntoViewIfNeeded();
+      assert(await page.locator('#esp32-enroll').evaluate(el => {
+        const r = el.getBoundingClientRect();
+        return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === el;
+      }), 'Enrollment action is hit-testable, not covered by UID help');
+      const invalid = page.locator('#charging-pv-max_import_w');
+      await invalid.fill('-1');
+      await page.waitForFunction(() => {
+        const error = document.getElementById('charging-pv-max_import_w-error').getBoundingClientRect();
+        return error.top >= 0 && error.bottom <= innerHeight;
+      });
+      await page.locator('#charging-reload').focus();
+      await invalid.focus();
+      await page.waitForFunction(() => {
+        const field = document.getElementById('charging-pv-max_import_w').getBoundingClientRect();
+        const error = document.getElementById('charging-pv-max_import_w-error').getBoundingClientRect();
+        return field.top >= 0 && error.bottom <= innerHeight && error.top >= field.bottom;
+      });
+      assert(await page.locator('#charging-pv-max_import_w-error').isVisible(), 'Focusing invalid field reveals input and inline error together');
+      await invalid.fill('123');
+      assert(await page.locator('#charging-save').isDisabled(), 'Returning to the saved value clears the invalid draft and dirty state');
+      assert(await page.locator('#charging-status').isHidden());
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     }
     conflict = true; await page.locator('#charging-pv-max_import_w').fill('456'); await page.locator('#charging-save').click();
     await page.waitForFunction(() => document.getElementById('charging-status').textContent.includes('Zwischenzeitlich'));
@@ -170,6 +234,7 @@ const defaults = () => {
     await page.waitForFunction(() => document.getElementById('charging-save').disabled);
     for (let i = 0; i < 100 && !release; i++) await page.waitForTimeout(10);
     assert(release, 'Bounded in-flight save fixture entered');
+    assert.equal(await page.locator('#charging-status').innerText(), 'Regeln werden gespeichert …', 'Pending save is distinct from unsaved/saved');
     await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true })));
     await page.waitForFunction(() => document.getElementById('charging-status').textContent.includes('Speicherstatus unklar'));
     release();

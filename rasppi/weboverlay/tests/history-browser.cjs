@@ -498,6 +498,22 @@ const { FIELDS } = require('../static/newcalendar.js');
     assert.equal(calendarRequests.length, requestCount);
     assert.equal(await page.evaluate(() => localStorage.getItem('evse-calendar-v1')), calendarStored);
     assert((await page.locator('#calendar-label').innerText()).includes('Zukünftige'));
+    // A new old selection has no retained snapshot: unavailable must never
+    // leave either a loading heading or a live-window/previous-year axis.
+    await page.locator('#calendar-date').fill('2024');
+    await page.locator('#calendar-date').dispatchEvent('change');
+    await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'unavailable');
+    await page.clock.runFor(32);
+    assert.match(await page.locator('#calendar-label').innerText(), /nicht verfügbar/);
+    assert.equal(await page.locator('#chart-power svg').isVisible(), false);
+    assert.equal(await page.locator('#chart-power svg .chart-axis').count(), 0);
+    assert.match(await page.locator('#chart-power .chart-description').innerText(), /Archiv nicht verfügbar/);
+    calendarFail = false;
+    await page.locator('#calendar-now').click();
+    await page.waitForFunction(() => document.getElementById('history-source').dataset.historyStatus === 'ok');
+    await page.clock.runFor(32);
+    assert.equal(await page.locator('#chart-power svg').isVisible(), true);
+    assert((await page.locator('#chart-power .archive-line').getAttribute('d')).includes('L'));
     await page.locator('[data-calendar-period="live"]').click();
     assert.equal(await page.locator('#chart-range').isDisabled(), false);
     assert.equal(await page.locator('ul.chart-options input').count(), 9);
